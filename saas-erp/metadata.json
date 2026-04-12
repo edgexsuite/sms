@@ -1,0 +1,5 @@
+{
+  "name": "School Management SaaS",
+  "description": "A multi-tenant school management system with Supabase.",
+  "requestFramePermissions": []
+}

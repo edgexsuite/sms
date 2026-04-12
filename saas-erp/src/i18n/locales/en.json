@@ -1,0 +1,141 @@
+{
+  "login": {
+    "title": "Welcome Back",
+    "subtitle": "Sign in to your school account",
+    "email": "Email Address",
+    "password": "Password",
+    "submit": "Sign In",
+    "loading": "Signing in...",
+    "error": "Invalid login credentials"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "students": "Students",
+    "classes": "Classes",
+    "fees": "Fees",
+    "attendance": "Attendance",
+    "logout": "Logout"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "total_students": "Total Students",
+    "active_classes": "Active Classes",
+    "total_teachers": "Total Teachers",
+    "total_income": "Total Income",
+    "total_expenses": "Total Expenses",
+    "overdue_fees": "Overdue Fees",
+    "pending_leaves": "Pending Leaves",
+    "unread_complaints": "Unread Complaints"
+  },
+  "students": {
+    "title": "Students",
+    "add": "Add Student",
+    "search": "Search students...",
+    "name": "Full Name",
+    "roll_number": "Roll Number",
+    "class": "Class",
+    "gender": "Gender",
+    "phone": "Phone",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit"
+  },
+  "staff": {
+    "title": "Staff Management",
+    "add": "Add Staff",
+    "search": "Search staff...",
+    "name": "Full Name",
+    "role": "Role",
+    "phone": "Phone",
+    "salary": "Salary",
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "fees": {
+    "title": "Fee Management",
+    "add": "Add Fee",
+    "search": "Search...",
+    "student": "Student",
+    "amount": "Amount",
+    "paid": "Paid",
+    "due": "Due",
+    "overdue": "Overdue",
+    "receipt": "Print Receipt",
+    "challan": "Print Challan"
+  },
+  "attendance": {
+    "title": "Attendance",
+    "present": "Present",
+    "absent": "Absent",
+    "leave": "On Leave",
+    "late": "Late",
+    "save": "Save Attendance",
+    "date": "Date",
+    "class": "Class"
+  },
+  "inventory": {
+    "title": "Inventory",
+    "add_item": "Add Item",
+    "stock": "Stock",
+    "low_stock": "Low Stock",
+    "issue_item": "Issue Item"
+  },
+  "complaints": {
+    "title": "Complaints",
+    "new": "New Complaint",
+    "pending": "Pending",
+    "in_progress": "In Progress",
+    "resolved": "Resolved"
+  },
+  "communication": {
+    "title": "Communication",
+    "send": "Send Broadcast",
+    "message": "Message",
+    "recipients": "Recipients"
+  },
+  "settings": {
+    "title": "School Settings",
+    "save": "Save Changes",
+    "school_name": "School Name",
+    "address": "Address",
+    "phone": "Phone",
+    "demo_data": "Load Demo Data",
+    "demo_data_confirm": "This will insert sample students, classes, and staff into your account. Proceed?",
+    "demo_data_success": "Demo data loaded successfully!"
+  },
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "search": "Search",
+    "export": "Export",
+    "import": "Import",
+    "print": "Print",
+    "close": "Close",
+    "confirm": "Confirm",
+    "yes": "Yes",
+    "no": "No",
+    "no_data": "No data found",
+    "error": "An error occurred",
+    "retry": "Try Again",
+    "success": "Saved successfully"
+  },
+  "errors": {
+    "title": "Something went wrong",
+    "subtitle": "This page encountered an unexpected error.",
+    "retry": "Try Again",
+    "go_home": "Go to Dashboard"
+  },
+  "search": {
+    "placeholder": "Search students, staff, fees... (Ctrl+K)",
+    "students": "Students",
+    "staff": "Staff",
+    "fees": "Fee Records",
+    "no_results": "No results found",
+    "hint": "Press Enter to navigate, Esc to close"
+  }
+}

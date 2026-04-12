@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(head -1 /c/sms/saas-erp/src/pages/fees/*.tsx)",
+      "Bash(wc -l /c/sms/saas-erp/src/pages/fees/*.tsx)",
+      "Bash(wc -l /c/sms/saas-erp/src/pages/expenses/*.tsx)",
+      "Bash(find /c/sms/saas-erp/src/pages -name '*.tsx' -type f -exec sh -c 'lines=$\\(wc -l < \"$1\"\\); if [ \"$lines\" -lt 30 ]; then echo \"$\\(basename $1\\) \\($lines lines\\)\"; fi' _ '{}' ';')",
+      "Bash(echo \"Total TSX/TS files: $\\(find /c/sms/saas-erp/src -name \"*.tsx\" -o -name \"*.ts\")",
+      "Bash(find /c/sms/saas-erp/src/pages -name '*.tsx' -type f -exec sh -c 'lines=$\\(wc -l < \"$1\"\\); if [ \"$lines\" -ge 30 ]; then echo \"✓ $\\(basename $1\\)\"; fi' _ '{}' ';')",
+      "Bash(wc -l /c/sms/saas-erp/src/i18n/locales/*.json)"
+    ]
+  }
+}

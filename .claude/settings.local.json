@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:ai.studio)",
+      "WebFetch(domain:aistudio.google.com)",
+      "Bash(find /c/schoolms -type f -name *)",
+      "Bash(find /c/schoolms -type f ! -path */node_modules/*)",
+      "Bash(cp -r /c/schoolms/schoolms-backend /c/sms/backend)",
+      "Bash(cp -r /c/schoolms/schoolms-frontend /c/sms/frontend)",
+      "Bash(rsync -av --exclude='node_modules' /c/schoolms/schoolms-backend/ /c/sms/backend/)",
+      "Bash(rsync -av --exclude='node_modules' /c/schoolms/schoolms-frontend/ /c/sms/frontend/)",
+      "Bash(cp -r /c/schoolms/schoolms-backend/src /c/sms/backend/src)",
+      "Bash(cp /c/schoolms/schoolms-backend/package.json /c/sms/backend/package.json)",
+      "Bash(cp /c/schoolms/schoolms-backend/tsconfig.json /c/sms/backend/tsconfig.json)",
+      "Bash(cp /c/schoolms/schoolms-backend/prisma.config.ts /c/sms/backend/prisma.config.ts)",
+      "Bash(cp /c/schoolms/schoolms-backend/.gitignore /c/sms/backend/.gitignore)",
+      "Bash(cp /c/schoolms/schoolms-frontend/package.json /c/sms/frontend/package.json)",
+      "Bash(cp /c/schoolms/schoolms-frontend/tsconfig.json /c/sms/frontend/tsconfig.json)",
+      "Bash(cp /c/schoolms/schoolms-frontend/tsconfig.app.json /c/sms/frontend/tsconfig.app.json)",
+      "Bash(cp /c/schoolms/schoolms-frontend/tsconfig.node.json /c/sms/frontend/tsconfig.node.json)",
+      "Bash(cp /c/schoolms/schoolms-frontend/vite.config.ts /c/sms/frontend/vite.config.ts)",
+      "Bash(/c/sms/backend/.env:*)",
+      "Bash(/c/sms/backend/.gitignore:*)",
+      "Bash(/c/sms/backend/supabase/schema.sql:*)",
+      "Bash(/c/sms/frontend/.env:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(curl -s http://localhost:5175/)",
+      "Bash(curl -s http://localhost:5175/src/main.tsx)"
+    ]
+  }
+}
