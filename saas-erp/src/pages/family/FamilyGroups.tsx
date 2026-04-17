@@ -9,6 +9,8 @@ interface Family {
   family_name: string;
   primary_contact: string;
   primary_phone: string;
+  address?: string;
+  balance?: number;
   children?: any[];
 }
 
@@ -29,25 +31,48 @@ export default function FamilyGroups() {
   }, [userRole]);
 
   const fetchFamilies = async () => {
-    setLoading(true);
-    const sid = userRole!.school_id;
-    const { data: fams } = await supabase.from('family_groups').select('*').eq('school_id', sid).order('family_name');
-    if (!fams) { setLoading(false); return; }
+    try {
+      setLoading(true);
+      const sid = userRole?.school_id;
+      if (!sid) return;
 
-    const { data: kids } = await supabase
-      .from('students')
-      .select('id, full_name, roll_number, class_id, family_group_id, class:class_id(name, section)')
-      .eq('school_id', sid)
-      .not('family_group_id', 'is', null);
+      const [famsRes, kidsRes, feesRes] = await Promise.all([
+        supabase.from('family_groups').select('*').eq('school_id', sid).order('family_name'),
+        supabase.from('students').select('id, full_name, roll_number, class_id, family_group_id, classes(name, section)').eq('school_id', sid).not('family_group_id', 'is', null),
+        supabase.from('fee_records').select('student_id, total_amount, paid_amount').eq('school_id', sid).neq('status', 'paid')
+      ]);
 
-    const kidsByFamily = new Map<string, any[]>();
-    (kids || []).forEach(k => {
-      if (!kidsByFamily.has(k.family_group_id)) kidsByFamily.set(k.family_group_id, []);
-      kidsByFamily.get(k.family_group_id)!.push(k);
-    });
+      if (famsRes.error) throw famsRes.error;
+      const fams = famsRes.data || [];
+      const kids = kidsRes.data || [];
+      const fees = feesRes.data || [];
 
-    setFamilies(fams.map(f => ({ ...f, children: kidsByFamily.get(f.id) || [] })));
-    setLoading(false);
+      const balanceByStudent = new Map<string, number>();
+      fees.forEach(f => {
+        const bal = (f.total_amount || 0) - (f.paid_amount || 0);
+        balanceByStudent.set(f.student_id, (balanceByStudent.get(f.student_id) || 0) + bal);
+      });
+
+      const kidsByFamily = new Map<string, any[]>();
+      kids.forEach((k: any) => {
+        if (!kidsByFamily.has(k.family_group_id)) kidsByFamily.set(k.family_group_id, []);
+        kidsByFamily.get(k.family_group_id)!.push({
+          ...k,
+          balance: balanceByStudent.get(k.id) || 0
+        });
+      });
+
+      setFamilies(fams.map(f => {
+        const children = kidsByFamily.get(f.id) || [];
+        const totalBalance = children.reduce((sum, c) => sum + c.balance, 0);
+        return { ...f, children, balance: totalBalance };
+      }));
+    } catch (err: any) {
+      console.error('Error fetching family groups:', err);
+      alert('Failed to load family data. Please check connection.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchUnlinkedStudents = async () => {
@@ -139,12 +164,17 @@ export default function FamilyGroups() {
                     <p className="text-xs text-gray-400">{f.primary_contact} · {f.primary_phone}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="flex items-center gap-1 text-xs text-gray-500">
-                    <Users className="w-3.5 h-3.5" /> {f.children?.length || 0} child{(f.children?.length || 0) !== 1 ? 'ren' : ''}
-                  </span>
+                <div className="flex items-center gap-6">
+                  <div className="text-right">
+                    <p className={`text-xs font-black uppercase tracking-widest ${f.balance && f.balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                      {f.balance && f.balance > 0 ? `Due: Rs. ${f.balance.toLocaleString()}` : 'No Dues'}
+                    </p>
+                    <span className="flex items-center justify-end gap-1 text-[10px] text-gray-400 mt-0.5">
+                      <Users className="w-3.5 h-3.5" /> {f.children?.length || 0} child{(f.children?.length || 0) !== 1 ? 'ren' : ''}
+                    </span>
+                  </div>
                   <button onClick={e => { e.stopPropagation(); setShowLinkModal(f.id); setSelectedStudentId(''); }}
-                    className="text-xs px-2 py-1 bg-rose-50 text-rose-700 rounded hover:bg-rose-100 font-medium">
+                    className="text-xs px-3 py-1.5 bg-rose-50 text-rose-700 rounded-lg hover:bg-rose-100 font-bold uppercase tracking-tighter transition-colors">
                     + Add Child
                   </button>
                 </div>
@@ -158,7 +188,14 @@ export default function FamilyGroups() {
                         <p className="text-sm font-medium text-gray-900">{c.full_name}</p>
                         <p className="text-xs text-gray-400">{c.class ? `${c.class.name}-${c.class.section}` : ''} · Roll #{c.roll_number}</p>
                       </div>
-                      <button onClick={() => unlinkStudent(c.id)} className="text-xs text-gray-400 hover:text-red-600">Unlink</button>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className={`text-[10px] font-bold ${c.balance > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                            {c.balance > 0 ? `Rs. ${c.balance.toLocaleString()}` : 'Paid'}
+                          </p>
+                        </div>
+                        <button onClick={() => unlinkStudent(c.id)} className="text-[10px] font-black uppercase text-gray-400 hover:text-red-600 tracking-widest">Unlink</button>
+                      </div>
                     </div>
                   ))}
                 </div>

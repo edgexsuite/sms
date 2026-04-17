@@ -1,4 +1,3 @@
-import { GoogleGenAI } from '@google/genai';
 import { supabase } from './supabase';
 
 export interface SchoolContext {
@@ -126,28 +125,81 @@ export async function* streamGemini(
   history: { role: 'user' | 'model'; text: string }[]
 ): AsyncGenerator<string> {
   const apiKey =
-    import.meta.env.VITE_GEMINI_API_KEY ||
-    import.meta.env.GEMINI_API_KEY ||
-    process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
-    yield 'Gemini API key is not configured. Please set VITE_GEMINI_API_KEY in your environment variables.';
+    import.meta.env.VITE_GROQ_API_KEY ||
+    import.meta.env.GROQ_API_KEY ||
+    process.env.GROQ_API_KEY;
+  if (!apiKey || apiKey === 'MY_GROQ_API_KEY') {
+    yield 'Groq API key is not configured. Please set VITE_GROQ_API_KEY in your environment variables.';
     return;
   }
 
-  const ai = new GoogleGenAI({ apiKey });
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...history.map(m => ({
+      role: m.role === 'model' ? 'assistant' : 'user',
+      content: m.text,
+    })),
+  ];
 
-  const contents = history.map(m => ({
-    role: m.role,
-    parts: [{ text: m.text }],
-  }));
-
-  const stream = await ai.models.generateContentStream({
-    model: 'gemini-2.0-flash',
-    config: { systemInstruction: systemPrompt },
-    contents,
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'llama-3.1-8b-instant',
+      messages,
+      stream: true,
+      temperature: 0.4,
+    }),
   });
 
-  for await (const chunk of stream) {
-    if (chunk.text) yield chunk.text;
+  if (!response.ok || !response.body) {
+    let errorMessage = 'Failed to get response from Groq.';
+    try {
+      const errorData = await response.json();
+      errorMessage = errorData?.error?.message || errorMessage;
+      if (response.status === 429) {
+        errorMessage = `Groq quota or rate limit hit. ${errorMessage}`;
+      }
+    } catch {
+      // Ignore JSON parse failure and use the fallback message.
+    }
+    throw new Error(errorMessage);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split('\n\n');
+    buffer = events.pop() || '';
+
+    for (const event of events) {
+      const lines = event
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .filter(line => line.startsWith('data:'));
+
+      for (const line of lines) {
+        const data = line.slice(5).trim();
+        if (data === '[DONE]') return;
+
+        try {
+          const json = JSON.parse(data);
+          const delta = json?.choices?.[0]?.delta?.content;
+          if (delta) yield delta;
+        } catch {
+          // Ignore malformed chunks and continue streaming.
+        }
+      }
+    }
   }
 }

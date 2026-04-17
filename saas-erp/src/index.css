@@ -1,201 +1,239 @@
 @import "tailwindcss";
 
+/* 
+  PROJECT AURA - PREMIUM DESIGN SYSTEM
+  Typography: Outfit (Display) & Inter (UI)
+*/
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;700&display=swap');
+
 :root {
-  --app-bg: #f8fafc;
-  --surface: #ffffff;
-  --surface-muted: #f8fafc;
-  --border-strong: #e5e7eb;
-  --border-soft: #eef2f7;
-  --text-strong: #111827;
-  --text-secondary: #4b5563;
-  --text-muted: #6b7280;
-  --sidebar-bg: #ffffff;
-  --topbar-bg: #ffffff;
-  --brand: linear-gradient(135deg, #2563eb, #1d4ed8);
-  --brand-contrast: #ffffff;
-  --nav-hover: #f3f4f6;
-  --nav-active-bg: #dbeafe;
-  --nav-active-text: #1d4ed8;
+  /* Aura Color Palette (Portal Premium - Corporate Navy & Slate) */
+  --aura-primary: 221 39% 11%;    /* Deep Navy */
+  --aura-accent: 217 91% 60%;     /* Royal Blue Accent */
+  --aura-sidebar: 217 33% 17%;    /* Dark Slate */
+  --aura-bg: 210 40% 98%;         /* Crisp Slate White */
+  --aura-surface: 0 0% 100%;
+  --aura-border: 214 32% 91%;
+  
+  --text-main: 222 47% 11%;
+  --text-muted: 215 16% 47%;
+  --text-navy: 221 39% 11%;
+
+  /* Design Tokens */
+  --font-display: 'Outfit', sans-serif;
+  --font-ui: 'Inter', sans-serif;
+  
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  
+  /* Design Tokens - High Density Enhancement */
+  --ent-pd: 0.75rem;      /* Standard Enterprise Padding */
+  --ent-gap: 1rem;       /* Standard Enterprise Gap */
+  --ent-fs-sm: 0.75rem;   /* Standard Small Font */
+  --ent-fs-xs: 0.65rem;   /* Extra Small Font (Labels) */
+  
+  /* Layered Premium Shadow */
+  --shadow-premium: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --shadow-card: 0 2px 10px -2px rgba(0, 0, 0, 0.05);
+  --glass-bg: rgba(255, 255, 255, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.4);
 }
 
 body {
-  background: var(--app-bg);
-  color: var(--text-strong);
-  transition: background-color 180ms ease, color 180ms ease;
+  background-color: hsl(var(--aura-bg));
+  color: hsl(var(--text-main));
+  font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
 }
 
-#root {
-  min-height: 100vh;
+h1, h2, h3, h4, .font-display {
+  font-family: var(--font-display);
 }
 
-.theme-shell {
-  background: var(--app-bg);
-  color: var(--text-strong);
+/* Glassmorphism Utilities */
+.aura-glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid var(--glass-border);
 }
 
-.theme-sidebar {
-  background: var(--sidebar-bg);
-  border-color: var(--border-strong);
+.aura-navy-card {
+  background: hsl(221 39% 11%); /* Fallback */
+  background: linear-gradient(135deg, hsl(var(--aura-primary)), hsl(var(--aura-sidebar)));
 }
 
-.theme-topbar {
-  background: var(--topbar-bg);
+.aura-slate-card {
+  background: hsl(var(--aura-bg)); /* Fallback */
+  background: linear-gradient(135deg, hsl(var(--aura-bg)), hsl(var(--aura-surface)));
 }
 
-.theme-surface {
-  background: var(--surface);
+/* Tab Bar / Bottom Nav Offset */
+.portal-content-padding {
+  padding-bottom: 80px; /* Space for mobile bottom nav */
 }
 
-.theme-surface-muted {
-  background: var(--surface-muted);
-}
-
-.theme-border {
-  border-color: var(--border-strong) !important;
-}
-
-.theme-border-soft {
-  border-color: var(--border-soft) !important;
-}
-
-.theme-divide > * + * {
-  border-top: 1px solid var(--border-soft);
-}
-
-.theme-text-primary {
-  color: var(--text-strong);
-}
-
-.theme-text-secondary {
-  color: var(--text-secondary);
-}
-
-.theme-text-muted {
-  color: var(--text-muted);
-}
-
-.theme-brand {
-  background: var(--brand);
-  color: var(--brand-contrast);
-}
-
-.theme-action-button {
-  color: var(--text-secondary);
-}
-
-.theme-action-button:hover {
-  color: var(--text-strong);
-  background: var(--surface-muted);
-}
-
-.theme-icon-button {
-  color: var(--text-muted);
-}
-
-.theme-icon-button:hover {
-  color: var(--text-strong);
-  background: var(--surface-muted);
-}
-
-.theme-notification-item:hover {
-  background: var(--surface-muted);
-}
-
-.theme-nav-item {
-  color: var(--text-secondary);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.theme-nav-item:hover {
-  background: var(--nav-hover);
-  color: var(--text-strong);
-  transform: translateX(2px);
-}
-
-.theme-nav-active {
-  background: var(--nav-active-bg);
-  color: var(--nav-active-text);
-}
-
-.theme-subnav-item {
-  color: var(--text-muted);
-}
-
-.theme-subnav-item:hover {
-  background: var(--nav-hover);
-  color: var(--text-strong);
-}
-
-.theme-subnav-active {
-  background: var(--nav-active-bg);
-  color: var(--nav-active-text);
-}
-
-.theme-icon-muted {
-  color: var(--text-muted);
-}
-
-.theme-nav-item:hover .theme-icon-muted,
-.theme-subnav-item:hover .theme-icon-muted {
-  color: var(--text-secondary);
-}
-
-.theme-icon-active {
-  color: var(--nav-active-text);
-}
-
-@media print {
-  html, body, #root {
-    height: auto !important;
-    min-height: auto !important;
-    overflow: visible !important;
-    display: block !important;
-    background: white !important;
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
   }
-
-  .no-print {
-    display: none !important;
-  }
-
-  main {
-    margin-left: 0 !important;
-    padding: 0 !important;
-  }
-
-  /* Force full width on printing */
-  .max-w-7xl {
-    max-width: none !important;
-    width: 100% !important;
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }
 
 
-.custom-scrollbar {
-  overflow-y: auto !important;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+.aura-glass-dark {
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+/* Card & Surface Presets */
+.aura-card {
+  background: hsl(var(--aura-surface));
+  border: 1px solid hsl(var(--aura-border));
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-premium);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
+}
+
+.aura-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Typography Hierarchy */
+.text-premium-label {
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: hsl(var(--text-muted));
+}
+
+/* Modern Gradient Text */
+.text-gradient {
+  background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Refined Scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
+  width: 5px;
 }
-
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
-
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0);
+  background: hsl(var(--aura-border));
   border-radius: 10px;
-  transition: background 0.2s ease;
 }
-
-.custom-scrollbar:hover::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.4);
-}
-
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.6);
+  background: #cbd5e1;
+}
+
+/* ─── ENTERPRISE DENSITY UTILITIES ─────────────────────────── */
+.ent-card {
+  @apply bg-white border border-[#e5e7eb] rounded-xl shadow-sm;
+  padding: var(--ent-pd);
+}
+
+.ent-table {
+  @apply w-full text-left border-collapse;
+}
+
+.ent-table th {
+  @apply py-2 px-3 bg-slate-50/50 text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-100;
+}
+
+.ent-table td {
+  @apply py-2 px-3 text-xs border-b border-slate-50 transition-colors;
+}
+
+.ent-row-hover:hover {
+  @apply bg-indigo-50/30;
+}
+
+.ent-input {
+  @apply px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all;
+}
+
+.ent-btn-primary {
+  @apply px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 active:scale-[0.98] transition-all shadow-sm;
+}
+
+.ent-btn-ghost {
+  @apply px-4 py-1.5 text-slate-500 rounded-lg text-xs font-bold hover:bg-slate-100 hover:text-slate-900 transition-all;
+}
+
+.ent-label {
+  @apply text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block;
+}
+
+/* Navigation State Utility */
+.nav-pill-active {
+  background: linear-gradient(to right, rgba(99, 102, 241, 0.1), transparent);
+  border-left: 3px solid #6366f1;
+}
+
+/* ─── Theme Shell ─────────────────────────────────────────────── */
+.theme-shell {
+  background-color: var(--app-bg, #f8fafc);
+  color: var(--text-strong, #111827);
+}
+
+/* Generic theme-aware tokens (used outside sidebar) */
+.theme-text-primary { color: var(--text-strong, #111827); }
+.theme-text-muted   { color: var(--text-muted, #6b7280); }
+.theme-border       { border-color: var(--border-strong, #e5e7eb); }
+.theme-border-soft  { border-color: var(--border-soft, #eef2f7); }
+.theme-brand        { background: var(--brand, linear-gradient(135deg, #2563eb, #1d4ed8)); }
+
+/* Sidebar nav states (dark sidebar, always) */
+.theme-nav-item {
+  color: #94a3b8;
+}
+.theme-nav-item:hover {
+  color: #e2e8f0;
+  background: rgba(255,255,255,0.05);
+}
+.theme-nav-active {
+  color: #c7d2fe;
+  background: linear-gradient(90deg, rgba(99,102,241,0.18) 0%, rgba(99,102,241,0.04) 100%);
+}
+.theme-icon-muted  { color: #475569; }
+.theme-icon-active { color: #818cf8; }
+
+.theme-subnav-item { color: #64748b; }
+.theme-subnav-item:hover {
+  color: #a5b4fc;
+  background: rgba(99,102,241,0.07);
+}
+.theme-subnav-active {
+  color: #a5b4fc;
+  background: rgba(99,102,241,0.12);
+  font-weight: 600;
+}
+
+/* Print Overrides */
+@media print {
+  .no-print { display: none !important; }
+  body { background: white !important; font-size: 10pt; }
+  .aura-card { border: 1px solid #eee !important; box-shadow: none !important; }
+}
+
+/* Animations Core */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-aura-in {
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

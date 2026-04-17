@@ -63,7 +63,7 @@ export default function Payroll() {
     // Core Data Fetch
     const [{ data: staffData }, { data: payrollData }, { data: attData }, { data: timeTableData }] = await Promise.all([
       supabase.from('staff').select('id, full_name, role, department, salary, employment_type, payment_basis').eq('school_id', sid).eq('is_active', true).order('full_name'),
-      supabase.from('payroll_records').select('*').eq('school_id', sid).eq('month_year', selectedMonth),
+      supabase.from('payroll_records').select('*').eq('school_id', sid).eq('month_year', selectedMonth + '-01'),
       // Master Attendance Matrix for this month
       supabase.from('attendance').select('staff_id, status, date').eq('school_id', sid).like('date', `${selectedMonth}-%`).not('staff_id', 'is', null),
       // Master Timetable Matrix
@@ -196,7 +196,7 @@ export default function Payroll() {
       }
 
       return {
-        school_id: sid, staff_id: s.staff_id, month_year: selectedMonth,
+        school_id: sid, staff_id: s.staff_id, month_year: selectedMonth + '-01',
         base_salary: s.base_salary,
         allowances: allowComps.map(c => ({ name: c.name, amount: c.calculation_type === 'percentage' ? Math.round(s.base_salary * c.percentage / 100) : c.amount })),
         deductions: dedComps.map(c => ({ name: c.name, amount: c.calculation_type === 'percentage' ? Math.round(s.base_salary * c.percentage / 100) : c.amount })),
@@ -212,14 +212,38 @@ export default function Payroll() {
   };
 
   const markPaid = async (payrollId: string) => {
+    const member = staff.find(s => s.payroll_id === payrollId);
     await supabase.from('payroll_records').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', payrollId);
+    if (member) {
+      await supabase.from('financial_transactions').insert({
+        school_id: userRole!.school_id,
+        type: 'expense',
+        category: 'Salary',
+        amount: member.net_salary,
+        date: new Date().toISOString().split('T')[0],
+        payment_mode: 'Bank Transfer',
+        remarks: `Salary — ${member.full_name} (${selectedMonth})`,
+      });
+    }
     setStaff(prev => prev.map(s => s.payroll_id === payrollId ? { ...s, status: 'paid' } : s));
   };
 
   const markAllPaid = async () => {
-    const ids = staff.filter(s => s.status === 'pending' && s.payroll_id).map(s => s.payroll_id!);
+    const pending = staff.filter(s => s.status === 'pending' && s.payroll_id);
+    const ids = pending.map(s => s.payroll_id!);
     if (!ids.length) return;
     await supabase.from('payroll_records').update({ status: 'paid', paid_at: new Date().toISOString() }).in('id', ids);
+    // Post all salary payments to financial_transactions
+    const txns = pending.map(s => ({
+      school_id: userRole!.school_id,
+      type: 'expense',
+      category: 'Salary',
+      amount: s.net_salary,
+      date: new Date().toISOString().split('T')[0],
+      payment_mode: 'Bank Transfer',
+      remarks: `Salary — ${s.full_name} (${selectedMonth})`,
+    }));
+    if (txns.length) await supabase.from('financial_transactions').insert(txns);
     setStaff(prev => prev.map(s => ids.includes(s.payroll_id!) ? { ...s, status: 'paid' } : s));
   };
 

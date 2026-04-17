@@ -1,115 +1,208 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
-  ClipboardList, PlusCircle, Save, X, Pencil, Trash2,
-  ChevronLeft, ChevronRight, Calendar, BookOpen, Users
+  ClipboardList, Save, Calendar, Users, Printer,
+  Image as ImageIcon, ChevronLeft, ChevronRight, Languages,
+  BookOpen, CheckCircle2, AlertCircle, LayoutGrid,
+  Calculator, FlaskConical, PenTool, Book, Globe, Cpu, 
+  Palette, Atom, Activity, Rocket, Microscope, Music
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '../../lib/utils';
+import html2canvas from 'html2canvas';
 
+// ─── Types ───────────────────────────────────────────────────────────────────
+interface Slot {
+  class_id: string;
+  class_name: string;
+  section: string;
+  subject_id: string;
+  subject_name: string;
+  teacher_id?: string;
+  teacher_name?: string;
+}
+
+interface DiaryRow {
+  slot: Slot;
+  topic_covered: string;
+  homework: string;
+  activity_notes: string;
+  next_plan: string;
+  existingId: string | null;
+  saving: boolean;
+  saved: boolean;
+}
+
+// ─── Subject Meta Helper ───────────────────────────────────────────────────
+const getSubjectMeta = (name: string = '') => {
+  const n = name.toLowerCase();
+  if (n.includes('math')) return { icon: Calculator, color: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe' }; // Blue
+  if (n.includes('sci') || n.includes('bio') || n.includes('phys') || n.includes('chem')) 
+    return { icon: FlaskConical, color: '#10b981', bg: '#ecfdf5', border: '#a7f3d0' }; // Emerald
+  if (n.includes('eng')) return { icon: Book, color: '#6366f1', bg: '#eef2ff', border: '#c7d2fe' }; // Indigo
+  if (n.includes('urd') || n.includes('ara') || n.includes('isl')) 
+    return { icon: PenTool, color: '#0d9488', bg: '#f0fdfa', border: '#99fadc' }; // Teal
+  if (n.includes('comp') || n.includes('it')) 
+    return { icon: Cpu, color: '#475569', bg: '#f1f5f9', border: '#cbd5e1' }; // Slate
+  if (n.includes('his') || n.includes('soc') || n.includes('geo')) 
+    return { icon: Globe, color: '#d97706', bg: '#fffbeb', border: '#fde68a' }; // Amber
+  if (n.includes('art') || n.includes('draw')) 
+    return { icon: Palette, color: '#db2777', bg: '#fdf2f8', border: '#fbcfe8' }; // Pink
+  
+  return { icon: BookOpen, color: '#4f46e5', bg: '#f5f3ff', border: '#ddd6fe' }; // Default Indigo
+};
+
+// ─── Main Component ──────────────────────────────────────────────────────────
 export default function TeacherDiary() {
   const { userRole } = useAuth();
   const isTeacher = userRole?.role === 'teacher';
-  const isAdmin = ['admin', 'principal', 'director', 'staff'].includes(userRole?.role || '');
+  const isAdmin = !isTeacher;
 
   const [myStaffId, setMyStaffId] = useState<string | null>(null);
-
-  // Admin selects teacher; teacher sees themselves
   const [allTeachers, setAllTeachers] = useState<any[]>([]);
+  const [allClasses, setAllClasses] = useState<any[]>([]);
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
-
-  // Slots: classes & subjects assigned to the selected/current teacher
-  const [assignedSlots, setAssignedSlots] = useState<{ class_id: string; class_name: string; section: string; subject_id: string; subject_name: string }[]>([]);
-
-  // Selected class+subject for diary
+  const [selectedTeacherName, setSelectedTeacherName] = useState('');
   const [selectedClassId, setSelectedClassId] = useState('');
-  const [selectedSubjectId, setSelectedSubjectId] = useState('');
-
-  // Date
+  const [selectedClassName, setSelectedClassName] = useState('');
+  const [viewMode, setViewMode] = useState<'teacher' | 'class'>('teacher');
+  const [assignedSlots, setAssignedSlots] = useState<Slot[]>([]);
   const [viewDate, setViewDate] = useState(new Date().toISOString().split('T')[0]);
-
-  // Entries
-  const [entries, setEntries] = useState<any[]>([]);
+  const [rows, setRows] = useState<DiaryRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [schoolInfo, setSchoolInfo] = useState<{ name: string; address: string; logo_url?: string } | null>(null);
+  const reportRef = useRef<HTMLDivElement>(null);
 
-  // Form
-  const [showForm, setShowForm] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    topic_covered: '', homework: '', activity_notes: '', next_plan: ''
-  });
-
-  // ─── Init ────────────────────────────────────────────────────────────────
+  // ─── Init ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!userRole?.school_id) return;
+    fetchSchoolInfo();
+    fetchAllClasses();
     if (isTeacher) {
-      // Find staff record linked to this user
       fetchMyStaffRecord();
     } else {
       fetchAllTeachers();
     }
   }, [userRole]);
 
-  const fetchMyStaffRecord = async () => {
-    // Try to match by email or user_id on staff table
+  const fetchSchoolInfo = async () => {
     const { data } = await supabase
-      .from('staff')
-      .select('id, full_name')
-      .eq('school_id', userRole?.school_id)
-      .eq('is_active', true)
-      .limit(1); // fallback: first active staff if no user_id link
+      .from('schools')
+      .select('name, address, logo_url')
+      .eq('id', userRole?.school_id)
+      .maybeSingle();
 
-    // Better: match via email if staff has email column
+    if (data) {
+      if (data.logo_url && !data.logo_url.startsWith('http')) {
+        const { data: publicURL } = supabase.storage.from('logos').getPublicUrl(data.logo_url);
+        data.logo_url = publicURL.publicUrl;
+      }
+      setSchoolInfo(data);
+    }
+  };
+
+  const fetchMyStaffRecord = async () => {
+    if (userRole?.staff_id) {
+      const { data } = await supabase
+        .from('staff')
+        .select('id, full_name')
+        .eq('id', userRole.staff_id)
+        .maybeSingle();
+      if (data) {
+        setMyStaffId(data.id);
+        setSelectedTeacherId(data.id);
+        setSelectedTeacherName(data.full_name);
+        return;
+      }
+    }
     const { data: byEmail } = await supabase
       .from('staff')
       .select('id, full_name')
       .eq('school_id', userRole?.school_id)
       .eq('email', userRole?.email || '')
       .maybeSingle();
-
-    const staffRecord = byEmail || (data && data[0]);
-    if (staffRecord) {
-      setMyStaffId(staffRecord.id);
-      setSelectedTeacherId(staffRecord.id);
+    if (byEmail) {
+      setMyStaffId(byEmail.id);
+      setSelectedTeacherId(byEmail.id);
+      setSelectedTeacherName(byEmail.full_name);
     }
   };
 
   const fetchAllTeachers = async () => {
     const { data } = await supabase
       .from('staff')
-      .select('id, full_name, role, department')
+      .select('id, full_name, role')
       .eq('school_id', userRole?.school_id)
       .eq('is_active', true)
       .order('full_name');
     if (data) setAllTeachers(data);
   };
 
-  // ─── Slots for selected teacher ──────────────────────────────────────────
+  const fetchAllClasses = async () => {
+    const { data } = await supabase
+      .from('classes')
+      .select('id, name, section')
+      .eq('school_id', userRole?.school_id)
+      .order('name');
+    if (data) setAllClasses(data);
+  };
+
   useEffect(() => {
-    if (selectedTeacherId) fetchAssignedSlots();
-    else setAssignedSlots([]);
-  }, [selectedTeacherId]);
+    if (viewMode === 'teacher') {
+      if (selectedTeacherId) fetchAssignedSlots();
+      else setAssignedSlots([]);
+    } else {
+      if (selectedClassId) fetchClassSlots();
+      else setAssignedSlots([]);
+    }
+  }, [selectedTeacherId, selectedClassId, viewMode]);
+
+  const fetchClassSlots = async () => {
+    const { data } = await supabase
+      .from('timetable_slots')
+      .select('subject_id, subjects(subject_name), teacher_id, staff(full_name)')
+      .eq('class_id', selectedClassId)
+      .eq('school_id', userRole?.school_id);
+
+    if (data) {
+      const seen = new Set<string>();
+      const unique: Slot[] = [];
+      const cls = allClasses.find(c => c.id === selectedClassId);
+      data.forEach((s: any) => {
+        if (!seen.has(s.subject_id)) {
+          seen.add(s.subject_id);
+          unique.push({
+            class_id: selectedClassId,
+            class_name: cls?.name || '?',
+            section: cls?.section || '',
+            subject_id: s.subject_id,
+            subject_name: s.subjects?.subject_name || 'General',
+            teacher_id: s.teacher_id,
+            teacher_name: s.staff?.full_name || 'Unassigned',
+          });
+        }
+      });
+      unique.sort((a, b) => a.subject_name.localeCompare(b.subject_name));
+      setAssignedSlots(unique);
+    }
+  };
 
   const fetchAssignedSlots = async () => {
     const { data } = await supabase
       .from('timetable_slots')
-      .select(`
-        class_id,
-        classes(name, section),
-        subject_id,
-        subjects(subject_name)
-      `)
+      .select('class_id, classes(name, section), subject_id, subjects(subject_name)')
       .eq('teacher_id', selectedTeacherId)
       .eq('school_id', userRole?.school_id);
 
     if (data) {
-      // Deduplicate by class_id + subject_id
       const seen = new Set<string>();
-      const unique = data.reduce((acc: any[], s: any) => {
+      const unique: Slot[] = [];
+      data.forEach((s: any) => {
         const key = `${s.class_id}__${s.subject_id}`;
         if (!seen.has(key)) {
           seen.add(key);
-          acc.push({
+          unique.push({
             class_id: s.class_id,
             class_name: s.classes?.name || '?',
             section: s.classes?.section || '',
@@ -117,97 +210,106 @@ export default function TeacherDiary() {
             subject_name: s.subjects?.subject_name || 'General',
           });
         }
-        return acc;
-      }, []);
+      });
+      unique.sort((a, b) =>
+        `${a.class_name}${a.section}${a.subject_name}`.localeCompare(`${b.class_name}${b.section}${b.subject_name}`)
+      );
       setAssignedSlots(unique);
-
-      // Auto-select first slot if nothing selected
-      if (unique.length > 0 && !selectedClassId) {
-        setSelectedClassId(unique[0].class_id);
-        setSelectedSubjectId(unique[0].subject_id);
-      }
     }
   };
 
-  // ─── Fetch diary entries ─────────────────────────────────────────────────
   useEffect(() => {
-    if (selectedTeacherId) fetchEntries();
-    else setEntries([]);
-  }, [selectedTeacherId, selectedClassId, selectedSubjectId, viewDate]);
+    if (assignedSlots.length > 0 && (viewMode === 'class' ? selectedClassId : selectedTeacherId)) {
+      buildRows();
+    } else {
+      setRows([]);
+    }
+  }, [assignedSlots, viewDate, selectedTeacherId, selectedClassId, viewMode]);
 
-  const fetchEntries = async () => {
+  const buildRows = async () => {
     setLoading(true);
     let query = supabase
       .from('teacher_diary')
-      .select(`*, staff(full_name), classes(name, section), subjects(subject_name)`)
+      .select('*, staff(full_name)')
       .eq('school_id', userRole?.school_id)
-      .eq('teacher_id', selectedTeacherId)
-      .order('diary_date', { ascending: false });
+      .eq('diary_date', viewDate);
 
-    if (selectedClassId) query = query.eq('class_id', selectedClassId);
-    if (selectedSubjectId) query = query.eq('subject_id', selectedSubjectId);
+    if (viewMode === 'teacher') {
+      query = query.eq('teacher_id', selectedTeacherId);
+    } else {
+      query = query.eq('class_id', selectedClassId);
+    }
 
-    const { data } = await query;
-    if (data) setEntries(data);
+    const { data: existing } = await query;
+    const existingMap = new Map<string, any>();
+    (existing || []).forEach((e: any) => {
+      existingMap.set(`${e.class_id}__${e.subject_id}`, e);
+    });
+
+    const newRows: DiaryRow[] = assignedSlots.map(slot => {
+      const key = `${slot.class_id}__${slot.subject_id}`;
+      const found = existingMap.get(key);
+      return {
+        slot: {
+          ...slot,
+          teacher_name: found?.staff?.full_name || slot.teacher_name || 'Unassigned'
+        },
+        topic_covered: found?.topic_covered || '',
+        homework: found?.homework || '',
+        activity_notes: found?.activity_notes || '',
+        next_plan: found?.next_plan || '',
+        existingId: found?.id || null,
+        saving: false,
+        saved: false,
+      };
+    });
+    setRows(newRows);
     setLoading(false);
   };
 
-  // ─── Open form ───────────────────────────────────────────────────────────
-  const openCreate = () => {
-    if (!selectedTeacherId || !selectedClassId) {
-      return alert('Please select a teacher and class/subject first.');
+  const updateRow = (index: number, field: keyof DiaryRow, value: string) => {
+    setRows(prev => prev.map((r, i) => i === index ? { ...r, [field]: value, saved: false } : r));
+  };
+
+  const saveRow = async (index: number) => {
+    const row = rows[index];
+    if (!row.topic_covered.trim()) {
+      alert('Topic / Lesson Covered is required before saving.');
+      return;
     }
-    setEditId(null);
-    setForm({ topic_covered: '', homework: '', activity_notes: '', next_plan: '' });
-    setShowForm(true);
-  };
-
-  const openEdit = (e: any) => {
-    setEditId(e.id);
-    setForm({
-      topic_covered: e.topic_covered,
-      homework: e.homework || '',
-      activity_notes: e.activity_notes || '',
-      next_plan: e.next_plan || '',
-    });
-    setShowForm(true);
-  };
-
-  // ─── Save ────────────────────────────────────────────────────────────────
-  const handleSave = async () => {
-    if (!form.topic_covered.trim()) return alert('Topic / Lesson covered is required.');
-    setSaving(true);
+    setRows(prev => prev.map((r, i) => i === index ? { ...r, saving: true } : r));
     try {
       const payload = {
         school_id: userRole?.school_id,
-        teacher_id: selectedTeacherId,
-        class_id: selectedClassId,
-        subject_id: selectedSubjectId || null,
+        teacher_id: viewMode === 'teacher' ? selectedTeacherId : row.slot.teacher_id,
+        class_id: row.slot.class_id,
+        subject_id: row.slot.subject_id,
         diary_date: viewDate,
-        topic_covered: form.topic_covered,
-        homework: form.homework || null,
-        activity_notes: form.activity_notes || null,
-        next_plan: form.next_plan || null,
+        topic_covered: row.topic_covered,
+        homework: row.homework || null,
+        activity_notes: row.activity_notes || null,
+        next_plan: row.next_plan || null,
       };
-      if (editId) {
-        const { error } = await supabase.from('teacher_diary').update(payload).eq('id', editId);
-        if (error) throw error;
-      } else {
-        // upsert so duplicate date+class+subject just updates
-        const { error } = await supabase.from('teacher_diary')
-          .upsert([payload], { onConflict: 'teacher_id,class_id,subject_id,diary_date' });
-        if (error) throw error;
-      }
-      setShowForm(false);
-      fetchEntries();
-    } catch (err: any) { alert(err.message); }
-    setSaving(false);
+      if (!payload.teacher_id) throw new Error("No teacher assigned to this subject.");
+      const { error } = await supabase
+        .from('teacher_diary')
+        .upsert([payload], { onConflict: 'teacher_id,class_id,subject_id,diary_date' });
+      if (error) throw error;
+      setRows(prev => prev.map((r, i) => i === index ? { ...r, saving: false, saved: true } : r));
+      setTimeout(() => {
+        setRows(prev => prev.map((r, i) => i === index ? { ...r, saved: false } : r));
+      }, 3000);
+    } catch (err: any) {
+      alert(err.message);
+      setRows(prev => prev.map((r, i) => i === index ? { ...r, saving: false } : r));
+    }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Delete this diary entry?')) return;
-    await supabase.from('teacher_diary').delete().eq('id', id);
-    fetchEntries();
+  const saveAll = async () => {
+    const toSave = rows.map((r, i) => ({ r, i })).filter(({ r }) => r.topic_covered.trim());
+    for (const { i } of toSave) {
+      await saveRow(i);
+    }
   };
 
   const shiftDate = (days: number) => {
@@ -216,284 +318,301 @@ export default function TeacherDiary() {
     setViewDate(d.toISOString().split('T')[0]);
   };
 
-  const currentSlot = assignedSlots.find(s => s.class_id === selectedClassId && s.subject_id === selectedSubjectId);
-  const todayEntries = entries.filter(e => e.diary_date === viewDate);
-  const prevEntries = entries.filter(e => e.diary_date !== viewDate);
+  const handlePrint = () => {
+    // Optimized for Single-Page spatial efficiency & Centered text
+    const printContent = reportRef.current?.innerHTML || '';
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(`
+      <html>
+      <head>
+        <title>Single-Page Branded Diary Report</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800;900&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap" rel="stylesheet">
+        <style>
+          @page { size: landscape; margin: 8mm; }
+          body { 
+            font-family: 'Inter', sans-serif; 
+            margin: 0; 
+            padding: 0; 
+            background: #fff; 
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .diary-print { width: 100%; border: 2.5px solid #1e1b4b; background: #fffdfa; min-height: 96vh; position: relative; }
+          .top-banner { height: 10px; background: linear-gradient(90deg, #1e1b4b, #4f46e5); width: 100%; margin-bottom: 12px; }
+          
+          .print-header { display: flex; align-items: center; justify-content: center; gap: 20px; margin: 0 35px 15px 35px; padding-bottom: 10px; border-bottom: 2.5px solid #1e1b4b; }
+          .header-logo { width: 75px; height: 75px; object-fit: contain; }
+          .header-text { flex-grow: 1; text-align: center; }
+          .header-text h1 { font-size: 26px; font-weight: 900; color: #1e1b4b; margin: 0; text-transform: uppercase; }
+          .header-text p { font-size: 13px; font-weight: 700; color: #475569; margin-top: 3px; }
+          
+          .report-badge { display: inline-block; background: #1e1b4b; color: #fff; padding: 4px 25px; border-radius: 4px; font-weight: 900; font-size: 11px; margin-top: 10px; text-transform: uppercase; letter-spacing: 1.2px; }
+          
+          table { width: calc(100% - 70px); margin: 0 35px 25px 35px; border-collapse: collapse; border: 2.5px solid #1e1b4b; table-layout: fixed; }
+          th { border: 1.5px solid #1e1b4b; background: #1e1b4b; padding: 10px 8px; font-weight: 900; text-align: center; text-transform: uppercase; font-size: 9.5px; color: #fff; }
+          td { border: 1px solid #cbd5e1; padding: 10px 10px; vertical-align: middle; font-size: 10.5px; text-align: center; }
+          
+          .urdu-text { font-family: 'Noto Nastaliq Urdu', serif; direction: rtl; text-align: center; font-size: 16px; line-height: 2.1; color: #000; }
+          
+          .sign-area { display: flex; justify-content: center; margin: 40px 35px 35px 35px; }
+          .sign-box { width: 350px; text-align: center; }
+          .sign-line { border-top: 2.5px solid #1e1b4b; padding-top: 8px; font-weight: 900; font-size: 13px; color: #1e1b4b; text-transform: uppercase; letter-spacing: 1px; }
+          
+          svg { width: 18px !important; height: 18px !important; margin: 0 auto; }
+        </style>
+      </head>
+      <body><div class="diary-print">${printContent}</div></body>
+      </html>
+    `);
+    win.document.close();
+    setTimeout(() => { win.print(); win.close(); }, 700);
+  };
 
-  // ─── Classes + Subjects deduplicated for selectors ───────────────────────
-  const uniqueClasses = assignedSlots.reduce((acc: any[], slot) => {
-    if (!acc.find(a => a.class_id === slot.class_id)) acc.push(slot);
-    return acc;
-  }, []);
-  const subjectsForClass = assignedSlots.filter(s => s.class_id === selectedClassId);
+
+  const formattedDate = new Date(viewDate + 'T00:00:00').toLocaleDateString('en-PK', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
+
+  const filledCount = rows.filter(r => r.topic_covered.trim()).length;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-
-      {/* Header */}
+    <div className="max-w-7xl mx-auto space-y-5">
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <ClipboardList className="w-6 h-6 text-indigo-600" /> Teacher Diary
+            <ClipboardList className="w-6 h-6 text-indigo-600" /> {viewMode === 'class' ? 'Class Diary' : 'Teacher Diary'}
           </h1>
           <p className="text-gray-500 text-sm mt-1">
-            {isTeacher ? 'Add daily lessons, homework, and activity notes for your assigned classes.' : 'View and manage diary entries across all teachers.'}
+            {viewMode === 'class' ? `Unified report for Grade ${selectedClassName || 'Selected Class'}.` : (isTeacher ? 'Fill in your daily lesson plan for each assigned class.' : 'View diary entries by individual teacher.')}
           </p>
         </div>
-        <button onClick={openCreate} disabled={!selectedTeacherId || !selectedClassId}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg font-bold shadow disabled:opacity-40 transition">
-          <PlusCircle className="w-4 h-4" /> Add Diary Entry
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {isAdmin && (
+            <div className="bg-slate-100 p-1 rounded-xl flex items-center mr-2">
+               <button onClick={() => setViewMode('teacher')} className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'teacher' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>By Teacher</button>
+               <button onClick={() => setViewMode('class')} className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'class' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>By Class</button>
+            </div>
+          )}
+          <button onClick={handlePrint} disabled={(viewMode === 'teacher' ? !selectedTeacherId : !selectedClassId) || rows.length === 0} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-200 transition-all hover:-translate-y-0.5 active:translate-y-0"><Printer className="w-4 h-4" /> Print Full-Color Report</button>
+        </div>
       </div>
 
-      {/* ── Step 1: Admin selects teacher / Teacher sees self ── */}
+      {/* ── Controls ─────────────────────────────────────────────────────────── */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-
-          {/* Teacher Selector — only for admin/principal */}
-          {!isTeacher && (
-            <div>
-              <label className="block text-xs font-black text-gray-500 uppercase mb-2 flex items-center gap-1">
-                <Users className="w-3 h-3" /> Select Teacher
-              </label>
-              <select value={selectedTeacherId} onChange={e => { setSelectedTeacherId(e.target.value); setSelectedClassId(''); setSelectedSubjectId(''); }}
-                className="w-full border border-gray-300 px-3 py-2.5 rounded-lg bg-gray-50 text-sm font-medium focus:ring-indigo-500">
-                <option value="">-- Select Teacher --</option>
-                {allTeachers.map(t => <option key={t.id} value={t.id}>{t.full_name} ({t.role})</option>)}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          {isAdmin && viewMode === 'teacher' && (
+            <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}>
+              <label className="block text-xs font-black text-gray-500 uppercase mb-2 flex items-center gap-1"><Users className="w-3 h-3" /> Teacher</label>
+              <select value={selectedTeacherId} onChange={e => { const t = allTeachers.find(x => x.id === e.target.value); setSelectedTeacherId(e.target.value); setSelectedTeacherName(t?.full_name || ''); }} className="w-full border border-gray-300 px-3 py-2.5 rounded-lg bg-gray-50 text-sm font-medium focus:ring-2 focus:ring-indigo-100 outline-none">
+                <option value="">— Select Teacher —</option>
+                {allTeachers.map(t => (<option key={t.id} value={t.id}>{t.full_name} ({t.role})</option>))}
               </select>
-            </div>
+            </motion.div>
           )}
-
-          {/* Class Selector */}
-          <div>
-            <label className="block text-xs font-black text-gray-500 uppercase mb-2 flex items-center gap-1">
-              <BookOpen className="w-3 h-3" /> Class
-            </label>
-            {assignedSlots.length === 0 && selectedTeacherId ? (
-              <div className="px-3 py-2.5 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700 font-bold">
-                No classes assigned in Timetable
-              </div>
-            ) : (
-              <select value={selectedClassId} onChange={e => { setSelectedClassId(e.target.value); setSelectedSubjectId(''); }}
-                className="w-full border border-gray-300 px-3 py-2.5 rounded-lg bg-gray-50 text-sm font-medium focus:ring-indigo-500">
-                <option value="">-- All Classes --</option>
-                {uniqueClasses.map(s => (
-                  <option key={s.class_id} value={s.class_id}>{s.class_name} — {s.section}</option>
-                ))}
+          {viewMode === 'class' && (
+            <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}>
+              <label className="block text-xs font-black text-gray-500 uppercase mb-2 flex items-center gap-1"><BookOpen className="w-3 h-3" /> Class</label>
+              <select value={selectedClassId} onChange={e => { const c = allClasses.find(x => x.id === e.target.value); setSelectedClassId(e.target.value); setSelectedClassName(c ? `${c.name} ${c.section}` : ''); }} className="w-full border border-gray-300 px-3 py-2.5 rounded-lg bg-gray-50 text-sm font-medium focus:ring-2 focus:ring-indigo-100 outline-none">
+                <option value="">— Select Class —</option>
+                {allClasses.map(c => (<option key={c.id} value={c.id}>{c.name} {c.section}</option>))}
               </select>
-            )}
-          </div>
-
-          {/* Subject Selector */}
-          <div>
-            <label className="block text-xs font-black text-gray-500 uppercase mb-2">Subject</label>
-            <select value={selectedSubjectId} onChange={e => setSelectedSubjectId(e.target.value)}
-              className="w-full border border-gray-300 px-3 py-2.5 rounded-lg bg-gray-50 text-sm font-medium focus:ring-indigo-500"
-              disabled={!selectedClassId}>
-              <option value="">-- All Subjects --</option>
-              {subjectsForClass.map(s => (
-                <option key={s.subject_id} value={s.subject_id}>{s.subject_name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Date Navigator */}
-          <div>
-            <label className="block text-xs font-black text-gray-500 uppercase mb-2 flex items-center gap-1">
-              <Calendar className="w-3 h-3" /> Date
-            </label>
+            </motion.div>
+          )}
+          <div className={isAdmin ? '' : 'md:col-span-2'}>
+            <label className="block text-xs font-black text-gray-500 uppercase mb-2 flex items-center gap-1"><Calendar className="w-3 h-3" /> Date</label>
             <div className="flex items-center gap-1">
-              <button onClick={() => shiftDate(-1)} className="p-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <input type="date" value={viewDate} onChange={e => setViewDate(e.target.value)}
-                className="flex-1 border border-gray-300 px-2 py-2 rounded-lg text-sm text-center font-medium" />
-              <button onClick={() => shiftDate(1)} className="p-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
-                <ChevronRight className="w-4 h-4" />
-              </button>
+              <button onClick={() => shiftDate(-1)} className="p-2.5 border border-gray-300 rounded-lg hover:bg-gray-50"><ChevronLeft className="w-4 h-4" /></button>
+              <input type="date" value={viewDate} onChange={e => setViewDate(e.target.value)} className="flex-1 border border-gray-300 px-2 py-2 rounded-lg text-sm text-center font-medium" />
+              <button onClick={() => shiftDate(1)} className="p-2.5 border border-gray-300 rounded-lg hover:bg-gray-50"><ChevronRight className="w-4 h-4" /></button>
             </div>
+          </div>
+          <div className="flex items-end">
+            <button onClick={saveAll} disabled={(viewMode === 'teacher' ? !selectedTeacherId : !selectedClassId) || filledCount === 0} className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-6 rounded-lg shadow disabled:opacity-40 transition"><Save className="w-4 h-4" /> Save All ({filledCount} filled)</button>
           </div>
         </div>
-
-        {/* Assigned Class Chips — quick jump */}
-        {assignedSlots.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-2 border-t border-gray-100 pt-4">
-            <span className="text-xs font-bold text-gray-400 uppercase mr-1 self-center">Quick Jump:</span>
-            {assignedSlots.map(slot => (
-              <button
-                key={`${slot.class_id}_${slot.subject_id}`}
-                onClick={() => { setSelectedClassId(slot.class_id); setSelectedSubjectId(slot.subject_id); }}
-                className={`px-3 py-1 rounded-full text-xs font-bold border transition ${
-                  selectedClassId === slot.class_id && selectedSubjectId === slot.subject_id
-                    ? 'bg-indigo-600 text-white border-indigo-600'
-                    : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400 hover:text-indigo-600'
-                }`}>
-                {slot.class_name} {slot.section} · {slot.subject_name}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
-      {/* ── Today's Entries ── */}
-      {selectedTeacherId && (
-        <>
-          <div className="flex items-center gap-3">
-            <Calendar className="w-4 h-4 text-indigo-600" />
-            <h2 className="font-bold text-gray-800">
-              {new Date(viewDate + 'T00:00:00').toLocaleDateString('en-PK', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-            </h2>
-            <span className="text-xs bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full font-bold">
-              {todayEntries.length} {todayEntries.length === 1 ? 'entry' : 'entries'}
-            </span>
+      {/* ── Main diary table ─────────────────────────────────────────────────── */}
+      {(viewMode === 'teacher' ? selectedTeacherId : selectedClassId) && (loading ? (
+        <div className="bg-white rounded-xl p-10 text-center text-gray-400 border border-gray-200">Loading diary...</div>
+      ) : rows.length > 0 ? (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b-2 border-slate-200">
+                    <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide w-[100px]">{viewMode === 'class' ? 'Subject' : 'Class'}</th>
+                    <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide w-[110px]">{viewMode === 'class' ? 'Teacher' : 'Subject'}</th>
+                    <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide">Topic Covered <span className="text-red-500">*</span></th>
+                    <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide">Homework</th>
+                    <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide">Activity Notes</th>
+                    <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide">Next Plan</th>
+                    <th className="px-3 py-3 w-[80px] no-print"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {rows.map((row, idx) => (<DiaryTableRow key={`${row.slot.class_id}_${row.slot.subject_id}`} row={row} index={idx} viewMode={viewMode} onUpdate={updateRow} onSave={saveRow} />))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 text-sm">
+            <span className="flex items-center gap-1 text-emerald-700 font-bold"><CheckCircle2 className="w-4 h-4" />{filledCount} of {rows.length} entries filled</span>
+            {filledCount < rows.length && (<span className="flex items-center gap-1 text-amber-600 font-medium"><AlertCircle className="w-3.5 h-3.5" />{rows.length - filledCount} remaining</span>)}
           </div>
 
-          {loading ? (
-            <div className="bg-white rounded-xl p-10 text-center text-gray-400 border border-gray-200">Loading diary...</div>
-          ) : todayEntries.length === 0 ? (
-            <div className="bg-white rounded-xl p-10 text-center border-2 border-dashed border-gray-200">
-              <ClipboardList className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-              <p className="text-gray-500 font-medium">No diary entries for this date.</p>
-              {selectedClassId && (
-                <button onClick={openCreate} className="mt-3 text-indigo-600 font-bold text-sm hover:underline">
-                  + Add today's diary entry
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {todayEntries.map(entry => (
-                <DiaryCard key={entry.id} entry={entry} onEdit={openEdit} onDelete={handleDelete} />
-              ))}
-            </div>
-          )}
-
-          {/* Previous Entries */}
-          {prevEntries.length > 0 && (
-            <div>
-              <h2 className="font-bold text-gray-500 mb-3 text-xs uppercase tracking-widest border-b border-gray-200 pb-2">Previous Entries</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {prevEntries.slice(0, 8).map(entry => (
-                  <DiaryCard key={entry.id} entry={entry} onEdit={openEdit} onDelete={handleDelete} />
-                ))}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {!selectedTeacherId && !isTeacher && (
-        <div className="bg-white rounded-xl p-12 text-center border border-gray-200 shadow-sm">
-          <Users className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-          <p className="text-gray-500 font-medium">Select a teacher above to view or manage their diary.</p>
-        </div>
-      )}
-
-      {/* ── Add / Edit Modal ── */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden">
-            <div className="bg-indigo-700 px-6 py-4 flex justify-between items-center shrink-0">
-              <div>
-                <h3 className="font-bold text-lg text-white">{editId ? 'Edit Diary Entry' : 'New Diary Entry'}</h3>
-                {currentSlot && (
-                  <p className="text-indigo-200 text-xs mt-0.5">
-                    {currentSlot.class_name} {currentSlot.section} · {currentSlot.subject_name} ·{' '}
-                    {new Date(viewDate + 'T00:00:00').toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </p>
+          {/* ── Hidden Static Report View ─────────────────────────────────── */}
+          <div style={{ position: 'absolute', left: '-9999px', top: '0', width: '1200px' }}>
+            <div ref={reportRef} id="hidden-report-container" style={{ background: '#fffdfa', padding: '0 0 40px 0' }}>
+              <div className="top-banner" style={{ height: '12px', background: 'linear-gradient(90deg, #1e1b4b, #4f46e5)', marginBottom: '20px' }}></div>
+              <div style={{ display: 'flex', alignItems: 'center', margin: '0 35px 25px 35px', paddingBottom: '12px', borderBottom: '3px solid #1e1b4b' }}>
+                {schoolInfo?.logo_url && (
+                  <img src={schoolInfo.logo_url} crossOrigin="anonymous" style={{ width: '85px', height: '85px', objectFit: 'contain', marginRight: '30px' }} alt="logo" />
                 )}
-              </div>
-              <button onClick={() => setShowForm(false)} className="text-indigo-200 hover:text-white"><X className="w-5 h-5" /></button>
-            </div>
-
-            <div className="overflow-y-auto flex-1 p-6 bg-gray-50 space-y-5">
-              <div>
-                <label className="block text-xs font-black text-gray-600 uppercase mb-1.5">📖 Topic / Lesson Covered <span className="text-red-500">*</span></label>
-                <textarea rows={3} value={form.topic_covered} onChange={e => setForm({ ...form, topic_covered: e.target.value })}
-                  placeholder="e.g. Chapter 3: Photosynthesis — explained light reactions with diagram on board, Q&A session"
-                  className="w-full border border-gray-300 px-3 py-2 rounded-lg text-sm resize-none focus:ring-indigo-500 focus:border-indigo-500" />
-              </div>
-
-              <div>
-                <label className="block text-xs font-black text-gray-600 uppercase mb-1.5">📝 Homework Assigned</label>
-                <textarea rows={2} value={form.homework} onChange={e => setForm({ ...form, homework: e.target.value })}
-                  placeholder="e.g. Exercise 3.1 Q1–Q5 on page 47, read pages 45–52"
-                  className="w-full border border-gray-300 px-3 py-2 rounded-lg text-sm resize-none focus:ring-indigo-500" />
+                <div style={{ flexGrow: 1, textAlign: 'center' }}>
+                  <h1 style={{ fontSize: '34px', fontWeight: '900', color: '#1e1b4b', margin: '0', letterSpacing: '-1px', textTransform: 'uppercase' }}>{schoolInfo?.name || 'School Diary'}</h1>
+                  <p style={{ fontSize: '14px', color: '#475569', fontWeight: '700', marginTop: '4px' }}>{schoolInfo?.address}</p>
+                  <div style={{ marginTop: '12px' }}>
+                     <span style={{ background: '#1e1b4b', color: 'white', padding: '6px 35px', borderRadius: '4px', fontWight: '900', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1.5px' }}>
+                       {viewMode === 'class' ? 'Class Academic Diary' : 'Professional Staff Record'}
+                     </span>
+                  </div>
+                </div>
+                <div style={{ width: '85px' }}></div> 
               </div>
 
-              <div>
-                <label className="block text-xs font-black text-gray-600 uppercase mb-1.5">🎯 Classroom Activity / Notes</label>
-                <textarea rows={2} value={form.activity_notes} onChange={e => setForm({ ...form, activity_notes: e.target.value })}
-                  placeholder="e.g. Group activity completed, oral quiz: 85% answered correctly, 3 students struggling"
-                  className="w-full border border-gray-300 px-3 py-2 rounded-lg text-sm resize-none focus:ring-indigo-500" />
+              <div style={{ display: 'flex', justifyContent: 'space-between', margin: '0 35px 20px 35px', fontWeight: '900', fontSize: '14px', border: '2.5px solid #1e1b4b', padding: '12px 25px', background: '#f8fafc', color: '#1e1b4b' }}>
+                <span>DATED: {formattedDate}</span>
+                <span>{viewMode === 'class' ? `CLASS: GRADE ${selectedClassName}` : `STAFF: ${selectedTeacherName}`}</span>
               </div>
 
-              <div>
-                <label className="block text-xs font-black text-gray-600 uppercase mb-1.5">🗓 Next Class Plan</label>
-                <textarea rows={2} value={form.next_plan} onChange={e => setForm({ ...form, next_plan: e.target.value })}
-                  placeholder="e.g. Begin dark reactions, worksheet practice, short quiz on completed topics"
-                  className="w-full border border-gray-300 px-3 py-2 rounded-lg text-sm resize-none focus:ring-indigo-500" />
-              </div>
-            </div>
+              <table style={{ width: 'calc(100% - 70px)', margin: '0 35px', borderCollapse: 'collapse', border: '2.5px solid #1e1b4b', background: 'white' }}>
+                <thead>
+                  <tr>
+                    <th style={{ border: '1.5px solid #1e1b4b', padding: '12px 6px', background: '#1e1b4b', width: '12%', textAlign: 'center', color: '#fff', fontWeight: '900', fontSize: '10px' }}>{viewMode === 'class' ? 'Subject' : 'Class'}</th>
+                    <th style={{ border: '1.5px solid #1e1b4b', padding: '12px 6px', background: '#1e1b4b', width: '12%', textAlign: 'center', color: '#fff', fontWeight: '900', fontSize: '10px' }}>{viewMode === 'class' ? 'Teacher' : 'Subject'}</th>
+                    <th style={{ border: '1.5px solid #1e1b4b', padding: '12px 6px', background: '#1e1b4b', width: '25%', textAlign: 'center', color: '#fff', fontWeight: '900', fontSize: '10px' }}>Lesson / Work Covered</th>
+                    <th style={{ border: '1.5px solid #1e1b4b', padding: '12px 6px', background: '#1e1b4b', width: '17%', textAlign: 'center', color: '#fff', fontWeight: '900', fontSize: '10px' }}>Home Assignments</th>
+                    <th style={{ border: '1.5px solid #1e1b4b', padding: '12px 6px', background: '#1e1b4b', width: '17%', textAlign: 'center', color: '#fff', fontWeight: '900', fontSize: '10px' }}>Activity Notes</th>
+                    <th style={{ border: '1.5px solid #1e1b4b', padding: '12px 6px', background: '#1e1b4b', width: '17%', textAlign: 'center', color: '#fff', fontWeight: '900', fontSize: '10px' }}>Next Plan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, idx) => {
+                    const meta = getSubjectMeta(viewMode === 'class' ? row.slot.subject_name : row.slot.class_name);
+                    const ReportIcon = meta.icon;
+                    return (
+                      <tr key={idx} style={{ background: idx % 2 === 0 ? 'white' : 'rgba(241, 245, 249, 0.4)' }}>
+                        <td style={{ border: '1px solid #cbd5e1', padding: '14px 10px', borderLeft: `8px solid ${meta.color}`, verticalAlign: 'middle', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px' }}>
+                             <div style={{ color: meta.color, background: `${meta.color}15`, padding: '5px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <ReportIcon style={{ width: '18px', height: '18px' }} />
+                             </div>
+                             <span style={{ fontWeight: '900', color: '#1e1b4b', fontSize: '11px' }}>{viewMode === 'class' ? row.slot.subject_name : row.slot.class_name}</span>
+                          </div>
+                        </td>
+                        <td style={{ border: '1px solid #cbd5e1', padding: '14px 10px', fontSize: '10px', fontWeight: '800', color: '#444', textAlign: 'center' }}>{viewMode === 'class' ? row.slot.teacher_name : row.slot.subject_name}</td>
+                        <td className="urdu-text" style={{ border: '1px solid #cbd5e1', padding: '16px 12px', background: `${meta.color}05`, textAlign: 'center' }}>{row.topic_covered}</td>
+                        <td className="urdu-text" style={{ border: '1px solid #cbd5e1', padding: '16px 12px', textAlign: 'center' }}>{row.homework}</td>
+                        <td className="urdu-text" style={{ border: '1px solid #cbd5e1', padding: '16px 12px', background: `${meta.color}05`, textAlign: 'center' }}>{row.activity_notes}</td>
+                        <td className="urdu-text" style={{ border: '1px solid #cbd5e1', padding: '16px 12px', textAlign: 'center' }}>{row.next_plan}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
 
-            <div className="px-6 py-4 bg-white border-t border-gray-200 flex justify-end gap-3 shrink-0">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg">Cancel</button>
-              <button onClick={handleSave} disabled={saving}
-                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow flex items-center gap-2 disabled:opacity-50">
-                <Save className="w-4 h-4" /> {saving ? 'Saving...' : editId ? 'Update Entry' : 'Save Entry'}
-              </button>
+              <div className="sign-area" style={{ display: 'flex', justifyContent: 'center', margin: '50px 35px 0 35px' }}>
+                <div style={{ textAlign: 'center', width: '350px' }}>
+                  <div style={{ padding: '15px', borderRadius: '8px 8px 0 0', height: '40px' }}></div>
+                  <div style={{ borderTop: '2.5px solid #1e1b4b', paddingTop: '10px', fontWeight: '900', color: '#1e1b4b', fontSize: '13px', letterSpacing: '1px' }}>CLASS TEACHER SIGNATURE</div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        </motion.div>
+      ) : null)}
     </div>
   );
 }
 
-function DiaryCard({ entry, onEdit, onDelete }: { entry: any; onEdit: (e: any) => void; onDelete: (id: string) => any; key?: any }) {
+function DiaryTableRow({
+  row, index, onUpdate, onSave, viewMode,
+}: {
+  row: DiaryRow;
+  index: number;
+  onUpdate: (i: number, field: keyof DiaryRow, value: string) => void;
+  onSave: (i: number) => void | Promise<void>;
+  viewMode: 'teacher' | 'class';
+}) {
+  const meta = getSubjectMeta(viewMode === 'class' ? row.slot.subject_name : row.slot.class_name);
+  const Icon = meta.icon;
+
+  const cellInput = (field: 'topic_covered' | 'homework' | 'activity_notes' | 'next_plan', placeholder: string) => (
+    <textarea 
+      rows={3} 
+      value={row[field] as string} 
+      onChange={e => onUpdate(index, field, e.target.value)} 
+      placeholder={placeholder} 
+      className={cn(
+        "w-full border-2 border-transparent hover:border-indigo-100 focus:ring-1 transition outline-none leading-relaxed font-['Inter',_'Noto_Nastaliq_Urdu',_sans-serif] rounded-xl px-3 py-2 text-sm resize-none bg-transparent focus:bg-white",
+        "focus:ring-offset-2"
+      )}
+      style={{ 
+        // @ts-ignore
+        '--tw-ring-color': meta.color,
+        borderBottomColor: row[field] ? meta.color : 'transparent'
+      }}
+    />
+  );
+
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition group">
-      <div className="bg-indigo-50 border-b border-indigo-100 px-4 py-3 flex items-start justify-between">
-        <div>
-          <p className="font-black text-indigo-900 text-sm">{entry.subjects?.subject_name || 'General'}</p>
-          <p className="text-xs text-indigo-600 font-medium mt-0.5">
-            {entry.classes?.name} {entry.classes?.section} ·{' '}
-            {new Date(entry.diary_date + 'T00:00:00').toLocaleDateString('en-PK', { weekday: 'short', day: 'numeric', month: 'short' })}
-          </p>
-        </div>
-        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition">
-          <button onClick={() => onEdit(entry)} className="p-1.5 text-indigo-400 hover:text-indigo-700 rounded-lg hover:bg-indigo-100 transition">
-            <Pencil className="w-3.5 h-3.5" />
-          </button>
-          <button onClick={() => onDelete(entry.id)} className="p-1.5 text-indigo-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition">
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-      <div className="p-4 space-y-3">
-        <div>
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-wide">Topic Covered</p>
-          <p className="text-sm font-bold text-gray-900 mt-0.5 leading-snug">{entry.topic_covered}</p>
-        </div>
-        {entry.homework && (
-          <div className="bg-amber-50 rounded-lg px-3 py-2 border border-amber-100">
-            <p className="text-[10px] font-black text-amber-600 uppercase">📝 Homework</p>
-            <p className="text-xs text-amber-900 font-medium mt-0.5">{entry.homework}</p>
+    <tr className={`group hover:bg-slate-50 transition-colors ${row.saved ? 'bg-emerald-50/40' : ''}`}>
+      <td className="px-4 py-4 align-top">
+        <div className="flex items-start gap-3">
+          <div 
+            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
+            style={{ backgroundColor: meta.bg, border: `1px solid ${meta.border}` }}
+          >
+            <Icon className="w-5 h-5" style={{ color: meta.color }} />
           </div>
-        )}
-        {entry.activity_notes && (
           <div>
-            <p className="text-[10px] font-black text-gray-400 uppercase">🎯 Activity Notes</p>
-            <p className="text-xs text-gray-600 mt-0.5">{entry.activity_notes}</p>
+            <p className="font-black text-slate-900 text-sm leading-tight">
+              {viewMode === 'class' ? row.slot.subject_name : row.slot.class_name}
+            </p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+              {viewMode === 'class' ? 'Subject Entry' : `Grade ${row.slot.section}`}
+            </p>
           </div>
+        </div>
+      </td>
+      <td className="px-4 py-4 align-top">
+        <div className="flex flex-col gap-1">
+          <span 
+            className="inline-flex items-center px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-tight"
+            style={{ backgroundColor: meta.bg, color: meta.color }}
+          >
+            {viewMode === 'class' ? row.slot.teacher_name : row.slot.subject_name}
+          </span>
+          {viewMode === 'class' && (
+            <span className="text-[9px] text-slate-400 font-bold ml-1">ASSIGNED STAFF</span>
+          )}
+        </div>
+      </td>
+      <td className="px-2 py-2 align-top min-w-[220px]">{cellInput('topic_covered', 'What was taught today?')}</td>
+      <td className="px-2 py-2 align-top min-w-[180px]">{cellInput('homework', 'Tasks for home...')}</td>
+      <td className="px-2 py-2 align-top min-w-[180px]">{cellInput('activity_notes', 'Class observations...')}</td>
+      <td className="px-2 py-2 align-top min-w-[180px]">{cellInput('next_plan', 'Tomorrow\'s agenda...')}</td>
+      <td className="px-3 py-4 align-top no-print">
+        {row.saved ? (
+          <span className="flex items-center gap-1 text-emerald-600 font-bold text-[10px]"><CheckCircle2 className="w-3.5 h-3.5" /> Saved</span>
+        ) : (
+          <button onClick={() => onSave(index)} disabled={row.saving || !row.topic_covered.trim()} className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow disabled:opacity-40 transition whitespace-nowrap"><Save className="w-3 h-3" />{row.saving ? '...' : 'Save'}</button>
         )}
-        {entry.next_plan && (
-          <div className="bg-green-50 rounded-lg px-3 py-2 border border-green-100">
-            <p className="text-[10px] font-black text-green-600 uppercase">🗓 Next Class Plan</p>
-            <p className="text-xs text-green-900 font-medium mt-0.5">{entry.next_plan}</p>
-          </div>
-        )}
-      </div>
-    </div>
+      </td>
+    </tr>
   );
 }

@@ -48,28 +48,27 @@ export default function Ledger() {
       }
       const { data: expData } = await expenseQuery;
 
-      // 2. Fetch Income directly from collected fee records
-      let incomeQuery = supabase.from('fee_records')
-        .select('id, student_id, paid_amount, payment_mode, created_at, invoice_number, students(full_name, roll_number)')
+      // 2. Fetch Income from financial_transactions (written by EasyFee, Fees, Payroll)
+      let incomeQuery = supabase.from('financial_transactions')
+        .select('*')
         .eq('school_id', userRole?.school_id)
-        .gt('paid_amount', 0); // Only pull ones that actually took money
+        .eq('type', 'income');
 
-      // Note: for a pure ledger, we usually track payment_date, but fee_records relies on created_at or updated_at.
       if (dateType !== 'all') {
-         incomeQuery = incomeQuery.gte('created_at', startD.toISOString())
-                                  .lte('created_at', endD.toISOString());
+         incomeQuery = incomeQuery.gte('date', startD.toISOString().split('T')[0])
+                                  .lte('date', endD.toISOString().split('T')[0]);
       }
       const { data: incData } = await incomeQuery;
 
       // 3. Stitch them together into a unified chronological array
       const unifiedArray: any[] = [];
-      
+
       if (expData) {
         expData.forEach(e => {
           unifiedArray.push({
             id: e.id,
             date: e.date,
-            real_time: new Date(e.created_at).getTime(),
+            real_time: new Date(e.date).getTime(),
             type: 'expense',
             amount: parseFloat(e.amount),
             mode: e.payment_mode,
@@ -83,13 +82,13 @@ export default function Ledger() {
         incData.forEach(i => {
            unifiedArray.push({
              id: i.id,
-             date: new Date(i.created_at).toISOString().split('T')[0],
-             real_time: new Date(i.created_at).getTime(),
+             date: i.date,
+             real_time: new Date(i.date).getTime(),
              type: 'income',
-             amount: parseFloat(i.paid_amount),
+             amount: parseFloat(i.amount),
              mode: i.payment_mode || 'Cash',
-             description: `Fee Collection - ${(i.students as any)?.full_name} (${(i.students as any)?.roll_number})`,
-             ref: i.invoice_number || 'INV'
+             description: i.remarks || `Income: ${i.category}`,
+             ref: i.category || 'FEE'
            });
         });
       }

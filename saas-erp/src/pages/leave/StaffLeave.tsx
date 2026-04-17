@@ -17,6 +17,7 @@ const LEAVE_BALANCE_DEFAULTS: Record<string, number> = {
 
 const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  forwarded: 'bg-blue-100 text-blue-800 border-blue-200',
   approved: 'bg-green-100 text-green-800 border-green-200',
   rejected: 'bg-red-100 text-red-800 border-red-200',
 };
@@ -38,10 +39,24 @@ export default function StaffLeave() {
     staff_id: '', leave_type: 'Sick Leave',
     from_date: new Date().toISOString().split('T')[0],
     to_date: new Date().toISOString().split('T')[0],
+    is_half_day: false,
     reason: ''
   });
 
-  useEffect(() => { if (userRole?.school_id) { fetchStaff(); fetchLeaves(); } }, [userRole]);
+  const [schoolSettings, setSchoolSettings] = useState<any>(null);
+
+  useEffect(() => { 
+    if (userRole?.school_id) { 
+      fetchStaff(); 
+      fetchLeaves(); 
+      fetchSettings();
+    } 
+  }, [userRole]);
+
+  const fetchSettings = async () => {
+    const { data } = await supabase.from('schools').select('monthly_leave_limit, yearly_leave_limit').eq('id', userRole?.school_id).single();
+    if (data) setSchoolSettings(data);
+  };
 
   const fetchStaff = async () => {
     const { data } = await supabase.from('staff').select('id, full_name, role, department').eq('school_id', userRole?.school_id).eq('is_active', true).order('full_name');
@@ -72,8 +87,11 @@ export default function StaffLeave() {
         leave_type: formData.leave_type,
         from_date: formData.from_date,
         to_date: formData.to_date,
+        is_half_day: formData.is_half_day,
         reason: formData.reason,
         status: 'pending',
+        pending_with_role: userRole?.role === 'Principal' ? 'director' : 
+                          userRole?.role === 'Coordinator' ? 'principal' : 'coordinator'
       }]);
       if (error) throw error;
       setShowForm(false);
@@ -83,9 +101,13 @@ export default function StaffLeave() {
   };
 
   const updateStatus = async (id: string, status: string, rejection_reason?: string) => {
-    await supabase.from('leave_applications').update({
-      status, rejection_reason: rejection_reason || null, reviewed_at: new Date().toISOString()
-    }).eq('id', id);
+    const updates: any = { status, rejection_reason: rejection_reason || null, reviewed_at: new Date().toISOString() };
+    if (status === 'forwarded') {
+      const currentLeave = leaves.find(l => l.id === id);
+      updates.status = 'forwarded';
+      updates.pending_with_role = currentLeave?.pending_with_role === 'coordinator' ? 'principal' : 'director';
+    }
+    await supabase.from('leave_applications').update(updates).eq('id', id);
     setRejectModal(null);
     fetchLeaves();
   };
@@ -106,7 +128,8 @@ export default function StaffLeave() {
   const leaveBalances = staffList.map(s => {
     const used: Record<string, number> = {};
     leaves.filter(l => l.staff_id === s.id && l.status === 'approved').forEach(l => {
-      used[l.leave_type] = (used[l.leave_type] || 0) + (l.total_days || 0);
+      const weight = l.is_half_day ? 0.5 : (l.total_days || 1);
+      used[l.leave_type] = (used[l.leave_type] || 0) + weight;
     });
     return { staff: s, used };
   });
@@ -196,38 +219,55 @@ export default function StaffLeave() {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {filtered.map((l, idx) => (
-                      <tr key={l.id} className="hover:bg-gray-50">
+                      <tr key={l.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3 text-xs text-gray-400">{idx + 1}</td>
-                        <td className="px-4 py-3 font-bold text-gray-900">{l.staff?.full_name}</td>
-                        <td className="px-4 py-3 text-xs text-gray-500">{l.staff?.role}</td>
                         <td className="px-4 py-3">
-                          <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full font-bold">{l.leave_type}</span>
+                          <p className="font-bold text-gray-900">{l.staff?.full_name}</p>
+                          <p className="text-[10px] text-gray-400 uppercase font-black">{l.staff?.role}</p>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-500">{l.staff?.department || 'General'}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col gap-1">
+                             <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full font-bold w-fit">{l.leave_type}</span>
+                             {l.is_half_day && <span className="text-[10px] bg-purple-100 text-purple-700 px-2 rounded-full font-black uppercase w-fit tracking-tighter">Half Day</span>}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-xs text-gray-600 font-mono">
-                          {new Date(l.from_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })} → {new Date(l.to_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })}
+                          {new Date(l.from_date).toLocaleDateString()} {l.from_date !== l.to_date && `→ ${new Date(l.to_date).toLocaleDateString()}`}
                         </td>
-                        <td className="px-4 py-3 text-center font-black text-gray-900">{l.total_days}</td>
-                        <td className="px-4 py-3 text-xs text-gray-500 max-w-32 truncate">{l.reason || '—'}</td>
+                        <td className="px-4 py-3 text-center font-black text-gray-900">{l.is_half_day ? '0.5' : l.total_days}</td>
+                        <td className="px-4 py-3 text-xs text-gray-500 max-w-32 truncate" title={l.reason}>{l.reason || '—'}</td>
                         <td className="px-4 py-3">
-                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border uppercase ${STATUS_STYLES[l.status]}`}>
-                            {l.status}
-                          </span>
+                          <div className="flex flex-col gap-1">
+                             <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border uppercase text-center ${STATUS_STYLES[l.status]}`}>
+                                {l.status}
+                             </span>
+                             {l.status === 'forwarded' && <span className="text-[8px] text-blue-500 font-bold uppercase text-center">With Principal</span>}
+                          </div>
                         </td>
                         <td className="px-4 py-3 no-print">
                           <div className="flex items-center gap-1">
-                            {l.status === 'pending' && (
-                              <>
-                                <button onClick={() => updateStatus(l.id, 'approved')} title="Approve"
-                                  className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition">
-                                  <CheckCircle className="w-4 h-4" />
-                                </button>
+                            {((userRole?.role === 'Coordinator' && l.status === 'pending') || 
+                               (['Principal', 'Admin', 'Director'].includes(userRole?.role || '') && ['pending', 'forwarded'].includes(l.status))) && (
+                              <div className="flex gap-1 bg-gray-50 p-1 rounded-lg border border-gray-100">
+                                {userRole?.role === 'Coordinator' ? (
+                                  <button onClick={() => updateStatus(l.id, 'forwarded')} title="Forward to Principal"
+                                    className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded text-[10px] font-black uppercase hover:bg-blue-700 transition">
+                                    Forward
+                                  </button>
+                                ) : (
+                                  <button onClick={() => updateStatus(l.id, 'approved')} title="Final Approve"
+                                    className="p-1.5 text-green-600 hover:bg-green-100 rounded-lg transition">
+                                    <CheckCircle className="w-4 h-4" />
+                                  </button>
+                                )}
                                 <button onClick={() => { setRejectModal({ id: l.id }); setRejectReason(''); }} title="Reject"
-                                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
+                                  className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg transition">
                                   <XCircle className="w-4 h-4" />
                                 </button>
-                              </>
+                              </div>
                             )}
-                            <button onClick={() => handleDelete(l.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
+                            <button onClick={() => handleDelete(l.id)} className="p-1.5 text-gray-300 hover:text-red-600 transition">
                               <X className="w-4 h-4" />
                             </button>
                           </div>
@@ -319,6 +359,19 @@ export default function StaffLeave() {
                   <input type="date" value={formData.to_date} onChange={e => setFormData({ ...formData, to_date: e.target.value })}
                     className="w-full border border-gray-300 px-3 py-2 rounded-lg text-sm" />
                 </div>
+              </div>
+              
+              <div className="flex items-center gap-2 p-3 bg-purple-50 rounded-xl border border-purple-100">
+                <input 
+                  type="checkbox" 
+                  id="half_day" 
+                  checked={formData.is_half_day} 
+                  onChange={e => setFormData({ ...formData, is_half_day: e.target.checked })} 
+                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500" 
+                />
+                <label htmlFor="half_day" className="text-xs font-bold text-purple-900 uppercase tracking-tight cursor-pointer">
+                  Mark as Half-Day Leave
+                </label>
               </div>
               {formData.from_date && formData.to_date && (
                 <p className="text-xs font-bold text-blue-600">

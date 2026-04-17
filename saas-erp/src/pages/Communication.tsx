@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import * as templatesLib from '../lib/whatsappTemplates';
 
 export default function Communication() {
   const { userRole } = useAuth();
@@ -13,18 +14,25 @@ export default function Communication() {
   const [classes, setClasses] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   
-  // Compose State
-  const [channel, setChannel] = useState<'whatsapp' | 'sms' | 'email' | 'in-app'>('in-app');
-  const [recipientScope, setRecipientScope] = useState<'all' | 'parents' | 'teachers' | 'class'>('all');
-  const [selectedClassId, setSelectedClassId] = useState('');
-  const [title, setTitle] = useState('');
-  const [message, setMessage] = useState('');
-  const [sending, setSending] = useState(false);
-  const [sendResult, setSendResult] = useState<{ sent: number; failed: number } | null>(null);
+   // Compose State
+   const [channel, setChannel] = useState<'whatsapp' | 'sms' | 'email' | 'in-app'>('in-app');
+   const [recipientScope, setRecipientScope] = useState<'all' | 'parents' | 'teachers' | 'class' | 'fee_due' | 'individual'>('all');
+   const [selectedClassId, setSelectedClassId] = useState('');
+   const [title, setTitle] = useState('');
+   const [message, setMessage] = useState('');
+   const [templates, setTemplates] = useState<any[]>([]);
+   const [sending, setSending] = useState(false);
+   const [sendResult, setSendResult] = useState<{ sent: number; failed: number } | null>(null);
 
   // Stats
   const [recipientCount, setRecipientCount] = useState(0);
   const [recipients, setRecipients] = useState<any[]>([]);
+
+  // Individual Search State
+  const [parentSearchQuery, setParentSearchQuery] = useState('');
+  const [parentSearchResults, setParentSearchResults] = useState<any[]>([]);
+  const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
+  const [isSearchingParents, setIsSearchingParents] = useState(false);
 
   useEffect(() => {
     if (userRole?.school_id) {
@@ -34,55 +42,156 @@ export default function Communication() {
 
   useEffect(() => {
     updateRecipientCount();
-  }, [recipientScope, selectedClassId]);
+  }, [recipientScope, selectedClassId, selectedParentId]);
 
-  const fetchInitialData = async () => {
-    setLoading(true);
-    const sid = userRole?.school_id;
-    const [
-      { data: cls },
-      { data: logs }
-    ] = await Promise.all([
-      supabase.from('classes').select('id, name, section').eq('school_id', sid).order('name'),
-      supabase.from('communication_logs').select('*, parent:parents(father_name, mother_name)').eq('school_id', sid).order('sent_at', { ascending: false }).limit(20)
-    ]);
-    if (cls) setClasses(cls);
-    if (logs) setHistory(logs);
-    setLoading(false);
-  };
+  // Live Parent Search
+  useEffect(() => {
+    const searchParents = async () => {
+      if (!parentSearchQuery.trim() || parentSearchQuery.length < 2) {
+        setParentSearchResults([]);
+        return;
+      }
+      setIsSearchingParents(true);
+      const { data } = await supabase
+        .from('parents')
+        .select('id, full_name, father_name, whatsapp_number, family_number')
+        .eq('school_id', userRole?.school_id)
+        .or(`full_name.ilike.%${parentSearchQuery}%,father_name.ilike.%${parentSearchQuery}%,family_number.ilike.%${parentSearchQuery}%`)
+        .limit(5);
 
-  const updateRecipientCount = async () => {
-    if (!userRole?.school_id) return;
-    const sid = userRole?.school_id;
-    let query;
+      setParentSearchResults(data || []);
+      setIsSearchingParents(false);
+    };
 
-    if (recipientScope === 'parents' || recipientScope === 'all') {
-      query = supabase.from('parents').select('id, father_name, whatsapp_number').eq('school_id', sid);
-    } else if (recipientScope === 'teachers') {
-      query = supabase.from('staff').select('id, full_name, whatsapp_number, email').eq('school_id', sid).eq('is_active', true);
-    } else if (recipientScope === 'class') {
-      if (!selectedClassId) { setRecipientCount(0); return; }
-      // Get parents of students in this class
-      query = supabase
-        .from('students')
-        .select('parent:parents(id, father_name, whatsapp_number)')
-        .eq('class_id', selectedClassId)
-        .eq('status', 'active');
+    const timer = setTimeout(searchParents, 400);
+    return () => clearTimeout(timer);
+  }, [parentSearchQuery, userRole?.school_id]);
+
+   const fetchInitialData = async () => {
+     setLoading(true);
+     const sid = userRole?.school_id;
+     
+     try {
+       // We'll perform these individually to handle cases where some tables (like the new templates) might not exist yet
+       const { data: cls, error: clsErr } = await supabase.from('classes').select('id, name, section').eq('school_id', sid).order('name');
+       if (clsErr) console.error('Classes error:', clsErr);
+       if (cls) setClasses(cls);
+
+       const { data: logs, error: logsErr } = await supabase.from('communication_logs').select('*, parent:parents(father_name, mother_name)').eq('school_id', sid).order('sent_at', { ascending: false }).limit(20);
+       if (logsErr) console.error('Logs error:', logsErr);
+       if (logs) setHistory(logs);
+
+       const { data: tmpl, error: tmplErr } = await supabase.from('communication_templates').select('*').eq('school_id', sid).order('created_at', { ascending: false });
+       if (tmplErr) {
+          if (tmplErr.code === '42P01') {
+            console.warn('Communication templates table not found. Please run the SQL migration.');
+            setTemplates([]);
+          } else {
+            console.error('Templates error:', tmplErr);
+          }
+       } else if (tmpl) {
+         setTemplates(tmpl);
+       }
+     } catch (err) {
+       console.error('Data fetch crash:', err);
+     } finally {
+       setLoading(false);
+     }
+   };
+
+   const updateRecipientCount = async () => {
+     if (!userRole?.school_id) return;
+     const sid = userRole?.school_id;
+     let list: any[] = [];
+ 
+     if (recipientScope === 'parents' || recipientScope === 'all') {
+       const { data } = await supabase.from('parents').select('id, father_name, whatsapp_number').eq('school_id', sid);
+       list = data || [];
+     } else if (recipientScope === 'teachers') {
+       const { data } = await supabase.from('staff').select('id, full_name, whatsapp_number, email').eq('school_id', sid).eq('is_active', true);
+       list = data || [];
+     } else if (recipientScope === 'class') {
+       if (!selectedClassId) { setRecipientCount(0); return; }
+       const { data } = await supabase
+         .from('students')
+         .select('parent:parents(id, father_name, whatsapp_number)')
+         .eq('class_id', selectedClassId)
+         .eq('status', 'active');
+       list = Array.from(new Map((data || []).filter(s => s.parent).map(s => [s.parent.id, s.parent])).values());
+     } else if (recipientScope === 'fee_due') {
+        const { data } = await supabase
+          .from('fee_records')
+          .select('student:students(parent:parents(id, father_name, whatsapp_number))')
+          .eq('school_id', sid)
+          .in('status', ['pending', 'overdue']);
+        
+        const parentMap = new Map();
+        (data || []).forEach((record: any) => {
+          if (record.student?.parent) {
+            parentMap.set(record.student.parent.id, record.student.parent);
+          }
+        });
+        list = Array.from(parentMap.values());
+     } else if (recipientScope === 'individual') {
+        if (!selectedParentId) { setRecipientCount(0); return; }
+        const { data } = await supabase.from('parents').select('id, father_name, whatsapp_number').eq('id', selectedParentId).single();
+        if (data) list = [data];
+      }
+ 
+     setRecipients(list);
+     setRecipientCount(list.length);
+   };
+ 
+   const handleSaveAsTemplate = async () => {
+     if (!message.trim()) return;
+     const label = prompt('Enter a name for this template:');
+     if (!label) return;
+ 
+     const { data, error } = await supabase.from('communication_templates').insert([{
+       school_id: userRole?.school_id,
+       title: label,
+       content: message
+     }]).select();
+ 
+     if (error) alert(error.message);
+     else {
+       setTemplates([data[0], ...templates]);
+       alert('Template saved!');
+     }
+   };
+ 
+   const handleDeleteTemplate = async (id: string) => {
+     if (!confirm('Are you sure you want to delete this template?')) return;
+     const { error } = await supabase.from('communication_templates').delete().eq('id', id);
+     if (error) alert(error.message);
+     else setTemplates(templates.filter(t => t.id !== id));
+   };
+
+   const handleSystemTemplateSelect = (templateId: string) => {
+    const vars: templatesLib.TemplateVars = {
+      studentName: '{{student_name}}',
+      parentName: '{{parent_name}}',
+      schoolName: userRole?.school_id ? 'Our School' : '{{school_name}}',
+      className: '{{class}}',
+      balance: '{{balance}}',
+      dueDate: '{{due_date}}',
+      month: '{{month}}',
+      attendanceDate: '{{date}}',
+      arrivalTime: '{{arrival_time}}',
+      symptoms: '{{symptoms}}',
+      admissionDate: '{{admission_date}}'
+    };
+
+    let content = '';
+    switch (templateId) {
+      case 'fee': content = templatesLib.feeDueTemplate(vars); break;
+      case 'absent': content = templatesLib.absenceAlertTemplate(vars); break;
+      case 'late': content = templatesLib.lateArrivalTemplate(vars); break;
+      case 'health': content = templatesLib.healthIssueTemplate(vars); break;
+      case 'admission': content = templatesLib.admissionConfirmationTemplate(vars); break;
+      default: return;
     }
-
-    const { data } = await query!;
-    
-    if (data) {
-      // Deduplicate for class-based query where siblings might share a parent
-      const list = recipientScope === 'class' 
-        ? Array.from(new Map(data.filter(s => s.parent).map(s => [s.parent.id, s.parent])).values())
-        : data;
-      
-      setRecipients(list);
-      setRecipientCount(list.length);
-    } else {
-      setRecipientCount(0);
-    }
+    setMessage(content);
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -164,11 +273,7 @@ export default function Communication() {
     setSending(false);
   };
 
-  const templates = [
-    { title: 'Fee Reminder', body: 'Dear Parents, this is a reminder to please clear your child\'s pending dues by the 10th of this month to avoid late fines. Thank you.' },
-    { title: 'Holiday Alert', body: 'Dear Parents, please note that the school will remain closed tomorrow due to weather conditions. Regular classes will resume from Day After Tomorrow.' },
-    { title: 'PTM Invitation', body: 'Dear Parents, the Parent-Teacher Meeting is scheduled for this Saturday from 9 AM to 1 PM. Your presence is essential for your child\'s progress.' }
-  ];
+  // Initial templates handled by state and DB now
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-20">
@@ -241,10 +346,94 @@ export default function Communication() {
                     className="w-full bg-white border border-gray-200 px-4 py-2.5 rounded-xl text-sm font-bold focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none"
                   >
                     <option value="all">All School Parents</option>
+                    <option value="individual">Individual Parent / Search</option>
+                    <option value="fee_due">Fee Due Parents (Defaulters)</option>
                     <option value="class">Specific Class</option>
                     <option value="teachers">All Staff/Teachers</option>
                     <option value="parents">Full Directory</option>
                   </select>
+                </div>
+              </div>
+
+              {recipientScope === 'individual' && (
+                <div className="bg-white p-4 rounded-xl border border-gray-200 animate-in slide-in-from-top-2 space-y-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input 
+                      type="text"
+                      value={parentSearchQuery}
+                      onChange={e => {
+                        setParentSearchQuery(e.target.value);
+                        if (selectedParentId) setSelectedParentId(null);
+                      }}
+                      placeholder="Search parent by name or family number..."
+                      className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                    />
+                    {isSearchingParents && <Clock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 animate-spin" />}
+                  </div>
+
+                  {parentSearchResults.length > 0 && !selectedParentId && (
+                    <div className="divide-y divide-gray-50 border border-gray-100 rounded-lg overflow-hidden bg-white shadow-sm">
+                      {parentSearchResults.map(p => (
+                        <button
+                          key={p.id} type="button"
+                          onClick={() => {
+                            setSelectedParentId(p.id);
+                            setParentSearchQuery(`${p.father_name || p.full_name} (${p.family_number})`);
+                            setParentSearchResults([]);
+                          }}
+                          className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                        >
+                          <div>
+                            <p className="text-xs font-bold text-gray-900">{p.father_name || p.full_name}</p>
+                            <p className="text-[10px] text-gray-400">Ref: {p.family_number || 'N/A'}</p>
+                          </div>
+                          <span className="text-[10px] text-indigo-600 font-bold uppercase">Select</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {selectedParentId && (
+                    <div className="flex items-center justify-between bg-indigo-50 px-4 py-2 rounded-lg border border-indigo-100">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-indigo-600" />
+                        <span className="text-xs font-bold text-indigo-900">Target Selected: {parentSearchQuery}</span>
+                      </div>
+                      <button 
+                        type="button" onClick={() => { setSelectedParentId(null); setParentSearchQuery(''); }}
+                        className="text-[10px] font-black text-indigo-600 uppercase hover:text-indigo-800"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* System Templates Dropdown */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Quick System Templates</label>
+                  <select 
+                    onChange={e => handleSystemTemplateSelect(e.target.value)}
+                    className="w-full bg-white border border-indigo-100 px-4 py-2.5 rounded-xl text-sm font-bold text-indigo-700 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none"
+                    defaultValue=""
+                  >
+                    <option value="" disabled>-- Select a Standard Template --</option>
+                    <option value="fee">💰 Fee Reminder</option>
+                    <option value="absent">🚫 Absentee Alert</option>
+                    <option value="late">⏰ Continuously Late Arrival</option>
+                    <option value="health">🏥 Health Issue</option>
+                    <option value="admission">✅ Admission Confirmation</option>
+                  </select>
+                </div>
+                
+                <div className="flex items-center pt-6">
+                   <p className="text-[10px] text-gray-400 font-medium">
+                     <AlertCircle className="w-3 h-3 inline mr-1 text-indigo-400" />
+                     Placeholders like <span className="text-indigo-600 font-bold">{"{{student_name}}"}</span> will be updated automatically for personal messages.
+                   </p>
                 </div>
               </div>
 
@@ -294,15 +483,23 @@ export default function Communication() {
                  </div>
               </div>
 
-              <div className="pt-2">
-                 <button 
-                   disabled={sending || recipientCount === 0 || !message.trim()}
-                   className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl shadow-indigo-100 hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center justify-center gap-3"
-                 >
-                   <Send className="w-5 h-5" /> 
-                   {sending ? 'Processing Broadcast...' : `Send Broadcast to ${recipientCount} recipients`}
-                 </button>
-              </div>
+               <div className="pt-2 flex flex-col md:flex-row gap-3">
+                  <button 
+                    disabled={sending || recipientCount === 0 || !message.trim()}
+                    className="flex-[2] bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl shadow-indigo-100 hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center justify-center gap-3"
+                  >
+                    <Send className="w-5 h-5" /> 
+                    {sending ? 'Processing Broadcast...' : `Send Broadcast to ${recipientCount} recipients`}
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={handleSaveAsTemplate}
+                    disabled={!message.trim()}
+                    className="flex-1 bg-white border-2 border-indigo-200 text-indigo-600 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-indigo-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    <BookOpen className="w-4 h-4" /> Save Template
+                  </button>
+               </div>
             </form>
           </div>
         </div>
@@ -317,18 +514,28 @@ export default function Communication() {
                   <BookOpen className="w-4 h-4 text-indigo-600" /> Templates
                 </h3>
              </div>
-             <div className="p-4 space-y-3">
-                {templates.map(t => (
-                  <button 
-                    key={t.title} 
-                    onClick={() => setMessage(t.body)}
-                    className="w-full text-left p-3 rounded-xl border border-gray-100 hover:border-indigo-300 hover:bg-indigo-50/30 transition-all group"
-                  >
-                    <p className="text-xs font-black text-gray-900 mb-1 group-hover:text-indigo-600 uppercase tracking-tight">{t.title}</p>
-                    <p className="text-[10px] text-gray-400 line-clamp-2 leading-relaxed">{t.body}</p>
-                  </button>
-                ))}
-             </div>
+              <div className="p-4 space-y-3">
+                 {templates.length === 0 && (
+                   <p className="text-[10px] text-gray-400 text-center py-4 italic">No templates saved yet.</p>
+                 )}
+                 {templates.map(t => (
+                   <div key={t.id} className="group relative">
+                    <button 
+                      onClick={() => setMessage(t.content)}
+                      className="w-full text-left p-3 rounded-xl border border-gray-100 hover:border-indigo-300 hover:bg-indigo-50/30 transition-all"
+                    >
+                      <p className="text-xs font-black text-gray-900 mb-1 group-hover:text-indigo-600 uppercase tracking-tight">{t.title}</p>
+                      <p className="text-[10px] text-gray-400 line-clamp-2 leading-relaxed">{t.content}</p>
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteTemplate(t.id)}
+                      className="absolute top-2 right-2 p-1 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                   </div>
+                 ))}
+              </div>
           </div>
 
           {/* Recent History Mini */}

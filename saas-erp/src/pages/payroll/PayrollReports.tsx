@@ -19,9 +19,10 @@ export default function PayrollReports() {
     setLoading(true);
     const { data } = await supabase
       .from('payroll_records')
-      .select('*, staff:staff_id(full_name, designation, department)')
+      .select('*, staff:staff_id(full_name, role, department)')
       .eq('school_id', userRole!.school_id)
-      .like('month_year', `${year}-%`)
+      .gte('month_year', `${year}-01-01`)
+      .lte('month_year', `${year}-12-31`)
       .order('month_year');
     setRecords(data || []);
     setLoading(false);
@@ -31,7 +32,7 @@ export default function PayrollReports() {
   const monthlyTotals = Array.from({ length: 12 }, (_, i) => {
     const m = String(i + 1).padStart(2, '0');
     const key = `${year}-${m}`;
-    const monthRecords = records.filter(r => r.month_year === key);
+    const monthRecords = records.filter(r => r.month_year?.startsWith(key));
     return {
       month: new Date(year, i, 1).toLocaleString('default', { month: 'short' }),
       net: monthRecords.reduce((s, r) => s + (r.net_salary || 0), 0),
@@ -43,7 +44,7 @@ export default function PayrollReports() {
   const staffSummary = Object.values(
     records.reduce((acc: any, r) => {
       const id = r.staff_id;
-      if (!acc[id]) acc[id] = { name: r.staff?.full_name, designation: r.staff?.designation, months: 0, total: 0 };
+      if (!acc[id]) acc[id] = { name: r.staff?.full_name, designation: r.staff?.role || r.designation || '', months: 0, total: 0 };
       acc[id].months++;
       acc[id].total += r.net_salary || 0;
       return acc;

@@ -113,29 +113,37 @@ export default function MasterSummaryReport() {
     const pageWidth = doc.internal.pageSize.getWidth();
 
     // 1. Header / Letterhead
-    doc.setFontSize(22);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(30, 41, 59); // slate-800
-    doc.text(schoolInfo?.name || 'School Executive Report', pageWidth / 2, 20, { align: 'center' });
+    if (schoolInfo?.logo_url) {
+      try {
+        doc.addImage(schoolInfo.logo_url, 'PNG', 20, 10, 20, 20);
+      } catch (e) { console.warn('Logo load failed'); }
+    }
+
+    doc.setFontSize(24);
+    doc.setFont('Inter', 'bold');
+    doc.setTextColor(15, 23, 42); // slate-900
+    doc.text(schoolInfo?.name || 'School Executive Report', 45, 20);
     
     doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('Inter', 'normal');
     doc.setTextColor(100, 116, 139); // slate-500
-    doc.text(schoolInfo?.address || '', pageWidth / 2, 27, { align: 'center' });
+    doc.text(schoolInfo?.address || 'Official Institutional Analytics', 45, 26);
 
-    doc.setDrawColor(226, 232, 240); // slate-200
-    doc.line(20, 35, pageWidth - 20, 35);
+    doc.setDrawColor(79, 70, 229); // indigo-600
+    doc.setLineWidth(1.5);
+    doc.line(20, 36, pageWidth - 20, 36);
 
     // 2. Report metadata
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.setFont('Inter', 'bold');
     doc.setTextColor(30, 41, 59);
     const periodStr = dateType === 'custom' ? `${customStart} to ${customEnd}` : dateType.toUpperCase();
-    doc.text(`FINANCIAL SUMMARY REPORT - ${periodStr}`, 20, 45);
+    doc.text(`FINANCIAL SUMMARY - ${periodStr}`, 20, 48);
     
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth - 20, 45, { align: 'right' });
+    doc.setFontSize(9);
+    doc.setFont('Inter', 'normal');
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - 20, 48, { align: 'right' });
 
     // 3. KPI Summary Table
     autoTable(doc, {
@@ -464,12 +472,26 @@ export default function MasterSummaryReport() {
       */}
       <div className="hidden print:block bg-white p-8">
         {/* Letterhead */}
-        <div className="text-center border-b-2 border-slate-200 pb-6 mb-8">
-          <h1 className="text-3xl font-serif font-black text-slate-900 uppercase tracking-tighter">{schoolInfo?.name || 'School Executive Report'}</h1>
-          <p className="text-slate-500 font-bold mt-2 uppercase tracking-widest text-sm">{schoolInfo?.address || 'Official Campus Report'}</p>
-          <div className="flex justify-center gap-6 mt-4 text-xs font-black text-slate-400">
-             <span>TEL: {schoolInfo?.contact_phone || '—'}</span>
-             <span>EMAIL: {schoolInfo?.contact_email || '—'}</span>
+        <div className="flex justify-between items-center border-b-4 border-slate-900 pb-8 mb-10">
+          <div className="flex items-center gap-6">
+            {schoolInfo?.logo_url && (
+              <img src={schoolInfo.logo_url} alt="Logo" className="w-20 h-20 object-contain p-1 border border-slate-100 rounded-xl" />
+            )}
+            <div>
+              <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">{schoolInfo?.name || 'School Executive Report'}</h1>
+              <p className="text-slate-500 font-bold mt-1 uppercase tracking-[0.2em] text-xs">{schoolInfo?.address || 'Official Campus Record'}</p>
+              <div className="flex gap-4 mt-2 text-[10px] font-black text-slate-400">
+                <span>TEL: {schoolInfo?.contact_phone || '—'}</span>
+                <span>WEB: {schoolInfo?.website || '—'}</span>
+              </div>
+            </div>
+          </div>
+          <div className="text-right">
+             <div className="bg-slate-900 text-white px-4 py-2 rounded-lg mb-2">
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-70">Report Type</p>
+                <p className="font-bold text-sm tracking-tight">EXECUTIVE SUMMARY</p>
+             </div>
+             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date: {new Date().toLocaleDateString()}</p>
           </div>
         </div>
 

@@ -10,6 +10,7 @@ const STUDENT_LEAVE_TYPES = ['Sick Leave', 'Casual Leave', 'Emergency Leave', 'F
 
 const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  forwarded: 'bg-blue-100 text-blue-800 border-blue-200',
   approved: 'bg-green-100 text-green-800 border-green-200',
   rejected: 'bg-red-100 text-red-800 border-red-200',
 };
@@ -24,6 +25,8 @@ export default function StudentLeave() {
   const [filterClass, setFilterClass] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [search, setSearch] = useState('');
+  const [myClassId, setMyClassId] = useState<string | null>(null);
+  const [staffId, setStaffId] = useState<string | null>(null);
 
   // Form
   const [showForm, setShowForm] = useState(false);
@@ -39,8 +42,26 @@ export default function StudentLeave() {
   const [rejectModal, setRejectModal] = useState<{ id: string } | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
-  useEffect(() => { if (userRole?.school_id) { fetchClasses(); fetchLeaves(); } }, [userRole]);
-  useEffect(() => { if (filterClass) fetchStudents(); else setStudents([]); }, [filterClass]);
+  useEffect(() => { 
+    if (userRole?.school_id) { 
+      fetchMyInchargeStatus();
+      fetchClasses(); 
+      fetchLeaves(); 
+    } 
+  }, [userRole]);
+
+  const fetchMyInchargeStatus = async () => {
+    // 1. Get staff ID for current user
+    const { data: staffData } = await supabase.from('staff').select('id, role').eq('school_id', userRole?.school_id).eq('email', userRole?.email).single();
+    if (staffData) {
+      setStaffId(staffData.id);
+      // 2. Check if they are incharge of any class
+      const { data: classData } = await supabase.from('classes').select('id').eq('class_teacher_id', staffData.id).single();
+      if (classData) setMyClassId(classData.id);
+    }
+  };
+
+  useEffect(() => { if (filterClass || myClassId) fetchStudents(); else setStudents([]); }, [filterClass, myClassId]);
 
   const fetchClasses = async () => {
     const { data } = await supabase.from('classes').select('id, name, section').eq('school_id', userRole?.school_id).order('name');
@@ -48,18 +69,27 @@ export default function StudentLeave() {
   };
 
   const fetchStudents = async () => {
-    const { data } = await supabase.from('students').select('id, full_name, roll_number').eq('class_id', filterClass).eq('status', 'active').order('roll_number');
+    const classToFetch = myClassId || filterClass;
+    const { data } = await supabase.from('students').select('id, full_name, roll_number').eq('class_id', classToFetch).eq('status', 'active').order('roll_number');
     if (data) setStudents(data);
   };
 
   const fetchLeaves = async () => {
     setLoading(true);
-    const { data } = await supabase
+    let query = supabase
       .from('leave_applications')
-      .select(`*, students(full_name, roll_number, classes(name, section))`)
+      .select(`*, students!inner(full_name, roll_number, class_id, classes(name, section))`)
       .eq('school_id', userRole?.school_id)
-      .eq('applicant_type', 'student')
-      .order('created_at', { ascending: false });
+      .eq('applicant_type', 'student');
+
+    if (userRole?.role === 'Teacher' && myClassId) {
+      query = query.eq('students.class_id', myClassId);
+    } else if (userRole?.role === 'Coordinator') {
+      // Coordinators see all but focus on forwarded/pending
+      query = query.or(`status.eq.forwarded,pending_with_role.eq.coordinator`);
+    }
+
+    const { data } = await query.order('created_at', { ascending: false });
     if (data) setLeaves(data);
     setLoading(false);
   };
@@ -87,9 +117,12 @@ export default function StudentLeave() {
   };
 
   const updateStatus = async (id: string, status: string, rejection_reason?: string) => {
-    await supabase.from('leave_applications').update({
-      status, rejection_reason: rejection_reason || null, reviewed_at: new Date().toISOString()
-    }).eq('id', id);
+    const updates: any = { status, rejection_reason: rejection_reason || null, reviewed_at: new Date().toISOString() };
+    if (status === 'forwarded') {
+      updates.status = 'forwarded';
+      updates.pending_with_role = 'coordinator';
+    }
+    await supabase.from('leave_applications').update(updates).eq('id', id);
     setRejectModal(null);
     fetchLeaves();
   };
@@ -202,20 +235,26 @@ export default function StudentLeave() {
                     </td>
                     <td className="px-4 py-3 no-print">
                       <div className="flex items-center gap-1">
-                        {l.status === 'pending' && (
-                          <>
+                        {(l.status === 'pending' || (l.status === 'forwarded' && userRole?.role !== 'teacher')) && (
+                          <div className="flex gap-1">
                             <button onClick={() => updateStatus(l.id, 'approved')} title="Approve"
-                              className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition">
+                              className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition border border-green-100">
                               <CheckCircle className="w-4 h-4" />
                             </button>
+                            {userRole?.role === 'Teacher' && (
+                              <button onClick={() => updateStatus(l.id, 'forwarded')} title="Forward to Coordinator"
+                                className="flex items-center gap-1 px-2 py-1 bg-indigo-600 text-white rounded text-[10px] font-black uppercase hover:bg-indigo-700 transition">
+                                Forward
+                              </button>
+                            )}
                             <button onClick={() => { setRejectModal({ id: l.id }); setRejectReason(''); }} title="Reject"
-                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition border border-red-100">
                               <XCircle className="w-4 h-4" />
                             </button>
-                          </>
+                          </div>
                         )}
                         <button onClick={() => handleDelete(l.id)} title="Delete"
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
+                          className="p-1.5 text-gray-300 hover:text-red-600 transition ml-auto">
                           <X className="w-4 h-4" />
                         </button>
                       </div>

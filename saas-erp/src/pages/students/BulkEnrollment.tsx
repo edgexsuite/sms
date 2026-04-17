@@ -1,238 +1,388 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { Upload, AlertCircle, CheckCircle, ArrowRight, Save, FileSpreadsheet } from 'lucide-react';
+import { 
+  Upload, AlertCircle, CheckCircle, ArrowRight, Save, 
+  FileSpreadsheet, Database, Table, Zap, RefreshCw, X
+} from 'lucide-react';
 import Papa from 'papaparse';
+import { cn } from '../../lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// ── Types & Constants ────────────────────────────────────────────────────────
+
+const DB_COLUMNS = [
+  { key: 'full_name', label: 'Full Name', required: true, aliases: ['name', 'student name', 'full name'] },
+  { key: 'roll_number', label: 'Roll Number', required: true, aliases: ['roll', 'roll no', 'reg no', 'id'] },
+  { key: 'b_form_cnic', label: 'B-Form / CNIC', aliases: ['cnic', 'bform'] },
+  { key: 'dob', label: 'Date of Birth', aliases: ['birth', 'dob', 'date of birth'] },
+  { key: 'gender', label: 'Gender', aliases: ['sex'] },
+  { key: 'admission_date', label: 'Admission Date', aliases: ['adm date', 'date of admission'] },
+  { key: 'father_name', label: 'Father Name', aliases: ['father', 'parent name'] },
+  { key: 'father_contact', label: 'Father Mobile', aliases: ['contact', 'phone', 'mobile'] },
+  { key: 'address', label: 'Address', aliases: ['residencial address', 'home'] },
+  { key: 'fee_waiver_percentage', label: 'Waiver %', aliases: ['discount', 'waiver', 'scholarship', 'free'] },
+];
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+const parseDate = (val: string) => {
+  if (!val) return null;
+  // Try common formats
+  const d = new Date(val);
+  if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+  
+  // Try DD-MM-YYYY
+  const parts = val.split(/[-/]/);
+  if (parts.length === 3) {
+    if (parts[2].length === 4) { // YYYY last
+       const d2 = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+       if (!isNaN(d2.getTime())) return d2.toISOString().split('T')[0];
+    }
+  }
+  return val; // Fallback
+};
+
+// ── Component ────────────────────────────────────────────────────────────────
 
 export default function BulkEnrollment() {
   const { userRole } = useAuth();
-  const [file, setFile] = useState<File | null>(null);
-  const [parsedData, setParsedData] = useState<any[]>([]);
-  const [headers, setHeaders] = useState<string[]>([]);
-  const [classes, setClasses] = useState<any[]>([]);
   
-  // Mapping state: CSV Header -> Database Column
-  const [mapping, setMapping] = useState<Record<string, string>>({});
-  
+  // State
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [parsedData, setParsedData] = useState<any[]>([]);
+  const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [classes, setClasses] = useState<any[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState('');
+  
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState({ total: 0, siblingsAutoGrouped: 0 });
 
-  // Core system fields that can be mapped
-  const dbColumns = [
-    { key: 'full_name', label: 'Full Name (Required)' },
-    { key: 'roll_number', label: 'Roll Number (Required)' },
-    { key: 'b_form_cnic', label: 'B-Form / CNIC' },
-    { key: 'dob', label: 'Date of Birth (YYYY-MM-DD)' },
-    { key: 'gender', label: 'Gender (Male/Female)' },
-    { key: 'class_id', label: 'Class ID (UUID)' },
-    { key: 'parent_family_number', label: 'Family Number / Parent ID' },
-  ];
-
-  useEffect(() => {
-    if (userRole?.school_id) {
-      fetchClasses();
-    }
-  }, [userRole]);
-
-  const fetchClasses = async () => {
-    const { data } = await supabase.from('classes').select('id, name, section').eq('school_id', userRole?.school_id);
-    if (data) setClasses(data);
-  };
+  // ── Enrollment Logic ───────────────────────────────────────────────────────
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (!selectedFile) return;
-    setFile(selectedFile);
-    setError('');
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    Papa.parse(selectedFile, {
+    Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
       complete: (results) => {
-        if (!results.meta.fields || results.meta.fields.length === 0) {
-          setError('CSV file appears to be empty or has no headers.');
+        if (!results.meta.fields) {
+          setError('Invalid CSV format: No headers found.');
           return;
         }
+        
         setHeaders(results.meta.fields);
         setParsedData(results.data);
         
-        // Auto-mapping logic
-        const autoMap: Record<string, string> = {};
-        results.meta.fields.forEach(header => {
-          const matchedDbCol = dbColumns.find(col => col.key.replace(/_/g, '').toLowerCase() === header.replace(/[_ ]/g, '').toLowerCase());
-          if (matchedDbCol) autoMap[header] = matchedDbCol.key;
+        // Auto-Mapping
+        const auto: Record<string, string> = {};
+        results.meta.fields.forEach(hdr => {
+          const match = DB_COLUMNS.find(col => 
+            col.key === hdr.toLowerCase().replace(/ /g, '_') ||
+            col.aliases.includes(hdr.toLowerCase().trim())
+          );
+          if (match) auto[hdr] = match.key;
         });
-        setMapping(autoMap);
+        setMapping(auto);
         setStep(2);
-      },
-      error: (err: any) => {
-        setError('Error parsing file: ' + err.message);
       }
     });
   };
 
-  const executeBulkInsert = async () => {
-    if (!userRole?.school_id) return;
-    setLoading(true);
-    setError('');
-    setSuccess('');
+  const runEnrollment = async () => {
+    if (!selectedClassId) {
+      setError('Please select a target class first.');
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
 
     try {
-      const inserts = parsedData.map(row => {
-        const payload: Record<string, any> = {
-          school_id: userRole.school_id,
-          status: 'active'
-        };
-
-        // Construct payload based on mapping
-        (Object.entries(mapping) as [string, string][]).forEach(([csvHeader, dbCol]: [string, string]) => {
-          if (row[csvHeader]) {
-             if (dbCol === 'roll_number') (payload as any)[dbCol] = parseInt(row[csvHeader], 10);
-             else if (dbCol !== 'parent_family_number') (payload as any)[dbCol] = row[csvHeader];
+      // 1. Sanitize & Group by Father (Family Logic)
+      const families: Record<string, any[]> = {};
+      parsedData.forEach((row, idx) => {
+        const student: any = { school_id: userRole!.school_id, class_id: selectedClassId, status: 'active' };
+        
+        Object.entries(mapping).forEach(([csvH, dbK]) => {
+          let val = row[csvH]?.trim();
+          if (!val) return;
+          
+          if (dbK === 'dob' || dbK === 'admission_date') val = parseDate(val);
+          if (dbK === 'roll_number') val = parseInt(val) || (1000 + idx);
+          if (dbK === 'fee_waiver_percentage') {
+            const num = parseInt(val);
+            val = isNaN(num) ? (val.toLowerCase() === 'free' ? 100 : 0) : Math.min(100, Math.max(0, num));
           }
+          
+          student[dbK] = val;
         });
 
-        // Ensure required fields
-        if (!payload.full_name) throw new Error('Missing Full Name in row data.');
-        if (!payload.roll_number) throw new Error(`Missing Roll Number for student: ${payload.full_name}`);
-        
-        // Generate memorable credentials if missing
-        if (!payload.student_unique_id) {
-          const suffix = Math.floor(1000 + Math.random() * 9000).toString();
-          const namePart = (payload.full_name || 'Student').trim().split(' ')[0];
-          payload.student_unique_id = `${namePart}${suffix}`;
-        }
-        if (!payload.auth_password) {
-          payload.auth_password = Math.random().toString(36).slice(-6).toUpperCase();
-        }
-        if (payload.fee_waiver_percentage === undefined) {
-          payload.fee_waiver_percentage = 0;
+        if (!student.full_name || student.full_name === 'undefined') {
+          student.full_name = `Student ${student.roll_number || idx + 1}`;
         }
 
-        return payload;
+        const famKey = student.father_contact || student.father_name || 'Individual';
+        if (!families[famKey]) families[famKey] = [];
+        families[famKey].push(student);
       });
 
-      const { error: insertError } = await supabase.from('students').insert(inserts);
-      if (insertError) throw insertError;
+      let totalProcessed = 0;
+      let siblingGroups = 0;
 
-      setSuccess(`Successfully enrolled ${inserts.length} students!`);
+      // 2. Loop & Insert
+      for (const [key, siblings] of Object.entries(families)) {
+        const first = siblings[0];
+        
+        // Create Master Family Group
+        const { data: fg, error: fgE } = await supabase.from('family_groups').insert({
+          school_id: userRole!.school_id,
+          family_name: `${first.father_name || first.full_name}'s Family`,
+          primary_contact: first.father_name || first.full_name,
+          primary_phone: first.father_contact || ''
+        }).select().single();
+
+        if (fgE) throw fgE;
+
+        // Create Parent Account
+        const fatherInit = (first.father_name || 'Parent').split(' ')[0].toLowerCase();
+        const { data: parent, error: pE } = await supabase.from('parents').insert({
+          school_id: userRole!.school_id,
+          family_group_id: fg.id,
+          family_number: `${fatherInit}${Math.random().toString(36).substring(7)}`,
+          auth_password: `${fatherInit}123`,
+          full_name: first.father_name || 'Parent',
+          whatsapp_number: first.father_contact || '',
+          address: first.address || ''
+        }).select().single();
+
+        if (pE) throw pE;
+
+        // Insert Students
+        const studentsToInsert = siblings.map(s => {
+          const { father_name, father_contact, mother_name, mother_contact, ...remainder } = s;
+          const sNameInit = s.full_name.split(' ')[0].toLowerCase();
+          return {
+            ...remainder,
+            parent_id: parent.id,
+            family_group_id: fg.id,
+            student_unique_id: `${sNameInit}${s.roll_number}`,
+            auth_password: `${sNameInit}123`,
+            fee_waiver_percentage: s.fee_waiver_percentage || 0
+          };
+        });
+
+        const { error: sE } = await supabase.from('students').insert(studentsToInsert);
+        if (sE) throw sE;
+
+        totalProcessed += siblings.length;
+        if (siblings.length > 1) siblingGroups++;
+      }
+
+      setStats({ total: totalProcessed, siblingsAutoGrouped: siblingGroups });
       setStep(3);
     } catch (err: any) {
-      setError(err.message || 'Failed to bulk insert records.');
+      setError(err.message);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
+  // ── Effects ────────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const fetchCls = async () => {
+      const { data } = await supabase.from('classes').select('id, name, section').eq('school_id', userRole?.school_id);
+      if (data) setClasses(data);
+    };
+    if (userRole?.school_id) fetchCls();
+  }, [userRole?.school_id]);
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Advanced Bulk Enrollment</h1>
-        <p className="text-gray-500 text-sm mt-1">Map your existing spreadsheet columns directly to the new database structure.</p>
-      </div>
-
-      {/* Progress Steps */}
-      <div className="flex border-b border-gray-200">
-        <div className={`px-6 py-4 font-medium text-sm border-b-2 transition-colors ${step === 1 ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}`}>1. Upload File</div>
-        <div className={`px-6 py-4 font-medium text-sm border-b-2 transition-colors ${step === 2 ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}`}>2. Map Columns</div>
-        <div className={`px-6 py-4 font-medium text-sm border-b-2 transition-colors ${step === 3 ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}`}>3. Finalize</div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow border border-gray-200 p-8">
-        {error && (
-          <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-md flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500 mt-0.5" />
-            <p className="text-sm text-red-700">{error}</p>
+    <div className="max-w-4xl mx-auto space-y-4">
+      
+      {/* HUD Bar */}
+      <div className="flex items-center justify-between bg-white rounded-xl border border-slate-200 px-6 py-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-violet-500 flex items-center justify-center text-white shadow-lg shadow-violet-100">
+            <Database className="w-5 h-5 fill-current" />
           </div>
-        )}
+          <div>
+            <h1 className="text-sm font-black text-slate-900 uppercase tracking-tight">Mass Enrollment Protocol</h1>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">Excel & CSV Nexus</p>
+          </div>
+        </div>
+
+        <div className="flex gap-1">
+          {[1, 2, 3].map(s => (
+            <div 
+              key={s}
+              className={cn(
+                "h-1.5 w-12 rounded-full transition-all duration-500",
+                step === s ? "bg-violet-600" : step > s ? "bg-emerald-500" : "bg-slate-100"
+              )}
+            />
+          ))}
+        </div>
+      </div>
+
+      <AnimatePresence mode="wait">
         
-        {success && (
-          <div className="mb-6 bg-green-50 border-l-4 border-green-500 p-4 rounded-r-md flex items-start gap-3">
-            <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
-            <p className="text-sm text-green-700">{success}</p>
-          </div>
-        )}
-
+        {/* STEP 1: UPLOAD */}
         {step === 1 && (
-          <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
-            <FileSpreadsheet className="w-12 h-12 text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Upload CSV or Excel File</h3>
-            <p className="text-sm text-gray-500 text-center max-w-md mb-6">Ensure your file has a header row. We will map your columns in the next step.</p>
-            <label className="cursor-pointer bg-blue-600 text-white px-6 py-2.5 rounded-md font-medium hover:bg-blue-700 transition flex items-center gap-2">
-              <Upload className="w-4 h-4" /> Browse Files
+          <motion.div 
+            key="step1"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="ent-card py-16 flex flex-col items-center justify-center text-center border-dashed border-2 border-slate-200"
+          >
+            <div className="w-20 h-20 bg-violet-50 rounded-full flex items-center justify-center mb-6">
+              <FileSpreadsheet className="w-10 h-10 text-violet-600" />
+            </div>
+            <h2 className="text-xl font-black text-slate-900 mb-2 uppercase tracking-tighter">Initialize Payload</h2>
+            <p className="text-sm text-slate-400 font-medium mb-8 max-w-sm">
+              Upload your Student Spreadsheet. We'll attempt to auto-detect columns like Name, Father, Phone, and Dates.
+            </p>
+            
+            <label className="ent-btn-primary px-10 cursor-pointer">
+              <Upload className="w-4 h-4 mr-2" /> Select CSV Data
               <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
             </label>
-          </div>
+          </motion.div>
         )}
 
+        {/* STEP 2: MAPPING */}
         {step === 2 && (
-          <div className="space-y-6">
-            <div className="bg-blue-50 p-4 rounded-md">
-              <h3 className="font-semibold text-blue-900 mb-1">Column Mapping</h3>
-              <p className="text-sm text-blue-800">We detected {headers.length} columns in your file. Please map them to match our database. Unmapped columns will be ignored.</p>
-            </div>
+          <motion.div 
+            key="step2"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex flex-col gap-4"
+          >
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-2 ent-card">
+                <p className="ent-label">Coordinate Alignment</p>
+                <div className="overflow-x-auto">
+                  <table className="ent-table">
+                    <thead>
+                      <tr>
+                        <th>Excel Column</th>
+                        <th>Nexus Field</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {headers.map(hdr => (
+                        <tr key={hdr}>
+                          <td className="font-bold text-slate-700">{hdr}</td>
+                          <td>
+                            <select 
+                              value={mapping[hdr] || ''}
+                              onChange={e => setMapping({...mapping, [hdr]: e.target.value})}
+                              className="ent-input py-1 text-xs w-full"
+                            >
+                              <option value="">Ignore</option>
+                              {DB_COLUMNS.map(c => (
+                                <option key={c.key} value={c.key}>{c.label}</option>
+                              ))}
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
-            <div className="border border-gray-200 rounded-md overflow-hidden">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="p-4 font-medium text-gray-700 w-1/2">Your CSV Header</th>
-                    <th className="p-4 font-medium text-gray-700 w-1/2">Database Field</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {headers.map((header) => (
-                    <tr key={header} className="hover:bg-gray-50 focus-within:bg-blue-50">
-                      <td className="p-4 font-medium text-gray-900">{header}</td>
-                      <td className="p-4">
-                        <select
-                          value={mapping[header] || ''}
-                          onChange={(e) => setMapping({...mapping, [header]: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500 bg-white"
-                        >
-                          <option value="">-- Ignore this column --</option>
-                          {dbColumns.map(col => (
-                            <option key={col.key} value={col.key}>{col.label}</option>
-                          ))}
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+              <div className="space-y-4">
+                <div className="ent-card">
+                  <p className="ent-label">Deployment Targets</p>
+                  <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Destination Class</label>
+                  <select 
+                    value={selectedClassId}
+                    onChange={e => setSelectedClassId(e.target.value)}
+                    className="ent-input w-full mb-4"
+                  >
+                    <option value="">Select Class...</option>
+                    {classes.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}-{c.section}</option>
+                    ))}
+                  </select>
 
-            <div className="flex justify-end pt-4">
-              <button onClick={() => setStep(1)} className="px-6 py-2 text-gray-700 mr-4 font-medium hover:bg-gray-100 rounded-md">
-                Back
-              </button>
-              <button onClick={executeBulkInsert} disabled={loading} className="px-6 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50">
-                 {loading ? 'Processing...' : 'Run Enrollment'} <ArrowRight className="w-4 h-4" />
-              </button>
+                  <div className="space-y-4 pt-4 border-t border-slate-100">
+                    <div className="flex justify-between items-center text-xs">
+                       <span className="text-slate-400 font-bold uppercase">Rows Detected</span>
+                       <span className="font-black text-slate-900">{parsedData.length}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                       <span className="text-slate-400 font-bold uppercase">Fields Mapped</span>
+                       <span className="font-black text-emerald-600">{Object.keys(mapping).length}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <button 
+                    onClick={runEnrollment}
+                    disabled={isLoading || !selectedClassId}
+                    className="w-full ent-btn-primary py-4 shadow-xl shadow-indigo-100 flex items-center justify-center gap-2"
+                  >
+                    {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                    {isLoading ? "IMPORTING..." : "START ENROLLMENT"}
+                  </button>
+                  <button onClick={() => setStep(1)} className="ent-btn-ghost text-[10px] font-black uppercase">Cancel & Reset</button>
+                </div>
+              </div>
             </div>
-          </div>
+            
+            {error && (
+              <div className="ent-card border-red-200 bg-red-50 py-3 flex items-center gap-3 text-red-700">
+                <AlertCircle className="w-4 h-4" />
+                <p className="text-xs font-bold leading-tight">{error}</p>
+              </div>
+            )}
+          </motion.div>
         )}
 
+        {/* STEP 3: SUMMARY */}
         {step === 3 && (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="w-8 h-8" />
+          <motion.div 
+            key="step3"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="ent-card py-20 text-center"
+          >
+            <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckCircle className="w-10 h-10 text-emerald-600" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Enrollment Complete!</h2>
-            <p className="text-gray-500 mb-8 max-w-md mx-auto">The batch processing finished successfully and data is now populated.</p>
-            <div className="flex justify-center gap-4">
-              <button onClick={() => { setStep(1); setFile(null); setParsedData([]); }} className="px-6 py-2 bg-gray-100 text-gray-700 rounded-md font-medium hover:bg-gray-200 transition">
+            <h2 className="text-2xl font-black text-slate-900 mb-2 uppercase tracking-tighter">nexus synchronized</h2>
+            <p className="text-sm text-slate-400 font-medium mb-8">
+              Database successfully updated with <span className="text-indigo-600 font-black">{stats.total}</span> new student records.<br/>
+              Detected <span className="text-emerald-600 font-black">{stats.siblingsAutoGrouped}</span> sibling families and linked them automatically.
+            </p>
+            
+            <div className="flex items-center justify-center gap-4">
+              <button 
+                onClick={() => { setStep(1); setParsedData([]); }}
+                className="ent-btn-ghost px-8"
+              >
                 Upload Another
               </button>
-              <a href="/students" className="px-6 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 inline-block transition">
-                View Student List
-              </a>
+              <button 
+                onClick={() => window.location.href='/students'}
+                className="ent-btn-primary px-8"
+              >
+                View Directory
+              </button>
             </div>
-          </div>
+          </motion.div>
         )}
-      </div>
+
+      </AnimatePresence>
     </div>
   );
 }

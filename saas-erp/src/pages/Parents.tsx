@@ -7,6 +7,7 @@ import {
   GraduationCap, CreditCard, ChevronRight
 } from 'lucide-react';
 import { exportToCSV } from '../lib/exportUtils';
+import * as templatesLib from '../lib/whatsappTemplates';
 
 const emptyForm = {
   full_name: '', father_name: '', mother_name: '', cnic: '',
@@ -27,6 +28,7 @@ export default function Parents() {
   const [saving, setSaving] = useState(false);
 
   const [viewParent, setViewParent] = useState<any | null>(null);
+  const [waModal, setWaModal] = useState<{ parent: any; message: string } | null>(null);
 
   useEffect(() => { if (userRole?.school_id) fetchParents(); }, [userRole]);
 
@@ -85,9 +87,40 @@ export default function Parents() {
     fetchParents();
   };
 
-  const sendWhatsApp = (phone: string, name: string) => {
-    const msg = encodeURIComponent(`Dear ${name}, this is an important message from the school administration. Please contact us at your earliest convenience.`);
+  const handleTemplateSelect = (templateId: string, parent: any) => {
+    const student = parent.students?.[0] || {};
+    const vars: templatesLib.TemplateVars = {
+      studentName: student.full_name || 'your child',
+      parentName: parent.full_name,
+      schoolName: 'Our School',
+      className: student.classes?.name || 'Class',
+      balance: (student.fee_records || []).reduce((a: number, f: any) => a + (f.total_amount - f.paid_amount), 0),
+      month: 'this month',
+      attendanceDate: new Date().toLocaleDateString(),
+      arrivalTime: '08:15 AM',
+      symptoms: 'fever',
+      admissionDate: new Date().toLocaleDateString()
+    };
+
+    let content = '';
+    switch (templateId) {
+      case 'fee': content = templatesLib.feeDueTemplate(vars); break;
+      case 'absent': content = templatesLib.absenceAlertTemplate(vars); break;
+      case 'late': content = templatesLib.lateArrivalTemplate(vars); break;
+      case 'health': content = templatesLib.healthIssueTemplate(vars); break;
+      case 'admission': content = templatesLib.admissionConfirmationTemplate(vars); break;
+      case 'custom': content = templatesLib.customTemplate({ ...vars, customMessage: '' }); break;
+      default: return;
+    }
+    setWaModal({ ...waModal!, message: content });
+  };
+
+  const executeWhatsAppSend = () => {
+    if (!waModal) return;
+    const phone = waModal.parent.whatsapp_number || '';
+    const msg = encodeURIComponent(waModal.message);
     window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${msg}`, '_blank');
+    setWaModal(null);
   };
 
   const handleExport = () => {
@@ -207,7 +240,7 @@ export default function Parents() {
                       </td>
                       <td className="px-4 py-3">
                         {p.whatsapp_number ? (
-                          <button onClick={() => sendWhatsApp(p.whatsapp_number, p.full_name)}
+                          <button onClick={() => setWaModal({ parent: p, message: '' })}
                             className="flex items-center gap-1 text-green-600 hover:text-green-700 text-sm font-medium">
                             <MessageSquare className="w-3.5 h-3.5" /> {p.whatsapp_number}
                           </button>
@@ -316,7 +349,7 @@ export default function Parents() {
             </div>
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex gap-3 shrink-0">
               {viewParent.whatsapp_number && (
-                <button onClick={() => sendWhatsApp(viewParent.whatsapp_number, viewParent.full_name)}
+                <button onClick={() => { setWaModal({ parent: viewParent, message: '' }); setViewParent(null); }}
                   className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-700 transition">
                   <MessageSquare className="w-4 h-4" /> Send WhatsApp
                 </button>
@@ -386,6 +419,65 @@ export default function Parents() {
               <button onClick={handleSave} disabled={saving}
                 className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow flex items-center gap-2 disabled:opacity-50">
                 <Save className="w-4 h-4" /> {saving ? 'Saving...' : editId ? 'Update Parent' : 'Register Parent'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* WhatsApp Template Modal */}
+      {waModal && (
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-green-600 px-6 py-4 flex justify-between items-center">
+              <h3 className="font-bold text-white flex items-center gap-2">
+                <MessageSquare className="w-5 h-5" /> Send WhatsApp Message
+              </h3>
+              <button onClick={() => setWaModal(null)} className="text-green-100 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase mb-2 tracking-widest">Select Template</label>
+                <select 
+                  onChange={(e) => handleTemplateSelect(e.target.value, waModal.parent)}
+                  className="w-full bg-gray-50 border border-gray-200 px-4 py-2.5 rounded-xl text-sm font-bold focus:ring-4 focus:ring-green-500/10 focus:border-green-500 outline-none"
+                  defaultValue=""
+                >
+                  <option value="" disabled>-- Choose Template --</option>
+                  <option value="fee">💰 Fee Reminder</option>
+                  <option value="absent">🚫 Absentee Alert</option>
+                  <option value="late">⏰ Continuously Late Arrival</option>
+                  <option value="health">🏥 Health Issue</option>
+                  <option value="admission">✅ Admission Confirmation</option>
+                  <option value="custom">💬 Custom Message</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase mb-2 tracking-widest">Message Preview</label>
+                <textarea 
+                  value={waModal.message}
+                  onChange={(e) => setWaModal({ ...waModal, message: e.target.value })}
+                  rows={6}
+                  className="w-full bg-white border border-gray-200 p-4 rounded-xl text-sm font-medium focus:ring-4 focus:ring-green-500/10 focus:border-green-500 outline-none resize-none shadow-sm"
+                  placeholder="Select a template above or type your message here..."
+                />
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-100 p-3 rounded-lg flex gap-3">
+                <AlertCircle className="w-5 h-5 text-yellow-600 shrink-0" />
+                <p className="text-[10px] text-yellow-700 leading-relaxed font-medium">
+                  WhatsApp will open in a new tab. If you have multiple children, the template uses the first child's data by default.
+                </p>
+              </div>
+            </div>
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+              <button onClick={() => setWaModal(null)} className="px-4 py-2 text-gray-600 font-bold text-sm hover:bg-gray-200 rounded-lg">Cancel</button>
+              <button 
+                onClick={executeWhatsAppSend}
+                disabled={!waModal.message.trim()}
+                className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-black uppercase tracking-widest text-xs shadow-lg shadow-green-100 disabled:opacity-50 transition-all flex items-center gap-2"
+              >
+                Open WhatsApp <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>

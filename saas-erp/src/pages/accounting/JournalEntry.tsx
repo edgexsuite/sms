@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { FileText, Plus, Trash2, X, Download } from 'lucide-react';
+import { FileText, Plus, Trash2, X, Download, BookOpen } from 'lucide-react';
 import { exportToExcel } from '../../lib/exportUtils';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 
 interface JournalLine {
   id: string;
@@ -25,6 +27,7 @@ interface Entry {
 
 export default function JournalEntry() {
   const { userRole } = useAuth();
+  const navigate = useNavigate();
   const [entries, setEntries] = useState<Entry[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,6 +83,42 @@ export default function JournalEntry() {
         entry_id: entry.id, account_id: l.account_id, description: l.description, debit: l.debit || 0, credit: l.credit || 0,
       }));
       await supabase.from('journal_lines').insert(lineRecords);
+
+      // --- NEW: Mirror to Unified Ledger ---
+      // Distinguish between actual Income/Expense movements for P&L visibility
+      const expenseLines = lines.filter(l => {
+        const acc = accounts.find(a => a.id === l.account_id);
+        return acc?.account_type === 'expense' && (l.debit || 0) > 0;
+      });
+      const incomeLines = lines.filter(l => {
+        const acc = accounts.find(a => a.id === l.account_id);
+        return acc?.account_type === 'income' && (l.credit || 0) > 0;
+      });
+
+      if (expenseLines.length > 0) {
+        const totalExp = expenseLines.reduce((s, l) => s + (l.debit || 0), 0);
+        await supabase.from('financial_transactions').insert([{
+           school_id: userRole?.school_id,
+           type: 'expense',
+           amount: totalExp,
+           category: 'Adjustment (from Journal)',
+           reference_id: entry.id,
+           date: form.entry_date,
+           remarks: `Journal Adj: ${form.narration}`
+        }]);
+      }
+      if (incomeLines.length > 0) {
+        const totalInc = incomeLines.reduce((s, l) => s + (l.credit || 0), 0);
+        await supabase.from('financial_transactions').insert([{
+           school_id: userRole?.school_id,
+           type: 'income',
+           amount: totalInc,
+           category: 'Adjustment (from Journal)',
+           reference_id: entry.id,
+           date: form.entry_date,
+           remarks: `Journal Adj: ${form.narration}`
+        }]);
+      }
     }
 
     setSaving(false); setShowModal(false); fetchEntries();
@@ -114,6 +153,24 @@ export default function JournalEntry() {
           </button>
         </div>
       </div>
+
+      {/* Guidance Banner - Aura Style */}
+      <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-violet-600 rounded-3xl p-6 flex items-center gap-6 shadow-2xl shadow-violet-100 border border-violet-500/20"
+      >
+        <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center shrink-0">
+          <BookOpen className="w-6 h-6 text-white" />
+        </div>
+        <div>
+          <h3 className="text-white font-black text-sm uppercase tracking-widest leading-none">Accounting Adjustment Engine</h3>
+          <p className="text-violet-100 text-xs font-bold mt-1.5 opacity-80 leading-relaxed">
+            Record non-cash adjustments, depreciation, and opening balances here. 
+            All real cash outflows must be logged in <span className="underline cursor-pointer" onClick={() => navigate('/expenses')}>Expenses → Daily Expenses</span> for accurate liquidity and day-book tracking.
+          </p>
+        </div>
+      </motion.div>
 
       {accounts.length === 0 && !loading && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">

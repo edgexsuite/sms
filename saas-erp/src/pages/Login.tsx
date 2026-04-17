@@ -33,11 +33,11 @@ export default function Login() {
       // 2. Otherwise, treat as ID (Family ID or Student ID)
       const input = identifier.trim();
 
-      // Check Parent Table (Priority 1: Dedicated Column | Priority 2: JSONB metadata)
+      // Check Parent Table
       const { data: parent } = await supabase
         .from('parents')
-        .select('id, full_name, family_number, auth_password, custom_data')
-        .or(`family_number.ilike.${input},custom_data->>family_number.eq.${input}`)
+        .select('id, full_name, family_number, auth_password, custom_data, school_id')
+        .ilike('family_number', input)
         .eq('auth_password', password)
         .maybeSingle();
 
@@ -47,7 +47,7 @@ export default function Login() {
         return;
       }
 
-      // Check Student Table (Priority 1: Dedicated Column | Priority 2: JSONB metadata)
+      // Check Student Table
       const { data: student } = await supabase
         .from('students')
         .select(`
@@ -60,7 +60,7 @@ export default function Login() {
           custom_data,
           classes (name, section)
         `)
-        .or(`student_unique_id.ilike.${input},custom_data->>student_unique_id.eq.${input}`)
+        .ilike('student_unique_id', input)
         .eq('auth_password', password)
         .maybeSingle();
 

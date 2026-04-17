@@ -2,8 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { Receipt, Search, PlusCircle, MessageCircle, Edit, Calendar, CheckSquare, Square, Save, X, Printer, Users, Layout } from 'lucide-react';
+import { 
+  Receipt, Search, PlusCircle, MessageCircle, Edit, 
+  Calendar, CheckSquare, Square, Save, X, Printer, Users, 
+  Layout, TrendingUp, AlertCircle, FileText, CheckCircle2,
+  Clock, Filter, Download, Trash2, Send, Bell
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '../../lib/utils';
 import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, ChallanConfig, ChallanRecord, SchoolInfo } from '../../lib/challanUtils';
+import * as templatesLib from '../../lib/whatsappTemplates';
 
 export default function MonthlyFeeInvoices() {
   const { userRole } = useAuth();
@@ -16,21 +24,23 @@ export default function MonthlyFeeInvoices() {
   const [monthFilter, setMonthFilter] = useState('');
   const [school, setSchool] = useState<SchoolInfo>({ name: '' });
   const [challanConfig, setChallanConfig] = useState<ChallanConfig>(DEFAULT_CHALLAN_CONFIG);
+  const [groupByFamily, setGroupByFamily] = useState(false);
 
-  // Mass Generate Modal State
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [generateMonth, setGenerateMonth] = useState('');
   const [generateDueDate, setGenerateDueDate] = useState('');
   const [includeAdmissionFee, setIncludeAdmissionFee] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [genMode, setGenMode] = useState<'all' | 'class' | 'student'>('all');
+  const [targetClass, setTargetClass] = useState('');
+  const [targetStudent, setTargetStudent] = useState<any>(null);
+  const [stuQuery, setStuQuery] = useState('');
+  const [stuResults, setStuResults] = useState<any[]>([]);
 
-  // Bulk Edit State
   const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(new Set());
   const [bulkDueDate, setBulkDueDate] = useState('');
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [batchPrinting, setBatchPrinting] = useState(false);
-
-  // Edit Invoice State
   const [editingInvoice, setEditingInvoice] = useState<any>(null);
 
   useEffect(() => {
@@ -50,11 +60,8 @@ export default function MonthlyFeeInvoices() {
       .maybeSingle();
     
     if (data) {
-      // If logo_url is just a filename/path, resolve it to a public Supabase URL
       if (data.logo_url && !data.logo_url.startsWith('http')) {
-        const { data: publicURL } = supabase.storage
-          .from('logos')
-          .getPublicUrl(data.logo_url);
+        const { data: publicURL } = supabase.storage.from('logos').getPublicUrl(data.logo_url);
         data.logo_url = publicURL.publicUrl;
       }
       setSchool(data);
@@ -62,21 +69,12 @@ export default function MonthlyFeeInvoices() {
   };
 
   const fetchClasses = async () => {
-    const { data } = await supabase
-      .from('classes')
-      .select('id, name, section')
-      .eq('school_id', userRole?.school_id)
-      .order('name');
+    const { data } = await supabase.from('classes').select('id, name, section').eq('school_id', userRole?.school_id).order('name');
     if (data) setClasses(data);
   };
 
   const fetchChallanConfig = async () => {
-    const { data } = await supabase
-      .from('form_settings')
-      .select('sections_config')
-      .eq('school_id', userRole?.school_id)
-      .eq('form_name', 'challan_settings')
-      .maybeSingle();
+    const { data } = await supabase.from('form_settings').select('sections_config').eq('school_id', userRole?.school_id).eq('form_name', 'challan_settings').maybeSingle();
     if (data?.sections_config) setChallanConfig({ ...DEFAULT_CHALLAN_CONFIG, ...data.sections_config });
   };
 
@@ -84,7 +82,7 @@ export default function MonthlyFeeInvoices() {
     setLoading(true);
     const { data } = await supabase
       .from('fee_records')
-      .select('*, students(id, full_name, roll_number, class_id, classes(name, section), parents(whatsapp_number, father_name))')
+      .select('*, students(id, full_name, roll_number, class_id, family_group_id, classes(name, section), parents(whatsapp_number, father_name))')
       .eq('school_id', userRole?.school_id)
       .order('created_at', { ascending: false });
     if (data) setInvoices(data);
@@ -96,30 +94,55 @@ export default function MonthlyFeeInvoices() {
     setGenerating(true);
     try {
       const { data: structures } = await supabase.from('fee_structures').select('*').eq('school_id', userRole?.school_id);
-      const { data: students } = await supabase.from('students')
+      
+      let studentsQuery = supabase.from('students')
         .select('*')
         .eq('school_id', userRole?.school_id)
         .eq('status', 'active')
         .lt('fee_waiver_percentage', 100);
 
-      if (!students || students.length === 0) throw new Error('No billable students found.');
+      if (genMode === 'class' && targetClass) {
+        studentsQuery = studentsQuery.eq('class_id', targetClass);
+      } else if (genMode === 'student' && targetStudent) {
+        studentsQuery = studentsQuery.eq('id', targetStudent.id);
+      }
 
-      const inserts = students.map(student => {
+      const { data: students } = await studentsQuery;
+
+      if (!students || students.length === 0) throw new Error('No billable students found for current selection.');
+
+      // Duplicate Check: Fetch existing records for this month
+      const monthYear = generateMonth + '-01';
+      const { data: existing } = await supabase.from('fee_records').select('student_id').eq('school_id', userRole?.school_id).eq('month_year', monthYear);
+      const existingIds = new Set(existing?.map(e => e.student_id) || []);
+
+      const billableStudents = students.filter(s => !existingIds.has(s.id));
+
+      if (billableStudents.length === 0) {
+        throw new Error('All students in this selection already have invoices generated for this month.');
+      }
+
+      const allInserts = billableStudents.map(student => {
         const structure = structures?.find(s => s.class_id === student.class_id);
-        const matrix = structure?.fee_matrix || { recurrent: [{ item: 'Default Tuition', amount: 0 }], first_time: [] };
+        const matrix = structure?.fee_matrix;
         let breakdown: any[] = [];
         let total = 0;
         const waiverDec = (student.fee_waiver_percentage || 0) / 100;
 
-        if (matrix.recurrent) {
+        if (matrix?.recurrent?.length) {
           matrix.recurrent.forEach((r: any) => {
-            const discountedAmount = r.amount * (1 - waiverDec);
+            const discountedAmount = +(r.amount * (1 - waiverDec)).toFixed(2);
             breakdown.push({ item: r.item, amount: discountedAmount });
             total += discountedAmount;
           });
+        } else if (structure?.amount) {
+          // fallback to legacy amount field
+          const discountedAmount = +(structure.amount * (1 - waiverDec)).toFixed(2);
+          breakdown.push({ item: 'Monthly Tuition Fee', amount: discountedAmount });
+          total = discountedAmount;
         }
 
-        if (includeAdmissionFee && matrix.first_time) {
+        if (includeAdmissionFee && matrix?.first_time?.length) {
           matrix.first_time.forEach((f: any) => {
             breakdown.push({ item: f.item, amount: f.amount });
             total += f.amount;
@@ -129,6 +152,7 @@ export default function MonthlyFeeInvoices() {
         return {
           school_id: userRole?.school_id,
           student_id: student.id,
+          student_name: student.full_name,
           month_year: generateMonth + '-01',
           total_amount: total,
           paid_amount: 0,
@@ -136,29 +160,36 @@ export default function MonthlyFeeInvoices() {
           due_date: generateDueDate,
           payment_mode: 'Pending',
           breakdown,
-          invoice_number: `INV-${Math.floor(Date.now() / 1000)}-${student.roll_number}`,
+          invoice_number: `INV-${generateMonth.replace('-', '').slice(2)}-${String(student.roll_number || 0).padStart(3, '0')}`,
+          no_structure: !structure,
         };
       });
+
+      // Separate zero-total students (no fee structure configured)
+      const inserts = allInserts.filter(i => i.total_amount > 0).map(({ no_structure, student_name, ...rest }) => rest);
+      const skippedCount = allInserts.filter(i => i.total_amount === 0).length;
+
+      if (inserts.length === 0) {
+        throw new Error('No invoices could be generated — fee structures are missing for all selected students. Configure fee structures in Settings first.');
+      }
 
       const { error } = await supabase.from('fee_records').insert(inserts);
       if (error) throw error;
 
-      alert(`Successfully generated ${inserts.length} invoices!`);
+      const skippedMsg = skippedCount > 0
+        ? `\n⚠️ ${skippedCount} student(s) skipped — no fee structure configured for their class.`
+        : '';
+      alert(`✅ Successfully generated ${inserts.length} invoice(s)!${skippedMsg}`);
       setShowGenerateModal(false);
       fetchInvoices();
-    } catch (err: any) {
-      alert(err.message || 'Error generating invoices');
-    } finally {
-      setGenerating(false);
-    }
+    } catch (err: any) { alert(err.message || 'Error generating invoices'); } 
+    finally { setGenerating(false); }
   };
 
   const executeBulkDateChange = async () => {
     if (!bulkDueDate || selectedInvoices.size === 0) return;
     try {
-      const { error } = await supabase.from('fee_records')
-        .update({ due_date: bulkDueDate })
-        .in('id', Array.from(selectedInvoices));
+      const { error } = await supabase.from('fee_records').update({ due_date: bulkDueDate }).in('id', Array.from(selectedInvoices));
       if (error) throw error;
       alert(`Due Date changed for ${selectedInvoices.size} invoices!`);
       setShowBulkEdit(false);
@@ -170,53 +201,55 @@ export default function MonthlyFeeInvoices() {
   const handleSendWhatsApp = async (invoice: any) => {
     const parentPhone = invoice.students?.parents?.whatsapp_number;
     if (!parentPhone) return alert('No WhatsApp number found for this student\'s parent.');
-
     const balance = (invoice.total_amount || 0) - (invoice.paid_amount || 0);
     const dueDate = invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : 'N/A';
-    const msg = `Dear Parent,\n\nFee invoice *${invoice.invoice_number || invoice.id.substring(0, 10)}* of *Rs. ${balance.toLocaleString()}* for *${invoice.students?.full_name}* is due on *${dueDate}*.\n\nPlease pay promptly to avoid late fines.\n\n— ${school.name || 'School Management'}`;
-
-    // Log to communication_logs
-    await supabase.from('communication_logs').insert([{
-      school_id: userRole?.school_id,
-      recipient_number: parentPhone,
-      message_content: msg,
-      channel: 'whatsapp',
-      status: 'sent',
-    }]);
-
+    
+    const isOverdue = invoice.due_date && new Date(invoice.due_date) < new Date();
+    const templateFn = isOverdue ? templatesLib.overdueFeeTemplate : templatesLib.feeDueTemplate;
+    
+    const msg = templateFn({
+      studentName: invoice.students?.full_name,
+      className: invoice.students?.classes ? `${invoice.students.classes.name} ${invoice.students.classes.section}` : '',
+      invoiceNumber: invoice.invoice_number || invoice.id.substring(0, 10),
+      balance: balance,
+      dueDate: dueDate,
+      month: invoice.month_year ? new Date(invoice.month_year).toLocaleString('default', { month: 'long' }) : '',
+      schoolName: school.name
+    });
+    await supabase.from('communication_logs').insert([{ school_id: userRole?.school_id, recipient_number: parentPhone, message_content: msg, channel: 'whatsapp', status: 'sent' }]);
     window.open(`https://wa.me/${parentPhone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
+  const handleBulkOverdueReminders = async () => {
+    const overdueInvoices = invoices.filter(inv => selectedInvoices.has(inv.id) && inv.status !== 'paid' && inv.due_date && new Date(inv.due_date) < new Date());
+    
+    if (overdueInvoices.length === 0) {
+      return alert('No overdue invoices found in your selection. Reminders are specifically for accounts past their deadline.');
+    }
+
+    if (!confirm(`Initialize mass communication for ${overdueInvoices.length} overdue artifacts? (Browser may require popup permission for multiple tabs)`)) return;
+
+    for (const inv of overdueInvoices) {
+      await handleSendWhatsApp(inv);
+      // Small delay to prevent browser blocking/spam filters
+      await new Promise(r => setTimeout(r, 600));
+    }
+    setSelectedInvoices(new Set());
+  };
+
   const buildRecord = async (inv: any): Promise<ChallanRecord> => {
-    // Fetch previous unpaid balances for this student (older months)
-    const { data: prevFees } = await supabase
-      .from('fee_records')
-      .select('total_amount, paid_amount')
-      .eq('school_id', userRole?.school_id)
-      .eq('student_id', inv.student_id)
-      .in('status', ['pending', 'overdue'])
-      .neq('id', inv.id)
-      .lt('month_year', inv.month_year);
-
-    const previousFee = (prevFees || []).reduce(
-      (sum: number, r: any) => sum + Math.max(0, (r.total_amount || 0) - (r.paid_amount || 0)), 0
-    );
-
-    // Fine amount from config (stored in fine_note as number, or default 0)
-    const fineAmt = 0; // override from FinePolicy settings if available
-
+    const { data: prevFees } = await supabase.from('fee_records').select('total_amount, paid_amount').eq('school_id', userRole?.school_id).eq('student_id', inv.student_id).in('status', ['pending', 'overdue']).neq('id', inv.id).lt('month_year', inv.month_year);
+    const previousFee = (prevFees || []).reduce((sum: number, r: any) => sum + Math.max(0, (r.total_amount || 0) - (r.paid_amount || 0)), 0);
     return {
       ...inv,
       student_name: inv.students?.full_name,
       roll_number: inv.students?.roll_number,
-      class_name: inv.students?.classes
-        ? `${inv.students.classes.name || ''}${inv.students.classes.section ? ' - ' + inv.students.classes.section : ''}`
-        : '',
+      class_name: inv.students?.classes ? `${inv.students.classes.name || ''}${inv.students.classes.section ? ' - ' + inv.students.classes.section : ''}` : '',
       father_name: inv.students?.parents?.father_name || '',
       family_number: inv.students?.parents?.family_number || '',
       issue_date: inv.created_at,
       previous_fee: previousFee,
-      fine_amount: fineAmt,
+      fine_amount: 0,
       discount_amount: inv.discount_amount || 0,
     };
   };
@@ -226,323 +259,478 @@ export default function MonthlyFeeInvoices() {
     await downloadChallanPDF([record], school, challanConfig, { autoPrint: true, download: true });
   };
 
+  const handlePrintFamilyChallan = async (famGroup: any) => {
+    // Collect all sub-invoices and build their records
+    const records = await Promise.all(famGroup.invoices.map(buildRecord));
+    await downloadChallanPDF(records, school, challanConfig, { 
+      filenameOverride: `family-challan-${famGroup.name.replace(/\s+/g, '-')}.pdf`,
+      autoPrint: true,
+      download: true 
+    });
+  };
+
   const handleBatchClassPrint = async () => {
-    if (!classFilter || !monthFilter) return alert('Please select both Class and Month to batch print.');
+    if (!classFilter || !monthFilter) return alert('Please select both a Class and a Month to print class challans.');
     setBatchPrinting(true);
     try {
-      const { data } = await supabase
-        .from('fee_records')
-        .select('*, students(id, full_name, roll_number, class_id, classes(name, section), parents(whatsapp_number, father_name, family_number))')
-        .eq('school_id', userRole?.school_id)
-        .eq('month_year', monthFilter + '-01');
-
-      const filtered = (data || []).filter((inv: any) => inv.students?.class_id === classFilter);
+      // Use already-filtered list (client-side filtered by classFilter + monthFilter)
+      const filtered = filteredInvoices;
       if (!filtered.length) { alert('No invoices found for the selected class and month.'); return; }
-
-      // Build all records (with previous fee per student) in parallel
       const records: ChallanRecord[] = await Promise.all(filtered.map(buildRecord));
-
       const selectedClass = classes.find(c => c.id === classFilter);
       const label = `class-${selectedClass?.name || 'all'}-${monthFilter}`;
       await downloadChallanPDF(records, school, challanConfig, `challans-${label}.pdf`);
-    } catch (err: any) {
-      alert(err.message || 'Failed to generate batch challans.');
-    } finally {
-      setBatchPrinting(false);
-    }
+    } catch (err: any) { alert(err.message || 'Failed to generate batch challans.'); }
+    finally { setBatchPrinting(false); }
   };
 
   const handleSaveInvoiceEdit = async () => {
     try {
-      const { error } = await supabase.from('fee_records').update({
-        total_amount: editingInvoice.total_amount,
-        due_date: editingInvoice.due_date,
-        breakdown: editingInvoice.breakdown,
-      }).eq('id', editingInvoice.id);
+      const { error } = await supabase.from('fee_records').update({ total_amount: editingInvoice.total_amount, due_date: editingInvoice.due_date, breakdown: editingInvoice.breakdown }).eq('id', editingInvoice.id);
       if (error) throw error;
       setEditingInvoice(null);
       fetchInvoices();
     } catch (err: any) { alert(err.message); }
   };
 
-  const toggleInvoice = (id: string) => {
-    const s = new Set(selectedInvoices);
-    s.has(id) ? s.delete(id) : s.add(id);
-    setSelectedInvoices(s);
-  };
-
   const filteredInvoices = invoices.filter(inv => {
-    const matchSearch = !search ||
-      inv.students?.full_name?.toLowerCase().includes(search.toLowerCase()) ||
-      inv.invoice_number?.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = !search || inv.students?.full_name?.toLowerCase().includes(search.toLowerCase()) || inv.invoice_number?.toLowerCase().includes(search.toLowerCase());
     const matchClass = !classFilter || inv.students?.class_id === classFilter;
     const matchMonth = !monthFilter || inv.month_year?.startsWith(monthFilter);
     return matchSearch && matchClass && matchMonth;
   });
 
-  const statusColor: Record<string, string> = {
-    paid: 'bg-green-100 text-green-800',
-    pending: 'bg-yellow-100 text-yellow-800',
-    overdue: 'bg-red-100 text-red-800',
-  };
+  // Grouping logic for Family view
+  const familyGroupedInvoices = React.useMemo(() => {
+    if (!groupByFamily) return null;
+    const groups = new Map<string, any>();
+    filteredInvoices.forEach(inv => {
+      const familyId = inv.students?.family_group_id || 'unlinked';
+      const familyName = inv.students?.parents?.father_name ? `${inv.students.parents.father_name}'s Family` : 'Individual Records';
+      
+      if (!groups.has(familyId)) {
+        groups.set(familyId, {
+          id: familyId,
+          type: 'family',
+          name: familyName,
+          count: 0,
+          total_amount: 0,
+          paid_amount: 0,
+          invoices: [],
+          month_year: inv.month_year,
+          status: 'pending'
+        });
+      }
+      const g = groups.get(familyId);
+      g.count++;
+      g.total_amount += Number(inv.total_amount);
+      g.paid_amount += Number(inv.paid_amount || 0);
+      g.invoices.push(inv);
+      if (inv.status === 'paid' && g.status !== 'overdue') g.status = 'paid';
+      if (inv.status === 'overdue') g.status = 'overdue';
+    });
+    return Array.from(groups.values());
+  }, [filteredInvoices, groupByFamily]);
+
+  const displayList = groupByFamily ? (familyGroupedInvoices || []) : filteredInvoices;
+
+  const totalRevenue = invoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + (i.paid_amount || 0), 0);
+  const totalPending = invoices.filter(i => i.status !== 'paid').reduce((sum, i) => sum + (i.total_amount - i.paid_amount), 0);
+  const collectionRate = invoices.length > 0 ? (invoices.filter(i => i.status === 'paid').length / invoices.length) * 100 : 0;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="max-w-7xl mx-auto space-y-10 pb-20">
+      
+      {/* Header Section */}
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6"
+      >
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Receipt className="w-6 h-6 text-blue-600" /> Invoice Management
-          </h1>
-          <p className="text-gray-500 text-sm mt-1">Mass generate, print challans, and dispatch WhatsApp reminders.</p>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tighter font-display uppercase italic">Billing Terminal</h1>
+          <p className="text-slate-500 text-sm font-bold mt-1 opacity-70 uppercase tracking-[0.2em]">Enterprise Invoicing & Revenue Control</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input type="text" placeholder="Search invoices..." value={search} onChange={e => setSearch(e.target.value)}
-              className="pl-9 pr-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 text-sm w-44" />
+        <div className="flex flex-wrap gap-2">
+            <button 
+              onClick={() => setGroupByFamily(!groupByFamily)}
+              className={cn(
+                "flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition shadow-sm active:scale-95",
+                groupByFamily ? "bg-indigo-600 text-white shadow-xl shadow-indigo-100" : "bg-white hover:bg-slate-50 text-slate-700 border border-slate-200"
+              )}
+            >
+                <Users className="w-4 h-4" /> {groupByFamily ? 'Family Mode Active' : 'Group by Family'}
+            </button>
+            <button onClick={() => navigate('/fees/challan-settings')} className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition shadow-sm active:scale-95">
+                <Layout className="w-4 h-4" /> Config
+            </button>
+            <button onClick={() => setShowGenerateModal(true)} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 transition active:scale-95">
+                <PlusCircle className="w-4 h-4" /> Mass Generate
+            </button>
+        </div>
+      </motion.div>
+
+      {/* Stats Bento Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { label: 'Revenue Collected', value: `Rs. ${totalRevenue.toLocaleString()}`, icon: TrendingUp, theme: 'bg-emerald-500 text-white shadow-emerald-100' },
+          { label: 'Outstanding Debt', value: `Rs. ${totalPending.toLocaleString()}`, icon: AlertCircle, theme: 'bg-rose-500 text-white shadow-rose-100' },
+          { label: 'Collection Rate', value: `${collectionRate.toFixed(1)}%`, icon: CheckCircle2, theme: 'bg-indigo-600 text-white shadow-indigo-100' },
+          { label: 'Total Invoices', value: invoices.length, icon: FileText, theme: 'bg-white text-slate-700 border-slate-100' },
+        ].map((stat, i) => (
+          <motion.div 
+            key={stat.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1 }}
+            className={cn("rounded-3xl border p-6 flex flex-col justify-between h-40 transition-all hover:scale-[1.02] cursor-default shadow-xl", stat.theme, !stat.theme.includes('bg-white') && 'border-none')}
+          >
+            <div className="flex justify-between items-start">
+                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center">
+                  <stat.icon className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">{stat.label}</span>
+            </div>
+            <div>
+              <p className="text-2xl font-black font-display tracking-tight leading-none">{stat.value}</p>
+              <div className="w-8 h-1 bg-current opacity-20 mt-3 rounded-full"></div>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Command Bar */}
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="aura-card p-4 flex flex-col lg:flex-row gap-4 items-center border-none shadow-2xl shadow-slate-200/50"
+      >
+        <div className="relative flex-1 group w-full">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
+          <input 
+            type="text" 
+            placeholder="Search by invoice # or student name..." 
+            value={search} 
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-transparent rounded-2xl text-sm font-bold focus:bg-white focus:border-slate-100 focus:ring-4 focus:ring-indigo-100/50 transition-all outline-none" 
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          <div className="flex gap-1 bg-slate-50 p-1 rounded-2xl border border-slate-100">
+            <select value={classFilter} onChange={e => setClassFilter(e.target.value)} className="bg-transparent border-none text-xs font-black uppercase tracking-widest text-slate-500 px-4 py-2 outline-none cursor-pointer">
+              <option value="">All Classes</option>
+              {classes.map(c => <option key={c.id} value={c.id}>{c.name} {c.section}</option>)}
+            </select>
+            <div className="w-[1px] bg-slate-200 my-2"></div>
+            <input type="month" value={monthFilter} onChange={e => setMonthFilter(e.target.value)} className="bg-transparent border-none text-xs font-black uppercase tracking-widest text-slate-500 px-4 py-2 outline-none cursor-pointer" />
           </div>
-          <select value={classFilter} onChange={e => setClassFilter(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-blue-500">
-            <option value="">All Classes</option>
-            {classes.map(c => <option key={c.id} value={c.id}>{c.name}{c.section ? ` ${c.section}` : ''}</option>)}
-          </select>
-          <input type="month" value={monthFilter} onChange={e => setMonthFilter(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-blue-500" />
-          {classFilter && monthFilter && (
-            <button onClick={handleBatchClassPrint} disabled={batchPrinting}
-              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-md font-medium text-sm hover:bg-indigo-700 transition disabled:opacity-50">
-              <Users className="w-4 h-4" />
-              {batchPrinting ? 'Generating...' : 'Print Class Challans'}
+          
+          {filteredInvoices.length > 0 && (
+            <button
+              onClick={handleBatchClassPrint}
+              disabled={batchPrinting}
+              title={!classFilter || !monthFilter ? 'Select Class + Month to batch print challans' : `Print all ${filteredInvoices.length} challans`}
+              className={cn(
+                "flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl active:scale-95 disabled:opacity-50",
+                classFilter && monthFilter
+                  ? "bg-slate-900 hover:bg-black text-white"
+                  : "bg-slate-200 hover:bg-slate-300 text-slate-600"
+              )}
+            >
+              <Printer className="w-4 h-4" />
+              {batchPrinting ? 'Generating PDF…' : classFilter && monthFilter ? `Print Class Challans (${filteredInvoices.length})` : 'Select Class + Month to Print'}
             </button>
           )}
-          <button onClick={() => navigate('/fees/challan-settings')}
-            className="flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-md font-medium text-sm hover:bg-gray-200 transition">
-            <Layout className="w-4 h-4" /> Config
-          </button>
-          <button onClick={() => setShowGenerateModal(true)}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md font-medium text-sm hover:bg-blue-700 transition">
-            <PlusCircle className="w-4 h-4" /> Mass Generate
-          </button>
+        </div>
+      </motion.div>
+
+      {/* Bulk Action Bar - Aura Style */}
+      <AnimatePresence>
+        {selectedInvoices.size > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            className="bg-indigo-600 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between shadow-2xl shadow-indigo-200 text-white"
+          >
+            <div className="flex items-center gap-4 text-sm font-black uppercase tracking-widest">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <CheckSquare className="w-5 h-5 text-white" />
+              </div>
+              {selectedInvoices.size} Invoices Flagged for Modification
+            </div>
+            <div className="flex items-center gap-3 mt-4 md:mt-0">
+               {!showBulkEdit ? (
+                 <>
+                   <button onClick={() => setShowBulkEdit(true)} className="bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-white/10 transition-all flex items-center gap-2">
+                     <Calendar className="w-4 h-4" /> Reschedule Due Date
+                   </button>
+                   <button onClick={handleBulkOverdueReminders} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-emerald-100/50 border border-emerald-500/20">
+                     <Bell className="w-4 h-4" /> Push Overdue Reminders
+                   </button>
+                 </>
+               ) : (
+                 <div className="flex items-center gap-2 bg-white/10 p-2 rounded-2xl border border-white/5">
+                   <input type="date" value={bulkDueDate} onChange={e => setBulkDueDate(e.target.value)} className="bg-transparent border-none text-white text-xs font-black px-4 py-1 outline-none appearance-none" style={{ colorScheme: 'dark' }} />
+                   <button onClick={executeBulkDateChange} className="bg-white text-indigo-600 px-6 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-50 transition-all">Apply Change</button>
+                   <button onClick={() => setShowBulkEdit(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all"><X className="w-5 h-5" /></button>
+                 </div>
+               )}
+            </div>
+           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Invoices Table */}
+      <div className="aura-card overflow-hidden border-none shadow-2xl shadow-slate-200/50">
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                <th className="p-6 w-10">
+                   <button onClick={() => setSelectedInvoices(selectedInvoices.size === filteredInvoices.length ? new Set() : new Set(filteredInvoices.map(i => i.id)))} className="hover:text-indigo-600 transition-colors">
+                      <CheckSquare className="w-5 h-5" />
+                   </button>
+                </th>
+                <th className="p-6">Accounting Artifact</th>
+                <th className="p-6">Student Information</th>
+                <th className="p-6">Academic Period</th>
+                <th className="p-6 text-right">Debit Amount</th>
+                <th className="p-6 text-center">Settlement Status</th>
+                <th className="p-6 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {loading ? (
+                <tr><td colSpan={7} className="p-20 text-center"><div className="w-10 h-10 border-4 border-indigo-500/10 border-t-indigo-500 rounded-full animate-spin mx-auto"></div></td></tr>
+              ) : displayList.length === 0 ? (
+                <tr><td colSpan={7} className="p-20 text-center text-slate-400 font-bold uppercase text-[10px] tracking-widest italic opacity-50">No accounting artifacts detected in current view.</td></tr>
+              ) : displayList.map((inv, i) => {
+                const balance = groupByFamily ? inv.balance : ((inv.total_amount || 0) - (inv.paid_amount || 0));
+                const isFamily = groupByFamily;
+                
+                return (
+                  <motion.tr 
+                    key={inv.id} 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.02 }}
+                    className="hover:bg-indigo-50/20 transition-all group"
+                  >
+                    <td className="p-6" onClick={(e) => { e.stopPropagation(); if(isFamily) return; const s = new Set(selectedInvoices); s.has(inv.id) ? s.delete(inv.id) : s.add(inv.id); setSelectedInvoices(s); }}>
+                      <div className={cn("w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all cursor-pointer", selectedInvoices.has(inv.id) ? "bg-indigo-600 border-indigo-600 shadow-lg shadow-indigo-100" : "border-slate-200 bg-white")}>
+                        {selectedInvoices.has(inv.id) && <CheckSquare className="w-4 h-4 text-white" />}
+                      </div>
+                    </td>
+                    <td className="p-6">
+                      <p className="text-[10px] font-mono font-black text-slate-400 tracking-tighter uppercase">{isFamily ? `FAM-ACC-${inv.id.substring(0,6)}` : (inv.invoice_number || 'LEGACY-TRX')}</p>
+                      {!isFamily && <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1 flex items-center gap-1"><Clock className="w-3 h-3" /> Due: {inv.due_date ? new Date(inv.due_date).toLocaleDateString() : 'N/A'}</p>}
+                    </td>
+                    <td className="p-6">
+                      <p className="text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">{isFamily ? inv.name : inv.students?.full_name}</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{isFamily ? `${inv.count} siblings linked` : (inv.students?.classes ? `${inv.students.classes.name} ${inv.students.classes.section}` : 'N/A')}</p>
+                    </td>
+                    <td className="p-6">
+                       <span className="bg-slate-100 text-slate-600 font-black px-3 py-1.5 rounded-xl text-[9px] uppercase tracking-widest">
+                        {new Date(inv.month_year).toLocaleString('default', { month: 'short', year: 'numeric' })}
+                       </span>
+                    </td>
+                    <td className="p-6 text-right">
+                       <p className="text-sm font-black text-slate-900 tracking-tighter">Rs. {Number(inv.total_amount).toLocaleString()}</p>
+                       <p className={cn("text-[10px] font-black uppercase tracking-widest mt-0.5", balance > 0 ? 'text-rose-500' : 'text-emerald-500')}>
+                         {balance > 0 ? `Unpaid: ${balance.toLocaleString()}` : 'Settled'}
+                       </p>
+                    </td>
+                    <td className="p-6 text-center">
+                       <span className={cn(
+                         "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm",
+                         inv.status === 'paid' ? "bg-emerald-500 text-white shadow-emerald-100" : 
+                         inv.status === 'overdue' ? "bg-rose-500 text-white shadow-rose-100" : "bg-slate-200 text-slate-500"
+                       )}>
+                         {inv.status}
+                       </span>
+                    </td>
+                    <td className="p-6 text-right">
+                       <div className="flex items-center justify-end gap-2 transition-all">
+                          {!isFamily ? (
+                            <>
+                              <button onClick={() => handlePrintChallan(inv)} className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-90" title="Render PDF"><Printer className="w-5 h-5" /></button>
+                              <button onClick={() => handleSendWhatsApp(inv)} className="p-2.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90" title="Push Reminder"><MessageCircle className="w-5 h-5" /></button>
+                              <button onClick={() => setEditingInvoice(inv)} className="p-2.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all active:scale-90" title="Adjust Artifact"><Edit className="w-5 h-5" /></button>
+                            </>
+                          ) : (
+                            <button onClick={() => handlePrintFamilyChallan(inv)} className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-indigo-100 transition-all"><Printer className="w-4 h-4" /> Family Challan</button>
+                          )}
+                       </div>
+                    </td>
+                  </motion.tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* BULK ACTION BAR */}
-      {selectedInvoices.size > 0 && (
-        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 flex items-center justify-between shadow-sm">
-          <div className="flex items-center gap-3 text-indigo-800 font-medium text-sm">
-            <CheckSquare className="w-5 h-5 text-indigo-600" /> {selectedInvoices.size} Invoices Selected
-          </div>
-          {!showBulkEdit ? (
-            <button onClick={() => setShowBulkEdit(true)}
-              className="text-sm bg-white border border-indigo-300 text-indigo-700 px-4 py-2 rounded hover:bg-indigo-100 flex items-center gap-2">
-              <Calendar className="w-4 h-4" /> Change Due Date
-            </button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <input type="date" value={bulkDueDate} onChange={e => setBulkDueDate(e.target.value)}
-                className="border border-indigo-300 px-3 py-1.5 rounded text-sm" />
-              <button onClick={executeBulkDateChange}
-                className="bg-indigo-600 text-white px-4 py-1.5 rounded text-sm font-medium hover:bg-indigo-700">Apply</button>
-              <button onClick={() => setShowBulkEdit(false)} className="text-indigo-600 hover:text-indigo-800 p-1">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Modernized Modals... (Simplified for Brevity but Premium Styles) */}
+      <AnimatePresence>
+        {showGenerateModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden border border-white/20">
+                <div className="bg-slate-900 p-8 text-white relative">
+                   <h3 className="text-2xl font-black italic uppercase tracking-tighter">Mass Generation</h3>
+                   <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mt-2">Financial Engine Sequence</p>
+                    <button onClick={() => setShowGenerateModal(false)} className="absolute top-8 right-8 text-slate-500 hover:text-white transition-colors"><X className="w-6 h-6" /></button>
+                </div>
+                <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                   {/* Mode Selection */}
+                   <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1">
+                      {[
+                        { id: 'all', label: 'All Students', icon: Users },
+                        { id: 'class', label: 'By Class', icon: Filter },
+                        { id: 'student', label: 'Single Student', icon: Search }
+                      ].map(m => (
+                        <button 
+                          key={m.id}
+                          onClick={() => setGenMode(m.id as any)}
+                          className={cn(
+                            "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all",
+                            genMode === m.id ? "bg-white text-indigo-600 shadow-sm" : "text-slate-400 hover:text-slate-600"
+                          )}
+                        >
+                          <m.icon className="w-3.5 h-3.5" /> {m.label}
+                        </button>
+                      ))}
+                   </div>
 
-      {/* TABLE */}
-      <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="p-4 w-10">
-                <button onClick={() => setSelectedInvoices(selectedInvoices.size === filteredInvoices.length ? new Set() : new Set(filteredInvoices.map(i => i.id)))}
-                  className="text-gray-400 hover:text-blue-600">
-                  <CheckSquare className="w-4 h-4" />
-                </button>
-              </th>
-              <th className="p-4 font-medium text-gray-700">Invoice #</th>
-              <th className="p-4 font-medium text-gray-700">Student</th>
-              <th className="p-4 font-medium text-gray-700">Class</th>
-              <th className="p-4 font-medium text-gray-700">Month</th>
-              <th className="p-4 font-medium text-gray-700">Due Date</th>
-              <th className="p-4 font-medium text-gray-700">Amount</th>
-              <th className="p-4 font-medium text-gray-700">Balance</th>
-              <th className="p-4 font-medium text-gray-700">Status</th>
-              <th className="p-4 font-medium text-gray-700 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {loading ? (
-              <tr><td colSpan={10} className="p-8 text-center text-gray-500">Loading Invoices...</td></tr>
-            ) : filteredInvoices.length === 0 ? (
-              <tr><td colSpan={10} className="p-12 text-center text-gray-400">No invoices found.</td></tr>
-            ) : filteredInvoices.map(inv => {
-              const balance = (inv.total_amount || 0) - (inv.paid_amount || 0);
-              const classInfo = inv.students?.classes;
-              const classLabel = classInfo ? `${classInfo.name || ''}${classInfo.section ? ' ' + classInfo.section : ''}` : '-';
-              return (
-                <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="p-4" onClick={() => toggleInvoice(inv.id)}>
-                    {selectedInvoices.has(inv.id)
-                      ? <CheckSquare className="w-4 h-4 text-blue-600 cursor-pointer" />
-                      : <Square className="w-4 h-4 text-gray-400 cursor-pointer" />}
-                  </td>
-                  <td className="p-4 font-mono text-xs text-gray-600">{inv.invoice_number || 'INV-LEGACY'}</td>
-                  <td className="p-4 font-medium text-gray-900">{inv.students?.full_name}</td>
-                  <td className="p-4 text-gray-600">{classLabel}</td>
-                  <td className="p-4 text-gray-600">
-                    {new Date(inv.month_year).toLocaleString('default', { month: 'short', year: 'numeric' })}
-                  </td>
-                  <td className="p-4 text-gray-600">{inv.due_date ? new Date(inv.due_date).toLocaleDateString() : '-'}</td>
-                  <td className="p-4 font-bold text-gray-900">Rs. {Number(inv.total_amount).toLocaleString()}</td>
-                  <td className={`p-4 font-bold ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    Rs. {balance.toLocaleString()}
-                  </td>
-                  <td className="p-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold uppercase ${statusColor[inv.status] || 'bg-gray-100 text-gray-700'}`}>
-                      {inv.status}
-                    </span>
-                  </td>
-                  <td className="p-4">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button onClick={() => handlePrintChallan(inv)} title="Print Challan"
-                        className="p-1.5 text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded">
-                        <Printer className="w-4 h-4" />
+                   {genMode === 'class' && (
+                     <div className="animate-in fade-in slide-in-from-top-2">
+                        <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Select Target Class</label>
+                        <select 
+                          value={targetClass} 
+                          onChange={e => setTargetClass(e.target.value)}
+                          className="w-full bg-slate-50 border border-transparent p-4 rounded-2xl font-bold text-slate-700 outline-none focus:bg-white focus:border-indigo-100"
+                        >
+                          <option value="">-- Choose Class --</option>
+                          {classes.map(c => <option key={c.id} value={c.id}>{c.name} {c.section}</option>)}
+                        </select>
+                     </div>
+                   )}
+
+                   {genMode === 'student' && (
+                     <div className="animate-in fade-in slide-in-from-top-2 space-y-3">
+                        <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Search Student</label>
+                        <div className="relative">
+                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <input 
+                            type="text"
+                            placeholder="Type student name or roll #..."
+                            value={stuQuery}
+                            onChange={async (e) => {
+                              setStuQuery(e.target.value);
+                              if (e.target.value.length > 1) {
+                                const { data } = await supabase.from('students').select('id, full_name, roll_number').eq('school_id', userRole?.school_id).ilike('full_name', `%${e.target.value}%`).limit(5);
+                                setStuResults(data || []);
+                              } else {
+                                setStuResults([]);
+                              }
+                            }}
+                            className="w-full bg-slate-50 border border-transparent p-4 pl-12 rounded-2xl font-bold text-slate-700 outline-none focus:bg-white focus:border-indigo-100"
+                          />
+                        </div>
+                        {stuResults.length > 0 && (
+                          <div className="bg-slate-50 rounded-2xl border border-slate-100 p-2 space-y-1">
+                            {stuResults.map(s => (
+                              <button 
+                                key={s.id}
+                                onClick={() => { setTargetStudent(s); setStuQuery(s.full_name); setStuResults([]); }}
+                                className={cn(
+                                  "w-full text-left p-3 rounded-xl transition-all",
+                                  targetStudent?.id === s.id ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100" : "hover:bg-white text-slate-700"
+                                )}
+                              >
+                                <p className="text-xs font-black uppercase">{s.full_name}</p>
+                                <p className="text-[10px] font-bold opacity-70">Roll #{s.roll_number}</p>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                     </div>
+                   )}
+                   <div>
+                     <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest text-center">Select Billing Cycle</label>
+                     <input type="month" value={generateMonth} onChange={e => setGenerateMonth(e.target.value)} className="w-full bg-slate-50 border border-transparent focus:bg-white focus:border-slate-100 p-4 rounded-2xl text-center text-xl font-black text-slate-900 transition-all outline-none" />
+                   </div>
+                   <div>
+                     <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest text-center">Liquidity Deadline</label>
+                     <input type="date" value={generateDueDate} onChange={e => setGenerateDueDate(e.target.value)} className="w-full bg-slate-50 border border-transparent focus:bg-white focus:border-slate-100 p-4 rounded-2xl text-center font-bold text-slate-700 transition-all outline-none" />
+                   </div>
+                   <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100/50 flex items-center gap-4">
+                      <div className="flex-1">
+                         <p className="text-xs font-black text-indigo-900 uppercase">Include Admission Fee</p>
+                         <p className="text-[10px] text-indigo-600 font-bold opacity-70">Apply one-time matrix components</p>
+                      </div>
+                      <button onClick={() => setIncludeAdmissionFee(!includeAdmissionFee)} className={cn("w-14 h-8 rounded-full transition-all relative", includeAdmissionFee ? "bg-indigo-600" : "bg-slate-200")}>
+                         <div className={cn("w-6 h-6 bg-white rounded-full absolute top-1 transition-all shadow-md", includeAdmissionFee ? "left-7" : "left-1")}></div>
                       </button>
-                      <button onClick={() => handleSendWhatsApp(inv)} title="Send WhatsApp Reminder"
-                        className="p-1.5 text-green-600 hover:text-green-800 bg-green-50 hover:bg-green-100 rounded">
-                        <MessageCircle className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => setEditingInvoice(inv)} title="Edit Invoice"
-                        className="p-1.5 text-gray-400 hover:text-blue-600 bg-gray-100 hover:bg-blue-50 rounded">
-                        <Edit className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* MASS GENERATE MODAL */}
-      {showGenerateModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
-            <div className="bg-blue-600 px-6 py-4 flex justify-between items-center text-white">
-              <h3 className="font-bold text-lg">Mass Generate Invoices</h3>
-              <button onClick={() => setShowGenerateModal(false)}><X className="w-5 h-5 opacity-80 hover:opacity-100" /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <p className="text-sm text-gray-600 bg-blue-50 p-3 rounded">
-                Automatically generates invoices for all active students based on their class fee structure.
-                Students with a 100% waiver are skipped.
-              </p>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Billing Month</label>
-                <input type="month" value={generateMonth} onChange={e => setGenerateMonth(e.target.value)}
-                  className="w-full border border-gray-300 px-3 py-2 rounded focus:ring-blue-500" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
-                <input type="date" value={generateDueDate} onChange={e => setGenerateDueDate(e.target.value)}
-                  className="w-full border border-gray-300 px-3 py-2 rounded focus:ring-blue-500" />
-              </div>
-              <div className="flex items-start gap-2 pt-2">
-                <input type="checkbox" id="admF" checked={includeAdmissionFee} onChange={e => setIncludeAdmissionFee(e.target.checked)}
-                  className="mt-1 w-4 h-4 text-blue-600" />
-                <label htmlFor="admF" className="text-sm font-medium text-gray-700">
-                  Include Admission Fee
-                  <br /><span className="font-normal text-gray-500 text-xs">Adds one-time admission cost from the fee matrix.</span>
-                </label>
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3 bg-gray-50">
-              <button onClick={() => setShowGenerateModal(false)} className="px-4 py-2 font-medium text-gray-700 hover:bg-gray-200 rounded">Cancel</button>
-              <button onClick={handleMassGenerate} disabled={generating}
-                className="px-5 py-2 font-medium text-white bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50">
-                {generating ? 'Processing...' : 'Generate Invoices'}
-              </button>
-            </div>
+                   </div>
+                   <button onClick={handleMassGenerate} disabled={generating} className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-2xl shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50">
+                      {generating ? 'Processing Engine...' : 'Initialize Generation'}
+                   </button>
+                </div>
+             </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
 
-      {/* INVOICE EDITOR MODAL */}
-      {editingInvoice && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-6 py-4 flex justify-between items-center border-b border-gray-200">
-              <h3 className="font-bold text-lg text-gray-900">Edit Invoice</h3>
-              <button onClick={() => setEditingInvoice(null)}><X className="w-5 h-5 text-gray-400 hover:text-gray-900" /></button>
-            </div>
-            <div className="p-6 overflow-y-auto space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1 uppercase">Due Date</label>
-                  <input type="date" value={editingInvoice.due_date || ''}
-                    onChange={e => setEditingInvoice({ ...editingInvoice, due_date: e.target.value })}
-                    className="w-full border border-gray-300 px-3 py-2 rounded focus:ring-blue-500 text-sm" />
+      {/* Invoice Editor Modal */}
+      <AnimatePresence>
+        {editingInvoice && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="bg-white rounded-[2rem] shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
+                <div className="bg-slate-50 border-b border-slate-100 p-8 flex justify-between items-center">
+                   <div>
+                      <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">Adjust Artifact</h3>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Manual Ledger Override</p>
+                   </div>
+                   <button onClick={() => setEditingInvoice(null)} className="p-2 hover:bg-slate-200 rounded-xl transition-colors"><X className="w-5 h-5 text-slate-400" /></button>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1 uppercase">Total Amount</label>
-                  <input type="number" value={editingInvoice.total_amount}
-                    onChange={e => setEditingInvoice({ ...editingInvoice, total_amount: parseFloat(e.target.value) })}
-                    className="w-full border border-gray-300 px-3 py-2 rounded focus:ring-blue-500 text-sm font-bold" />
+                <div className="p-8 overflow-y-auto custom-scrollbar space-y-8 flex-1">
+                   <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Modified Due Date</label>
+                        <input type="date" value={editingInvoice.due_date || ''} onChange={e => setEditingInvoice({ ...editingInvoice, due_date: e.target.value })} className="w-full bg-slate-50 border-none p-4 rounded-xl font-bold text-slate-700 focus:bg-slate-100 transition-all outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Total Valuation</label>
+                        <input type="number" value={editingInvoice.total_amount} onChange={e => setEditingInvoice({ ...editingInvoice, total_amount: parseFloat(e.target.value) })} className="w-full bg-slate-50 border-none p-4 rounded-xl font-black text-indigo-600 text-lg focus:bg-slate-100 transition-all outline-none" />
+                      </div>
+                   </div>
+                   <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                         <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em]">Breakdown Analysis</h4>
+                         <button onClick={() => setEditingInvoice({ ...editingInvoice, breakdown: [...(editingInvoice.breakdown || []), { item: 'New Correction', amount: 0 }] })} className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:underline">+ Append Entry</button>
+                      </div>
+                      <div className="space-y-3">
+                         {(editingInvoice.breakdown || []).map((b, idx) => (
+                           <div key={idx} className="flex gap-3 items-center bg-slate-50 p-4 rounded-2xl border border-slate-100/50 group">
+                              <input type="text" value={b.item} onChange={e => { const a = [...editingInvoice.breakdown]; a[idx].item = e.target.value; setEditingInvoice({...editingInvoice, breakdown: a}); }} className="flex-1 bg-transparent border-none font-bold text-sm text-slate-700 outline-none" />
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-black text-slate-400">Rs.</span>
+                                <input type="number" value={b.amount} onChange={e => { const a = [...editingInvoice.breakdown]; a[idx].amount = parseFloat(e.target.value); setEditingInvoice({...editingInvoice, breakdown: a}); }} className="w-24 bg-white border border-slate-200 px-3 py-1.5 rounded-lg font-black text-sm text-right outline-none focus:border-indigo-500 transition-all" />
+                              </div>
+                              <button onClick={() => setEditingInvoice({ ...editingInvoice, breakdown: editingInvoice.breakdown.filter((_:any, i:number) => i !== idx) })} className="p-1.5 text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>
+                           </div>
+                         ))}
+                      </div>
+                   </div>
                 </div>
-              </div>
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="bg-gray-100 px-4 py-2 text-xs font-bold text-gray-600 uppercase border-b border-gray-200 flex justify-between items-center">
-                  Line Items
-                  <button onClick={() => setEditingInvoice({ ...editingInvoice, breakdown: [...(editingInvoice.breakdown || []), { item: 'New Item', amount: 0 }] })}
-                    className="text-blue-600 hover:text-blue-800 flex items-center gap-1">
-                    <PlusCircle className="w-3 h-3" /> Add
-                  </button>
+                <div className="p-8 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                   <button onClick={handleSaveInvoiceEdit} className="w-full bg-slate-900 text-white p-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl hover:bg-black transition-all active:scale-95">Commit Adjustments</button>
                 </div>
-                <div className="p-2 space-y-2">
-                  {(editingInvoice.breakdown || []).map((bItem: any, idx: number) => (
-                    <div key={idx} className="flex gap-2 items-center">
-                      <input type="text" value={bItem.item}
-                        onChange={e => {
-                          const arr = [...editingInvoice.breakdown];
-                          arr[idx] = { ...arr[idx], item: e.target.value };
-                          setEditingInvoice({ ...editingInvoice, breakdown: arr });
-                        }}
-                        className="flex-1 text-sm px-2 py-1 border border-gray-200 rounded" />
-                      <input type="number" value={bItem.amount}
-                        onChange={e => {
-                          const arr = [...editingInvoice.breakdown];
-                          arr[idx] = { ...arr[idx], amount: parseFloat(e.target.value) };
-                          setEditingInvoice({ ...editingInvoice, breakdown: arr });
-                        }}
-                        className="w-24 text-sm px-2 py-1 border border-gray-200 rounded text-right" />
-                      <button onClick={() => {
-                        const arr = editingInvoice.breakdown.filter((_: any, i: number) => i !== idx);
-                        setEditingInvoice({ ...editingInvoice, breakdown: arr });
-                      }} className="text-red-500 p-1"><X className="w-4 h-4" /></button>
-                    </div>
-                  ))}
-                  {(!editingInvoice.breakdown || editingInvoice.breakdown.length === 0) && (
-                    <p className="text-xs text-gray-400 text-center py-2">No line items. Standard invoice.</p>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3 bg-gray-50">
-              <button onClick={handleSaveInvoiceEdit}
-                className="px-6 py-2 bg-blue-600 text-white rounded font-medium shadow flex items-center gap-2 hover:bg-blue-700">
-                <Save className="w-4 h-4" /> Save Changes
-              </button>
-            </div>
+             </motion.div>
           </div>
-        </div>
-      )}
-
+        )}
+      </AnimatePresence>
     </div>
   );
 }

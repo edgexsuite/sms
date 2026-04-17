@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { 
-  Shield, Users, Lock, Save, Trash2, 
-  Eye, EyeOff, CheckCircle2, XCircle, AlertCircle,
-  Key
+import { Link } from 'react-router-dom';
+import {
+  Shield, Users, Lock, Save, Trash2,
+  Eye, CheckCircle2, XCircle, AlertCircle,
+  Key, ChevronRight, UserCog, ExternalLink, ShieldCheck
 } from 'lucide-react';
 
 const MODULES = [
@@ -23,6 +24,33 @@ const ACTIONS = [
   { id: 'delete_staff', name: 'Delete Staff', color: 'text-red-600' },
   { id: 'delete_expense', name: 'Delete Expenses', color: 'text-red-600' }
 ];
+
+const ROLE_PRESETS: Record<string, { modules: Record<string, boolean>; actions: Record<string, boolean> }> = {
+  teacher: {
+    modules: { dashboard: true, students: true, staff: false, finance: false, academic: true, services: false, reports: false, settings: false },
+    actions: { delete_student: false, delete_staff: false, delete_expense: false },
+  },
+  accountant: {
+    modules: { dashboard: true, students: false, staff: false, finance: true, academic: false, services: false, reports: true, settings: false },
+    actions: { delete_student: false, delete_staff: false, delete_expense: true },
+  },
+  librarian: {
+    modules: { dashboard: true, students: true, staff: false, finance: false, academic: false, services: true, reports: false, settings: false },
+    actions: { delete_student: false, delete_staff: false, delete_expense: false },
+  },
+  staff: {
+    modules: { dashboard: true, students: true, staff: false, finance: true, academic: true, services: true, reports: false, settings: false },
+    actions: { delete_student: false, delete_staff: false, delete_expense: false },
+  },
+  principal: {
+    modules: { dashboard: true, students: true, staff: true, finance: true, academic: true, services: true, reports: true, settings: false },
+    actions: { delete_student: false, delete_staff: false, delete_expense: false },
+  },
+  director: {
+    modules: { dashboard: true, students: true, staff: true, finance: true, academic: true, services: true, reports: true, settings: false },
+    actions: { delete_student: true, delete_staff: true, delete_expense: true },
+  },
+};
 
 export default function PermissionManager() {
   const { user, userRole } = useAuth();
@@ -99,6 +127,17 @@ export default function PermissionManager() {
     } finally {
       setUpdatingPin(false);
     }
+  };
+
+  const applyPreset = (roleId: string, roleName: string) => {
+    const preset = ROLE_PRESETS[roleName.toLowerCase()];
+    if (!preset) return;
+    setStaffRoles(prev => prev.map(r => {
+      if (r.id === roleId) {
+        return { ...r, permissions: { modules: { ...preset.modules }, actions: { ...preset.actions } } };
+      }
+      return r;
+    }));
   };
 
   const togglePermission = (roleId: string, type: 'modules' | 'actions', key: string) => {
@@ -203,6 +242,29 @@ export default function PermissionManager() {
           </div>
         </div>
 
+        {/* Quick link to User Accounts */}
+        <div className="lg:col-span-3">
+          <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-indigo-100 rounded-xl flex items-center justify-center">
+                <UserCog className="w-5 h-5 text-indigo-600" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-indigo-900">Individual Account Management</p>
+                <p className="text-xs text-indigo-600 mt-0.5">
+                  To create accounts, reset passwords, suspend users, or set per-person permission overrides, use the User Accounts page.
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/staff/accounts"
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition-colors shrink-0"
+            >
+              Open User Accounts <ExternalLink className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+
         {/* Staff Permissions Table */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
@@ -231,11 +293,23 @@ export default function PermissionManager() {
                         <div>
                           <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">{role.role} ACCOUNT</h3>
                           <div className="flex items-center gap-2 text-slate-400 text-xs font-bold">
-                            <Lock className="w-3 h-3" /> UID: {role.user_id.slice(0, 8)}...
+                            <Lock className="w-3 h-3" /> UID: {role.user_id?.slice(0, 8)}...
+                            {role.is_active === false && (
+                              <span className="ml-2 px-2 py-0.5 bg-red-100 text-red-600 rounded-full text-[10px]">SUSPENDED</span>
+                            )}
                           </div>
+                          {ROLE_PRESETS[role.role?.toLowerCase()] && (
+                            <button
+                              onClick={() => applyPreset(role.id, role.role)}
+                              className="mt-2 flex items-center gap-1.5 px-3 py-1 bg-violet-100 hover:bg-violet-200 text-violet-700 text-[10px] font-black rounded-lg uppercase tracking-wide transition-all"
+                              title={`Apply recommended defaults for ${role.role} role`}
+                            >
+                              <ShieldCheck className="w-3 h-3" /> Apply {role.role} Preset
+                            </button>
+                          )}
                         </div>
                       </div>
-                      <button 
+                      <button
                         onClick={() => savePermissions(role)}
                         disabled={savingId === role.id}
                         className="flex items-center gap-2 bg-slate-900 hover:bg-indigo-600 text-white px-6 py-3 rounded-xl font-black text-sm transition-all shadow-lg active:scale-95 disabled:opacity-50"

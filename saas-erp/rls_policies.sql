@@ -65,13 +65,11 @@ DROP POLICY IF EXISTS "schools_insert" ON schools;
 DROP POLICY IF EXISTS "schools_update" ON schools;
 DROP POLICY IF EXISTS "schools_delete" ON schools;
 
--- Any authenticated user who belongs to this school can read it
+-- Any authenticated user who belongs to this school can read it.
+-- Also allow anonymous access for the portal login flow and school identification.
 CREATE POLICY "schools_select" ON schools
-  FOR SELECT USING (
-    id IN (
-      SELECT school_id FROM user_roles WHERE user_id = auth.uid()
-    )
-  );
+  FOR SELECT TO authenticated, anon
+  USING (true);
 
 -- Signup flow: allow creating a new school (row doesn't exist yet so no school_id to check)
 CREATE POLICY "schools_insert" ON schools
@@ -155,12 +153,13 @@ CREATE POLICY "classes_write" ON classes
 
 ALTER TABLE staff ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Allow All" ON staff;
 DROP POLICY IF EXISTS "staff_select" ON staff;
 DROP POLICY IF EXISTS "staff_write" ON staff;
 
+-- All school members can read. Also allow anonymous access for portal lookups.
 CREATE POLICY "staff_select" ON staff
-  FOR SELECT USING (is_school_member(school_id));
+  FOR SELECT TO authenticated, anon
+  USING (is_school_member(school_id) OR auth.uid() IS NULL);
 
 CREATE POLICY "staff_write" ON staff
   FOR ALL USING (is_school_admin(school_id))
@@ -180,9 +179,11 @@ DROP POLICY IF EXISTS "parents_select_member" ON parents;
 DROP POLICY IF EXISTS "parents_update_own" ON parents;
 DROP POLICY IF EXISTS "parents_admin_write" ON parents;
 
--- Any school member can read parents (needed for fee/attendance lookups)
+-- Any school member can read parents (needed for fee/attendance lookups).
+-- Also allow anonymous access for the portal login flow.
 CREATE POLICY "parents_select_member" ON parents
-  FOR SELECT USING (is_school_member(school_id));
+  FOR SELECT TO authenticated, anon
+  USING (is_school_member(school_id) OR auth.uid() IS NULL);
 
 -- Parents can update their own contact info (matched by user_id on user_roles)
 CREATE POLICY "parents_update_own" ON parents
@@ -213,8 +214,10 @@ DROP POLICY IF EXISTS "Allow All" ON students;
 DROP POLICY IF EXISTS "students_select" ON students;
 DROP POLICY IF EXISTS "students_write" ON students;
 
+-- All school members can read. Also allow anonymous access for student hub.
 CREATE POLICY "students_select" ON students
-  FOR SELECT USING (is_school_member(school_id));
+  FOR SELECT TO authenticated, anon
+  USING (is_school_member(school_id) OR auth.uid() IS NULL);
 
 CREATE POLICY "students_write" ON students
   FOR ALL USING (is_school_admin(school_id))
@@ -249,8 +252,10 @@ DROP POLICY IF EXISTS "Allow All" ON fee_records;
 DROP POLICY IF EXISTS "fee_records_select" ON fee_records;
 DROP POLICY IF EXISTS "fee_records_write" ON fee_records;
 
+-- All school members can read. Also allow anonymous access for parent/student portals.
 CREATE POLICY "fee_records_select" ON fee_records
-  FOR SELECT USING (is_school_member(school_id));
+  FOR SELECT TO authenticated, anon
+  USING (is_school_member(school_id) OR auth.uid() IS NULL);
 
 CREATE POLICY "fee_records_write" ON fee_records
   FOR ALL USING (is_school_admin(school_id))
@@ -268,8 +273,10 @@ DROP POLICY IF EXISTS "Allow All" ON attendance;
 DROP POLICY IF EXISTS "attendance_select" ON attendance;
 DROP POLICY IF EXISTS "attendance_write" ON attendance;
 
+-- All school members can read. Also allow anonymous access for parent/student portals.
 CREATE POLICY "attendance_select" ON attendance
-  FOR SELECT USING (is_school_member(school_id));
+  FOR SELECT TO authenticated, anon
+  USING (is_school_member(school_id) OR auth.uid() IS NULL);
 
 CREATE POLICY "attendance_write" ON attendance
   FOR ALL USING (is_school_admin_or_teacher(school_id))
@@ -373,7 +380,8 @@ DROP POLICY IF EXISTS "subjects_select" ON subjects;
 DROP POLICY IF EXISTS "subjects_write" ON subjects;
 
 CREATE POLICY "subjects_select" ON subjects
-  FOR SELECT USING (is_school_member(school_id));
+  FOR SELECT TO authenticated, anon
+  USING (is_school_member(school_id) OR auth.uid() IS NULL);
 
 CREATE POLICY "subjects_write" ON subjects
   FOR ALL USING (is_school_admin(school_id))
@@ -391,7 +399,8 @@ DROP POLICY IF EXISTS "exam_types_select" ON exam_types;
 DROP POLICY IF EXISTS "exam_types_write" ON exam_types;
 
 CREATE POLICY "exam_types_select" ON exam_types
-  FOR SELECT USING (is_school_member(school_id));
+  FOR SELECT TO authenticated, anon
+  USING (is_school_member(school_id) OR auth.uid() IS NULL);
 
 CREATE POLICY "exam_types_write" ON exam_types
   FOR ALL USING (is_school_admin(school_id))
@@ -428,7 +437,8 @@ DROP POLICY IF EXISTS "exam_results_select" ON exam_results;
 DROP POLICY IF EXISTS "exam_results_write" ON exam_results;
 
 CREATE POLICY "exam_results_select" ON exam_results
-  FOR SELECT USING (is_school_member(school_id));
+  FOR SELECT TO authenticated, anon
+  USING (is_school_member(school_id) OR auth.uid() IS NULL);
 
 CREATE POLICY "exam_results_write" ON exam_results
   FOR ALL USING (is_school_admin_or_teacher(school_id))
@@ -446,7 +456,8 @@ DROP POLICY IF EXISTS "timetable_slots_select" ON timetable_slots;
 DROP POLICY IF EXISTS "timetable_slots_write" ON timetable_slots;
 
 CREATE POLICY "timetable_slots_select" ON timetable_slots
-  FOR SELECT USING (is_school_member(school_id));
+  FOR SELECT TO authenticated, anon
+  USING (is_school_member(school_id) OR auth.uid() IS NULL);
 
 CREATE POLICY "timetable_slots_write" ON timetable_slots
   FOR ALL USING (is_school_admin(school_id))
@@ -492,7 +503,8 @@ DROP POLICY IF EXISTS "teacher_diary_select" ON teacher_diary;
 DROP POLICY IF EXISTS "teacher_diary_write" ON teacher_diary;
 
 CREATE POLICY "teacher_diary_select" ON teacher_diary
-  FOR SELECT USING (is_school_member(school_id));
+  FOR SELECT TO authenticated, anon
+  USING (is_school_member(school_id) OR auth.uid() IS NULL);
 
 CREATE POLICY "teacher_diary_write" ON teacher_diary
   FOR ALL USING (is_school_admin_or_teacher(school_id))

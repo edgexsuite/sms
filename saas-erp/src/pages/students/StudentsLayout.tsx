@@ -15,6 +15,8 @@ import LeavingCertificate from './LeavingCertificate';
 import BirthCertificate from './BirthCertificate';
 import CharacterCertificate from './CharacterCertificate';
 import AdmissionForm from './AdmissionForm';
+import StudentDetailPage from './StudentDetailPage';
+import CustomStudentList from './CustomStudentList';
 
 export default function StudentsLayout() {
   // Now simply acts as a router wrapper, navigation is handled by main DashboardLayout
@@ -22,6 +24,9 @@ export default function StudentsLayout() {
     <Routes>
       <Route path="/" element={<StudentList />} />
       <Route path="register" element={<RegisterStudent />} />
+      <Route path="edit/:id" element={<RegisterStudent />} />
+      <Route path="custom-list" element={<CustomStudentList />} />
+      <Route path="detail/:id" element={<StudentDetailPage />} />
       <Route path="bulk-enrollment" element={<BulkEnrollment />} />
       <Route path="promote" element={<PromoteStudents />} />
       <Route path="id-cards" element={<DigitalIDCards />} />

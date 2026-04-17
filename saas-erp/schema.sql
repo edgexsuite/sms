@@ -14,7 +14,7 @@ CREATE TABLE user_roles (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL, -- references auth.users(id) once authenticated setup handles
   school_id UUID REFERENCES schools(id) NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('admin', 'teacher', 'staff', 'parent')),
+  role TEXT NOT NULL CHECK (role IN ('admin', 'teacher', 'staff', 'parent', 'director', 'principal')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -32,6 +32,10 @@ CREATE TABLE staff (
   full_name TEXT NOT NULL,
   role TEXT NOT NULL,
   whatsapp_number TEXT,
+  photograph_url TEXT,
+  designation TEXT,
+  department TEXT,
+  joining_date DATE,
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -105,7 +109,7 @@ CREATE TABLE fee_structures (
 CREATE TABLE fee_records (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   school_id UUID REFERENCES schools(id) NOT NULL,
-  student_id UUID REFERENCES students(id) NOT NULL,
+  student_id UUID REFERENCES students(id) ON DELETE CASCADE NOT NULL,
   month_year DATE NOT NULL,
   total_amount NUMERIC NOT NULL,
   paid_amount NUMERIC DEFAULT 0,
@@ -116,7 +120,7 @@ CREATE TABLE fee_records (
 CREATE TABLE attendance (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   school_id UUID REFERENCES schools(id) NOT NULL,
-  student_id UUID REFERENCES students(id) NOT NULL,
+  student_id UUID REFERENCES students(id) ON DELETE CASCADE NOT NULL,
   date DATE NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('present', 'absent', 'late', 'excused')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -168,4 +172,14 @@ ALTER TABLE form_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE custom_fields ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow All" ON form_settings FOR ALL USING (true);
 CREATE POLICY "Allow All" ON custom_fields FOR ALL USING (true);
+CREATE TABLE IF NOT EXISTS id_card_settings (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  school_id UUID REFERENCES schools(id) NOT NULL,
+  card_type TEXT NOT NULL, -- 'student' or 'staff'
+  fields JSONB DEFAULT '[]'::jsonb, -- Array of visible keys
+  layout_config JSONB DEFAULT '{}'::jsonb,
+  UNIQUE(school_id, card_type)
+);
 
+ALTER TABLE id_card_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow All" ON id_card_settings FOR ALL USING (true);

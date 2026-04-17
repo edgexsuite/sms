@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { FolderGit2, Plus, Trash2, Edit2, Save, X } from 'lucide-react';
+import { FolderGit2, Plus, Trash2, Edit2, Save, X, Sparkles } from 'lucide-react';
 
 export default function ExpenseHeads() {
   const { userRole } = useAuth();
@@ -22,6 +22,51 @@ export default function ExpenseHeads() {
     const { data } = await supabase.from('expense_heads').select('*').eq('school_id', userRole?.school_id).order('name');
     if (data) setHeads(data);
     setLoading(false);
+  };
+
+  const SEED_DEFAULTS = [
+    { name: 'Staff Salaries', description: 'Monthly salaries for all teaching and admin staff' },
+    { name: 'Support Staff Wages', description: 'Wages for peons, guards, cleaners, and drivers' },
+    { name: 'Electricity Bill', description: 'WAPDA / LESCO / IESCO monthly electricity charges' },
+    { name: 'Gas Bill', description: 'SNGPL / SSGC monthly gas charges' },
+    { name: 'Water Bill', description: 'Municipal water supply charges' },
+    { name: 'Internet & Broadband', description: 'Monthly internet and broadband expenses' },
+    { name: 'Telephone & Communication', description: 'Phone bills and communication charges' },
+    { name: 'Building Rent / Lease', description: 'Monthly building rent or lease payments' },
+    { name: 'Building Maintenance', description: 'Repair and upkeep of school premises' },
+    { name: 'Furniture & Fixtures', description: 'Purchase and repair of school furniture' },
+    { name: 'Generator Fuel', description: 'Diesel/petrol for generator during load shedding' },
+    { name: 'UPS & Battery Maintenance', description: 'Inverter, UPS and battery servicing' },
+    { name: 'Stationery & Office Supplies', description: 'Paper, pens, files, and general stationery' },
+    { name: 'Chalk & Markers', description: 'Classroom consumables — chalk, whiteboard markers' },
+    { name: 'Printing & Photocopying', description: 'Test papers, result cards, circulars' },
+    { name: 'Books & Library Material', description: 'Books, reference material, and periodicals' },
+    { name: 'Sports Equipment', description: 'Balls, bats, nets, and other sports gear' },
+    { name: 'Laboratory Supplies', description: 'Science lab chemicals, glassware, and equipment' },
+    { name: 'Computer Lab Maintenance', description: 'PC repair, peripherals, and software licenses' },
+    { name: 'Security & CCTV', description: 'Security guards, cameras, and surveillance equipment' },
+    { name: 'Janitorial & Cleaning', description: 'Cleaning supplies, disinfectants, and sanitation' },
+    { name: 'School Transport Fuel', description: 'Fuel for school van/bus' },
+    { name: 'Vehicle Maintenance', description: 'Van/bus repair, tyres, and servicing' },
+    { name: 'Exam Expenses', description: 'Printing question papers, invigilation, exam hall setup' },
+    { name: 'School Events & Functions', description: 'Annual day, prize distribution, sports day costs' },
+    { name: 'Miscellaneous', description: 'Petty cash and unclassified expenses' },
+  ];
+
+  const handleSeedDefaults = async () => {
+    const existingNames = new Set(heads.map(h => h.name));
+    const toInsert = SEED_DEFAULTS.filter(s => !existingNames.has(s.name));
+    if (toInsert.length === 0) {
+      alert('All default categories are already present.');
+      return;
+    }
+    try {
+      const rows = toInsert.map(s => ({ school_id: userRole?.school_id, name: s.name, description: s.description }));
+      const { error } = await supabase.from('expense_heads').insert(rows);
+      if (error) throw error;
+      await fetchHeads();
+      alert(`Added ${toInsert.length} default expense categories.`);
+    } catch (err: any) { alert(err.message); }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -61,9 +106,14 @@ export default function ExpenseHeads() {
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><FolderGit2 className="w-6 h-6 text-blue-600" /> Expense Heads</h1>
           <p className="text-gray-500 text-sm mt-1">Manage categories for your operational expenses (e.g. Salaries, Utilities, Maintenance).</p>
         </div>
-        <button onClick={() => { setIsFormOpen(true); setEditingId(''); setFormData({name:'', description:''}) }} className="bg-blue-600 text-white px-4 py-2 rounded-md font-medium text-sm hover:bg-blue-700 flex items-center gap-2">
-          <Plus className="w-4 h-4" /> Add Category
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={handleSeedDefaults} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-4 py-2 rounded-md font-medium text-sm flex items-center gap-2">
+            <Sparkles className="w-4 h-4" /> Seed Defaults
+          </button>
+          <button onClick={() => { setIsFormOpen(true); setEditingId(''); setFormData({name:'', description:''}) }} className="bg-blue-600 text-white px-4 py-2 rounded-md font-medium text-sm hover:bg-blue-700 flex items-center gap-2">
+            <Plus className="w-4 h-4" /> Add Category
+          </button>
+        </div>
       </div>
 
       {isFormOpen && (

@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { Banknote, TrendingDown, Save, Calendar, Search, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { 
+  TrendingDown, Upload, Calendar, 
+  Save, Trash2, X 
+} from 'lucide-react';
 import DeletePinModal from '../../components/DeletePinModal';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function AddDailyExpenses() {
   const { userRole } = useAuth();
+  const navigate = useNavigate();
   const [heads, setHeads] = useState<any[]>([]);
   const [recentExpenses, setRecentExpenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -95,46 +101,100 @@ export default function AddDailyExpenses() {
     .reduce((sum, r) => sum + parseFloat(r.amount), 0);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><TrendingDown className="w-6 h-6 text-red-500" /> Log Daily Expense</h1>
-        <p className="text-gray-500 text-sm mt-1">Record outward cash flow. These automatically sync with the Master Day Book.</p>
-      </div>
+    <div className="max-w-6xl mx-auto space-y-10 animate-aura-in">
+      <motion.div 
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6"
+      >
+        <div>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight font-display uppercase tracking-tight">Financial Ledger</h1>
+          <p className="text-slate-500 text-sm font-bold mt-1 opacity-70 uppercase tracking-[0.15em]">Daily Outward Cash Flow Tracking</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-4">
+              <div className="w-12 h-12 bg-red-500 rounded-xl flex items-center justify-center shadow-lg shadow-red-200">
+                  <TrendingDown className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                  <p className="text-[10px] font-black text-red-400 uppercase tracking-widest leading-none">Status</p>
+                  <p className="text-sm font-black text-red-700 uppercase tracking-tight mt-1">Ready for Entry</p>
+              </div>
+          </div>
+          <button 
+            onClick={() => navigate('/expenses/bulk-import')}
+            className="px-6 py-4 bg-white border border-slate-200 rounded-2xl text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-rose-600 hover:border-rose-100 transition-all shadow-sm active:scale-95 flex items-center gap-3"
+          >
+            <Upload className="w-4 h-4" /> Bulk Migration
+          </button>
+        </div>
+      </motion.div>
+
+      {/* Guidance Banner - Aura Style */}
+      <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="bg-indigo-600 rounded-3xl p-6 flex items-center gap-6 shadow-2xl shadow-indigo-100 border border-indigo-500/20"
+      >
+        <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center shrink-0">
+          <TrendingDown className="w-6 h-6 text-white" />
+        </div>
+        <div>
+          <h3 className="text-white font-black text-sm uppercase tracking-widest leading-none">Primary Cash Ledger</h3>
+          <p className="text-indigo-100 text-xs font-bold mt-1.5 opacity-80">
+            Log all electricity bills, salaries, and vendor payments here. 
+            For non-cash adjustments like depreciation or corrections, navigate to <span className="underline cursor-pointer" onClick={() => navigate('/accounting/journal-entry')}>Accounting → Journal Entry</span>.
+          </p>
+        </div>
+      </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-         {/* Form Panel */}
-         <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-200 p-6 self-start">
-            <h2 className="font-bold text-gray-900 border-b border-gray-200 pb-3 mb-4">New Transaction</h2>
-            {error && <div className="text-xs text-red-600 bg-red-50 p-2 rounded mb-4">{error}</div>}
+         {/* Form Panel - Aura Style */}
+         <motion.div 
+           initial={{ opacity: 0, scale: 0.95 }}
+           animate={{ opacity: 1, scale: 1 }}
+           transition={{ delay: 0.1 }}
+           className="lg:col-span-1 aura-card p-8 self-start border-none shadow-2xl shadow-slate-200/50"
+         >
+            <h2 className="text-xs font-black text-slate-900 border-b border-slate-100 pb-4 mb-6 uppercase tracking-[0.2em]">New Transaction</h2>
+            {error && <div className="text-[10px] font-black uppercase tracking-widest text-red-600 bg-red-50 p-3 rounded-xl mb-6 border border-red-100">{error}</div>}
             
-            <form onSubmit={handleSave} className="space-y-4">
+            <form onSubmit={handleSave} className="space-y-6">
                <div>
-                 <label className="block text-xs font-bold text-gray-600 mb-1 uppercase">Expense Amount</label>
-                 <div className="relative">
-                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                     <span className="text-gray-500 font-medium sm:text-sm">PKR</span>
+                 <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-[0.2em]">Expense Amount</label>
+                 <div className="relative group">
+                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                     <span className="text-slate-400 font-black text-xs">PKR</span>
                    </div>
-                   <input type="number" required value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} className="w-full border border-gray-300 pl-12 pr-3 py-2 rounded focus:ring-red-500 text-lg font-bold" placeholder="0.00" />
+                   <input 
+                    type="number" 
+                    required 
+                    value={formData.amount} 
+                    onChange={e => setFormData({...formData, amount: e.target.value})} 
+                    className="w-full bg-slate-50 border border-transparent group-focus-within:border-indigo-100 group-focus-within:bg-white pl-14 pr-4 py-4 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 transition-all text-xl font-black text-slate-900 outline-none" 
+                    placeholder="0.00" 
+                   />
                  </div>
                </div>
 
                <div>
-                 <label className="block text-xs font-bold text-gray-600 mb-1 uppercase">Category / Head</label>
-                 <select required value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full border border-gray-300 px-3 py-2 rounded focus:ring-red-500 bg-white shadow-sm">
+                 <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-[0.2em]">Category / Head</label>
+                 <select required value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full bg-slate-50 border border-transparent focus:bg-white focus:border-slate-100 px-4 py-3 rounded-2xl text-sm font-bold text-slate-700 focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none">
                    <option value="">-- Assign a Category --</option>
                    {heads.map(h => <option key={h.id} value={h.name}>{h.name}</option>)}
                  </select>
-                 {heads.length === 0 && <p className="text-[10px] text-red-500 mt-1">Please create Expense Heads first.</p>}
+                 {heads.length === 0 && <p className="text-[10px] font-black text-red-500 mt-2 uppercase tracking-wide">Please create Expense Heads first.</p>}
                </div>
 
-               <div className="grid grid-cols-2 gap-4">
+               <div className="grid grid-cols-1 gap-6">
                  <div>
-                   <label className="block text-xs font-bold text-gray-600 mb-1 uppercase">Date</label>
-                   <input type="date" required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full border border-gray-300 px-3 py-2 rounded focus:ring-red-500 text-sm shadow-sm" />
+                   <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-[0.2em]">Transaction Date</label>
+                   <input type="date" required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full bg-slate-50 border border-transparent focus:bg-white focus:border-slate-100 px-4 py-3 rounded-2xl text-sm font-bold text-slate-700 outline-none transition-all" />
                  </div>
                  <div>
-                   <label className="block text-xs font-bold text-gray-600 mb-1 uppercase">Payment Mode</label>
-                   <select value={formData.payment_mode} onChange={e => setFormData({...formData, payment_mode: e.target.value})} className="w-full border border-gray-300 px-3 py-2 rounded focus:ring-red-500 bg-white text-sm shadow-sm">
+                   <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-[0.2em]">Payment Mode</label>
+                   <select value={formData.payment_mode} onChange={e => setFormData({...formData, payment_mode: e.target.value})} className="w-full bg-slate-50 border border-transparent focus:bg-white focus:border-slate-100 px-4 py-3 rounded-2xl text-sm font-bold text-slate-700 outline-none transition-all">
                      <option value="Cash">Cash</option>
                      <option value="Bank">Bank Deposit/Transfer</option>
                      <option value="Cheque">Cheque</option>
@@ -143,65 +203,73 @@ export default function AddDailyExpenses() {
                </div>
 
                <div>
-                 <label className="block text-xs font-bold text-gray-600 mb-1 uppercase">Remarks / Details</label>
-                 <textarea rows={3} value={formData.remarks} onChange={e => setFormData({...formData, remarks: e.target.value})} className="w-full border border-gray-300 px-3 py-2 rounded focus:ring-red-500 text-sm shadow-sm placeholder-gray-400" placeholder="E.g., Paid electric bill for month of March..."></textarea>
+                 <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-[0.2em]">Remarks / Details</label>
+                 <textarea rows={3} value={formData.remarks} onChange={e => setFormData({...formData, remarks: e.target.value})} className="w-full bg-slate-50 border border-transparent focus:bg-white focus:border-slate-100 px-4 py-3 rounded-2xl text-sm font-bold text-slate-700 outline-none transition-all resize-none" placeholder="E.g., Paid electric bill for month of March..."></textarea>
                </div>
 
-               <div className="pt-2">
-                 <button type="submit" disabled={loading} className="w-full bg-red-600 text-white px-6 py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 shadow hover:bg-red-700 disabled:opacity-50">
+               <div className="pt-4">
+                 <button type="submit" disabled={loading} className="w-full bg-slate-900 border border-slate-800 text-white px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-3 shadow-xl hover:bg-black transition-all active:scale-95 disabled:opacity-50">
                    {loading ? 'Committing...' : <><Save className="w-5 h-5" /> Commit to Ledger</>}
                  </button>
                </div>
             </form>
-         </div>
+         </motion.div>
 
-         {/* Latest Records Panel */}
-         <div className="lg:col-span-2 space-y-6">
-            <div className="bg-red-50 border border-red-200 rounded-xl p-6 flex items-center justify-between shadow-sm">
+         {/* Latest Records Panel - Aura Style */}
+         <div className="lg:col-span-2 space-y-8">
+            <div className="bg-gradient-to-tr from-rose-600 to-rose-700 border border-rose-500 rounded-3xl p-10 flex flex-col md:flex-row items-center justify-between shadow-2xl shadow-rose-200">
                <div>
-                  <h3 className="text-red-800 font-bold text-lg">Today's Expenses Outflow</h3>
-                  <p className="text-red-600 text-sm font-medium">As of {new Date().toLocaleDateString()}</p>
+                  <h3 className="text-white font-black text-xl uppercase tracking-tighter">Daily Cash Liquidity Outflow</h3>
+                  <p className="text-rose-100/70 text-[10px] font-black uppercase tracking-[0.2em] mt-1 italic">Real-time Financial Surveillance</p>
                </div>
-               <div className="text-right">
-                  <span className="text-4xl font-black text-red-900 tracking-tight">
+               <div className="text-right mt-6 md:mt-0 flex flex-col items-end">
+                  <span className="text-4xl md:text-5xl font-black text-white tracking-tighter font-display">
                     PKR {todayTotal.toLocaleString()}
                   </span>
+                  <div className="w-12 h-1 bg-white/20 mt-3 rounded-full"></div>
                </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-               <div className="bg-gray-50 border-b border-gray-200 px-6 py-4">
-                 <h3 className="font-bold text-gray-800 flex items-center gap-2"><Calendar className="w-5 h-5 text-gray-500" /> Recent Expense Logs</h3>
+            <div className="aura-card overflow-hidden border-none shadow-2xl shadow-slate-200/50">
+               <div className="bg-slate-50/50 border-b border-slate-100 px-8 py-5">
+                 <h3 className="text-[10px] font-black text-slate-500 flex items-center gap-2 uppercase tracking-[0.25em]"><Calendar className="w-4 h-4" /> Activity Feed</h3>
                </div>
-               <table className="w-full text-left text-sm">
-                 <thead className="bg-white border-b border-gray-100">
-                   <tr>
-                     <th className="p-4 font-medium text-gray-500">Date</th>
-                     <th className="p-4 font-medium text-gray-500">Category</th>
-                     <th className="p-4 font-medium text-gray-500">Mode</th>
-                     <th className="p-4 font-medium text-gray-500">Remarks</th>
-                     <th className="p-4 font-medium text-gray-500 text-right">Amount</th>
-                     <th className="p-4 font-medium text-gray-500 text-center">Actions</th>
+               <table className="w-full text-left">
+                 <thead>
+                   <tr className="bg-white border-b border-slate-50">
+                     <th className="p-6 text-premium-label">Historical Date</th>
+                     <th className="p-6 text-premium-label">Accounting Head</th>
+                     <th className="p-6 text-premium-label">Transaction Narrative</th>
+                     <th className="p-6 text-premium-label text-right">Debit Amount</th>
+                     <th className="p-6 text-premium-label text-center">Menu</th>
                    </tr>
                  </thead>
-                 <tbody className="divide-y divide-gray-100">
-                    {recentExpenses.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-gray-400">No recent expenses logged.</td></tr> :
-                     recentExpenses.map(exp => (
-                       <tr key={exp.id} className="hover:bg-gray-50 transition-colors">
-                         <td className="p-4 text-gray-900 font-medium whitespace-nowrap">{new Date(exp.date).toLocaleDateString()}</td>
-                         <td className="p-4"><span className="bg-gray-100 text-gray-700 font-medium px-2 py-0.5 rounded text-xs">{exp.category}</span></td>
-                         <td className="p-4 text-gray-500">{exp.payment_mode}</td>
-                         <td className="p-4 text-gray-500 max-w-xs truncate" title={exp.remarks}>{exp.remarks || '-'}</td>
-                         <td className="p-4 text-right font-bold text-red-600 whitespace-nowrap">Rs. {exp.amount.toLocaleString()}</td>
-                         <td className="p-4 text-center">
+                 <tbody className="divide-y divide-slate-50">
+                    {recentExpenses.length === 0 ? <tr><td colSpan={5} className="p-20 text-center text-slate-400 font-bold uppercase text-[10px] tracking-widest italic opacity-50">No recent ledger activity detected.</td></tr> :
+                     recentExpenses.map((exp, i) => (
+                       <motion.tr 
+                         key={exp.id} 
+                         initial={{ opacity: 0, y: 10 }}
+                         animate={{ opacity: 1, y: 0 }}
+                         transition={{ delay: 0.3 + (i * 0.05) }}
+                         whileHover={{ scale: 1.002, x: 5 }}
+                         className="hover:bg-rose-50/30 transition-all group"
+                       >
+                         <td className="p-6 text-slate-900 font-bold text-xs uppercase tracking-tight whitespace-nowrap">{new Date(exp.date).toLocaleDateString(undefined, { dateStyle: 'medium' })}</td>
+                         <td className="p-6">
+                            <span className="bg-slate-100 text-slate-700 font-black px-3 py-1 rounded-lg text-[9px] uppercase tracking-widest group-hover:bg-white transition-colors">{exp.category}</span>
+                         </td>
+                         <td className="p-6 text-slate-500 text-xs font-medium max-w-[200px] truncate" title={exp.remarks}>{exp.remarks || '—'}</td>
+                         <td className="p-6 text-right font-black text-rose-600 text-sm whitespace-nowrap tracking-tight">Rs. {exp.amount.toLocaleString()}</td>
+                         <td className="p-6 text-center">
                            <button 
                              onClick={() => setDeleteModal({ isOpen: true, id: exp.id, name: `${exp.category} (Rs. ${exp.amount})` })}
-                             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                             className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all active:scale-90 opacity-0 group-hover:opacity-100"
                            >
-                             <Trash2 className="w-4 h-4" />
+                             <Trash2 className="w-5 h-5" />
                            </button>
                          </td>
-                       </tr>
+                       </motion.tr>
                      ))
                     }
                  </tbody>

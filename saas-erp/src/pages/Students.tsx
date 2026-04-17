@@ -6,6 +6,8 @@ import { Plus, Search, Upload, Download, MoreVertical, Camera } from 'lucide-rea
 import Papa from 'papaparse';
 import { exportToCSV } from '../lib/exportUtils';
 import { uploadFile } from '../lib/uploadUtils';
+import DeletePinModal from '../components/DeletePinModal';
+import { ShieldAlert, Trash2, Users, CheckCircle, X } from 'lucide-react';
 
 interface Student {
   id: string;
@@ -35,6 +37,11 @@ export default function Students() {
   const [isLeavingCertModalOpen, setIsLeavingCertModalOpen] = useState(false);
   const [photographFile, setPhotographFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+  const [isBulkClassOpen, setIsBulkClassOpen] = useState(false);
+  const [isBulkStatusOpen, setIsBulkStatusOpen] = useState(false);
+  const [bulkTargetClass, setBulkTargetClass] = useState('');
 
   const [formData, setFormData] = useState({
     // Student Details
@@ -260,6 +267,58 @@ export default function Students() {
     }
   };
 
+  const handleBulkStatusUpdate = async (newStatus: string) => {
+    if (!userRole?.school_id || selectedIds.length === 0) return;
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update({ status: newStatus })
+        .in('id', selectedIds);
+      if (error) throw error;
+      alert(`Updated status for ${selectedIds.length} students.`);
+      setSelectedIds([]);
+      setIsBulkStatusOpen(false);
+      fetchStudents();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleBulkClassUpdate = async () => {
+    if (!userRole?.school_id || !bulkTargetClass || selectedIds.length === 0) return;
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update({ class_id: bulkTargetClass })
+        .in('id', selectedIds);
+      if (error) throw error;
+      alert(`Moved ${selectedIds.length} students to new class.`);
+      setSelectedIds([]);
+      setBulkTargetClass('');
+      setIsBulkClassOpen(false);
+      fetchStudents();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!userRole?.school_id || selectedIds.length === 0) return;
+    try {
+      const { error } = await supabase
+        .from('students')
+        .delete()
+        .in('id', selectedIds);
+      if (error) throw error;
+      alert(`Permanently deleted ${selectedIds.length} students.`);
+      setSelectedIds([]);
+      setIsBulkDeleteModalOpen(false);
+      fetchStudents();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
   const filteredStudents = students.filter(s => {
     const matchesSearch = s.full_name.toLowerCase().includes(search.toLowerCase()) || 
       s.b_form_cnic?.includes(search) ||
@@ -347,6 +406,17 @@ export default function Students() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="p-4 w-12 text-center">
+                  <input 
+                    type="checkbox" 
+                    checked={selectedIds.length > 0 && selectedIds.length === filteredStudents.length}
+                    onChange={(e) => {
+                      if (e.target.checked) setSelectedIds(filteredStudents.map(s => s.id));
+                      else setSelectedIds([]);
+                    }}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                </th>
                 <th className="p-4 font-medium text-sm text-gray-600 w-12"></th>
                 <th className="p-4 font-medium text-sm text-gray-600">Roll No</th>
                 <th className="p-4 font-medium text-sm text-gray-600">Full Name</th>
@@ -370,9 +440,20 @@ export default function Students() {
                 filteredStudents.map((student) => (
                   <tr 
                     key={student.id} 
-                    className="hover:bg-gray-50 cursor-pointer"
+                    className={`hover:bg-gray-50 cursor-pointer ${selectedIds.includes(student.id) ? 'bg-blue-50' : ''}`}
                     onClick={() => setSelectedStudent(student)}
                   >
+                    <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
+                      <input 
+                        type="checkbox" 
+                        checked={selectedIds.includes(student.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) setSelectedIds([...selectedIds, student.id]);
+                          else setSelectedIds(selectedIds.filter(id => id !== student.id));
+                        }}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                    </td>
                     <td className="p-4">
                       {student.photograph_url
                         ? <img src={student.photograph_url} className="w-8 h-8 rounded-full object-cover" alt="" />
@@ -903,6 +984,116 @@ export default function Students() {
           </div>
         </div>
       )}
+      {/* Bulk Action Floating Bar */}
+      {selectedIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-4 rounded-full shadow-2xl flex items-center gap-8 z-[70] animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="flex items-center gap-3 border-r border-gray-700 pr-6">
+            <div className="bg-blue-600 p-2 rounded-full">
+              <Users className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-bold leading-none">{selectedIds.length} Selected</p>
+              <button 
+                onClick={() => setSelectedIds([])}
+                className="text-[10px] text-gray-400 hover:text-white uppercase tracking-widest font-bold mt-1"
+              >
+                Clear Selection
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setIsBulkStatusOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 hover:bg-gray-800 rounded-full transition-colors text-sm font-medium"
+            >
+              <CheckCircle className="w-4 h-4 text-green-400" /> Update Status
+            </button>
+            <button 
+              onClick={() => setIsBulkClassOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 hover:bg-gray-800 rounded-full transition-colors text-sm font-medium"
+            >
+              <Upload className="w-4 h-4 text-blue-400" /> Move Class
+            </button>
+            <button 
+              onClick={() => setIsBulkDeleteModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 hover:bg-red-900/40 text-red-400 rounded-full transition-colors text-sm font-medium"
+            >
+              <Trash2 className="w-4 h-4" /> Delete
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Status Modal */}
+      {isBulkStatusOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[80]">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-gray-50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="font-bold text-gray-900">Update Status: {selectedIds.length} Students</h3>
+              <button onClick={() => setIsBulkStatusOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-8 space-y-4">
+              <p className="text-sm text-gray-500">Select the new status for all selected students:</p>
+              <div className="grid grid-cols-1 gap-2">
+                {['active', 'left', 'graduated'].map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => handleBulkStatusUpdate(status)}
+                    className="w-full px-4 py-3 text-left rounded-xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all capitalize font-medium flex items-center justify-between group"
+                  >
+                    {status}
+                    <CheckCircle className="w-4 h-4 text-blue-500 opacity-0 group-hover:opacity-100" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Class Modal */}
+      {isBulkClassOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[80]">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-gray-50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="font-bold text-gray-900">Move Class: {selectedIds.length} Students</h3>
+              <button onClick={() => setIsBulkClassOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-8 space-y-4">
+              <label className="block text-sm font-medium text-gray-700">Target Class</label>
+              <select 
+                value={bulkTargetClass} 
+                onChange={(e) => setBulkTargetClass(e.target.value)} 
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              >
+                <option value="">Select Target Class</option>
+                {classes.map(c => (
+                  <option key={c.id} value={c.id}>{c.name} (Sec {c.section})</option>
+                ))}
+              </select>
+              <button
+                onClick={handleBulkClassUpdate}
+                disabled={!bulkTargetClass}
+                className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-all mt-4"
+              >
+                Apply Reallocation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirmation */}
+      {isBulkDeleteModalOpen && (
+        <DeletePinModal 
+          onConfirm={handleBulkDelete}
+          onCancel={() => setIsBulkDeleteModalOpen(false)}
+          title={`Permanently Delete ${selectedIds.length} Student Records?`}
+          description="This action cannot be undone. All academic and financial records for these students will be permanently removed from the system."
+        />
+      )}
     </div>
   );
 }
+

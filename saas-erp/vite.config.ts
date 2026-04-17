@@ -15,6 +15,20 @@ export default defineConfig(({mode}) => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    build: {
+      chunkSizeWarningLimit: 1000,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-ui': ['lucide-react', 'motion', 'clsx', 'tailwind-merge'],
+            'vendor-charts': ['recharts'],
+            'vendor-utils': ['xlsx', 'jspdf', 'jspdf-autotable', 'html2canvas'],
+            'vendor-supabase': ['@supabase/supabase-js'],
+            'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          },
+        },
+      },
+    },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.

@@ -383,3 +383,135 @@ CREATE POLICY "Allow All" ON evaluations FOR ALL USING (true);
 
 DROP POLICY IF EXISTS "Allow All" ON complaints;
 CREATE POLICY "Allow All" ON complaints FOR ALL USING (true);
+
+-- ============================================================
+-- Add missing student medical + family fields
+-- Run in Supabase SQL Editor
+-- ============================================================
+ALTER TABLE students ADD COLUMN IF NOT EXISTS chronic_disease TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS physical_disability TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS emergency_doctor_name TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS emergency_doctor_phone TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS family_group_id UUID REFERENCES family_groups(id);
+ALTER TABLE students ADD COLUMN IF NOT EXISTS height NUMERIC;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS weight NUMERIC;
+
+-- ============================================================
+-- FEE RECORDS: add missing columns used in application code
+-- Run in Supabase SQL Editor
+-- ============================================================
+
+-- 1. paid_at: timestamp of when payment was collected
+ALTER TABLE fee_records ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP WITH TIME ZONE;
+
+-- 2. remarks: optional note on the invoice
+ALTER TABLE fee_records ADD COLUMN IF NOT EXISTS remarks TEXT;
+
+-- 3. Fix status constraint to include 'partial' (partial payment)
+ALTER TABLE fee_records DROP CONSTRAINT IF EXISTS fee_records_status_check;
+ALTER TABLE fee_records ADD CONSTRAINT fee_records_status_check
+  CHECK (status IN ('pending', 'paid', 'partial', 'overdue'));
+
+-- 4. nationality on parents (used in registration form)
+ALTER TABLE parents ADD COLUMN IF NOT EXISTS nationality TEXT DEFAULT 'Pakistani';
+
+-- 5. is_active flag on staff (used by QR attendance scanner)
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+
+-- ============================================================
+-- ADMISSION PIPELINE: extended columns for AdmissionPipeline.tsx
+-- Run in Supabase SQL Editor
+-- ============================================================
+
+-- Create admission_inquiries table if it doesn't exist
+CREATE TABLE IF NOT EXISTS admission_inquiries (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  school_id UUID REFERENCES schools(id) NOT NULL,
+  student_name TEXT NOT NULL,
+  applying_for_class TEXT NOT NULL,
+  father_name TEXT NOT NULL,
+  contact_number TEXT NOT NULL,
+  inquiry_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  status TEXT NOT NULL DEFAULT 'new_inquiry'
+    CHECK (status IN ('new_inquiry','follow_up_1','follow_up_2','test_scheduled','admitted','rejected')),
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Extended columns for full pipeline workflow
+ALTER TABLE admission_inquiries ADD COLUMN IF NOT EXISTS student_dob DATE;
+ALTER TABLE admission_inquiries ADD COLUMN IF NOT EXISTS student_gender TEXT;
+ALTER TABLE admission_inquiries ADD COLUMN IF NOT EXISTS mother_name TEXT;
+ALTER TABLE admission_inquiries ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE admission_inquiries ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE admission_inquiries ADD COLUMN IF NOT EXISTS source TEXT;
+
+-- Follow-up 1
+ALTER TABLE admission_inquiries ADD COLUMN IF NOT EXISTS follow_up_1_date DATE;
+ALTER TABLE admission_inquiries ADD COLUMN IF NOT EXISTS follow_up_1_notes TEXT;
+
+-- Follow-up 2
+ALTER TABLE admission_inquiries ADD COLUMN IF NOT EXISTS follow_up_2_date DATE;
+ALTER TABLE admission_inquiries ADD COLUMN IF NOT EXISTS follow_up_2_notes TEXT;
+
+-- Admission test
+ALTER TABLE admission_inquiries ADD COLUMN IF NOT EXISTS test_date DATE;
+ALTER TABLE admission_inquiries ADD COLUMN IF NOT EXISTS test_score NUMERIC;
+ALTER TABLE admission_inquiries ADD COLUMN IF NOT EXISTS test_total NUMERIC;
+ALTER TABLE admission_inquiries ADD COLUMN IF NOT EXISTS test_result TEXT CHECK (test_result IN ('pass','fail'));
+ALTER TABLE admission_inquiries ADD COLUMN IF NOT EXISTS test_remarks TEXT;
+
+-- Links
+ALTER TABLE admission_inquiries ADD COLUMN IF NOT EXISTS visitor_id UUID;
+ALTER TABLE admission_inquiries ADD COLUMN IF NOT EXISTS student_id UUID REFERENCES students(id);
+
+-- ============================================================
+-- PAYROLL: payroll_records + salary_components tables
+-- ============================================================
+CREATE TABLE IF NOT EXISTS payroll_records (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  school_id UUID REFERENCES schools(id) NOT NULL,
+  staff_id UUID REFERENCES staff(id) NOT NULL,
+  month_year DATE NOT NULL,
+  full_name TEXT,
+  designation TEXT,
+  base_salary NUMERIC DEFAULT 0,
+  allowances NUMERIC DEFAULT 0,
+  deductions NUMERIC DEFAULT 0,
+  absent_days INTEGER DEFAULT 0,
+  absent_deduction NUMERIC DEFAULT 0,
+  gross_salary NUMERIC DEFAULT 0,
+  net_salary NUMERIC DEFAULT 0,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending','paid')),
+  paid_at TIMESTAMP WITH TIME ZONE,
+  payment_source TEXT,
+  notes TEXT,
+  allowances_detail JSONB DEFAULT '[]'::jsonb,
+  deductions_detail JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(school_id, staff_id, month_year)
+);
+ALTER TABLE payroll_records ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow All" ON payroll_records;
+CREATE POLICY "Allow All" ON payroll_records FOR ALL USING (true);
+
+CREATE TABLE IF NOT EXISTS salary_components (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  school_id UUID REFERENCES schools(id) NOT NULL,
+  name TEXT NOT NULL,
+  component_type TEXT NOT NULL CHECK (component_type IN ('allowance','deduction')),
+  calculation_type TEXT NOT NULL CHECK (calculation_type IN ('fixed','percentage')),
+  amount NUMERIC DEFAULT 0,
+  percentage NUMERIC DEFAULT 0,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+ALTER TABLE salary_components ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow All" ON salary_components;
+CREATE POLICY "Allow All" ON salary_components FOR ALL USING (true);
+
+-- Staff: add missing columns used by payroll module
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS designation TEXT;
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS employment_type TEXT DEFAULT 'full-time';
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS payment_basis TEXT DEFAULT 'monthly';
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS salary NUMERIC DEFAULT 0;

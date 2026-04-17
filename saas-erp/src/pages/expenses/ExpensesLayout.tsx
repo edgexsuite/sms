@@ -8,6 +8,7 @@ import Budget from './Budget';
 import ExpenseReports from './ExpenseReports';
 import PaymentSources from './PaymentSources';
 import ProfitLoss from './ProfitLoss';
+import BulkExpenseImport from './BulkExpenseImport';
 
 export default function ExpensesLayout() {
   return (
@@ -20,6 +21,7 @@ export default function ExpensesLayout() {
       <Route path="reports" element={<ExpenseReports />} />
       <Route path="payment-sources" element={<PaymentSources />} />
       <Route path="p-and-l" element={<ProfitLoss />} />
+      <Route path="bulk-import" element={<BulkExpenseImport />} />
       <Route path="*" element={<Navigate to="/expenses/add-daily" replace />} />
     </Routes>
   );

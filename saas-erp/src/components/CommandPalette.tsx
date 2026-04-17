@@ -2,14 +2,16 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Search, GraduationCap, Briefcase, CreditCard, X, ArrowRight, Command } from 'lucide-react';
+import { Search, GraduationCap, Briefcase, CreditCard, X, ArrowRight, Command, Layout } from 'lucide-react';
+import { NAV_SECTIONS } from '../constants/navigation';
 
 interface SearchResult {
   id: string;
-  type: 'student' | 'staff' | 'fee';
+  type: 'student' | 'staff' | 'fee' | 'module';
   title: string;
   subtitle: string;
   path: string;
+  icon?: any;
 }
 
 export default function CommandPalette() {
@@ -47,53 +49,98 @@ export default function CommandPalette() {
 
   // Debounced search
   useEffect(() => {
-    if (!query.trim() || !userRole?.school_id) {
+    if (!query.trim()) {
       setResults([]);
       return;
     }
-    const timer = setTimeout(() => runSearch(query), 250);
+    const timer = setTimeout(() => runSearch(query), 150);
     return () => clearTimeout(timer);
   }, [query, userRole]);
 
   const runSearch = async (q: string) => {
     setLoading(true);
-    const sid = userRole!.school_id;
-    const term = `%${q}%`;
+    // 1. Search Sidebar Modules (Local)
+    const moduleResults: SearchResult[] = [];
+    NAV_SECTIONS.forEach(section => {
+      if (userRole?.role && !section.roles.includes(userRole.role)) return;
+      
+      section.items.forEach(item => {
+        if (userRole?.role && !item.roles.includes(userRole.role)) return;
+        
+        if (item.name.toLowerCase().includes(q.toLowerCase())) {
+          moduleResults.push({
+            id: `module-${item.path}`,
+            type: 'module',
+            title: item.name,
+            subtitle: `Navigation · ${section.title}`,
+            path: item.path,
+            icon: item.icon
+          });
+        }
+        
+        if (item.subItems) {
+          item.subItems.forEach(sub => {
+            if ((sub as any).roles && userRole?.role && !(sub as any).roles.includes(userRole.role)) return;
+            
+            if (sub.name.toLowerCase().includes(q.toLowerCase())) {
+              moduleResults.push({
+                id: `sub-${sub.path}`,
+                type: 'module',
+                title: sub.name,
+                subtitle: `Module · ${item.name}`,
+                path: sub.path,
+                icon: sub.icon || item.icon
+              });
+            }
+          });
+        }
+      });
+    });
 
-    const [{ data: students }, { data: staffList }, { data: fees }] = await Promise.all([
-      supabase.from('students').select('id, full_name, roll_number, class:class_id(name, section)')
-        .eq('school_id', sid).ilike('full_name', term).limit(5),
-      supabase.from('staff').select('id, full_name, role, whatsapp_number')
-        .eq('school_id', sid).ilike('full_name', term).limit(5),
-      supabase.from('fee_records').select('id, student:student_id(full_name), total_amount, paid_amount, month_year')
-        .eq('school_id', sid).in('status', ['pending', 'overdue']).limit(5),
-    ]);
+    // 2. Search Database Records (Remote)
+    let records: SearchResult[] = [];
+    if (userRole?.school_id) {
+      const sid = userRole.school_id;
+      const term = `%${q}%`;
+      const rollNum = parseInt(q) || 0;
 
-    const allResults: SearchResult[] = [
-      ...(students || []).map((s: any) => ({
-        id: s.id,
-        type: 'student' as const,
-        title: s.full_name,
-        subtitle: `Roll #${s.roll_number} · ${s.class?.name || ''}-${s.class?.section || ''}`,
-        path: '/students',
-      })),
-      ...(staffList || []).map((s: any) => ({
-        id: s.id,
-        type: 'staff' as const,
-        title: s.full_name,
-        subtitle: s.role ? s.role.charAt(0).toUpperCase() + s.role.slice(1) : 'Staff',
-        path: '/staff',
-      })),
-      ...(fees || [])
-        .filter((f: any) => f.student?.full_name?.toLowerCase().includes(q.toLowerCase()))
-        .map((f: any) => ({
-          id: f.id,
-          type: 'fee' as const,
-          title: f.student?.full_name || 'Unknown',
-          subtitle: `Fee Due: Rs. ${Number((f.total_amount ?? 0) - (f.paid_amount ?? 0)).toLocaleString()} · ${f.month_year || ''}`,
-          path: '/fees/student-detail',
+      const [{ data: students }, { data: staffList }, { data: fees }] = await Promise.all([
+        supabase.from('students').select('id, full_name, roll_number, class:class_id(name, section)')
+          .eq('school_id', sid).or(`full_name.ilike.${term},roll_number.eq.${rollNum}`).limit(5),
+        supabase.from('staff').select('id, full_name, role, whatsapp_number')
+          .eq('school_id', sid).ilike('full_name', term).limit(5),
+        supabase.from('fee_records').select('id, student:student_id(full_name), total_amount, paid_amount, month_year')
+          .eq('school_id', sid).in('status', ['pending', 'overdue']).limit(5),
+      ]);
+
+      records = [
+        ...(students || []).map((s: any) => ({
+          id: s.id,
+          type: 'student' as const,
+          title: s.full_name,
+          subtitle: `Roll #${s.roll_number} · ${s.class?.name || ''}-${s.class?.section || ''}`,
+          path: '/students',
         })),
-    ];
+        ...(staffList || []).map((s: any) => ({
+          id: s.id,
+          type: 'staff' as const,
+          title: s.full_name,
+          subtitle: s.role ? s.role.charAt(0).toUpperCase() + s.role.slice(1) : 'Staff',
+          path: '/staff',
+        })),
+        ...(fees || [])
+          .filter((f: any) => f.student?.full_name?.toLowerCase().includes(q.toLowerCase()))
+          .map((f: any) => ({
+            id: f.id,
+            type: 'fee' as const,
+            title: f.student?.full_name || 'Unknown',
+            subtitle: `Fee Due: Rs. ${Number((f.total_amount ?? 0) - (f.paid_amount ?? 0)).toLocaleString()} · ${f.month_year ? new Date(f.month_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ''}`,
+            path: '/fees/student-detail',
+          })),
+      ];
+    }
+
+    const allResults: SearchResult[] = [...moduleResults, ...records];
 
     setResults(allResults);
     setSelectedIndex(0);
@@ -113,14 +160,19 @@ export default function CommandPalette() {
     }
   };
 
-  const typeIcon = (type: string) => {
-    if (type === 'student') return <GraduationCap className="w-4 h-4 text-blue-500" />;
-    if (type === 'staff') return <Briefcase className="w-4 h-4 text-purple-500" />;
+  const typeIcon = (result: SearchResult) => {
+    if (result.type === 'module' && result.icon) {
+      const Icon = result.icon;
+      return <Icon className="w-4 h-4 text-indigo-500" />;
+    }
+    if (result.type === 'student') return <GraduationCap className="w-4 h-4 text-blue-500" />;
+    if (result.type === 'staff') return <Briefcase className="w-4 h-4 text-purple-500" />;
     return <CreditCard className="w-4 h-4 text-red-500" />;
   };
 
   const typeBadge = (type: string) => {
     const map: Record<string, string> = {
+      module: 'bg-indigo-100 text-indigo-700',
       student: 'bg-blue-100 text-blue-700',
       staff: 'bg-purple-100 text-purple-700',
       fee: 'bg-red-100 text-red-700',
@@ -149,7 +201,7 @@ export default function CommandPalette() {
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search students, staff, fees..."
+            placeholder="Search modules, students, staff, fees..."
             className="flex-1 text-base text-gray-900 placeholder:text-gray-400 border-none outline-none bg-transparent"
           />
           <div className="flex items-center gap-1.5 shrink-0">
@@ -165,7 +217,7 @@ export default function CommandPalette() {
           {query.trim() === '' ? (
             <div className="px-5 py-10 text-center text-gray-400">
               <Command className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-              <p className="text-sm">Start typing to search across students, staff, and fee records</p>
+              <p className="text-sm">Start typing to find modules or search across records</p>
             </div>
           ) : results.length === 0 && !loading ? (
             <div className="px-5 py-10 text-center text-gray-400">
@@ -183,7 +235,7 @@ export default function CommandPalette() {
                     }`}
                   >
                     <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-                      {typeIcon(r.type)}
+                      {typeIcon(r)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-gray-900 text-sm truncate">{r.title}</p>

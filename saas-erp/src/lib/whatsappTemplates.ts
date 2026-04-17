@@ -1,0 +1,83 @@
+/**
+ * Centralized WhatsApp message templates for the school management system.
+ * All templates return a plain-text string ready for wa.me URL encoding.
+ */
+
+export interface TemplateVars {
+  studentName?: string;
+  parentName?: string;
+  schoolName?: string;
+  className?: string;
+  invoiceNumber?: string;
+  balance?: number | string;
+  dueDate?: string;
+  month?: string;
+  attendanceDate?: string;
+  absenceReason?: string;
+  examName?: string;
+  resultSummary?: string;
+  leaveFrom?: string;
+  leaveTo?: string;
+  leaveReason?: string;
+  customMessage?: string;
+  amount?: number | string;
+  staffName?: string;
+  arrivalTime?: string;
+  symptoms?: string;
+  admissionDate?: string;
+}
+
+const fmt = (n: number | string | undefined) =>
+  n !== undefined ? Number(n).toLocaleString() : '0';
+
+/** Fee reminder — sent when a fee invoice is pending */
+export function feeDueTemplate(vars: TemplateVars): string {
+  return `Dear Parent,\n\nThis is a friendly reminder that the fee for *${vars.studentName}* (${vars.className}) for *${vars.month || 'this month'}* is pending. \n\n*Amount Due:* Rs. ${fmt(vars.balance)}\n*Due Date:* ${vars.dueDate || 'N/A'}\n\nPlease ignore if already paid.\n\n— ${vars.schoolName || 'School Management'}`;
+}
+
+/** Overdue fee reminder — sent when a fee is past the due date */
+export function overdueFeeTemplate(vars: TemplateVars): string {
+  return `⚠️ *URGENT: OVERDUE FEE NOTICE*\n\nDear Parent,\n\nThe fee for *${vars.studentName}* (${vars.className}) for *${vars.month || 'this month'}* is now *OVERDUE*.\n\n*Outstanding Amount:* Rs. ${fmt(vars.balance)}\n*Original Due Date:* ${vars.dueDate || 'N/A'}\n\nPlease settle this balance immediately to avoid late payment penalties and ensure uninterrupted school services.\n\n— ${vars.schoolName || 'School Management'}`;
+}
+
+/** Absence alert — sent on the same day a student is marked absent */
+export function absenceAlertTemplate(vars: TemplateVars): string {
+  return `Dear Parent,\n\nYour child *${vars.studentName}* was marked *absent* from school today (*${vars.attendanceDate || new Date().toLocaleDateString()}*).\n\nRegular attendance is crucial for academic success. Please provide a reason for the absence.\n\n— ${vars.schoolName || 'School Management'}`;
+}
+
+/** Late arrival notice — sent for students who are continuously late */
+export function lateArrivalTemplate(vars: TemplateVars): string {
+  return `Dear Parent,\n\nWe noticed that *${vars.studentName}* arrived late today at *${vars.arrivalTime || 'N/A'}*. \n\nContinuously late arrival disrupts the student's learning and the class schedule. We request your cooperation in ensuring your child reaches school on time.\n\n— ${vars.schoolName || 'School Management'}`;
+}
+
+/** Health issue notification */
+export function healthIssueTemplate(vars: TemplateVars): string {
+  return `Dear Parent,\n\nThis is to inform you that *${vars.studentName}* is feeling unwell at school today. \n\n*Symptoms:* ${vars.symptoms || 'Minor health concern'}\n\nPlease contact the school office or visit to pick up your child if necessary.\n\n— ${vars.schoolName || 'School Management'}`;
+}
+
+/** Admission confirmation */
+export function admissionConfirmationTemplate(vars: TemplateVars): string {
+  return `Dear Parent,\n\nCongratulations! We are delighted to confirm the admission of *${vars.studentName}* into Class *${vars.className}* at *${vars.schoolName}*.\n\n*Admission Date:* ${vars.admissionDate || new Date().toLocaleDateString()}\n\nWelcome to our school family! We look forward to a successful academic journey together.\n\n— ${vars.schoolName || 'School Management'}`;
+}
+
+/** Result notification — sent after results are published */
+export function resultNotificationTemplate(vars: TemplateVars): string {
+  return `Dear Parent,\n\nThe result for *${vars.examName}* has been published for *${vars.studentName}* (${vars.className}).\n\n${vars.resultSummary ? vars.resultSummary + '\n\n' : ''}Please log in to the Parent Portal to view the detailed result card.\n\n— ${vars.schoolName || 'School Management'}`;
+}
+
+/** Custom / general announcement */
+export function customTemplate(vars: TemplateVars): string {
+  return `Dear ${vars.parentName || 'Parent'},\n\n${vars.customMessage || ''}\n\n— ${vars.schoolName || 'School Management'}`;
+}
+
+/** Open WhatsApp for a given phone number with pre-filled message */
+export function openWhatsApp(phone: string, message: string): void {
+  const cleaned = phone.replace(/\D/g, '');
+  window.open(`https://wa.me/${cleaned}?text=${encodeURIComponent(message)}`, '_blank');
+}
+
+/** Build wa.me link without opening it (for generating links) */
+export function buildWhatsAppLink(phone: string, message: string): string {
+  const cleaned = phone.replace(/\D/g, '');
+  return `https://wa.me/${cleaned}?text=${encodeURIComponent(message)}`;
+}

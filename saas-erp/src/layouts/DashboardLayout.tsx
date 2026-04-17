@@ -1,7 +1,7 @@
 import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LogOut, Globe, GraduationCap, Users, BookOpen, LayoutDashboard, CreditCard, CalendarCheck, FileText, Settings as SettingsIcon, Star, MessageSquare, Calendar, CalendarOff, Package, AlertTriangle, Bot, Briefcase, ClipboardList, ChevronDown, ChevronRight, UserPlus, Upload, ShieldCheck, Award, LineChart, Menu, X, Wallet, Key, PiggyBank, BarChart3, Banknote, TrendingUp, UserX, ClipboardCheck, BarChart2, Wifi, Ticket, Search, DollarSign, Scale, Library, Home, Bell, Palette, School, Shield, Trash2 } from 'lucide-react';
+import { LogOut, Globe, GraduationCap, Users, BookOpen, LayoutDashboard, CreditCard, CalendarCheck, FileText, Settings as SettingsIcon, Star, MessageSquare, Calendar, CalendarOff, Package, AlertTriangle, Bot, Briefcase, ClipboardList, ChevronRight, UserPlus, Upload, ShieldCheck, Award, LineChart, Menu, X, Wallet, Key, PiggyBank, BarChart3, Banknote, TrendingUp, UserX, ClipboardCheck, BarChart2, Wifi, Ticket, Search, DollarSign, Scale, Library, Home, Bell, Palette, School, Shield, Trash2, Clock, Box } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { cn } from '../lib/utils';
@@ -9,6 +9,8 @@ import CommandPalette from '../components/CommandPalette';
 import DashboardAlerts from '../components/DashboardAlerts';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { supabase } from '../lib/supabase';
+import { motion, AnimatePresence } from 'framer-motion';
+import { NAV_SECTIONS } from '../constants/navigation';
 
 export default function DashboardLayout() {
   const { t, i18n } = useTranslation();
@@ -17,21 +19,19 @@ export default function DashboardLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({});
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
-  // Initialize dropdowns based on current route
+  // Initialize dropdown based on current route
   useEffect(() => {
-    const newDropdowns: Record<string, boolean> = {};
-    if (location.pathname.startsWith('/students')) newDropdowns['Students Module'] = true;
-    if (location.pathname.startsWith('/classes')) newDropdowns['Classes Module'] = true;
-    if (location.pathname.startsWith('/result')) newDropdowns['Result Module'] = true;
-    if (location.pathname.startsWith('/fees')) newDropdowns['Fee Management'] = true;
-    if (location.pathname.startsWith('/expenses')) newDropdowns['Expense Module'] = true;
-    if (location.pathname.startsWith('/payroll')) newDropdowns['Payroll'] = true;
-    if (location.pathname.startsWith('/accounting')) newDropdowns['Accounting'] = true;
-    if (location.pathname.startsWith('/library')) newDropdowns['Library'] = true;
-    if (location.pathname.startsWith('/frontdesk')) newDropdowns['Front Desk'] = true;
-    setOpenDropdowns(prev => ({ ...prev, ...newDropdowns }));
+    if (location.pathname.startsWith('/students')) setOpenDropdown('Students');
+    else if (location.pathname.startsWith('/classes')) setOpenDropdown('Classes & Subjects');
+    else if (location.pathname.startsWith('/result')) setOpenDropdown('Result Module');
+    else if (location.pathname.startsWith('/fees')) setOpenDropdown('Fee Management');
+    else if (location.pathname.startsWith('/expenses')) setOpenDropdown('Expenses');
+    else if (location.pathname.startsWith('/payroll')) setOpenDropdown('Payroll');
+    else if (location.pathname.startsWith('/accounting')) setOpenDropdown('Accounting');
+    else if (location.pathname.startsWith('/library')) setOpenDropdown('Library');
+    else if (location.pathname.startsWith('/frontdesk')) setOpenDropdown('Front Desk');
   }, []);
 
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -122,239 +122,13 @@ export default function DashboardLayout() {
     navigate('/login');
   };
 
-  const navSections = [
-    {
-      title: 'Core Operations',
-      id: 'students',
-      roles: ['admin', 'teacher', 'staff', 'parent'],
-      items: [
-        { name: t('nav.dashboard'), path: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'teacher', 'staff', 'parent'] },
-        { 
-          name: 'Students Module', 
-          path: '/students', 
-          icon: GraduationCap, 
-          roles: ['admin', 'teacher', 'staff', 'parent'],
-          subItems: [
-            { name: 'Student List', path: '/students', exact: true, icon: Users },
-            { name: 'Register New Student', path: '/students/register', icon: UserPlus },
-            { name: 'Admission Form', path: '/students/admission-form', icon: FileText },
-            { name: 'Bulk Enrollment', path: '/students/bulk-enrollment', icon: Upload },
-            { name: 'Promote Students', path: '/students/promote', icon: ShieldCheck },
-            { name: 'Digital ID Cards', path: '/students/id-cards', icon: CreditCard },
-            { name: 'Leaving Certificate', path: '/students/leaving-certificate', icon: Award },
-            { name: 'Birth Certificate', path: '/students/birth-certificate', icon: Award },
-            { name: 'Character Certificate', path: '/students/character-certificate', icon: Award },
-            { name: 'Progress Report', path: '/students/progress-report', icon: LineChart },
-            { name: 'Printable Reports', path: '/students/reports', icon: FileText },
-            { name: 'Customize Form', path: '/students/customize-form', icon: SettingsIcon },
-            { name: 'Parent SMS History', path: '/students/parent-sms-history', icon: MessageSquare }
-          ]
-        },
-        { name: 'Parents', path: '/parents', icon: Users, roles: ['admin', 'staff', 'parent'] },
-        { name: 'Staff Management', path: '/staff', icon: Briefcase, roles: ['admin'] },
-        { 
-          name: 'Classes & Subjects', 
-          path: '/classes', 
-          icon: BookOpen, 
-          roles: ['admin', 'teacher', 'staff'],
-          subItems: [
-            { name: 'Class & Section Management', path: '/classes/manage', exact: true, icon: BookOpen },
-            { name: 'Subject Management', path: '/classes/subjects', icon: FileText }
-          ]
-        },
-      ]
-    },
-    {
-      title: 'Academic Suite',
-      id: 'academic',
-      roles: ['admin', 'teacher', 'staff', 'parent'],
-      items: [
-        { 
-          name: 'Attendance Module', 
-          path: '/attendance', 
-          icon: CalendarCheck, 
-          roles: ['admin', 'teacher', 'staff', 'parent'],
-          subItems: [
-            { name: 'Fast-Action Roll Call', path: '/attendance', exact: true, icon: CalendarCheck },
-            { name: 'Staff Attendance', path: '/attendance/staff', icon: Briefcase },
-            { name: 'Daily Report', path: '/attendance/daily-report', icon: ClipboardCheck },
-            { name: 'Absent Student List', path: '/attendance/absent-list', icon: UserX },
-            { name: 'Master Registers', path: '/attendance/monthly-report', icon: LineChart },
-            { name: 'Sessional Report', path: '/attendance/sessional-report', icon: BarChart2 },
-            { name: 'SMS / WhatsApp History', path: '/attendance/sms-history', icon: MessageSquare },
-            { name: 'Smart Kiosk (Web QR)', path: '/attendance/scanner', icon: Wifi },
-          ]
-        },
-        { 
-          name: 'Result Module', 
-          path: '/result', 
-          icon: FileText, 
-          roles: ['admin', 'teacher', 'staff', 'parent'],
-          subItems: [
-            { name: 'Step 1: Exam Types', path: '/result/exam-types', icon: SettingsIcon },
-            { name: 'Step 2: Schedule Papers', path: '/result/schedule', icon: Calendar },
-            { name: 'Step 3: Enter Results', path: '/result/add-result', exact: true, icon: Star },
-            { name: 'Consolidated Sheet', path: '/result/consolidated', icon: LayoutDashboard },
-            { name: 'Individual Report Cards', path: '/result/reporting', icon: LineChart },
-            { name: 'Grading Settings', path: '/result/settings', icon: SettingsIcon },
-            { name: 'Roll Number Slips', path: '/result/roll-slips', icon: Ticket },
-          ]
-        },
-        { name: 'Timetable', path: '/timetable', icon: Calendar, roles: ['admin', 'teacher', 'staff', 'parent'] },
-        { name: 'Teacher Diary', path: '/diary', icon: ClipboardList, roles: ['admin', 'teacher', 'staff'] },
-        {
-          name: 'Leave Management',
-          path: '/leave',
-          icon: CalendarOff,
-          roles: ['admin', 'teacher', 'staff'],
-          subItems: [
-            { name: 'Student Leave', path: '/leave/student', icon: GraduationCap },
-            { name: 'Staff Leave & Balance', path: '/leave/staff', icon: Briefcase },
-          ]
-        },
-        { name: 'Evaluation', path: '/evaluation', icon: Star, roles: ['admin', 'teacher', 'parent'] },
-      ]
-    },
-    {
-      title: 'Financial Module',
-      id: 'finance',
-      roles: ['admin', 'staff', 'parent'],
-      items: [
-        { 
-          name: 'Fee Management',
-          path: '/fees',
-          icon: CreditCard,
-          roles: ['admin', 'staff', 'parent'],
-          subItems: [
-            { name: 'Fee Packages & Matrix', path: '/fees/criteria', icon: SettingsIcon },
-            { name: 'Invoicing & Generator', path: '/fees/invoices', icon: FileText },
-            { name: 'Student Ledgers & Payments', path: '/fees/student-detail', icon: Users },
-            { name: 'Challan Form Settings', path: '/fees/challan-settings', icon: ClipboardList },
-            { name: 'Fine Policy', path: '/fees/fine-policy', icon: AlertTriangle },
-            { name: 'Discounts & Scholarships', path: '/fees/discounts', icon: Award },
-            { name: 'Advance Fee', path: '/fees/advance-fee', icon: TrendingUp },
-            { name: 'Average Fee Report', path: '/fees/average-fee', icon: BarChart2 },
-            { name: 'Fee Templates', path: '/fees/fee-templates', icon: Ticket },
-            { name: 'Student Fee History', path: '/fees/fee-history', icon: BookOpen },
-            { name: 'Easy Fee Entry', path: '/fees/easy-fee', icon: Wallet },
-          ]
-        },
-        { 
-          name: 'Expense Module', 
-          path: '/expenses', 
-          icon: Wallet, 
-          roles: ['admin', 'staff'],
-          subItems: [
-            { name: 'Add Daily Expenses', path: '/expenses/add-daily', exact: true, icon: Wallet },
-            { name: 'Expense Heads Config', path: '/expenses/heads', icon: SettingsIcon },
-            { name: 'Unified Day Book / Ledger', path: '/expenses/ledger', icon: LineChart },
-            { name: 'Budget Planner', path: '/expenses/budget', icon: PiggyBank },
-            { name: 'Payment Sources', path: '/expenses/payment-sources', icon: Banknote },
-            { name: 'Expense Reports', path: '/expenses/reports', icon: BarChart3 },
-            { name: 'Profit & Loss', path: '/expenses/p-and-l', icon: TrendingUp },
-          ]
-        },
-        {
-          name: 'Payroll',
-          path: '/payroll',
-          icon: DollarSign,
-          roles: ['admin'],
-          subItems: [
-            { name: 'Process Payroll', path: '/payroll', exact: true, icon: DollarSign },
-            { name: 'Salary Slips', path: '/payroll/slips', icon: FileText },
-            { name: 'Salary Components', path: '/payroll/allowances', icon: SettingsIcon },
-            { name: 'Payroll Reports', path: '/payroll/reports', icon: BarChart2 },
-          ]
-        },
-        {
-          name: 'Accounting',
-          path: '/accounting',
-          icon: Scale,
-          roles: ['admin'],
-          subItems: [
-            { name: 'Chart of Accounts', path: '/accounting/chart-of-accounts', icon: BookOpen },
-            { name: 'Journal Entries', path: '/accounting/journal', icon: FileText },
-            { name: 'Trial Balance', path: '/accounting/trial-balance', icon: Scale },
-            { name: 'Balance Sheet', path: '/accounting/balance-sheet', icon: BarChart2 },
-          ]
-        },
-      ]
-    },
-    {
-      title: 'School Services',
-      id: 'services',
-      roles: ['admin', 'staff'],
-      items: [
-        {
-          name: 'Library',
-          path: '/library',
-          icon: Library,
-          roles: ['admin', 'staff'],
-          subItems: [
-            { name: 'Book Catalog', path: '/library/catalog', icon: BookOpen },
-            { name: 'Issue / Return', path: '/library/issues', icon: BarChart2 },
-            { name: 'Members', path: '/library/members', icon: Users },
-          ]
-        },
-        {
-          name: 'Front Desk',
-          path: '/frontdesk',
-          icon: Home,
-          roles: ['admin', 'staff'],
-          subItems: [
-            { name: 'Admission Inquiries', path: '/frontdesk/inquiries', icon: UserPlus },
-            { name: 'Visitor Book', path: '/frontdesk/visitors', icon: Users },
-            { name: 'Notice Board', path: '/frontdesk/notices', icon: Bell },
-          ]
-        },
-        { name: 'Family Groups', path: '/family', icon: Users, roles: ['admin', 'staff'] },
-      ]
-    },
-    {
-      title: 'Reporting Suite',
-      id: 'reports',
-      roles: ['admin', 'staff'],
-      items: [
-        { 
-          name: 'Executive Reports', 
-          path: '/reports', 
-          icon: BarChart3, 
-          roles: ['admin', 'staff'],
-          subItems: [
-            { name: 'Master Summary', path: '/reports/master-summary', icon: FileText },
-          ]
-        },
-      ]
-    },
-    {
-      title: 'Support & Admin',
-      id: 'support',
-      roles: ['admin', 'teacher', 'staff', 'parent'],
-      items: [
-        { name: 'Communication', path: '/communication', icon: MessageSquare, roles: ['admin', 'teacher', 'staff'] },
-        { name: 'Inventory', path: '/inventory', icon: Package, roles: ['admin', 'staff'] },
-        { name: 'Complaints', path: '/complaints', icon: AlertTriangle, roles: ['admin', 'teacher', 'staff', 'parent'] },
-      ]
-    },
-    {
-      title: 'System Settings',
-      id: 'settings',
-      roles: ['admin', 'teacher'],
-      items: [
-        { name: 'AI Assistant', path: '/ai-assistant', icon: Bot, roles: ['admin', 'teacher'] },
-        { name: 'Credential Manager', path: '/credentials', icon: Key, roles: ['admin'] },
-        { name: 'Settings', path: '/settings', icon: SettingsIcon, roles: ['admin'] },
-      ]
-    },
-    {
-      title: 'Director Control',
-      roles: ['admin'],
-      items: [
-        { name: 'Permission Manager', path: '/settings/permissions', icon: Shield, roles: ['admin'] },
-        { name: 'Manage Trashbin', path: '/settings/trashbin', icon: Trash2, roles: ['admin'] },
-      ]
-    }
-  ];
+  const ALL_ADMIN = ['admin', 'principal', 'director'];
+  const ALL_STAFF = ['admin', 'principal', 'director', 'staff'];
+  const ALL_ACADEMIC = ['admin', 'principal', 'director', 'teacher', 'staff'];
+  const ALL_FINANCE = ['admin', 'staff', 'accountant', 'principal', 'director'];
+  const ALL_REPORTS = ['admin', 'staff', 'accountant', 'principal', 'director'];
+
+  const navSections = NAV_SECTIONS;
 
   const schoolName = schoolBrand?.name || 'School Dashboard';
   const schoolLogo = schoolBrand?.logo_url || null;
@@ -369,126 +143,158 @@ export default function DashboardLayout() {
         />
       )}
 
-      {/* Sidebar */}
+      {/* ── Sidebar ─────────────────────────────────────────── */}
       <aside className={cn(
-        "theme-sidebar fixed md:sticky md:top-0 inset-y-0 left-0 z-50 w-64 h-screen border-r flex flex-col transform transition-transform duration-300 ease-in-out shrink-0 no-print",
+        "fixed md:sticky md:top-0 inset-y-0 left-0 z-50 w-[252px] h-screen flex flex-col shrink-0 no-print",
+        "bg-[#0d1526]",
+        "shadow-[4px_0_24px_rgba(0,0,0,0.35)]",
+        "transition-transform duration-300 ease-in-out",
         isMobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
       )}>
-        <div className="h-16 flex items-center justify-between px-6 border-b theme-border bg-white/50 backdrop-blur-sm sticky top-0 z-10">
+
+        {/* ── Brand header ── */}
+        <div className="h-[64px] flex items-center justify-between px-4 shrink-0 border-b border-white/[0.06]">
           <div className="flex items-center gap-3 min-w-0">
             {schoolLogo ? (
-              <img src={schoolLogo} alt={`${schoolName} logo`} className="w-10 h-10 rounded-xl object-cover border theme-border theme-surface-muted p-1 shadow-sm shrink-0" />
+              <img
+                src={schoolLogo}
+                alt={schoolName}
+                className="w-9 h-9 rounded-xl object-cover ring-2 ring-indigo-500/40 shadow-lg shadow-black/40 shrink-0"
+              />
             ) : (
-              <div className="w-10 h-10 theme-brand rounded-xl flex items-center justify-center shadow-sm shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-900/50 shrink-0">
                 <School className="w-5 h-5 text-white" />
               </div>
             )}
             <div className="min-w-0">
-              <h1 className="truncate text-[13px] font-black theme-text-primary uppercase tracking-[0.1em] leading-tight">{schoolName}</h1>
-              <p className="text-[10px] theme-text-muted font-bold uppercase tracking-wider">ERP Suite</p>
+              <p className="text-[11px] font-black text-white/90 uppercase tracking-[0.14em] truncate leading-tight font-display">
+                {schoolName}
+              </p>
+              <p className="text-[9px] font-semibold text-indigo-400/80 uppercase tracking-[0.22em] mt-0.5">
+                ERP Platform
+              </p>
             </div>
           </div>
-          <button 
-            className="md:hidden theme-icon-button"
+          <button
+            className="md:hidden p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-white/10 transition-colors"
             onClick={() => setIsMobileMenuOpen(false)}
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
-        <nav className="flex-1 p-4 space-y-6 custom-scrollbar">
+
+        {/* ── Navigation ── */}
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar py-3 px-2.5">
           {navSections.filter(section => {
-             if (!userRole?.role) return false;
-             if (!section.roles.includes(userRole.role)) return false;
-             
-             // For staff, check granular permissions if they exist
-             if (userRole.role === 'staff' && (section as any).id) {
-                const sectionId = (section as any).id;
-                const permissions = (userRole as any).permissions?.modules;
-                if (permissions && permissions[sectionId] === false) return false;
-             }
-             
-             return true;
-          }).map((section) => {
+            if (!userRole?.role) return false;
+            if (!section.roles.includes(userRole.role)) return false;
+            // Apply module permissions for all non-admin roles
+            if (userRole.role !== 'admin' && (section as any).id) {
+              const permissions = userRole.permissions?.modules;
+              if (permissions && permissions[(section as any).id] === false) return false;
+            }
+            return true;
+          }).map((section, sectionIdx) => {
             const visibleItems = section.items.filter(item => userRole?.role && item.roles.includes(userRole.role));
             if (visibleItems.length === 0) return null;
 
             return (
-              <div key={section.title} className="space-y-2 pt-2 first:pt-0">
-                <h3 className="px-4 text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] mb-1.5 opacity-80">
+              <div
+                key={section.title}
+                className={cn("mb-1", sectionIdx > 0 && "mt-3 pt-3 border-t border-white/[0.05]")}
+              >
+                {/* Section label */}
+                <p className="px-3 mb-1 text-[9px] font-black text-slate-600 uppercase tracking-[0.2em] select-none opacity-60">
                   {section.title}
-                </h3>
-                <div className="space-y-1">
+                </p>
+
+                <div className="space-y-px">
                   {visibleItems.map((item) => {
-                    const hasSubItems = item.subItems && item.subItems.length > 0;
-                    const isActive = hasSubItems 
+                    const hasSubItems = !!(item.subItems && item.subItems.length > 0);
+                    const isActive = hasSubItems
                       ? location.pathname.startsWith(item.path)
                       : location.pathname === item.path;
-                    
-                    const isOpen = !!openDropdowns[item.name];
                     const Icon = item.icon;
-
+                    const isOpen = openDropdown === item.name;
                     return (
-                      <div key={item.name}>
-                        {hasSubItems ? (
-                          <button
-                            onClick={() => setOpenDropdowns(prev => ({ ...prev, [item.name]: !isOpen }))}
-                            className={cn(
-                              "w-full flex items-center justify-between px-3 py-2 rounded-lg font-bold text-sm transition-all mb-0.5",
-                              isOpen || isActive
-                                ? "theme-nav-active" 
-                                : "theme-nav-item"
-                            )}
-                          >
-                            <div className="flex items-center gap-3">
-                              <Icon className={cn("w-4 h-4", (isOpen || isActive) ? "theme-icon-active" : "theme-icon-muted")} />
-                              {item.name}
-                            </div>
-                            {isOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                          </button>
-                        ) : (
+                      <div key={item.name} className="relative group/item">
+                        {!hasSubItems ? (
                           <Link
                             to={item.path}
                             onClick={() => setIsMobileMenuOpen(false)}
                             className={cn(
-                              "flex items-center gap-3 px-3 py-2 rounded-lg font-bold text-sm transition-all mb-0.5 group",
+                              "flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 group relative",
                               isActive 
-                                ? "theme-nav-active shadow-sm" 
-                                : "theme-nav-item"
+                                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" 
+                                : "text-slate-400 hover:text-white hover:bg-white/[0.05]"
                             )}
                           >
-                            <Icon className={cn("w-4 h-4", isActive ? "theme-icon-active" : "theme-icon-muted")} />
-                            {item.name}
+                            <div className={cn(
+                              "w-8 h-8 rounded-lg flex items-center justify-center transition-all",
+                              isActive ? "bg-white/20" : "bg-white/[0.03] group-hover:bg-white/[0.08]"
+                            )}>
+                              <Icon className="w-[14px] h-[14px]" />
+                            </div>
+                            <span className="truncate text-[13px] font-bold tracking-tight">{item.name}</span>
                           </Link>
+                        ) : (
+                          <button
+                            onClick={() => setOpenDropdown(isOpen ? null : item.name)}
+                            className={cn(
+                              "flex items-center justify-between w-full px-3 py-2 rounded-xl transition-all duration-200 group relative",
+                              isActive ? "bg-indigo-600/10 text-indigo-400" : "text-slate-400 hover:text-white hover:bg-white/[0.05]"
+                            )}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={cn(
+                                "w-8 h-8 rounded-lg flex items-center justify-center transition-all",
+                                isActive ? "bg-indigo-600 text-white" : "bg-white/[0.03] group-hover:bg-white/[0.08]"
+                              )}>
+                                <Icon className="w-[14px] h-[14px]" />
+                              </div>
+                              <span className="truncate text-[13px] font-bold tracking-tight">{item.name}</span>
+                            </div>
+                            <ChevronRight className={cn("w-3.5 h-3.5 transition-transform duration-200 opacity-40", isOpen && "rotate-90 opacity-100")} />
+                          </button>
                         )}
 
-                        {/* Render SubMenu */}
-                        {hasSubItems && isOpen && (
-                          <div className="ml-4 pl-3 border-l theme-border-soft space-y-1 mt-1 mb-2">
-                            {item.subItems.map((sub) => {
-                              const SubIcon = sub.icon;
-                              const isSubActive = sub.exact 
-                                ? location.pathname === sub.path 
-                                : location.pathname.startsWith(sub.path);
-                              
-                              return (
-                                <Link
-                                  key={sub.name}
-                                  to={sub.path}
-                                  onClick={() => setIsMobileMenuOpen(false)}
-                                  className={cn(
-                                    "flex items-center gap-2 px-3 py-1.5 rounded-md text-[13px] font-bold transition-all",
-                                    isSubActive 
-                                      ? "theme-subnav-active" 
-                                      : "theme-subnav-item"
-                                  )}
-                                >
-                                  <SubIcon className="w-3.5 h-3.5" />
-                                  {sub.name}
-                                </Link>
-                              );
-                            })}
-                          </div>
-                        )}
+                        {/* Animated sub-menu */}
+                        <AnimatePresence initial={false}>
+                          {hasSubItems && openDropdown === item.name && (
+                            <motion.div
+                              key="submenu"
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                              className="overflow-hidden"
+                            >
+                              <div className="mt-0.5 mb-1 ml-[38px] pl-3 border-l border-white/[0.07] space-y-px">
+                                {item.subItems!.filter(sub => !(sub as any).roles || (userRole?.role && (sub as any).roles.includes(userRole.role))).map((sub) => {
+                                  const isSubActive = sub.exact
+                                    ? location.pathname === sub.path
+                                    : location.pathname.startsWith(sub.path);
+                                  return (
+                                    <Link
+                                      key={sub.name}
+                                      to={sub.path}
+                                      onClick={() => setIsMobileMenuOpen(false)}
+                                      className={cn(
+                                        "flex items-center gap-2 px-2 py-[5px] rounded-md text-[11.5px] transition-all duration-150 group",
+                                        isSubActive
+                                          ? "text-indigo-400 bg-indigo-500/10 font-semibold"
+                                          : "text-slate-300 hover:text-white hover:bg-white/[0.06] font-medium"
+                                      )}
+                                    >
+                                      <span className="w-1 h-1 rounded-full shrink-0 transition-all" />
+                                      <span className="truncate">{sub.name}</span>
+                                    </Link>
+                                  );
+                                })}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
                     );
                   })}
@@ -497,81 +303,110 @@ export default function DashboardLayout() {
             );
           })}
         </nav>
-        <div className="p-4 border-t theme-border bg-white/30">
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gray-50 border border-gray-100/50 shadow-sm transition-all hover:border-blue-100 hover:bg-white group cursor-default">
-            <div className="w-9 h-9 theme-brand rounded-lg flex items-center justify-center text-white font-black text-xs shadow-md shrink-0">
-              {userRole?.role?.[0].toUpperCase() || 'U'}
+
+        {/* ── User card / footer ── */}
+        <div className="shrink-0 px-2.5 pt-2 pb-3 border-t border-white/[0.06]">
+          <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.06] transition-colors group">
+            {/* Avatar */}
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-black text-[11px] uppercase shadow-md shadow-indigo-900/40 shrink-0">
+              {(userRole?.role?.[0] ?? 'U').toUpperCase()}
             </div>
+            {/* Role + status */}
             <div className="flex-1 min-w-0">
-              <p className="truncate text-xs font-black theme-text-primary uppercase tracking-wider">{userRole?.role || 'User'}</p>
-              <p className="text-[10px] theme-text-muted font-bold truncate">Online</p>
+              <p className="text-[11px] font-bold text-slate-300 uppercase tracking-wider truncate">
+                {userRole?.role || 'User'}
+              </p>
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.7)] shrink-0" />
+                <span className="text-[9.5px] text-slate-600 font-medium">Active session</span>
+              </div>
             </div>
-            <SettingsIcon className="w-3.5 h-3.5 theme-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+            {/* Actions */}
+            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={cycleTheme}
+                title="Switch theme"
+                className="p-1.5 rounded-lg text-slate-600 hover:text-slate-300 hover:bg-white/10 transition-colors"
+              >
+                <Palette className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={handleLogout}
+                title="Sign out"
+                className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
       </aside>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden print:overflow-visible print:h-auto print:block">
-        {/* Topbar */}
-        <header className="theme-topbar h-16 border-b theme-border flex items-center justify-between px-4 sm:px-6 shrink-0 print:hidden">
-          <div className="flex items-center gap-3">
+        {/* Topbar - Slim Enterprise Style */}
+        <header className="aura-glass sticky top-0 h-16 border-b border-slate-200/50 flex items-center justify-between px-6 z-40 shrink-0 print:hidden mx-6 mt-3 rounded-xl shadow-lg shadow-slate-200/20">
+          <div className="flex items-center gap-4">
             <button 
-              className="md:hidden p-2 -ml-2 rounded-md theme-icon-button"
+              className="md:hidden p-2.5 bg-slate-100 rounded-xl text-slate-600 hover:bg-slate-200 transition-all active:scale-90"
               onClick={() => setIsMobileMenuOpen(true)}
             >
               <Menu className="w-6 h-6" />
             </button>
-            <div className="md:hidden font-bold text-sm flex items-center gap-2 min-w-0">
+            <div className="md:hidden font-black text-sm flex items-center gap-3 min-w-0 font-display">
               {schoolLogo ? (
-                <img src={schoolLogo} alt={`${schoolName} logo`} className="w-8 h-8 rounded-lg object-cover border theme-border theme-surface-muted p-1" />
+                <img src={schoolLogo} alt={`${schoolName} logo`} className="w-9 h-9 rounded-xl object-cover border border-slate-200 p-1 shadow-sm" />
               ) : (
-                <div className="w-8 h-8 theme-brand rounded-lg flex items-center justify-center">
-                  <School className="w-4 h-4 text-white" />
+                <div className="w-9 h-9 bg-gradient-to-tr from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <School className="w-5 h-5 text-white" />
                 </div>
               )}
-              <span className="truncate theme-text-primary uppercase tracking-[0.08em]">{schoolName}</span>
+              <span className="truncate text-slate-900 uppercase tracking-widest leading-none">{schoolName}</span>
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-4 ml-auto">
             <button
               onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { ctrlKey: true, key: 'k', bubbles: true }))}
-              className="hidden sm:flex items-center gap-2 text-sm theme-text-muted theme-surface-muted px-3 py-1.5 rounded-lg transition-colors"
+              className="hidden sm:flex items-center gap-3 text-sm text-slate-500 bg-slate-100/80 hover:bg-slate-200/80 px-4 py-2.5 rounded-xl border border-slate-200/50 transition-all font-bold group shadow-inner"
             >
-              <Search className="w-3.5 h-3.5" />
-              <span className="text-xs">Search</span>
-              <kbd className="text-[10px] px-1.5 py-0.5 theme-surface border theme-border rounded font-mono theme-text-muted">Ctrl K</kbd>
+              <Search className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+              <span className="text-xs">Quick Search</span>
+              <kbd className="text-[10px] px-2 py-1 bg-white border border-slate-200 rounded-lg text-slate-400 font-black shadow-sm tracking-tighter">CTRL K</kbd>
             </button>
+            
             <div className="relative">
               <button 
                 onClick={handleOpenNotifications}
-                className="relative p-2 rounded-full transition-colors theme-icon-button"
+                className="relative p-2.5 bg-slate-50 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all border border-slate-200 active:scale-90"
               >
                 <Bell className="w-5 h-5" />
                 {unreadCount > 0 && (
-                  <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+                  <span className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full border-2 border-white ring-4 ring-red-500/10"></span>
                 )}
               </button>
               
               {/* Notifications Dropdown */}
               {showNotifications && (
-                <div className="absolute right-0 mt-2 w-80 theme-surface rounded-xl shadow-xl border theme-border z-50 overflow-hidden print:hidden">
-                  <div className="px-4 py-3 border-b theme-border-soft theme-surface-muted flex justify-between items-center">
-                    <h3 className="font-bold theme-text-primary">Notifications</h3>
-                    <span className="text-xs font-medium bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{notifications.length} recent</span>
+                <div className="absolute right-0 mt-4 w-96 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden print:hidden aura-card animate-aura-in">
+                  <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                    <h3 className="font-black text-slate-900 uppercase text-xs tracking-widest">Notifications</h3>
+                    <span className="text-[10px] font-black bg-indigo-600 text-white px-3 py-1 rounded-full uppercase shadow-lg shadow-indigo-100">{notifications.length} NEW</span>
                   </div>
-                  <div className="max-h-[300px] overflow-y-auto">
+                  <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
                     {notifications.length === 0 ? (
-                      <div className="p-6 text-center theme-text-muted text-sm">
-                        No notifications to display.
+                      <div className="p-10 text-center text-slate-400">
+                        <Bell className="w-10 h-10 mx-auto mb-3 opacity-20" />
+                        <p className="text-xs font-bold uppercase tracking-widest">Inbox is clear</p>
                       </div>
                     ) : (
-                      <div className="divide-y theme-divide">
+                      <div className="divide-y divide-slate-100">
                         {notifications.map((notif, idx) => (
-                          <div key={idx} className="p-4 transition-colors theme-notification-item">
-                            <h4 className="text-sm font-bold theme-text-primary mb-1">{notif.title}</h4>
-                            <p className="text-xs theme-text-secondary line-clamp-3 leading-relaxed mb-2">{notif.message}</p>
-                            <span className="text-[10px] theme-text-muted">{new Date(notif.created_at).toLocaleString()}</span>
+                          <div key={idx} className="p-6 hover:bg-slate-50 transition-colors group cursor-pointer">
+                            <h4 className="text-sm font-black text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{notif.title}</h4>
+                            <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed mb-3">{notif.message}</p>
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                                <Clock className="w-2.5 h-2.5" /> {new Date(notif.created_at).toLocaleDateString()}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -580,27 +415,21 @@ export default function DashboardLayout() {
                 </div>
               )}
             </div>
+
             <button
               onClick={toggleLanguage}
-              className="flex items-center gap-2 text-sm font-medium px-2 sm:px-3 py-2 rounded-md transition-colors hidden sm:flex theme-action-button"
+              className="flex items-center gap-2 text-[11px] font-black text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 px-4 py-2.5 rounded-xl border border-slate-200 transition-all uppercase tracking-[0.1em] hidden sm:flex"
             >
               <Globe className="w-4 h-4" />
               {i18n.language === 'en' ? 'اردو' : 'English'}
             </button>
-            <button
-              onClick={cycleTheme}
-              title={`Current theme: ${theme}`}
-              className="flex items-center gap-2 text-sm font-medium px-2 sm:px-3 py-2 rounded-md transition-colors theme-action-button"
-            >
-              <Palette className="w-4 h-4" />
-              <span className="hidden sm:inline capitalize">{theme}</span>
-            </button>
+
             <button 
               onClick={handleLogout}
-              className="flex items-center gap-2 text-sm font-medium text-red-600 hover:text-red-700 px-3 py-2 rounded-md hover:bg-red-50 transition-colors"
+              className="flex items-center gap-2 text-[11px] font-black text-red-500 hover:text-white hover:bg-red-600 border border-red-100 px-4 py-2.5 rounded-xl transition-all uppercase tracking-[0.1em] shadow-sm shadow-red-50"
             >
               <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">{t('nav.logout')}</span>
+              <span className="hidden sm:inline">Terminate</span>
             </button>
           </div>
         </header>
@@ -611,10 +440,24 @@ export default function DashboardLayout() {
         </div>
 
         {/* Page Content */}
-        <main className="theme-shell flex-1 p-6 print:p-0 overflow-auto print:overflow-visible print:block">
-          <ErrorBoundary>
-            <Outlet />
-          </ErrorBoundary>
+        <main className="theme-shell flex-1 relative p-6 print:p-0 overflow-auto print:overflow-visible print:block">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 15, filter: 'blur(8px)' }}
+              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, y: -15, filter: 'blur(8px)' }}
+              transition={{ 
+                duration: 0.4, 
+                ease: [0.22, 1, 0.36, 1] 
+              }}
+              className="h-full"
+            >
+              <ErrorBoundary>
+                <Outlet />
+              </ErrorBoundary>
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
     </div>

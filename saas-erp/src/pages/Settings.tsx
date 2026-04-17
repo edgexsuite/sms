@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme, ThemeName } from '../contexts/ThemeContext';
-import { Building2, CreditCard, Database, ShieldCheck, Save, Download, Upload, Play, Palette } from 'lucide-react';
+import { Building2, CreditCard, Database, ShieldCheck, Save, Download, Upload, Play, Palette, Briefcase, Plus, Clock, Calendar, Trash2, X } from 'lucide-react';
 import { seedDemoData } from '../lib/seedData';
 import { uploadFile } from '../lib/uploadUtils';
 
 export default function Settings() {
   const { userRole } = useAuth();
   const { theme, setTheme } = useTheme();
-  const [activeTab, setActiveTab] = useState<'school' | 'fees' | 'data' | 'plan' | 'recruitment' | 'appearance'>('school');
+  const [activeTab, setActiveTab] = useState<'school' | 'fees' | 'data' | 'plan' | 'recruitment' | 'attendance' | 'appearance'>('school');
   
   // School Details State
   const [schoolData, setSchoolData] = useState({
@@ -25,6 +25,8 @@ export default function Settings() {
     website: '',
     recruitment_terms: '',
     job_descriptions: {} as Record<string, string>,
+    monthly_leave_limit: 0,
+    yearly_leave_limit: 0,
   });
   const [savingSchool, setSavingSchool] = useState(false);
   const [seeding, setSeeding] = useState(false);
@@ -37,13 +39,51 @@ export default function Settings() {
   const [feeForm, setFeeForm] = useState({ class_id: '', amount: '' });
   const [savingFee, setSavingFee] = useState(false);
 
+  // Vacations State
+  const [vacations, setVacations] = useState<any[]>([]);
+  const [isVacationModalOpen, setIsVacationModalOpen] = useState(false);
+  const [savingVacation, setSavingVacation] = useState(false);
+  const [vacationForm, setVacationForm] = useState({ name: '', start_date: '', end_date: '', deduct_salary: false });
+
   useEffect(() => {
     if (userRole?.school_id) {
       fetchSchoolDetails();
       fetchClasses();
       fetchFeeStructures();
+      fetchVacations();
     }
   }, [userRole]);
+
+  const fetchVacations = async () => {
+    const { data } = await supabase
+      .from('vacations')
+      .select('*')
+      .eq('school_id', userRole?.school_id)
+      .order('start_date', { ascending: false });
+    if (data) setVacations(data);
+  };
+
+  const handleAddVacation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingVacation(true);
+    try {
+      const { error } = await supabase.from('vacations').insert({
+        ...vacationForm,
+        school_id: userRole?.school_id
+      });
+      if (error) throw error;
+      setIsVacationModalOpen(false);
+      setVacationForm({ name: '', start_date: '', end_date: '', deduct_salary: false });
+      fetchVacations();
+    } catch (err: any) { alert(err.message); }
+    setSavingVacation(false);
+  };
+
+  const handleDeleteVacation = async (id: string) => {
+    if (!confirm('Delete this vacation period?')) return;
+    await supabase.from('vacations').delete().eq('id', id);
+    fetchVacations();
+  };
 
   const handleSeedData = async () => {
     if (!userRole?.school_id) return;
@@ -85,6 +125,8 @@ export default function Settings() {
           website: data.website || '',
           recruitment_terms: data.recruitment_terms || '',
           job_descriptions: data.job_descriptions || {},
+          monthly_leave_limit: data.monthly_leave_limit || 0,
+          yearly_leave_limit: data.yearly_leave_limit || 0,
         });
       }
     } catch (error) {
@@ -194,6 +236,8 @@ export default function Settings() {
           website: schoolData.website,
           recruitment_terms: schoolData.recruitment_terms,
           job_descriptions: schoolData.job_descriptions,
+          monthly_leave_limit: schoolData.monthly_leave_limit,
+          yearly_leave_limit: schoolData.yearly_leave_limit,
         })
         .eq('id', userRole.school_id);
 
@@ -240,6 +284,52 @@ export default function Settings() {
     } catch (error) {
       console.error('Backup failed:', error);
       alert('Failed to generate backup.');
+    }
+  };
+
+  const [resetConfirm, setResetConfirm] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handleClearAllData = async () => {
+    if (resetConfirm !== 'RESET SYSTEM') return;
+    if (!userRole?.school_id) return;
+    
+    setIsResetting(true);
+    try {
+      // Order matters due to foreign keys if cascades aren't active everywhere
+      const tables = [
+        'fee_records',
+        'attendance',
+        'exam_results',
+        'financial_transactions',
+        'leave_applications',
+        'teacher_diary',
+        'inventory_transactions',
+        'complaints',
+        'students',
+        'parents',
+        'family_groups'
+      ];
+
+      for (const table of tables) {
+        const { error } = await supabase
+          .from(table)
+          .delete()
+          .eq('school_id', userRole.school_id);
+        
+        if (error) {
+          console.warn(`Error clearing ${table}:`, error.message);
+          // Continue with next table even if one fails (some might not exist in all environments)
+        }
+      }
+
+      alert('All transactional and entity data has been cleared successfully.');
+      setResetConfirm('');
+      setActiveTab('school');
+    } catch (err: any) {
+      alert('Reset failed: ' + err.message);
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -303,6 +393,15 @@ export default function Settings() {
               >
                 <Database className="w-5 h-5" />
                 Data Management
+              </button>
+              <button
+                onClick={() => setActiveTab('attendance')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'attendance' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Clock className="w-5 h-5" />
+                Attendance Systems
               </button>
               <button
                 onClick={() => setActiveTab('plan')}
@@ -399,32 +498,56 @@ export default function Settings() {
                 </div>
               </form>
             </div>
-          )}
-
-          {activeTab === 'recruitment' && (
-            <div className="max-w-3xl">
-              <h2 className="text-xl font-bold text-gray-900 mb-6">Recruitment Settings</h2>
+          )}          {activeTab === 'recruitment' && (
+            <div className="max-w-4xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="mb-8">
+                <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Institutional Human Resources</h2>
+                <p className="text-sm text-slate-500 font-medium">Configure global contractual parameters and professional role expectations.</p>
+              </div>
               
-              <form onSubmit={handleSaveSchool} className="space-y-8">
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Global Terms & Conditions</h3>
-                  <p className="text-sm text-gray-500">These standard terms will be printed on every Joining Letter.</p>
+              <form onSubmit={handleSaveSchool} className="space-y-10">
+                {/* Global Terms Block */}
+                <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200 shadow-inner">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Master Terms & Conditions</h3>
+                      <p className="text-[11px] text-slate-500 font-bold uppercase tracking-tighter">Applies to all staff joining letters by default</p>
+                    </div>
+                  </div>
+                  
                   <textarea
                     value={schoolData.recruitment_terms}
                     onChange={(e) => setSchoolData({ ...schoolData, recruitment_terms: e.target.value })}
-                    placeholder="1. Standard 6-month probation... &#10;2. Notice Period..."
-                    rows={5}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter standard contractual points (e.g. 1. Probation term... 2. Resignation policy...)"
+                    rows={8}
+                    className="w-full px-5 py-4 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-4 focus:ring-indigo-50 focus:border-indigo-500 outline-none transition-all shadow-sm leading-relaxed"
                   />
+                  <div className="mt-3 flex items-start gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-widest italic leading-normal">
+                     <span className="text-indigo-600">*</span> Tip: Use numbering and clear headings. These will be automatically pulled into the premium Joining Letter document.
+                  </div>
                 </div>
                 
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Job Descriptions by Role</h3>
-                  <p className="text-sm text-gray-500">Define the exact job description paragraph that will print on the joining letter for each role.</p>
-                  <div className="grid grid-cols-1 gap-6">
-                    {['Teacher', 'Principal', 'Vice Principal', 'Admin', 'HR', 'Accountant', 'Front Desk', 'Clerk', 'Peon', 'Security Guard', 'Support Staff', 'Librarian', 'Lab Attendant'].map(role => (
-                      <div key={role} className="bg-gray-50 p-4 border border-gray-200 rounded-lg">
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">{role} Description</label>
+                {/* Job Descriptions Block */}
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-100">
+                      <Briefcase className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Job Descriptions by Hierarchy</h3>
+                      <p className="text-[11px] text-slate-500 font-bold uppercase tracking-tighter">Define the standard objective paragraph for each specific role</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {['Teacher', 'Principal', 'Vice Principal', 'Coordinator', 'Admin', 'HR', 'Accountant', 'Front Desk Operator', 'Information Officer', 'Clerk', 'Security Guard', 'Support Staff'].map(role => (
+                      <div key={role} className="group">
+                        <label className="block text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2 px-1 group-focus-within:text-emerald-600 transition-colors">
+                          {role} Standard Objective
+                        </label>
                         <textarea
                           value={schoolData.job_descriptions?.[role] || ''}
                           onChange={(e) => setSchoolData({
@@ -434,29 +557,145 @@ export default function Settings() {
                               [role]: e.target.value
                             }
                           })}
-                          placeholder={`Provide standard job description for ${role}...`}
+                          placeholder={`Enter standard JD for ${role}...`}
                           rows={3}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
+                          className="w-full px-4 py-3 bg-white border border-slate-100 rounded-xl text-xs font-medium focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50 transition-all shadow-sm outline-none resize-none"
                         />
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div className="pt-4 flex justify-end">
+                <div className="pt-8 flex justify-end sticky bottom-0 bg-white/80 backdrop-blur-md py-4 border-t border-slate-100 -mx-8 px-8">
                   <button
                     type="submit"
                     disabled={savingSchool}
-                    className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                    className="flex items-center gap-3 bg-slate-900 text-white px-8 py-3 rounded-xl font-black text-xs uppercase tracking-[0.2em] hover:bg-indigo-600 transition-all shadow-xl shadow-slate-200 active:scale-95 disabled:opacity-50"
                   >
-                    <Save className="w-5 h-5" />
-                    {savingSchool ? 'Saving...' : 'Save Settings'}
+                    {savingSchool ? 'Processing...' : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        Save Professional Parameters
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
             </div>
           )}
 
+          {activeTab === 'attendance' && userRole?.role === 'admin' && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+               <div>
+                  <h2 className="text-2xl font-black text-slate-900 mb-2">Leave & Attendance Systems</h2>
+                  <p className="text-sm font-medium text-slate-500">Configure institutional thresholds, payroll deduction rules and vacation periods.</p>
+               </div>
+
+               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Left Column: Rules */}
+                  <div className="lg:col-span-1 space-y-6">
+                    <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 space-y-6">
+                       <div className="flex items-center gap-4 border-b border-slate-50 pb-4">
+                          <div className="w-10 h-10 bg-indigo-50 flex items-center justify-center rounded-xl">
+                             <Clock className="w-5 h-5 text-indigo-600" />
+                          </div>
+                          <div>
+                             <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Absence Thresholds</h3>
+                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Monthly Allowance</p>
+                          </div>
+                       </div>
+
+                       <div className="space-y-4">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Max Leaves Per Month</label>
+                            <input 
+                              type="number" 
+                              value={schoolData.monthly_leave_limit} 
+                              onChange={e => setSchoolData({...schoolData, monthly_leave_limit: parseInt(e.target.value)})}
+                              className="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-100 transition-all outline-none" 
+                            />
+                            <p className="text-[10px] text-slate-400 mt-2 italic font-medium">Exceeding this limit triggers Option A (Salary/30) deductions.</p>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Max Leaves Per Year</label>
+                            <input 
+                              type="number" 
+                              value={schoolData.yearly_leave_limit} 
+                              onChange={e => setSchoolData({...schoolData, yearly_leave_limit: parseInt(e.target.value)})}
+                              className="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-100 transition-all outline-none" 
+                            />
+                          </div>
+
+                          <div className="pt-4 flex justify-end">
+                             <button 
+                                onClick={handleSaveSchool}
+                                disabled={savingSchool}
+                                className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-900 transition-all"
+                             >
+                                <Save className="w-4 h-4" /> Save Rules
+                             </button>
+                          </div>
+                       </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Vacations */}
+                  <div className="lg:col-span-2 space-y-6">
+                     <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+                        <div className="flex justify-between items-center border-b border-slate-50 pb-6 mb-6">
+                           <div className="flex items-center gap-4">
+                              <div className="w-10 h-10 bg-indigo-50 flex items-center justify-center rounded-xl">
+                                 <Calendar className="w-5 h-5 text-indigo-600" />
+                              </div>
+                              <div>
+                                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Global Vacations</h3>
+                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Summer / Winter Breaks</p>
+                              </div>
+                           </div>
+                           <button 
+                             onClick={() => setIsVacationModalOpen(true)}
+                             className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-xl active:scale-95"
+                           >
+                              <Plus className="w-4 h-4" /> Schedule Break
+                           </button>
+                        </div>
+
+                        <div className="space-y-4">
+                           {vacations.length === 0 ? (
+                             <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No vacations scheduled yet</p>
+                             </div>
+                           ) : (
+                             vacations.map(v => (
+                               <div key={v.id} className="group flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-indigo-100 transition-all">
+                                  <div className="flex gap-4 items-center">
+                                     <div className={`p-2 rounded-lg ${v.deduct_salary ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+                                        <ShieldCheck className="w-5 h-5" />
+                                     </div>
+                                     <div>
+                                        <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight">{v.name}</h4>
+                                        <p className="text-[10px] font-bold text-slate-500">
+                                          {new Date(v.start_date).toLocaleDateString()} — {new Date(v.end_date).toLocaleDateString()}
+                                          <span className="mx-2">•</span>
+                                          <span className={v.deduct_salary ? 'text-amber-600' : 'text-green-600'}>
+                                            {v.deduct_salary ? 'Salary Deducted' : 'Complimentary Paid Break'}
+                                          </span>
+                                        </p>
+                                     </div>
+                                  </div>
+                                  <button onClick={() => handleDeleteVacation(v.id)} className="p-2 text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100">
+                                     <Trash2 className="w-4 h-4" />
+                                  </button>
+                               </div>
+                             ))
+                           )}
+                        </div>
+                     </div>
+                  </div>
+               </div>
+            </div>
+          )}
           {activeTab === 'appearance' && userRole?.role === 'admin' && (
             <div className="max-w-3xl space-y-6">
               <div>
@@ -488,6 +727,41 @@ export default function Settings() {
                     <p className="text-sm text-gray-500 mt-2">{option.description}</p>
                   </button>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* New Attendance Modal */}
+          {isVacationModalOpen && (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+              <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95">
+                <div className="bg-slate-900 px-8 py-6 flex justify-between items-center text-white">
+                  <h3 className="font-black uppercase tracking-tight">Schedule Institutional Break</h3>
+                  <button onClick={() => setIsVacationModalOpen(false)} className="text-white/50 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+                </div>
+                <form onSubmit={handleAddVacation} className="p-8 space-y-6">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Vacation Name</label>
+                    <input type="text" required value={vacationForm.name} onChange={e => setVacationForm({...vacationForm, name: e.target.value})} placeholder="e.g. Summer Break 2025" className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-4 focus:ring-indigo-100 transition-all outline-none" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Start Date</label>
+                      <input type="date" required value={vacationForm.start_date} onChange={e => setVacationForm({...vacationForm, start_date: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-4 focus:ring-indigo-100 transition-all outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">End Date</label>
+                      <input type="date" required value={vacationForm.end_date} onChange={e => setVacationForm({...vacationForm, end_date: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-4 focus:ring-indigo-100 transition-all outline-none" />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                     <input type="checkbox" id="deduct" checked={vacationForm.deduct_salary} onChange={e => setVacationForm({...vacationForm, deduct_salary: e.target.checked})} className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500" />
+                     <label htmlFor="deduct" className="text-xs font-bold text-amber-900 uppercase tracking-tight cursor-pointer">Deduct Salary during this period</label>
+                  </div>
+                  <button type="submit" disabled={savingVacation} className="w-full bg-slate-900 text-white py-5 rounded-[1.5rem] font-black uppercase tracking-widest hover:bg-indigo-600 shadow-xl shadow-slate-200 transition-all active:scale-95 disabled:opacity-50">
+                    {savingVacation ? 'Saving...' : 'Authorize Break'}
+                  </button>
+                </form>
               </div>
             </div>
           )}
@@ -687,6 +961,38 @@ export default function Settings() {
                       }} 
                     />
                   </label>
+                </div>
+
+                {/* Emergency Reset Section */}
+                <div className="border border-red-200 bg-red-50 rounded-lg p-6">
+                  <h3 className="text-lg font-bold text-red-900 mb-2 flex items-center gap-2">
+                    <Trash2 className="w-5 h-5 text-red-600" />
+                    Emergency Reset (Factory Wipe)
+                  </h3>
+                  <p className="text-sm text-red-700 mb-4 font-medium">
+                    Warning: This action is permanent. It will delete all students, parents, fees, attendance, and financial records for your school. 
+                    Classes and Staff accounts will remain intact.
+                  </p>
+                  
+                  <div className="flex flex-col sm:flex-row gap-3 items-end sm:items-center">
+                    <div className="flex-1 max-w-xs">
+                      <label className="block text-[10px] font-black text-red-400 uppercase tracking-widest mb-1 px-1">Type RESET SYSTEM to confirm</label>
+                      <input 
+                        type="text" 
+                        value={resetConfirm}
+                        onChange={e => setResetConfirm(e.target.value)}
+                        placeholder="RESET SYSTEM"
+                        className="w-full px-3 py-2 border border-red-200 rounded-md focus:ring-red-500 text-sm font-black text-red-600"
+                      />
+                    </div>
+                    <button 
+                      onClick={handleClearAllData}
+                      disabled={isResetting || resetConfirm !== 'RESET SYSTEM'}
+                      className="px-6 py-2 bg-red-600 text-white rounded-md text-sm font-black uppercase tracking-widest hover:bg-red-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg shadow-red-200"
+                    >
+                      {isResetting ? 'Wiping Data...' : 'Confirm Factory Wipe'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

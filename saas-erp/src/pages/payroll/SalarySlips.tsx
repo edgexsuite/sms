@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { FileText, Printer } from 'lucide-react';
+import { FileText, Printer, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function SalarySlips() {
   const { userRole } = useAuth();
@@ -28,14 +28,22 @@ export default function SalarySlips() {
 
   const fetchSlips = async () => {
     setLoading(true);
-    const { data } = await supabase
+    // FIXED: staff table uses 'role' not 'designation'
+    const { data, error } = await supabase
       .from('payroll_records')
-      .select('*, staff:staff_id(full_name, designation, department, cnic)')
+      .select('*, staff(full_name, role, department, cnic)')
       .eq('school_id', userRole!.school_id)
-      .eq('month_year', selectedMonth)
+      .eq('month_year', selectedMonth + '-01')
       .order('created_at');
+    if (error) console.error('SalarySlips fetch error:', error);
     setSlips(data || []);
     setLoading(false);
+  };
+
+  const shiftMonth = (offset: number) => {
+    const d = new Date(selectedMonth + '-01');
+    d.setMonth(d.getMonth() + offset);
+    setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
   };
 
   const monthLabel = new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -67,14 +75,19 @@ export default function SalarySlips() {
         )}
       </div>
 
-      <div className="no-print bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex items-end gap-4">
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Month</label>
+      <div className="no-print bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <button onClick={() => shiftMonth(-1)} className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50">
+            <ChevronLeft className="w-4 h-4 text-gray-500" />
+          </button>
           <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500" />
+          <button onClick={() => shiftMonth(1)} className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50">
+            <ChevronRight className="w-4 h-4 text-gray-500" />
+          </button>
         </div>
         {slips.length > 0 && (
-          <p className="text-sm text-gray-500">{slips.length} slips found</p>
+          <p className="text-sm font-semibold text-emerald-600">{slips.length} salary slips found for {monthLabel}</p>
         )}
       </div>
 
@@ -108,7 +121,7 @@ export default function SalarySlips() {
                       {slip.status}
                     </span>
                   </div>
-                  <div><span className="text-gray-400">Designation:</span> <span>{slip.staff?.designation}</span></div>
+                  <div><span className="text-gray-400">Role:</span> <span>{slip.staff?.role}</span></div>
                   <div><span className="text-gray-400">Absent Days:</span> <span className={slip.absent_days > 0 ? 'text-red-600 font-medium' : ''}>{slip.absent_days}</span></div>
                 </div>
 

@@ -23,7 +23,7 @@ const SUGGESTED = [
 export default function AIAssistant() {
   const { userRole } = useAuth();
   const [messages, setMessages] = useState<Message[]>([
-    { id: 0, role: 'model', text: "Hello! I'm EduBot, your AI school assistant powered by Gemini. I have live access to your school's attendance, fees, and staff data. How can I help you today?" }
+    { id: 0, role: 'model', text: "Hello! I'm EduBot, your AI school assistant powered by Groq. I have live access to your school's attendance, fees, and staff data. How can I help you today?" }
   ]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -93,7 +93,7 @@ export default function AIAssistant() {
       setMessages(prev => prev.map(m => m.id === botId ? { ...m, streaming: false } : m));
     } catch (err: any) {
       setMessages(prev => prev.map(m => m.id === botId
-        ? { ...m, text: `Error: ${err.message || 'Failed to get response from Gemini.'}`, streaming: false }
+        ? { ...m, text: `Error: ${err.message || 'Failed to get response from Groq.'}`, streaming: false }
         : m
       ));
     }
@@ -127,7 +127,7 @@ export default function AIAssistant() {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <Bot className="w-6 h-6 text-blue-600" /> AI Assistant
-          <span className="ml-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">Gemini 2.0</span>
+          <span className="ml-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">Groq</span>
         </h1>
         <button onClick={loadContext} disabled={ctxLoading}
           className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">
