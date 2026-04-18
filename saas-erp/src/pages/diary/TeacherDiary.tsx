@@ -542,6 +542,7 @@ export default function TeacherDiary() {
 function DiaryTableRow({
   row, index, onUpdate, onSave, viewMode,
 }: {
+  key?: React.Key;
   row: DiaryRow;
   index: number;
   onUpdate: (i: number, field: keyof DiaryRow, value: string) => void;

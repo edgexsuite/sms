@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   Users, Search, PlusCircle, Pencil, Trash2, Save, X,
   MessageSquare, Download, Printer, Phone, MapPin, Eye,
-  GraduationCap, CreditCard, ChevronRight
+  GraduationCap, CreditCard, ChevronRight, AlertCircle
 } from 'lucide-react';
 import { exportToCSV } from '../lib/exportUtils';
 import * as templatesLib from '../lib/whatsappTemplates';

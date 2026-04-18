@@ -255,7 +255,7 @@ export default function Attendance() {
             >
               <option value="">-- Choose a class --</option>
               {classes.map(cls => (
-                <option key={cls.id} value={cls.id}>{cls.name} (Sec {cls.section})</option>
+                <option key={cls.id} value={cls.id}>{cls.name} {cls.section ? `(Sec ${cls.section})` : ''}</option>
               ))}
             </select>
           </div>

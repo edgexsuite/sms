@@ -117,7 +117,10 @@ export default function Communication() {
          .select('parent:parents(id, father_name, whatsapp_number)')
          .eq('class_id', selectedClassId)
          .eq('status', 'active');
-       list = Array.from(new Map((data || []).filter(s => s.parent).map(s => [s.parent.id, s.parent])).values());
+       list = Array.from(new Map((data || []).map(s => {
+         const p = Array.isArray(s.parent) ? s.parent[0] : s.parent;
+         return p ? [p.id, p] as [any, any] : null;
+       }).filter(Boolean).map(e => e as [any, any])).values());
      } else if (recipientScope === 'fee_due') {
         const { data } = await supabase
           .from('fee_records')

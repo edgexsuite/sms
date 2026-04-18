@@ -124,15 +124,6 @@ export async function* streamGemini(
   systemPrompt: string,
   history: { role: 'user' | 'model'; text: string }[]
 ): AsyncGenerator<string> {
-  const apiKey =
-    import.meta.env.VITE_GROQ_API_KEY ||
-    import.meta.env.GROQ_API_KEY ||
-    process.env.GROQ_API_KEY;
-  if (!apiKey || apiKey === 'MY_GROQ_API_KEY') {
-    yield 'Groq API key is not configured. Please set VITE_GROQ_API_KEY in your environment variables.';
-    return;
-  }
-
   const messages = [
     { role: 'system', content: systemPrompt },
     ...history.map(m => ({
@@ -141,27 +132,28 @@ export async function* streamGemini(
     })),
   ];
 
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+  const response = await fetch('/api/ai-proxy', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'llama-3.1-8b-instant',
-      messages,
-      stream: true,
-      temperature: 0.4,
+      provider: 'groq',
+      endpoint: 'chat/completions',
+      payload: {
+        model: 'llama-3.1-8b-instant',
+        messages,
+        stream: true,
+        temperature: 0.4,
+      }
     }),
   });
 
   if (!response.ok || !response.body) {
-    let errorMessage = 'Failed to get response from Groq.';
+    let errorMessage = 'Failed to get response from AI Proxy.';
     try {
       const errorData = await response.json();
-      errorMessage = errorData?.error?.message || errorMessage;
+      errorMessage = errorData?.error?.message || errorData?.error || errorMessage;
       if (response.status === 429) {
-        errorMessage = `Groq quota or rate limit hit. ${errorMessage}`;
+        errorMessage = `AI quota or rate limit hit. ${errorMessage}`;
       }
     } catch {
       // Ignore JSON parse failure and use the fallback message.

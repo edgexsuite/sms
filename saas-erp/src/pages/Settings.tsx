@@ -297,7 +297,14 @@ export default function Settings() {
     setIsResetting(true);
     try {
       // Order matters due to foreign keys if cascades aren't active everywhere
+      // 0. Break circular dependencies or blocking FKs
+      await supabase.from('classes').update({ class_teacher_id: null }).eq('school_id', userRole.school_id);
+      
       const tables = [
+        // 1. Transactional/Dependents (Clear first)
+        'communication_logs', 
+        'communication_templates',
+        'notifications',
         'fee_records',
         'attendance',
         'exam_results',
@@ -306,20 +313,42 @@ export default function Settings() {
         'teacher_diary',
         'inventory_transactions',
         'complaints',
+        'salary_slips',
+        'salaries',
+        'journal_lines',
+        'journal_entries',
+        'student_stationary_ledger',
+        'library_issues',
+        'homework',
+        'diary_records',
+        'notices',
+        'visitors',
+        'admission_inquiries',
+        'exam_schedules',
+        'timetable_slots',
+        
+        // 2. Entities (Clear last)
         'students',
         'parents',
-        'family_groups'
+        'staff',
+        'library_members',
+        'stationary_items',
+        'family_groups',
+        'fee_structures',
+        'exam_types',
+        'subjects',
+        'classes'
       ];
 
       for (const table of tables) {
+        console.log(`Resetting ${table}...`);
         const { error } = await supabase
           .from(table)
           .delete()
           .eq('school_id', userRole.school_id);
         
         if (error) {
-          console.warn(`Error clearing ${table}:`, error.message);
-          // Continue with next table even if one fails (some might not exist in all environments)
+          console.warn(`Note: Could not clear ${table} (might be empty or missing):`, error.message);
         }
       }
 
@@ -809,7 +838,7 @@ export default function Settings() {
                       {feeStructures.map((fee) => (
                         <tr key={fee.id} className="hover:bg-gray-50">
                           <td className="p-4 text-sm text-gray-900 font-medium">
-                            {fee.class?.name} (Sec {fee.class?.section})
+                            {fee.class?.name} {fee.class?.section ? `(Sec ${fee.class.section})` : ''}
                           </td>
                           <td className="p-4 text-sm text-gray-500">Rs. {fee.amount}</td>
                           <td className="p-4 text-sm text-right">
@@ -852,7 +881,7 @@ export default function Settings() {
                         >
                           <option value="">-- Select a class --</option>
                           {classes.map(cls => (
-                            <option key={cls.id} value={cls.id}>{cls.name} (Sec {cls.section})</option>
+                            <option key={cls.id} value={cls.id}>{cls.name} {cls.section ? `(Sec ${cls.section})` : ''}</option>
                           ))}
                         </select>
                       </div>

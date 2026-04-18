@@ -7,10 +7,9 @@ import {
   MessageSquare, Mail, ChevronRight, Bell, ShieldCheck,
   BarChart2, PiggyBank, Activity, Layers
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Navigate } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
@@ -18,14 +17,24 @@ import {
 
 const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#6366f1'];
 
+const colorMap: Record<string, { bg: string; text: string; icon: string }> = {
+  indigo: { bg: 'bg-indigo-50', text: 'text-indigo-600', icon: 'text-indigo-500' },
+  emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', icon: 'text-emerald-500' },
+  amber: { bg: 'bg-amber-50', text: 'text-amber-600', icon: 'text-amber-500' },
+  rose: { bg: 'bg-rose-50', text: 'text-rose-600', icon: 'text-rose-500' },
+  blue: { bg: 'bg-blue-50', text: 'text-blue-600', icon: 'text-blue-500' },
+  purple: { bg: 'bg-purple-50', text: 'text-purple-600', icon: 'text-purple-500' },
+  teal: { bg: 'bg-teal-50', text: 'text-teal-600', icon: 'text-teal-500' },
+  orange: { bg: 'bg-orange-50', text: 'text-orange-600', icon: 'text-orange-500' },
+  violet: { bg: 'bg-purple-50', text: 'text-purple-600', icon: 'text-purple-500' },
+  green: { bg: 'bg-emerald-50', text: 'text-emerald-600', icon: 'text-emerald-500' },
+  red: { bg: 'bg-rose-50', text: 'text-rose-600', icon: 'text-rose-500' },
+};
+
 export default function Dashboard() {
   const { t } = useTranslation();
   const { userRole } = useAuth();
-
-  // Role-specific dashboards
-  if (userRole?.role === 'teacher') return <Navigate to="/teacher-dashboard" replace />;
-  if (userRole?.role === 'accountant') return <Navigate to="/accountant-dashboard" replace />;
-  if (userRole?.role === 'principal' || userRole?.role === 'director') return <Navigate to="/principal-dashboard" replace />;
+  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [schoolName, setSchoolName] = useState('');
@@ -43,14 +52,23 @@ export default function Dashboard() {
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<{ type: string; message: string; link: string; count: number }[]>([]);
 
+  // Role-specific redirect — must be after all hooks
+  useEffect(() => {
+    if (userRole?.role === 'teacher') navigate('/teacher-dashboard', { replace: true });
+    else if (userRole?.role === 'accountant') navigate('/accountant-dashboard', { replace: true });
+    else if (userRole?.role === 'principal' || userRole?.role === 'director') navigate('/principal-dashboard', { replace: true });
+  }, [userRole, navigate]);
+
   useEffect(() => { if (userRole?.school_id) fetchAll(); }, [userRole]);
 
   const fetchAll = async () => {
     setLoading(true);
     const sid = userRole?.school_id;
     const today = new Date().toISOString().split('T')[0];
-    const thisMonth = today.slice(0, 7);
     const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const sixMonthsAgoStr = sixMonthsAgo.toISOString().slice(0, 10);
 
     const [
       { count: stuCount },
@@ -74,7 +92,7 @@ export default function Dashboard() {
       supabase.from('attendance').select('status').eq('school_id', sid).eq('date', today),
       supabase.from('classes').select('id, name, section').eq('school_id', sid),
       supabase.from('students').select('class_id').eq('school_id', sid).eq('status', 'active'),
-      supabase.from('financial_transactions').select('type, amount, date, category').eq('school_id', sid).gte('date', `${thisMonth}-01`),
+      supabase.from('financial_transactions').select('type, amount, date, category').eq('school_id', sid).gte('date', sixMonthsAgoStr),
       supabase.from('fee_records').select('total_amount, paid_amount, status, month_year, invoice_number').eq('school_id', sid).order('created_at', { ascending: false }).limit(5),
       supabase.from('schools').select('name').eq('id', sid).maybeSingle(),
       supabase.from('complaints').select('*', { count: 'exact', head: true }).eq('school_id', sid).eq('status', 'open'),
@@ -240,18 +258,21 @@ export default function Dashboard() {
           { label: "Attendance Rate", value: `${stats.attendanceRate}%`, icon: CalendarCheck, color: 'teal', link: '/attendance' },
           { label: 'Pending Fees', value: fmt(stats.pendingFees), icon: AlertTriangle, color: 'orange', link: '/fees/invoices' },
           { label: 'This Month Net', value: fmt(stats.cashInHand), icon: Wallet, color: stats.cashInHand >= 0 ? 'green' : 'red', link: '/accounting' },
-        ].map(({ label, value, icon: Icon, color, link }) => (
-          <Link key={label} to={link}
-            className={`bg-white rounded-xl border border-${color}-100 p-4 flex flex-col gap-2 hover:shadow-md hover:border-${color}-300 transition group`}>
-            <div className={`w-9 h-9 rounded-lg bg-${color}-50 flex items-center justify-center`}>
-              <Icon className={`w-5 h-5 text-${color}-600`} />
-            </div>
-            <div>
-              <p className="text-xl font-black text-gray-900 leading-tight">{value}</p>
-              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mt-0.5">{label}</p>
-            </div>
-          </Link>
-        ))}
+        ].map(({ label, value, icon: Icon, color, link }) => {
+          const c = colorMap[color] || colorMap['indigo'];
+          return (
+            <Link key={label} to={link}
+              className={`bg-white rounded-xl border border-gray-100 p-4 flex flex-col gap-2 hover:shadow-md hover:border-gray-300 transition group`}>
+              <div className={`w-9 h-9 rounded-lg ${c.bg} flex items-center justify-center`}>
+                <Icon className={`w-5 h-5 ${c.icon}`} />
+              </div>
+              <div>
+                <p className="text-xl font-black text-gray-900 leading-tight">{value}</p>
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mt-0.5">{label}</p>
+              </div>
+            </Link>
+          );
+        })}
       </div>
 
       {/* Today's Financials */}
@@ -395,7 +416,7 @@ export default function Dashboard() {
                     {feeStatusData.map((_, i) => <Cell key={i} fill={COLORS[i]} />)}
                   </Pie>
                   <Tooltip contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                  <Legend height={28} />
+                  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ paddingTop: '8px' }} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (

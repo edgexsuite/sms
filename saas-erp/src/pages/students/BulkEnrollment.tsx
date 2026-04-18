@@ -6,6 +6,7 @@ import {
   FileSpreadsheet, Database, Table, Zap, RefreshCw, X
 } from 'lucide-react';
 import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 import { cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -62,35 +63,71 @@ export default function BulkEnrollment() {
 
   // ── Enrollment Logic ───────────────────────────────────────────────────────
 
+  const processHeaders = (fields: string[], data: any[]) => {
+    setHeaders(fields);
+    setParsedData(data);
+    // Auto-Mapping
+    const auto: Record<string, string> = {};
+    fields.forEach(hdr => {
+      const match = DB_COLUMNS.find(col =>
+        col.key === hdr.toLowerCase().replace(/ /g, '_') ||
+        col.aliases.includes(hdr.toLowerCase().trim())
+      );
+      if (match) auto[hdr] = match.key;
+    });
+    setMapping(auto);
+    setStep(2);
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setError(null);
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        if (!results.meta.fields) {
-          setError('Invalid CSV format: No headers found.');
-          return;
+    const isXlsx = file.name.endsWith('.xlsx') || file.name.endsWith('.xls') ||
+      file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      file.type === 'application/vnd.ms-excel';
+
+    if (isXlsx) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const data = new Uint8Array(ev.target!.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+          if (jsonData.length === 0) {
+            setError('Excel file is empty or has no data rows.');
+            return;
+          }
+          const fields = Object.keys(jsonData[0]);
+          // Convert all values to strings for consistency
+          const normalized = jsonData.map(row => {
+            const r: Record<string, string> = {};
+            fields.forEach(f => { r[f] = String(row[f] ?? ''); });
+            return r;
+          });
+          processHeaders(fields, normalized);
+        } catch (err: any) {
+          setError('Failed to read Excel file: ' + err.message);
         }
-        
-        setHeaders(results.meta.fields);
-        setParsedData(results.data);
-        
-        // Auto-Mapping
-        const auto: Record<string, string> = {};
-        results.meta.fields.forEach(hdr => {
-          const match = DB_COLUMNS.find(col => 
-            col.key === hdr.toLowerCase().replace(/ /g, '_') ||
-            col.aliases.includes(hdr.toLowerCase().trim())
-          );
-          if (match) auto[hdr] = match.key;
-        });
-        setMapping(auto);
-        setStep(2);
-      }
-    });
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      // CSV
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          if (!results.meta.fields) {
+            setError('Invalid CSV format: No headers found.');
+            return;
+          }
+          processHeaders(results.meta.fields, results.data);
+        }
+      });
+    }
   };
 
   const runEnrollment = async () => {
@@ -107,8 +144,8 @@ export default function BulkEnrollment() {
       parsedData.forEach((row, idx) => {
         const student: any = { school_id: userRole!.school_id, class_id: selectedClassId, status: 'active' };
         
-        Object.entries(mapping).forEach(([csvH, dbK]) => {
-          let val = row[csvH]?.trim();
+        (Object.entries(mapping) as [string, string][]).forEach(([csvH, dbK]) => {
+          let val: any = (row as Record<string, string | undefined>)[csvH]?.trim();
           if (!val) return;
           
           if (dbK === 'dob' || dbK === 'admission_date') val = parseDate(val);
@@ -250,8 +287,8 @@ export default function BulkEnrollment() {
             </p>
             
             <label className="ent-btn-primary px-10 cursor-pointer">
-              <Upload className="w-4 h-4 mr-2" /> Select CSV Data
-              <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
+              <Upload className="w-4 h-4 mr-2" /> Select CSV / Excel File
+              <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileUpload} />
             </label>
           </motion.div>
         )}

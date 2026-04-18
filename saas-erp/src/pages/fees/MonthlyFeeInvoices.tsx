@@ -325,6 +325,7 @@ export default function MonthlyFeeInvoices() {
       g.count++;
       g.total_amount += Number(inv.total_amount);
       g.paid_amount += Number(inv.paid_amount || 0);
+      g.balance = g.total_amount - g.paid_amount;
       g.invoices.push(inv);
       if (inv.status === 'paid' && g.status !== 'overdue') g.status = 'paid';
       if (inv.status === 'overdue') g.status = 'overdue';
@@ -365,7 +366,7 @@ export default function MonthlyFeeInvoices() {
                 <Layout className="w-4 h-4" /> Config
             </button>
             <button onClick={() => setShowGenerateModal(true)} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 transition active:scale-95">
-                <PlusCircle className="w-4 h-4" /> Mass Generate
+                <PlusCircle className="w-4 h-4" /> Generate Invoices
             </button>
         </div>
       </motion.div>
@@ -492,11 +493,11 @@ export default function MonthlyFeeInvoices() {
                       <CheckSquare className="w-5 h-5" />
                    </button>
                 </th>
-                <th className="p-6">Accounting Artifact</th>
+                <th className="p-6">Invoice</th>
                 <th className="p-6">Student Information</th>
-                <th className="p-6">Academic Period</th>
-                <th className="p-6 text-right">Debit Amount</th>
-                <th className="p-6 text-center">Settlement Status</th>
+                <th className="p-6">Month</th>
+                <th className="p-6 text-right">Amount</th>
+                <th className="p-6 text-center">Status</th>
                 <th className="p-6 text-right">Actions</th>
               </tr>
             </thead>
@@ -504,7 +505,7 @@ export default function MonthlyFeeInvoices() {
               {loading ? (
                 <tr><td colSpan={7} className="p-20 text-center"><div className="w-10 h-10 border-4 border-indigo-500/10 border-t-indigo-500 rounded-full animate-spin mx-auto"></div></td></tr>
               ) : displayList.length === 0 ? (
-                <tr><td colSpan={7} className="p-20 text-center text-slate-400 font-bold uppercase text-[10px] tracking-widest italic opacity-50">No accounting artifacts detected in current view.</td></tr>
+                <tr><td colSpan={7} className="p-20 text-center text-slate-400 font-bold uppercase text-[10px] tracking-widest italic opacity-50">No invoices found for the selected filters.</td></tr>
               ) : displayList.map((inv, i) => {
                 const balance = groupByFamily ? inv.balance : ((inv.total_amount || 0) - (inv.paid_amount || 0));
                 const isFamily = groupByFamily;
@@ -577,7 +578,7 @@ export default function MonthlyFeeInvoices() {
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden border border-white/20">
                 <div className="bg-slate-900 p-8 text-white relative">
-                   <h3 className="text-2xl font-black italic uppercase tracking-tighter">Mass Generation</h3>
+                   <h3 className="text-2xl font-black italic uppercase tracking-tighter">Generate Class Invoices</h3>
                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mt-2">Financial Engine Sequence</p>
                     <button onClick={() => setShowGenerateModal(false)} className="absolute top-8 right-8 text-slate-500 hover:text-white transition-colors"><X className="w-6 h-6" /></button>
                 </div>
@@ -661,7 +662,7 @@ export default function MonthlyFeeInvoices() {
                      <input type="month" value={generateMonth} onChange={e => setGenerateMonth(e.target.value)} className="w-full bg-slate-50 border border-transparent focus:bg-white focus:border-slate-100 p-4 rounded-2xl text-center text-xl font-black text-slate-900 transition-all outline-none" />
                    </div>
                    <div>
-                     <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest text-center">Liquidity Deadline</label>
+                     <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest text-center">Due Date</label>
                      <input type="date" value={generateDueDate} onChange={e => setGenerateDueDate(e.target.value)} className="w-full bg-slate-50 border border-transparent focus:bg-white focus:border-slate-100 p-4 rounded-2xl text-center font-bold text-slate-700 transition-all outline-none" />
                    </div>
                    <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100/50 flex items-center gap-4">
@@ -674,7 +675,7 @@ export default function MonthlyFeeInvoices() {
                       </button>
                    </div>
                    <button onClick={handleMassGenerate} disabled={generating} className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-2xl shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50">
-                      {generating ? 'Processing Engine...' : 'Initialize Generation'}
+                      {generating ? 'Processing Engine...' : 'Generate Invoices'}
                    </button>
                 </div>
              </motion.div>

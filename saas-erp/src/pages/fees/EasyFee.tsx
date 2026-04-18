@@ -291,7 +291,10 @@ export default function EasyFee() {
     downloadChallanPDF([record], schoolInfo, { ...DEFAULT_CHALLAN_CONFIG, copies: 1 });
   };
 
-  const totalToday = recentTransactions.reduce((s, t) => s + t.amount, 0);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const totalToday = recentTransactions
+    .filter(t => t.date === todayStr || (t as any).created_at?.slice(0, 10) === todayStr)
+    .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
   return (
     <div className="h-[calc(100vh-140px)] flex flex-col gap-4">
@@ -557,7 +560,7 @@ export default function EasyFee() {
                           {isProcessing ? <Clock className="w-5 h-5 animate-spin" /> : <Landmark className="w-5 h-5" />}
                           Collect Payment
                         </button>
-                        <button type="button" className="w-full py-2 text-xs font-medium text-slate-500 hover:text-slate-300 transition-colors flex items-center justify-center gap-1.5">
+                        <button type="button" onClick={() => handlePrintReceipt(lastPayment || { student_name: selectedStudent?.full_name, amount: parseFloat(payAmount) || 0, months: 'Preview', breakdown: [] })} className="w-full py-2 text-xs font-medium text-slate-500 hover:text-slate-300 transition-colors flex items-center justify-center gap-1.5">
                           <Printer className="w-3.5 h-3.5" /> Print Trial Receipt
                         </button>
                       </div>
@@ -602,8 +605,8 @@ export default function EasyFee() {
                 ) : (
                   <div className="max-w-sm opacity-40">
                     <Receipt className="w-16 h-16 text-indigo-400 mx-auto mb-4" />
-                    <h2 className="text-lg font-bold text-gray-900 mb-2">Terminal Ready</h2>
-                    <p className="text-sm text-gray-500">Search for a student on the left to begin collecting fees.</p>
+                    <h2 className="text-lg font-bold text-gray-900 mb-2">Fee Collection</h2>
+                    <p className="text-sm text-gray-500">Search for a student above to begin fee collection.</p>
                   </div>
                 )}
               </motion.div>

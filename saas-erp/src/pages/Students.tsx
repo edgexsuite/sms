@@ -690,7 +690,7 @@ export default function Students() {
                   >
                     <option value="">Select Current Class</option>
                     {classes.map(c => (
-                      <option key={c.id} value={c.id}>{c.name} (Sec {c.section})</option>
+                      <option key={c.id} value={c.id}>{c.name} {c.section ? `(Sec ${c.section})` : ''}</option>
                     ))}
                   </select>
                 </div>
@@ -703,7 +703,7 @@ export default function Students() {
                   >
                     <option value="">Select Target Class</option>
                     {classes.map(c => (
-                      <option key={c.id} value={c.id}>{c.name} (Sec {c.section})</option>
+                      <option key={c.id} value={c.id}>{c.name} {c.section ? `(Sec ${c.section})` : ''}</option>
                     ))}
                   </select>
                 </div>
@@ -840,7 +840,7 @@ export default function Students() {
                     <select value={formData.class_id} onChange={(e) => setFormData({...formData, class_id: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
                       <option value="">Select Class</option>
                       {classes.map(c => (
-                        <option key={c.id} value={c.id}>{c.name} (Sec {c.section})</option>
+                        <option key={c.id} value={c.id}>{c.name} {c.section ? `(Sec ${c.section})` : ''}</option>
                       ))}
                     </select>
                   </div>
@@ -1069,7 +1069,7 @@ export default function Students() {
               >
                 <option value="">Select Target Class</option>
                 {classes.map(c => (
-                  <option key={c.id} value={c.id}>{c.name} (Sec {c.section})</option>
+                  <option key={c.id} value={c.id}>{c.name} {c.section ? `(Sec ${c.section})` : ''}</option>
                 ))}
               </select>
               <button
@@ -1086,11 +1086,12 @@ export default function Students() {
 
       {/* Bulk Delete Confirmation */}
       {isBulkDeleteModalOpen && (
-        <DeletePinModal 
+        <DeletePinModal
+          isOpen={isBulkDeleteModalOpen}
+          schoolId={userRole?.school_id || ''}
           onConfirm={handleBulkDelete}
-          onCancel={() => setIsBulkDeleteModalOpen(false)}
-          title={`Permanently Delete ${selectedIds.length} Student Records?`}
-          description="This action cannot be undone. All academic and financial records for these students will be permanently removed from the system."
+          onClose={() => setIsBulkDeleteModalOpen(false)}
+          itemName={`${selectedIds.length} Student Records`}
         />
       )}
     </div>

@@ -53,7 +53,7 @@ export default function ClassSectionManagement() {
   };
 
   const handleSave = async () => {
-    if (!formData.name.trim() || !formData.section.trim()) return alert('Class name and section are required.');
+    if (!formData.name.trim()) return alert('Class name is required.');
     setSaving(true);
     try {
       const payload = {
@@ -151,7 +151,7 @@ export default function ClassSectionManagement() {
                         {cls.section}
                       </div>
                       <div>
-                        <p className="font-bold text-gray-900">{cls.name} — Section {cls.section}</p>
+                        <p className="font-bold text-gray-900">{cls.name} {cls.section ? `— Section ${cls.section}` : ''}</p>
                         <div className="flex items-center gap-1 mt-0.5">
                           <Users2 className="w-3 h-3 text-gray-400" />
                           <p className="text-xs text-gray-500">
@@ -209,12 +209,12 @@ export default function ClassSectionManagement() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Section *</label>
+                  <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Section</label>
                   <input
                     type="text"
                     value={formData.section}
                     onChange={e => setFormData({ ...formData, section: e.target.value })}
-                    placeholder="e.g. A"
+                    placeholder="e.g. A (Optional)"
                     className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-blue-500 font-medium text-sm"
                   />
                 </div>

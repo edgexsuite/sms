@@ -342,60 +342,119 @@ export default function ParentPortal() {
   // ─── LOGIN SCREEN ──────────────────────────────────────────────────────────
   if (!parentData) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl shadow-2xl mb-4">
-              <Users className="w-9 h-9 text-white" />
+      <div className="min-h-screen flex">
+        {/* Left Panel */}
+        <div className="hidden lg:flex lg:w-[45%] bg-gradient-to-br from-emerald-600 to-teal-700 flex-col justify-between p-12 relative overflow-hidden">
+          <div className="absolute inset-0 opacity-10"
+            style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '32px 32px' }} />
+          <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
+          <div className="absolute top-20 right-0 w-60 h-60 bg-teal-400/20 rounded-full blur-3xl" />
+
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-12">
+              <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                <Users className="w-6 h-6 text-white" />
+              </div>
+              <span className="text-white font-black text-sm uppercase tracking-[0.2em]">Parent Portal</span>
             </div>
-            <h1 className="text-3xl font-black text-white">Parent Portal</h1>
-            <p className="text-blue-200 text-sm mt-1">Stay connected with your child's school life</p>
+            <h1 className="text-4xl font-black text-white leading-[1.15] mb-4">
+              Stay connected<br />with your child's<br />
+              <span className="text-emerald-200">education.</span>
+            </h1>
+            <p className="text-emerald-100/80 text-base leading-relaxed">
+              Monitor attendance, fees, results, timetable and homework — all in one place.
+            </p>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-2xl p-8">
-            <h2 className="text-lg font-bold text-gray-800 mb-6">Sign in to your account</h2>
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Family Number</label>
-                <input
-                  type="text"
-                  value={familyNumber}
-                  onChange={e => setFamilyNumber(e.target.value)}
-                  placeholder="Enter your family number"
-                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                />
+          <div className="relative z-10 space-y-4">
+            {[
+              { icon: '📅', text: 'Live attendance tracking' },
+              { icon: '💰', text: 'Fee invoices & payment history' },
+              { icon: '🏆', text: 'Exam results & grade reports' },
+              { icon: '📚', text: 'Homework & class timetable' },
+            ].map(f => (
+              <div key={f.text} className="flex items-center gap-3">
+                <span className="text-xl">{f.icon}</span>
+                <span className="text-emerald-100 text-sm font-medium">{f.text}</span>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
-                <div className="relative">
+            ))}
+          </div>
+        </div>
+
+        {/* Right Panel: Form */}
+        <div className="flex-1 flex items-center justify-center p-6 bg-gray-50">
+          <div className="w-full max-w-md">
+            {/* Mobile header */}
+            <div className="lg:hidden text-center mb-10">
+              <div className="inline-flex items-center justify-center w-14 h-14 bg-emerald-600 rounded-2xl shadow-lg shadow-emerald-600/30 mb-4">
+                <Users className="w-7 h-7 text-white" />
+              </div>
+              <h1 className="text-2xl font-black text-slate-900">Parent Portal</h1>
+              <p className="text-slate-500 text-sm mt-1">Stay connected with your child's school life</p>
+            </div>
+
+            <div className="mb-8 hidden lg:block">
+              <h2 className="text-3xl font-black text-slate-900 tracking-tight">Welcome back</h2>
+              <p className="text-slate-500 mt-1.5">Sign in with your family credentials</p>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-100 p-8">
+              <form onSubmit={handleLogin} className="space-y-5">
+                <div>
+                  <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Family Number</label>
                   <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    className="w-full border border-gray-300 rounded-xl px-4 py-2.5 pr-10 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                    type="text"
+                    value={familyNumber}
+                    onChange={e => setFamilyNumber(e.target.value)}
+                    placeholder="e.g. FAM-2024-001"
+                    className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-medium placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition bg-slate-50 focus:bg-white"
                   />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
                 </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Password</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full px-4 py-3 pr-12 border border-slate-200 rounded-xl text-sm font-medium placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition bg-slate-50 focus:bg-white"
+                    />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600 transition-colors">
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {loginError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    {loginError}
+                  </div>
+                )}
+
+                <button type="submit" disabled={loggingIn}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-emerald-600/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2">
+                  {loggingIn ? (
+                    <>
+                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Signing in...
+                    </>
+                  ) : 'Sign In →'}
+                </button>
+              </form>
+
+              <div className="mt-6 pt-5 border-t border-slate-100">
+                <p className="text-center text-xs text-slate-400">
+                  Credentials provided by school administration.<br />
+                  <span className="font-semibold text-slate-500">Contact your school</span> if you need access.
+                </p>
               </div>
-
-              {loginError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
-                  {loginError}
-                </div>
-              )}
-
-              <button type="submit" disabled={loggingIn}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition disabled:opacity-50 flex items-center justify-center gap-2 mt-2">
-                {loggingIn ? 'Signing in...' : <>Sign In <ChevronRight className="w-4 h-4" /></>}
-              </button>
-            </form>
-            <p className="text-center text-xs text-gray-400 mt-6">
-              Your credentials are provided by the school administration.
-            </p>
+            </div>
           </div>
         </div>
       </div>

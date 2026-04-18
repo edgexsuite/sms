@@ -515,3 +515,8 @@ ALTER TABLE staff ADD COLUMN IF NOT EXISTS designation TEXT;
 ALTER TABLE staff ADD COLUMN IF NOT EXISTS employment_type TEXT DEFAULT 'full-time';
 ALTER TABLE staff ADD COLUMN IF NOT EXISTS payment_basis TEXT DEFAULT 'monthly';
 ALTER TABLE staff ADD COLUMN IF NOT EXISTS salary NUMERIC DEFAULT 0;
+
+-- Students: expand status to include 'withdrawn' (passout handled by 'graduated')
+ALTER TABLE students DROP CONSTRAINT IF EXISTS students_status_check;
+ALTER TABLE students ADD CONSTRAINT students_status_check
+  CHECK (status IN ('active', 'left', 'graduated', 'withdrawn'));

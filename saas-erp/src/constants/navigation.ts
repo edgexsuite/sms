@@ -5,7 +5,7 @@ import {
   CalendarOff, ClipboardList, AlertTriangle, Wallet, TrendingUp, PiggyBank,
   Banknote, DollarSign, Scale, BarChart3, BarChart2, ClipboardCheck, UserX,
   LineChart, Library, Home, Bell, Key, Trash2, Box, Package, Clock, Palette,
-  Receipt, Layers, BookMarked, Landmark, BarChart
+  Receipt, Layers, BookMarked, Landmark, BarChart, LifeBuoy
 } from 'lucide-react';
 
 export const ALL_ADMIN = ['admin', 'principal', 'director'];
@@ -228,6 +228,7 @@ export const NAV_SECTIONS = [
       { name: 'Permission Manager', path: '/settings/permissions', icon: Key, roles: ALL_ADMIN },
       { name: 'ID Card Designer', path: '/settings/id-cards', icon: Palette, roles: ALL_ADMIN },
       { name: 'Credential Dispatch', path: '/credentials', icon: ShieldCheck, roles: ALL_ADMIN },
+      { name: 'Help & Support', path: '/help-support', icon: LifeBuoy, roles: ALL_ADMIN },
       { name: 'Trashbin', path: '/settings/trashbin', icon: Trash2, roles: ['admin'] },
     ]
   },

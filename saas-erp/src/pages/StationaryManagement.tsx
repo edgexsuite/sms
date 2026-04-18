@@ -192,7 +192,7 @@ export default function StationaryManagement() {
     finally { setLoading(false); }
   };
 
-  const updateStudentItem = async (studentId: string, itemName: string, field: 'received_qty' | 'consumed_qty', value: number) => {
+  const updateStudentItem = async (studentId: string, itemName: string, field: 'received_qty' | 'consumed_qty' | 'required_qty', value: number) => {
     try {
       const { error } = await supabase.from('student_stationary_ledger').update({ [field]: value, updated_at: new Date().toISOString() }).eq('student_id', studentId).eq('item_name', itemName);
       if (error) throw error;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, Upload, Download, Trash2, BookOpen, FileSpreadsheet, UserPlus, Eye, X, ChevronDown, Users, CheckCircle, MoreVertical, Edit, UserX, Key } from 'lucide-react';
+import { Search, Upload, Download, Trash2, BookOpen, FileSpreadsheet, UserPlus, Eye, X, ChevronDown, Users, CheckCircle, MoreVertical, Edit, UserX, Key, GraduationCap, LogOut, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import DeletePinModal from '../../components/DeletePinModal';
@@ -42,6 +42,7 @@ export default function StudentList() {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  // statusFilter kept for legacy bulk modal compatibility
   const [statusFilter, setStatusFilter] = useState('all');
   const [classFilter, setClassFilter] = useState('');
   const [feeFilter, setFeeFilter] = useState<FeeFilter>('all');
@@ -61,6 +62,14 @@ export default function StudentList() {
   const [importing, setImporting] = useState(false);
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string; name: string }>({ isOpen: false, id: '', name: '' });
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+
+  // Status tab & modals
+  const [statusTab, setStatusTab] = useState<'active' | 'left' | 'graduated' | 'withdrawn'>('active');
+  const [statusModal, setStatusModal] = useState<{ studentId: string; studentName: string; targetStatus: string } | null>(null);
+  const [statusReason, setStatusReason] = useState('');
+  const [pwdModal, setPwdModal] = useState<{ studentId: string; studentName: string } | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [savingStatus, setSavingStatus] = useState(false);
 
   // Close menu on click outside
   useEffect(() => {
@@ -114,6 +123,67 @@ export default function StudentList() {
     } catch (err) {
       console.error('Status Update Error:', err);
     }
+  };
+
+  const confirmStatusChange = async () => {
+    if (!statusModal) return;
+    setSavingStatus(true);
+    try {
+      const updates: any = { status: statusModal.targetStatus };
+      if (statusReason.trim()) updates.remarks = statusReason.trim();
+      const { error } = await supabase.from('students').update(updates).eq('id', statusModal.studentId);
+      if (error) throw error;
+      setStudents(prev => prev.map(s => s.id === statusModal.studentId ? { ...s, ...updates } : s));
+      setStatusModal(null);
+      setStatusReason('');
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setSavingStatus(false);
+    }
+  };
+
+  const handleDisableLogin = async (studentId: string) => {
+    if (!window.confirm('Disable app login for this student? They will not be able to log in to the student portal.')) return;
+    const { error } = await supabase.from('students').update({ auth_password: null }).eq('id', studentId);
+    if (!error) {
+      setStudents(prev => prev.map(s => s.id === studentId ? { ...s, auth_password: null } : s));
+      setOpenMenu(null);
+      alert('Login disabled successfully.');
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!pwdModal || !newPassword.trim()) return;
+    setSavingStatus(true);
+    const { error } = await supabase.from('students').update({ auth_password: newPassword.trim() }).eq('id', pwdModal.studentId);
+    setSavingStatus(false);
+    if (!error) {
+      setPwdModal(null);
+      setNewPassword('');
+      alert('Password updated successfully.');
+    } else {
+      alert('Error: ' + error.message);
+    }
+  };
+
+  const handleExportAll = () => {
+    exportToExcel('all_students_' + new Date().toISOString().slice(0, 10), students, [
+      { header: 'Roll No', key: 'roll_number' },
+      { header: 'Full Name', key: 'full_name' },
+      { header: 'Status', key: 'status' },
+      { header: 'Login Username', key: 'student_unique_id' },
+      { header: 'Login Password', key: 'auth_password' },
+      { header: 'Class', key: (row: any) => row.classes ? `${row.classes.name} (${row.classes.section})` : '-' },
+      { header: 'Admission Date', key: 'admission_date' },
+      { header: 'B-Form / CNIC', key: 'b_form_cnic' },
+      { header: 'Date of Birth', key: 'dob' },
+      { header: 'Gender', key: 'gender' },
+      { header: 'Father Name', key: 'father_name' },
+      { header: 'Father Contact', key: 'father_contact' },
+      { header: 'Address', key: 'address' },
+      { header: 'Remarks', key: 'remarks' },
+    ]);
   };
 
   const fetchStudents = async () => {
@@ -266,7 +336,14 @@ export default function StudentList() {
 
   const admissionYears = [...new Set(students.map(s => s.admission_date?.slice(0, 4)).filter((y): y is string => !!y))].sort((a: string, b: string) => b.localeCompare(a));
 
-  const activeFilterCount = [classFilter, genderFilter, familyFilter, admissionYearFilter, feeFilter !== 'all' ? feeFilter : '', statusFilter !== 'all' ? statusFilter : ''].filter(Boolean).length;
+  const activeFilterCount = [classFilter, genderFilter, familyFilter, admissionYearFilter, feeFilter !== 'all' ? feeFilter : ''].filter(Boolean).length;
+
+  const statusCounts = {
+    active: students.filter(s => s.status === 'active').length,
+    left: students.filter(s => s.status === 'left').length,
+    graduated: students.filter(s => s.status === 'graduated').length,
+    withdrawn: students.filter(s => s.status === 'withdrawn').length,
+  };
 
   const filteredStudents = students.filter(s => {
     const matchesSearch =
@@ -274,7 +351,7 @@ export default function StudentList() {
       (s.b_form_cnic && s.b_form_cnic.includes(search)) ||
       (s.roll_number && s.roll_number.toString().includes(search)) ||
       (s.father_name && s.father_name.toLowerCase().includes(search.toLowerCase()));
-    const matchesStatus = statusFilter === 'all' || s.status === statusFilter;
+    const matchesStatus = s.status === statusTab;
     const matchesClass = classFilter === '' || s.class_id === classFilter;
     const matchesFee = feeFilter === 'all' ? true : feeFilter === 'pending' ? studentsWithDues.has(s.id) : !studentsWithDues.has(s.id);
     const matchesGender = genderFilter === '' || (s.gender || '').toLowerCase() === genderFilter.toLowerCase();
@@ -497,13 +574,21 @@ export default function StudentList() {
             />
           </div>
 
-          {/* Status pills */}
+          {/* Status Tabs */}
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200/50">
-            {['all', 'active', 'left'].map((status) => (
-              <button key={status} onClick={() => setStatusFilter(status)}
-                className={cn('px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all',
-                  statusFilter === status ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
-                {status}
+            {([
+              { key: 'active', label: 'Active', color: 'text-emerald-600' },
+              { key: 'left', label: 'Left', color: 'text-amber-600' },
+              { key: 'graduated', label: 'Passed Out', color: 'text-teal-600' },
+              { key: 'withdrawn', label: 'Withdrawn', color: 'text-rose-600' },
+            ] as { key: 'active'|'left'|'graduated'|'withdrawn'; label: string; color: string }[]).map(({ key, label, color }) => (
+              <button key={key} onClick={() => setStatusTab(key)}
+                className={cn('flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black whitespace-nowrap transition-all',
+                  statusTab === key ? 'bg-white shadow-sm ' + color : 'text-slate-500 hover:text-slate-700')}>
+                {label}
+                <span className={cn('px-1.5 py-0.5 rounded-md text-[10px] font-black', statusTab === key ? 'bg-slate-100' : 'bg-white/60')}>
+                  {statusCounts[key]}
+                </span>
               </button>
             ))}
           </div>
@@ -532,8 +617,11 @@ export default function StudentList() {
 
           {/* Action buttons */}
           <div className="flex items-center gap-2">
-            <button onClick={handleExport} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-indigo-600 hover:border-indigo-100 transition-all shadow-sm active:scale-95" title="Export to Excel">
+            <button onClick={handleExport} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-indigo-600 hover:border-indigo-100 transition-all shadow-sm active:scale-95" title="Export current view to Excel">
               <Download className="w-5 h-5" />
+            </button>
+            <button onClick={handleExportAll} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-emerald-600 hover:border-emerald-100 transition-all shadow-sm active:scale-95" title="Export ALL students (all statuses)">
+              <Users className="w-5 h-5" />
             </button>
             <button onClick={handleDownloadTemplate} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-emerald-600 hover:border-emerald-100 transition-all shadow-sm active:scale-95" title="Download Template">
               <FileSpreadsheet className="w-5 h-5" />
@@ -650,7 +738,7 @@ export default function StudentList() {
             <tbody className="divide-y divide-slate-50">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="p-20 text-center">
+                  <td colSpan={8} className="p-20 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-10 h-10 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
                       <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Synchronizing...</span>
@@ -659,7 +747,7 @@ export default function StudentList() {
                 </tr>
               ) : filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-20 text-center text-slate-400 italic">
+                  <td colSpan={8} className="p-20 text-center text-slate-400 italic">
                     No records found matching your filters.
                   </td>
                 </tr>
@@ -710,10 +798,14 @@ export default function StudentList() {
                       <span
                         className={cn(
                           'px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm',
-                          student.status === 'active' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
+                          student.status === 'active' ? 'bg-emerald-500 text-white' :
+                          student.status === 'left' ? 'bg-amber-500 text-white' :
+                          student.status === 'graduated' ? 'bg-teal-500 text-white' :
+                          student.status === 'withdrawn' ? 'bg-rose-600 text-white' :
+                          'bg-slate-400 text-white'
                         )}
                       >
-                        {student.status}
+                        {student.status === 'graduated' ? 'Passed Out' : student.status}
                       </span>
                     </td>
                     <td className="p-6">
@@ -762,27 +854,32 @@ export default function StudentList() {
                           {openMenu === student.id && (
                             <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.12)] border border-slate-100 z-[100] py-1.5 overflow-hidden animate-in fade-in zoom-in duration-200">
                               <div className="px-3 py-1.5 border-b border-slate-50 mb-1">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Admin Operations</p>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Change Status</p>
                               </div>
-                              <button onClick={() => updateStudentStatus(student.id, 'left')} className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-slate-600 hover:bg-slate-50 transition-colors">
-                                <span className="w-2 h-2 rounded-full bg-slate-400" /> Withdraw Student
+                              <button onClick={() => { setStatusModal({ studentId: student.id, studentName: student.full_name, targetStatus: 'left' }); setOpenMenu(null); }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-amber-600 hover:bg-amber-50 transition-colors">
+                                <LogOut className="w-3.5 h-3.5" /> Mark as Left
                               </button>
-                              <button className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-rose-600 hover:bg-rose-50 transition-colors">
-                                <span className="w-2 h-2 rounded-full bg-rose-500" /> Disable Student
+                              <button onClick={() => { setStatusModal({ studentId: student.id, studentName: student.full_name, targetStatus: 'graduated' }); setOpenMenu(null); }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-teal-600 hover:bg-teal-50 transition-colors">
+                                <GraduationCap className="w-3.5 h-3.5" /> Mark as Passed Out
                               </button>
-                              <button className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-slate-600 hover:bg-slate-50 transition-colors">
-                                <UserX className="w-3.5 h-3.5" /> Disable App Login
+                              <button onClick={() => { setStatusModal({ studentId: student.id, studentName: student.full_name, targetStatus: 'withdrawn' }); setOpenMenu(null); }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-rose-600 hover:bg-rose-50 transition-colors">
+                                <UserX className="w-3.5 h-3.5" /> Admission Withdrawn
                               </button>
-                              <button onClick={() => updateStudentStatus(student.id, 'graduated')} className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-teal-600 hover:bg-teal-50 transition-colors border-t border-slate-50 mt-1">
-                                <span className="w-2 h-2 rounded-full bg-teal-500" /> Mark as Alumni
+                              <div className="border-t border-slate-50 my-1" />
+                              <button onClick={() => handleDisableLogin(student.id)}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-slate-600 hover:bg-slate-50 transition-colors">
+                                <Shield className="w-3.5 h-3.5" /> Disable App Login
                               </button>
-                              <button className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-[#0d1526] hover:bg-slate-50 transition-colors border-t border-slate-50 mt-1">
+                              <button onClick={() => { setPwdModal({ studentId: student.id, studentName: student.full_name }); setOpenMenu(null); }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-slate-600 hover:bg-slate-50 transition-colors">
                                 <Key className="w-3.5 h-3.5" /> Change Password
                               </button>
-                              <button 
-                                onClick={() => setDeleteModal({ isOpen: true, id: student.id, name: student.full_name })}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-rose-600 hover:bg-rose-50 transition-colors"
-                              >
+                              <div className="border-t border-slate-50 my-1" />
+                              <button onClick={() => setDeleteModal({ isOpen: true, id: student.id, name: student.full_name })}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-rose-600 hover:bg-rose-50 transition-colors">
                                 <Trash2 className="w-3.5 h-3.5" /> Delete Record
                               </button>
                             </div>
@@ -843,7 +940,9 @@ export default function StudentList() {
                       </div>
                       <div className="border-l border-white/10 pl-3">
                         <p className="text-[9px] text-slate-500 uppercase tracking-widest">Password</p>
-                        <p className="text-xs font-black text-white font-mono">{selectedStudent.auth_password || '—'}</p>
+                        <p className="text-xs font-black text-white font-mono">
+                          {selectedStudent.auth_password ? '••••••••' : 'Not set'}
+                        </p>
                       </div>
                     </div>
                   )}
@@ -958,6 +1057,7 @@ export default function StudentList() {
                         <option value="active">Active</option>
                         <option value="left">Left</option>
                         <option value="graduated">Graduated</option>
+                        <option value="withdrawn">Withdrawn</option>
                       </select>
                     </div>
                   )}
@@ -1249,7 +1349,7 @@ export default function StudentList() {
 
             {/* Drawer Footer */}
             <div className="px-6 py-4 border-t border-slate-100 flex justify-between items-center shrink-0 bg-slate-50">
-              <Link to={`/students/register`} className="text-xs font-black text-indigo-600 hover:text-indigo-800 uppercase tracking-widest transition-colors">
+              <Link to={`/students/register?edit=${selectedStudent.id}`} className="text-xs font-black text-indigo-600 hover:text-indigo-800 uppercase tracking-widest transition-colors">
                 Edit Student Profile →
               </Link>
               <button onClick={() => setSelectedStudent(null)}
@@ -1442,9 +1542,94 @@ export default function StudentList() {
           isOpen={isBulkDeleteModalOpen}
           schoolId={userRole?.school_id || ''}
           onConfirm={handleBulkDelete}
-          onCancel={() => setIsBulkDeleteModalOpen(false)}
+          onClose={() => setIsBulkDeleteModalOpen(false)}
           itemName={`${selectedIds.length} Student Records`}
         />
+      )}
+
+      {/* ── Status Change Modal ── */}
+      {statusModal && (
+        <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h3 className="text-base font-black text-slate-900 mb-1">
+              {statusModal.targetStatus === 'left' ? 'Mark as Left' :
+               statusModal.targetStatus === 'graduated' ? 'Mark as Passed Out' :
+               'Admission Withdrawn'}
+            </h3>
+            <p className="text-sm text-slate-500 mb-4">
+              Student: <strong>{statusModal.studentName}</strong>
+            </p>
+            <div className="mb-4">
+              <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Reason / Remarks (optional)</label>
+              <textarea
+                rows={3}
+                value={statusReason}
+                onChange={e => setStatusReason(e.target.value)}
+                placeholder={
+                  statusModal.targetStatus === 'left' ? 'e.g. Family relocated...' :
+                  statusModal.targetStatus === 'graduated' ? 'e.g. Completed Grade 10...' :
+                  'e.g. Fee non-payment, disciplinary action...'
+                }
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+              />
+            </div>
+            <div className={cn(
+              'text-xs font-bold px-3 py-2 rounded-lg mb-4',
+              statusModal.targetStatus === 'left' ? 'bg-amber-50 text-amber-700' :
+              statusModal.targetStatus === 'graduated' ? 'bg-teal-50 text-teal-700' :
+              'bg-rose-50 text-rose-700'
+            )}>
+              ⚠ This student will be moved to the "{
+                statusModal.targetStatus === 'graduated' ? 'Passed Out' :
+                statusModal.targetStatus.charAt(0).toUpperCase() + statusModal.targetStatus.slice(1)
+              }" tab.
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => { setStatusModal(null); setStatusReason(''); }}
+                className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">
+                Cancel
+              </button>
+              <button onClick={confirmStatusChange} disabled={savingStatus}
+                className={cn('flex-1 px-4 py-2.5 rounded-xl text-sm font-black text-white transition-all disabled:opacity-50',
+                  statusModal.targetStatus === 'left' ? 'bg-amber-500 hover:bg-amber-600' :
+                  statusModal.targetStatus === 'graduated' ? 'bg-teal-500 hover:bg-teal-600' :
+                  'bg-rose-500 hover:bg-rose-600'
+                )}>
+                {savingStatus ? 'Saving...' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Change Password Modal ── */}
+      {pwdModal && (
+        <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h3 className="text-base font-black text-slate-900 mb-1">Change Portal Password</h3>
+            <p className="text-sm text-slate-500 mb-4">Student: <strong>{pwdModal.studentName}</strong></p>
+            <div className="mb-4">
+              <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">New Password</label>
+              <input
+                type="text"
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                placeholder="Enter new password..."
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+              />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => { setPwdModal(null); setNewPassword(''); }}
+                className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">
+                Cancel
+              </button>
+              <button onClick={handleChangePassword} disabled={savingStatus || !newPassword.trim()}
+                className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-sm font-black text-white transition-all disabled:opacity-50">
+                {savingStatus ? 'Saving...' : 'Update Password'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

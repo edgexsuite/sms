@@ -51,18 +51,52 @@ const IDCardSettings = lazy(() => import('./pages/settings/IDCardSettings'));
 const TeacherDashboard = lazy(() => import('./pages/TeacherDashboard'));
 const AccountantDashboard = lazy(() => import('./pages/AccountantDashboard'));
 const PrincipalDashboard = lazy(() => import('./pages/PrincipalDashboard'));
+const HelpSupport = lazy(() => import('./pages/HelpSupport'));
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { session, loading } = useAuth();
-  
+  const { session, loading, roleNotFound, signOut } = useAuth();
+
   if (loading) {
     return <LoadingIndicator />;
   }
-  
+
   if (!session) {
     return <Navigate to="/login" replace />;
   }
-  
+
+  // User is authenticated but has no user_roles row — show a clear error
+  // instead of redirecting to /login (which causes an infinite loop + 429s)
+  if (roleNotFound) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Account Not Configured</h2>
+          <p className="text-gray-500 mb-1">
+            You are signed in, but your account has not been assigned a role yet.
+          </p>
+          <p className="text-gray-500 mb-6 text-sm">
+            Please contact your school administrator to activate your account.
+          </p>
+          <p className="text-xs text-gray-400 mb-6 font-mono bg-gray-50 rounded p-2 break-all">
+            User ID: {session.user.id}
+          </p>
+          <button
+            onClick={() => signOut()}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition-colors"
+          >
+            Sign Out
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return <>{children}</>;
 };
 
@@ -92,7 +126,6 @@ export default function App() {
                 <Route path="staff" element={<Staff />} />
                 <Route path="staff/detail/:id" element={<StaffDetailPage />} />
                 <Route path="staff/id-cards" element={<StaffDigitalIDCards />} />
-                <Route path="staff/id-cards" element={<StaffDigitalIDCards />} />
                 <Route path="staff/accounts" element={<StaffUserAccounts />} />
                 <Route path="classes/*" element={<ClassesLayout />} />
                 <Route path="attendance/*" element={<AttendanceLayout />} />
@@ -119,6 +152,7 @@ export default function App() {
                 <Route path="settings/permissions" element={<PermissionManager />} />
                 <Route path="settings/id-cards" element={<IDCardSettings />} />
                 <Route path="settings/trashbin" element={<Trashbin />} />
+                <Route path="help-support" element={<HelpSupport />} />
               </Route>
             </Routes>
           </Suspense>
