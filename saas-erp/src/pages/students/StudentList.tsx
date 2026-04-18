@@ -1515,41 +1515,46 @@ export default function StudentList() {
         onConfirm={executeDelete}
       />
 
+      {/* Bulk Action Bar — fixed to bottom so it never covers the topbar/tabs */}
       {selectedIds.length > 0 && (
-        <div className="fixed top-8 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-xl text-white px-8 py-4 rounded-3xl shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)] flex items-center gap-10 z-[100] border border-white/10 animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className="flex items-center gap-4 border-r border-white/10 pr-10">
-            <div className="bg-indigo-600 w-12 h-12 flex items-center justify-center rounded-2xl shadow-lg shadow-indigo-500/20">
-              <Users className="w-6 h-6" />
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur-xl text-white px-5 py-3 rounded-2xl shadow-[0_20px_60px_-10px_rgba(0,0,0,0.6)] flex items-center gap-4 z-[100] border border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-300 max-w-[calc(100vw-2rem)]">
+          {/* Count + clear */}
+          <div className="flex items-center gap-3 border-r border-white/10 pr-4 shrink-0">
+            <div className="bg-indigo-600 w-8 h-8 flex items-center justify-center rounded-xl shadow-lg shadow-indigo-500/30 shrink-0">
+              <Users className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-sm font-black tracking-tight leading-none">{selectedIds.length} Students Selected</p>
-              <button 
+              <p className="text-xs font-black leading-none whitespace-nowrap">
+                {selectedIds.length} {selectedIds.length === 1 ? 'Student' : 'Students'} Selected
+              </p>
+              <button
                 onClick={() => setSelectedIds([])}
-                className="text-[10px] text-white/50 hover:text-white uppercase tracking-[0.2em] font-black mt-2 transition-colors"
+                className="text-[9px] text-white/40 hover:text-white/80 uppercase tracking-widest font-black mt-1 transition-colors"
               >
-                Reset Selection
+                Clear
               </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button 
+          {/* Actions */}
+          <div className="flex items-center gap-2">
+            <button
               onClick={() => setIsBulkStatusOpen(true)}
-              className="flex items-center gap-2.5 px-5 py-2.5 bg-white/5 hover:bg-white/10 rounded-2xl transition-all text-xs font-black uppercase tracking-widest border border-white/5 active:scale-95"
+              className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl transition-all text-[11px] font-black uppercase tracking-widest border border-white/5 active:scale-95 whitespace-nowrap"
             >
-              <CheckCircle className="w-4 h-4 text-emerald-400" /> Status
+              <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" /> Status
             </button>
-            <button 
+            <button
               onClick={() => setIsBulkClassOpen(true)}
-              className="flex items-center gap-2.5 px-5 py-2.5 bg-white/5 hover:bg-white/10 rounded-2xl transition-all text-xs font-black uppercase tracking-widest border border-white/5 active:scale-95"
+              className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl transition-all text-[11px] font-black uppercase tracking-widest border border-white/5 active:scale-95 whitespace-nowrap"
             >
-              <Upload className="w-4 h-4 text-indigo-400" /> Reallocate
+              <Upload className="w-3.5 h-3.5 text-indigo-400 shrink-0" /> Reallocate
             </button>
-            <button 
+            <button
               onClick={() => setIsBulkDeleteModalOpen(true)}
-              className="flex items-center gap-2.5 px-5 py-2.5 bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 rounded-2xl transition-all text-xs font-black uppercase tracking-widest border border-rose-500/10 active:scale-95"
+              className="flex items-center gap-2 px-4 py-2 bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 rounded-xl transition-all text-[11px] font-black uppercase tracking-widest border border-rose-500/10 active:scale-95 whitespace-nowrap"
             >
-              <Trash2 className="w-4 h-4" /> Move to Trash
+              <Trash2 className="w-3.5 h-3.5 shrink-0" /> Trash
             </button>
           </div>
         </div>
