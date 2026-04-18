@@ -211,12 +211,12 @@ export default function StaffDetailPage() {
       <div className={cn("min-h-screen bg-slate-50 font-sans pb-20 standard-ui", printDoc ? "hidden" : "block")}>
         {/* ── Top Bar: Navigation & Action ── */}
         <div className="no-print sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200">
-          <div className="max-w-7xl mx-auto px-8 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="max-w-7xl mx-auto px-4 sm:px-8 py-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <button onClick={() => navigate('/staff')} className="flex items-center gap-2.5 text-slate-500 hover:text-indigo-600 transition-all font-black text-[10px] uppercase tracking-widest whitespace-nowrap">
               <ArrowLeft className="w-4 h-4" /> Personnel Directory
             </button>
             <div className="flex flex-wrap justify-center gap-3">
-              <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 overflow-x-auto max-w-full">
                 {[
                   { id: 'overview', label: 'Overview', icon: User },
                   { id: 'ledger', label: 'Ledger', icon: Wallet },
@@ -252,15 +252,15 @@ export default function StaffDetailPage() {
         </div>
 
         {/* ── Highlights Bar (Summary Matrix) ── */}
-        <div className="no-print bg-slate-50/50 border-b border-slate-200 px-8 py-6">
-          <div className="max-w-7xl mx-auto flex flex-wrap gap-4 justify-center md:justify-start">
+        <div className="no-print bg-slate-50/50 border-b border-slate-200 px-4 sm:px-8 py-3 sm:py-6">
+          <div className="max-w-7xl mx-auto flex gap-3 overflow-x-auto custom-scrollbar pb-1">
             {[
               { label: 'Attendance (MTD)', val: `${attendanceStats.percentage}%`, color: 'text-slate-900', icon: CheckCircle, sub: `${attendanceStats.present} Present` },
               { label: 'Current Pay Basis', val: `PKR ${staff.salary?.toLocaleString() || '0'}`, color: 'text-emerald-600', icon: Wallet, sub: staff.payment_basis || 'Monthly' },
               { label: 'Leaves Taken', val: leaves.filter(l => l.status === 'approved').length, color: 'text-rose-600', icon: AlertCircle, sub: 'This Session' },
               { label: 'System Access', val: staff.has_login ? 'Authorized' : 'Legacy', color: 'text-indigo-600', icon: Shield, sub: staff.role },
             ].map(item => (
-              <div key={item.label} className="min-w-[180px] flex items-center gap-3 px-5 py-3 rounded-2xl border border-white bg-white shadow-sm hover:shadow-md transition-all">
+              <div key={item.label} className="min-w-[160px] shrink-0 flex items-center gap-3 px-4 py-2.5 rounded-2xl border border-white bg-white shadow-sm hover:shadow-md transition-all">
                 <div className={cn("p-2.5 rounded-xl bg-slate-50 shadow-inner", item.color)}>
                   <item.icon className="w-4 h-4" />
                 </div>
@@ -275,7 +275,7 @@ export default function StaffDetailPage() {
         </div>
 
         {/* ── Hero Banner ── */}
-        <div className="relative overflow-hidden hero-banner bg-[#0d1526] text-white py-16 px-8 print:bg-white print:text-slate-900 print:border-b-2 print:border-slate-900">
+        <div className="relative overflow-hidden hero-banner bg-[#0d1526] text-white py-8 sm:py-16 px-4 sm:px-8 print:bg-white print:text-slate-900 print:border-b-2 print:border-slate-900">
           {/* Decorative Elements - Hidden in Print */}
           <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -mr-48 -mt-48 no-print" />
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -ml-32 -mb-32 no-print" />
@@ -301,13 +301,13 @@ export default function StaffDetailPage() {
             </div>
           </div>
 
-          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center gap-10 relative z-10">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center gap-6 relative z-10">
             {/* Photograph */}
             <div className="relative shrink-0">
               {staff.photograph_url ? (
-                <img src={staff.photograph_url} alt={staff.full_name} className="w-44 h-44 rounded-[2.5rem] object-cover border-4 border-white/10 shadow-2xl ring-4 ring-indigo-500/20" />
+                <img src={staff.photograph_url} alt={staff.full_name} className="w-28 h-28 sm:w-44 sm:h-44 rounded-3xl sm:rounded-[2.5rem] object-cover border-4 border-white/10 shadow-2xl ring-4 ring-indigo-500/20" />
               ) : (
-                <div className="w-44 h-44 rounded-[2.5rem] bg-indigo-600/30 border-4 border-white/10 flex items-center justify-center text-7xl font-black text-white shadow-2xl ring-4 ring-indigo-500/20">
+                <div className="w-28 h-28 sm:w-44 sm:h-44 rounded-3xl sm:rounded-[2.5rem] bg-indigo-600/30 border-4 border-white/10 flex items-center justify-center text-5xl sm:text-7xl font-black text-white shadow-2xl ring-4 ring-indigo-500/20">
                   {staff.full_name.charAt(0).toUpperCase()}
                 </div>
               )}
@@ -328,7 +328,7 @@ export default function StaffDetailPage() {
                 </span>
                 <span className="bg-white/10 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em]">Verified Node</span>
               </div>
-              <h1 className="text-4xl md:text-6xl font-black tracking-tight mb-4 uppercase font-display hero-gradient-text text-white print:text-slate-900">{staff.full_name}</h1>
+              <h1 className="text-2xl sm:text-4xl md:text-6xl font-black tracking-tight mb-3 uppercase font-display hero-gradient-text text-white print:text-slate-900">{staff.full_name}</h1>
               
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-8 mt-8">
                 <div className="flex flex-col">

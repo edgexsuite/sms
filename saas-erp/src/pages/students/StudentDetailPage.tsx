@@ -402,6 +402,16 @@ export default function StudentDetailPage() {
 
       <div ref={printRef} className="min-h-screen bg-slate-50">
 
+        {/* ── Sticky Back + Print Topbar ── */}
+        <div className="no-print sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-100 px-4 py-2.5 flex items-center justify-between">
+          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-xs font-black text-slate-500 hover:text-indigo-600 uppercase tracking-widest transition-all">
+            <ArrowLeft className="w-4 h-4" /> Back
+          </button>
+          <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:border-indigo-300 hover:text-indigo-600 transition shadow-sm">
+            <Printer className="w-3.5 h-3.5" /> Print
+          </button>
+        </div>
+
         {/* ── Ledger Summary Bar (SkoolZoom Style) ── */}
         <div className="no-print bg-white border-b border-slate-200 px-6 py-3 py-print-0 flex gap-4 overflow-x-auto custom-scrollbar shadow-inner">
            {[
@@ -419,16 +429,6 @@ export default function StudentDetailPage() {
                </div>
              </div>
            ))}
-        </div>
-
-        {/* ── Header ── */}
-        <div className="no-print bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shadow-sm">
-          <div className="flex gap-2">
-            <button onClick={handlePrint}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:border-indigo-300 hover:text-indigo-600 transition shadow-sm">
-              <Printer className="w-4 h-4" /> Print Profile
-            </button>
-          </div>
         </div>
 
         {/* ── Official Print Header ── */}
@@ -506,7 +506,7 @@ export default function StudentDetailPage() {
             </div>
 
             {/* Quick stats */}
-            <div className="grid grid-cols-3 gap-3 shrink-0">
+            <div className="hidden sm:grid grid-cols-3 gap-3 shrink-0">
               {[
                 { label: 'Attendance', value: attPct + '%', color: attPct >= 75 ? 'text-emerald-400' : 'text-rose-400' },
                 { label: 'Outstanding', value: 'PKR ' + totalDue.toLocaleString(), color: totalDue > 0 ? 'text-rose-400' : 'text-emerald-400' },
@@ -523,7 +523,7 @@ export default function StudentDetailPage() {
 
         {/* ── Tab Navigation ── */}
         <div className="no-print bg-white border-b border-slate-200">
-          <div className="max-w-6xl mx-auto flex">
+          <div className="max-w-6xl mx-auto flex overflow-x-auto custom-scrollbar">
             {([
               { key: 'overview', label: 'Overview', icon: User },
               { key: 'attendance', label: 'Attendance', icon: Calendar },
@@ -531,7 +531,7 @@ export default function StudentDetailPage() {
               { key: 'results', label: 'Exam Results', icon: BarChart3 },
             ] as { key: DetailTab; label: string; icon: any }[]).map(({ key, label, icon: Icon }) => (
               <button key={key} onClick={() => setTab(key)}
-                className={cn('flex items-center gap-2 px-6 py-4 text-sm font-bold border-b-2 transition-all',
+                className={cn('flex items-center gap-2 px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm whitespace-nowrap font-bold border-b-2 transition-all',
                   tab === key ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700')}>
                 <Icon className="w-4 h-4" />
                 {label}
