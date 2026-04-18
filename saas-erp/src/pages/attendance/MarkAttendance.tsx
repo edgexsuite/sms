@@ -145,7 +145,7 @@ export default function MarkAttendance() {
         </div>
         
         {hasSaved && absentees.length > 0 && (
-          <button onClick={notifyAbsentees} disabled={notifying} className="bg-red-600 animate-pulse text-white px-5 py-2 rounded-lg shadow-lg font-bold flex items-center gap-2 hover:bg-red-700 transition">
+          <button onClick={notifyAbsentees} disabled={notifying} className="bg-red-600 text-white px-5 py-2 rounded-lg shadow-lg font-bold flex items-center gap-2 hover:bg-red-700 transition">
              <MessageSquare className="w-5 h-5"/>
              {notifying ? 'Dispatching...' : `Notify ${absentees.length} Absentees`}
           </button>

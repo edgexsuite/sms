@@ -371,7 +371,7 @@ export default function Staff() {
           className="no-print flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10"
         >
           <div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight font-display uppercase tracking-[0.05em]">
+            <h1 className="text-xl font-black text-slate-900 tracking-tight font-display uppercase tracking-[0.05em]">
               Staff Directory
             </h1>
             <p className="text-slate-500 text-sm font-bold mt-1 opacity-70 uppercase tracking-widest">Enterprise Workforce Management</p>
@@ -410,7 +410,7 @@ export default function Staff() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1 }}
-              className={`rounded-3xl border p-6 flex flex-col justify-between h-40 transition-all hover:scale-[1.02] cursor-default ${stat.theme}`}
+              className={`rounded-2xl border p-4 flex flex-col justify-between transition-all hover:scale-[1.01] cursor-default ${stat.theme}`}
             >
               <div className="flex justify-between items-start">
                   <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center">
@@ -419,7 +419,7 @@ export default function Staff() {
                   <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">{stat.label}</span>
               </div>
               <div>
-                <p className="text-4xl font-black font-display tracking-tight leading-none">{stat.value}</p>
+                <p className="text-3xl font-black font-display tracking-tight leading-none">{stat.value}</p>
                 <div className="w-8 h-1 bg-current opacity-20 mt-3 rounded-full"></div>
               </div>
             </motion.div>
@@ -461,9 +461,9 @@ export default function Staff() {
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-slate-50/50 border-b border-slate-100">
-                  <th className="px-6 py-5 w-12 text-center">
-                    <input 
-                      type="checkbox" 
+                  <th className="px-4 py-2.5 w-12 text-center">
+                    <input
+                      type="checkbox"
                       checked={selectedIds.length > 0 && selectedIds.length === filtered.length}
                       onChange={(e) => {
                         if (e.target.checked) setSelectedIds(filtered.map(s => s.id));
@@ -472,12 +472,12 @@ export default function Staff() {
                       className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                     />
                   </th>
-                  <th className="px-6 py-5 text-premium-label">#</th>
-                  <th className="px-6 py-5 text-premium-label">Personnel Profile</th>
-                  <th className="px-6 py-5 text-premium-label">Role & Dept</th>
-                  <th className="px-6 py-5 text-premium-label">Communications</th>
-                  <th className="px-6 py-5 text-premium-label text-center">Academic Status</th>
-                  <th className="px-6 py-5 text-premium-label text-center no-print w-48">Actions</th>
+                  <th className="px-4 py-2.5 text-premium-label">#</th>
+                  <th className="px-4 py-2.5 text-premium-label">Personnel Profile</th>
+                  <th className="px-4 py-2.5 text-premium-label">Role & Dept</th>
+                  <th className="px-4 py-2.5 text-premium-label hidden md:table-cell">Communications</th>
+                  <th className="px-4 py-2.5 text-premium-label text-center hidden md:table-cell">Academic Status</th>
+                  <th className="px-4 py-2.5 text-premium-label text-center no-print">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -490,9 +490,9 @@ export default function Staff() {
                     whileHover={{ scale: 1.002 }}
                     className={cn('hover:bg-indigo-50/20 transition-all group', selectedIds.includes(s.id) ? 'bg-indigo-50/50' : '', !s.is_active ? 'bg-slate-50/50' : '')}
                   >
-                    <td className="px-6 py-5 text-center" onClick={(e) => e.stopPropagation()}>
-                       <input 
-                         type="checkbox" 
+                    <td className="px-4 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                       <input
+                         type="checkbox"
                          checked={selectedIds.includes(s.id)}
                          onChange={(e) => {
                            if (e.target.checked) setSelectedIds([...selectedIds, s.id]);
@@ -501,12 +501,12 @@ export default function Staff() {
                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                        />
                     </td>
-                    <td className="px-6 py-5">
+                    <td className="px-4 py-2.5">
                         <span className="text-[10px] font-black text-slate-300">{(idx + 1).toString().padStart(2, '0')}</span>
                     </td>
-                    <td className="px-6 py-5">
+                    <td className="px-4 py-2.5">
                       <div className="flex items-center gap-4">
-                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-slate-700 to-slate-900 text-white font-black text-sm flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform overflow-hidden border-2 border-white/20">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-slate-700 to-slate-900 text-white font-black text-sm flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform overflow-hidden border-2 border-white/20">
                           {s.photograph_url ? (
                             <img src={s.photograph_url} alt="" className="w-full h-full object-cover" />
                           ) : (
@@ -519,11 +519,11 @@ export default function Staff() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-5">
+                    <td className="px-4 py-2.5">
                       <div className="text-sm font-black text-indigo-600 bg-indigo-50/50 px-2.5 py-1 rounded-lg w-fit group-hover:bg-indigo-600 group-hover:text-white transition-all uppercase tracking-tight">{s.role}</div>
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1 ml-1">{s.department || 'GENERAL'}</p>
                     </td>
-                    <td className="px-6 py-5">
+                    <td className="px-4 py-2.5 hidden md:table-cell">
                       <div className="flex flex-col gap-1">
                         {s.whatsapp_number && (
                             <span className="flex items-center gap-1.5 text-xs text-slate-500 font-bold">
@@ -537,7 +537,7 @@ export default function Staff() {
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-5 text-center">
+                    <td className="px-4 py-2.5 text-center hidden md:table-cell">
                       <span className={cn(
                         "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-[0.15em] shadow-sm",
                         s.is_active ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-500"
@@ -545,7 +545,7 @@ export default function Staff() {
                         {s.is_active ? 'AUTHORIZED' : 'DEACTIVATED'}
                       </span>
                     </td>
-                     <td className="px-6 py-5 no-print whitespace-nowrap">
+                     <td className="px-4 py-2.5 no-print whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                         <button onClick={() => navigate(`/staff/detail/${s.id}`)}
                           className="p-2.5 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-90"

@@ -150,19 +150,19 @@ export default function Parents() {
       {/* Header */}
       <div className="no-print flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Users className="w-6 h-6 text-emerald-600" /> Parents Directory
+          <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight font-display">
+            Parents Directory
           </h1>
-          <p className="text-gray-500 text-sm mt-1">{parents.length} registered parent families with linked student profiles.</p>
+          <p className="text-slate-500 text-sm font-medium mt-0.5">{parents.length} registered parent families</p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <button onClick={() => window.print()} className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg font-bold text-sm transition">
+          <button onClick={() => window.print()} className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition shadow-sm">
             <Printer className="w-4 h-4" /> Print
           </button>
-          <button onClick={handleExport} className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg font-bold text-sm transition">
+          <button onClick={handleExport} className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition shadow-sm">
             <Download className="w-4 h-4" /> CSV Export
           </button>
-          <button onClick={openCreate} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-lg font-bold shadow transition">
+          <button onClick={openCreate} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-100 transition">
             <PlusCircle className="w-4 h-4" /> Add Parent
           </button>
         </div>
@@ -177,8 +177,8 @@ export default function Parents() {
           { label: 'Total Children', value: parents.reduce((a, p) => a + (p.students?.length || 0), 0), color: 'text-purple-700 bg-purple-50 border-purple-200' },
         ].map(s => (
           <div key={s.label} className={`rounded-xl border p-4 ${s.color}`}>
-            <p className="text-3xl font-black">{s.value}</p>
-            <p className="text-xs font-bold uppercase tracking-wide opacity-70 mt-1">{s.label}</p>
+            <p className="text-2xl font-black">{s.value}</p>
+            <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mt-1">{s.label}</p>
           </div>
         ))}
       </div>
@@ -206,13 +206,13 @@ export default function Parents() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">#</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Parent Name</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Father / CNIC</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">WhatsApp</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Children</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Fee Status</th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase no-print">Actions</th>
+                  <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">#</th>
+                  <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Parent Name</th>
+                  <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Father / CNIC</th>
+                  <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase hidden md:table-cell">WhatsApp</th>
+                  <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Children</th>
+                  <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase hidden sm:table-cell">Fee Status</th>
+                  <th className="px-4 py-2 text-center text-xs font-bold text-gray-500 uppercase no-print">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -222,8 +222,8 @@ export default function Parents() {
 
                   return (
                     <tr key={p.id} className="hover:bg-gray-50 transition">
-                      <td className="px-4 py-3 text-xs text-gray-400">{idx + 1}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2 text-xs text-gray-400">{idx + 1}</td>
+                      <td className="px-4 py-2">
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 font-black text-sm flex items-center justify-center shrink-0">
                             {p.full_name?.charAt(0).toUpperCase()}
@@ -234,11 +234,11 @@ export default function Parents() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2">
                         <p className="text-sm font-medium text-gray-800">{p.father_name || '—'}</p>
                         <p className="text-xs text-gray-400 font-mono">{p.cnic || '—'}</p>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2 hidden md:table-cell">
                         {p.whatsapp_number ? (
                           <button onClick={() => setWaModal({ parent: p, message: '' })}
                             className="flex items-center gap-1 text-green-600 hover:text-green-700 text-sm font-medium">
@@ -246,7 +246,7 @@ export default function Parents() {
                           </button>
                         ) : <span className="text-gray-400 text-xs italic">Not provided</span>}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2">
                         <div className="flex flex-wrap gap-1">
                           {(p.students || []).slice(0, 2).map((s: any) => (
                             <span key={s.id} className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded font-bold">
@@ -257,7 +257,7 @@ export default function Parents() {
                           {(p.students || []).length === 0 && <span className="text-xs text-gray-400 italic">None linked</span>}
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2 hidden sm:table-cell">
                         {totalDue > 0 ? (
                           <span className="text-xs font-black text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
                             Due: Rs. {totalDue.toLocaleString()}
@@ -266,7 +266,7 @@ export default function Parents() {
                           <span className="text-xs font-black text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">Cleared</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 no-print">
+                      <td className="px-4 py-2 no-print">
                         <div className="flex items-center justify-center gap-1">
                           <button onClick={() => setViewParent(p)} title="View Details"
                             className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition">

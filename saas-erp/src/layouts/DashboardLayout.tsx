@@ -1,7 +1,7 @@
 import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LogOut, Globe, GraduationCap, Users, BookOpen, LayoutDashboard, CreditCard, CalendarCheck, FileText, Settings as SettingsIcon, Star, MessageSquare, Calendar, CalendarOff, Package, AlertTriangle, Bot, Briefcase, ClipboardList, ChevronRight, UserPlus, Upload, ShieldCheck, Award, LineChart, Menu, X, Wallet, Key, PiggyBank, BarChart3, Banknote, TrendingUp, UserX, ClipboardCheck, BarChart2, Wifi, Ticket, Search, DollarSign, Scale, Library, Home, Bell, Palette, School, Shield, Trash2, Clock, Box } from 'lucide-react';
+import { LogOut, Globe, GraduationCap, Users, BookOpen, LayoutDashboard, CreditCard, CalendarCheck, FileText, Settings as SettingsIcon, Star, MessageSquare, Calendar, CalendarOff, Package, AlertTriangle, Bot, Briefcase, ClipboardList, ChevronRight, ChevronLeft, UserPlus, Upload, ShieldCheck, Award, LineChart, Menu, X, Wallet, Key, PiggyBank, BarChart3, Banknote, TrendingUp, UserX, ClipboardCheck, BarChart2, Wifi, Ticket, Search, DollarSign, Scale, Library, Home, Bell, Palette, School, Shield, Trash2, Clock, Box } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { cn } from '../lib/utils';
@@ -20,6 +20,7 @@ export default function DashboardLayout() {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Initialize dropdown based on current route
   useEffect(() => {
@@ -145,7 +146,7 @@ export default function DashboardLayout() {
 
       {/* ── Sidebar ─────────────────────────────────────────── */}
       <aside className={cn(
-        "fixed md:sticky md:top-0 inset-y-0 left-0 z-50 w-[252px] h-screen flex flex-col shrink-0 no-print",
+        `fixed md:sticky md:top-0 inset-y-0 left-0 z-50 h-screen flex flex-col shrink-0 no-print transition-all duration-300 ${isSidebarCollapsed ? 'w-[64px]' : 'w-[220px]'}`,
         "bg-[#0d1526]",
         "shadow-[4px_0_24px_rgba(0,0,0,0.35)]",
         "transition-transform duration-300 ease-in-out",
@@ -166,20 +167,32 @@ export default function DashboardLayout() {
                 <School className="w-5 h-5 text-white" />
               </div>
             )}
-            <div className="min-w-0">
-              <p className="text-[11px] font-black text-white/90 uppercase tracking-[0.14em] truncate leading-tight font-display">
-                {schoolName}
-              </p>
-              <p className="text-[9px] font-semibold text-indigo-400/80 uppercase tracking-[0.22em] mt-0.5">
-                ERP Platform
-              </p>
-            </div>
+            {!isSidebarCollapsed && (
+              <div className="min-w-0">
+                <p className="text-[11px] font-black text-white/90 uppercase tracking-[0.14em] truncate leading-tight font-display">
+                  {schoolName}
+                </p>
+                <p className="text-[9px] font-semibold text-indigo-400/80 uppercase tracking-[0.22em] mt-0.5">
+                  ERP Platform
+                </p>
+              </div>
+            )}
           </div>
           <button
             className="md:hidden p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-white/10 transition-colors"
             onClick={() => setIsMobileMenuOpen(false)}
           >
             <X className="w-4 h-4" />
+          </button>
+          <button
+            className="hidden md:flex p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-white/10 transition-colors"
+            onClick={() => setIsSidebarCollapsed(v => !v)}
+            title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isSidebarCollapsed
+              ? <ChevronRight className="w-4 h-4" />
+              : <ChevronLeft className="w-4 h-4" />
+            }
           </button>
         </div>
 
@@ -204,9 +217,7 @@ export default function DashboardLayout() {
                 className={cn("mb-1", sectionIdx > 0 && "mt-3 pt-3 border-t border-white/[0.05]")}
               >
                 {/* Section label */}
-                <p className="px-3 mb-1 text-[9px] font-black text-slate-600 uppercase tracking-[0.2em] select-none opacity-60">
-                  {section.title}
-                </p>
+                {!isSidebarCollapsed && <p className="px-3 mb-1 text-[9px] font-black text-slate-600 uppercase tracking-[0.2em] select-none opacity-60">{section.title}</p>}
 
                 <div className="space-y-px">
                   {visibleItems.map((item) => {
@@ -235,7 +246,7 @@ export default function DashboardLayout() {
                             )}>
                               <Icon className="w-[14px] h-[14px]" />
                             </div>
-                            <span className="truncate text-[13px] font-bold tracking-tight">{item.name}</span>
+                            {!isSidebarCollapsed && <span className="truncate text-[13px] font-bold tracking-tight">{item.name}</span>}
                           </Link>
                         ) : (
                           <button
@@ -252,15 +263,15 @@ export default function DashboardLayout() {
                               )}>
                                 <Icon className="w-[14px] h-[14px]" />
                               </div>
-                              <span className="truncate text-[13px] font-bold tracking-tight">{item.name}</span>
+                              {!isSidebarCollapsed && <span className="truncate text-[13px] font-bold tracking-tight">{item.name}</span>}
                             </div>
-                            <ChevronRight className={cn("w-3.5 h-3.5 transition-transform duration-200 opacity-40", isOpen && "rotate-90 opacity-100")} />
+                            {!isSidebarCollapsed && <ChevronRight className={cn("w-3.5 h-3.5 transition-transform duration-200 opacity-40", isOpen && "rotate-90 opacity-100")} />}
                           </button>
                         )}
 
                         {/* Animated sub-menu */}
                         <AnimatePresence initial={false}>
-                          {hasSubItems && openDropdown === item.name && (
+                          {hasSubItems && openDropdown === item.name && !isSidebarCollapsed && (
                             <motion.div
                               key="submenu"
                               initial={{ height: 0, opacity: 0 }}
@@ -305,40 +316,41 @@ export default function DashboardLayout() {
         </nav>
 
         {/* ── User card / footer ── */}
-        <div className="shrink-0 px-2.5 pt-2 pb-3 border-t border-white/[0.06]">
-          <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.06] transition-colors">
-            {/* Avatar */}
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-black text-[11px] uppercase shadow-md shadow-indigo-900/40 shrink-0">
-              {(userRole?.role?.[0] ?? 'U').toUpperCase()}
-            </div>
-            {/* Role + status */}
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-bold text-slate-300 uppercase tracking-wider truncate">
-                {userRole?.role || 'User'}
-              </p>
-              <div className="flex items-center gap-1 mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.7)] shrink-0" />
-                <span className="text-[9.5px] text-slate-600 font-medium">Active session</span>
+        <div className="shrink-0 px-2 pt-2 pb-3 border-t border-white/[0.06]">
+          {isSidebarCollapsed ? (
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-black text-[11px] uppercase shadow-md">
+                {(userRole?.role?.[0] ?? 'U').toUpperCase()}
               </div>
-            </div>
-            {/* Actions — always visible (no opacity trick, works on mobile touch) */}
-            <div className="flex items-center gap-0.5">
-              <button
-                onClick={cycleTheme}
-                title="Switch theme"
-                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/10 transition-colors"
-              >
+              <button onClick={cycleTheme} className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/10 transition-colors">
                 <Palette className="w-3.5 h-3.5" />
               </button>
-              <button
-                onClick={handleLogout}
-                title="Logout"
-                className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-              >
+              <button onClick={handleLogout} className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors">
                 <LogOut className="w-3.5 h-3.5" />
               </button>
             </div>
-          </div>
+          ) : (
+            <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.06] transition-colors">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-black text-[11px] uppercase shadow-md shadow-indigo-900/40 shrink-0">
+                {(userRole?.role?.[0] ?? 'U').toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-bold text-slate-300 uppercase tracking-wider truncate">{userRole?.role || 'User'}</p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.7)] shrink-0" />
+                  <span className="text-[9.5px] text-slate-600 font-medium">Active session</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-0.5">
+                <button onClick={cycleTheme} title="Switch theme" className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/10 transition-colors">
+                  <Palette className="w-3.5 h-3.5" />
+                </button>
+                <button onClick={handleLogout} title="Logout" className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -449,7 +461,7 @@ export default function DashboardLayout() {
         </div>
 
         {/* Page Content */}
-        <main className="theme-shell flex-1 relative p-6 print:p-0 overflow-auto print:overflow-visible print:block">
+        <main className="theme-shell flex-1 relative p-6 print:p-0 overflow-auto print:overflow-visible print:block pb-20 md:pb-6">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
@@ -468,6 +480,31 @@ export default function DashboardLayout() {
             </motion.div>
           </AnimatePresence>
         </main>
+
+        {/* Mobile Bottom Tab Bar */}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200 flex items-center justify-around px-2 py-1 safe-area-pb no-print">
+          {[
+            { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
+            { icon: Users, label: 'Students', path: '/students' },
+            { icon: CreditCard, label: 'Fees', path: '/fees' },
+            { icon: CalendarCheck, label: 'Attendance', path: '/attendance' },
+            { icon: SettingsIcon, label: 'More', path: '/settings' },
+          ].map(({ icon: Icon, label, path }) => {
+            const isActive = location.pathname.startsWith(path)
+            return (
+              <Link
+                key={path}
+                to={path}
+                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all ${
+                  isActive ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                <Icon className="w-5 h-5" />
+                <span className="text-[9px] font-black uppercase tracking-wider">{label}</span>
+              </Link>
+            )
+          })}
+        </nav>
       </div>
     </div>
 

@@ -305,7 +305,7 @@ export default function Payroll() {
       </div>
 
       {staff.length > 0 && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Staff</p>
             <p className="text-2xl font-black text-gray-800 mt-1">{staff.length}</p>
@@ -334,34 +334,34 @@ export default function Payroll() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500">Staff Member</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-500">Base</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-500 text-green-600">+Allow.</th>
-                  <th className="px-4 py-3 text-right font-medium text-red-500">−Deduct.</th>
-                  <th className="px-4 py-3 text-center font-medium text-gray-500">Absent</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-500">Net Salary</th>
-                  <th className="px-4 py-3 text-center font-medium text-gray-500">Status</th>
-                  {isProcessed && <th className="px-4 py-3 w-24" />}
+                  <th className="px-4 py-2 text-left font-medium text-gray-500">Staff Member</th>
+                  <th className="px-4 py-2 text-right font-medium text-gray-500">Base</th>
+                  <th className="px-4 py-2 text-right font-medium text-gray-500 text-green-600">+Allow.</th>
+                  <th className="px-4 py-2 text-right font-medium text-red-500">−Deduct.</th>
+                  <th className="px-4 py-2 text-center font-medium text-gray-500">Absent</th>
+                  <th className="px-4 py-2 text-right font-medium text-gray-500">Net Salary</th>
+                  <th className="px-4 py-2 text-center font-medium text-gray-500">Status</th>
+                  {isProcessed && <th className="px-4 py-2 w-24" />}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {staff.map(s => (
                   <tr key={s.staff_id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-2">
                       <p className="font-medium text-gray-900">{s.full_name}</p>
                       <p className="text-xs text-gray-400">{s.designation}</p>
                     </td>
-                    <td className="px-4 py-3 text-right text-gray-700">{s.base_salary.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-right text-green-600">+{s.allowances.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-right text-red-500">−{(s.deductions + s.absent_deduction).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-4 py-2 text-right text-gray-700">{s.base_salary.toLocaleString()}</td>
+                    <td className="px-4 py-2 text-right text-green-600">+{s.allowances.toLocaleString()}</td>
+                    <td className="px-4 py-2 text-right text-red-500">−{(s.deductions + s.absent_deduction).toLocaleString()}</td>
+                    <td className="px-4 py-2 text-center">
                       {!isProcessed ? (
                         <>
                            {s.employment_type === 'visiting' && s.payment_basis === 'per-lecture' ? (
                                <div className="flex flex-col items-center gap-1">
                                   <input type="number" min="0" value={s.delivered_lectures} title="Delivered Lectures"
                                     onChange={e => updateAbsentDays(s.staff_id, s.absent_days, parseInt(e.target.value) || 0)}
-                                    className="w-16 border border-indigo-300 bg-indigo-50 rounded px-2 py-1 text-sm font-bold text-center text-indigo-700" />
+                                    className="w-16 border border-slate-200 bg-white rounded-lg text-center text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
                                   <span className="text-[9px] text-gray-400 capitalize">Lectures</span>
                                </div>
                            ) : s.employment_type === 'visiting' && s.payment_basis === 'per-day' ? (
@@ -373,7 +373,7 @@ export default function Payroll() {
                                <div className="flex flex-col items-center gap-1">
                                   <input type="number" step="0.5" min="0" max="31" value={s.absent_days} title="Absent Days (including Half-Leaves mapping)"
                                     onChange={e => updateAbsentDays(s.staff_id, parseFloat(e.target.value) || 0)}
-                                    className="w-16 border border-gray-300 rounded px-2 py-1 text-sm text-center focus:ring-2 focus:ring-emerald-500" />
+                                    className="w-16 border border-slate-200 bg-white rounded-lg text-center text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
                                   {s.half_leaves > 0 && <span className="text-[9px] text-purple-500 font-bold">{s.half_leaves} Half-Leave(s) Auto-Added</span>}
                                </div>
                            )}
@@ -382,14 +382,14 @@ export default function Payroll() {
                         <span className={s.absent_days > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}>{s.absent_days}</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right font-bold text-gray-900">{s.net_salary.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-4 py-2 text-right font-bold text-gray-900">{s.net_salary.toLocaleString()}</td>
+                    <td className="px-4 py-2 text-center">
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${s.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
                         {s.status === 'paid' ? 'Paid' : 'Pending'}
                       </span>
                     </td>
                     {isProcessed && (
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-4 py-2 text-center">
                         {s.status === 'pending' && s.payroll_id && (
                           <button onClick={() => markPaid(s.payroll_id!)}
                             className="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 rounded hover:bg-emerald-100 font-medium">
@@ -403,8 +403,8 @@ export default function Payroll() {
               </tbody>
               <tfoot className="bg-gray-50 border-t-2 border-gray-300">
                 <tr>
-                  <td className="px-4 py-3 font-bold text-gray-800" colSpan={5}>Total</td>
-                  <td className="px-4 py-3 text-right font-bold text-gray-900 text-base">{totalNet.toLocaleString()}</td>
+                  <td className="px-4 py-2 font-bold text-gray-800" colSpan={5}>Total</td>
+                  <td className="px-4 py-2 text-right font-bold text-gray-900 text-base">{totalNet.toLocaleString()}</td>
                   <td colSpan={isProcessed ? 2 : 1} />
                 </tr>
               </tfoot>
