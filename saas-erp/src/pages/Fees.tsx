@@ -360,7 +360,7 @@ export default function Fees() {
         <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
-              <thead>
+              <thead className="sticky top-0 z-10">
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="p-4 font-medium text-sm text-gray-600">Student</th>
                   <th className="p-4 font-medium text-sm text-gray-600">Class</th>

@@ -334,6 +334,12 @@ export default function StudentList() {
 
   // ── Filtering ────────────────────────────────────────────────────────────
 
+  const ITEMS_PER_PAGE = 25;
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => { setCurrentPage(1); }, [search, classFilter, feeFilter, genderFilter, familyFilter, admissionYearFilter, statusTab]);
+
   const admissionYears = [...new Set(students.map(s => s.admission_date?.slice(0, 4)).filter((y): y is string => !!y))].sort((a: string, b: string) => b.localeCompare(a));
 
   const activeFilterCount = [classFilter, genderFilter, familyFilter, admissionYearFilter, feeFilter !== 'all' ? feeFilter : ''].filter(Boolean).length;
@@ -359,6 +365,9 @@ export default function StudentList() {
     const matchesYear = admissionYearFilter === '' || (s.admission_date || '').startsWith(admissionYearFilter);
     return matchesSearch && matchesStatus && matchesClass && matchesFee && matchesGender && matchesFamily && matchesYear;
   });
+
+  const totalPages = Math.ceil(filteredStudents.length / ITEMS_PER_PAGE);
+  const paginatedStudents = filteredStudents.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   // ── Import / Export ──────────────────────────────────────────────────────
 
@@ -557,8 +566,8 @@ export default function StudentList() {
         className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6"
       >
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight font-display">Student Directory</h1>
-          <p className="text-slate-500 text-sm font-medium mt-1">Manage and track your student enrollment across all classes.</p>
+          <h1 className="text-xl font-black text-slate-900 tracking-tight uppercase">Student Directory</h1>
+          <p className="text-slate-500 text-xs font-medium mt-0.5">Manage and track your student enrollment across all classes.</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
@@ -711,13 +720,13 @@ export default function StudentList() {
 
       {/* Data Table */}
       <div className="aura-card overflow-hidden border-none shadow-xl shadow-slate-200/50">
-        <div className="overflow-x-auto custom-scrollbar">
+        <div className="overflow-x-auto custom-scrollbar min-h-[320px]">
           <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50/50 border-b border-slate-100">
-                <th className="p-6 w-12 text-center">
-                  <input 
-                    type="checkbox" 
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-slate-50 border-b border-slate-100">
+                <th className="px-4 py-3 w-10 text-center">
+                  <input
+                    type="checkbox"
                     checked={selectedIds.length > 0 && selectedIds.length === filteredStudents.length}
                     onChange={(e) => {
                       if (e.target.checked) setSelectedIds(filteredStudents.map(s => s.id));
@@ -726,19 +735,19 @@ export default function StudentList() {
                     className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                   />
                 </th>
-                <th className="p-6 text-premium-label">Roll No</th>
-                <th className="p-6 text-premium-label">Student Information</th>
-                <th className="p-6 text-premium-label">Class Details</th>
-                <th className="p-6 text-premium-label">Date Joined</th>
-                <th className="p-6 text-premium-label">Status</th>
-                <th className="p-6 text-premium-label">Fees</th>
-                <th className="p-6 text-premium-label text-right">Menu</th>
+                <th className="px-4 py-3 text-premium-label">Roll</th>
+                <th className="px-4 py-3 text-premium-label">Student</th>
+                <th className="px-4 py-3 text-premium-label hidden sm:table-cell">Class</th>
+                <th className="px-4 py-3 text-premium-label hidden md:table-cell">Joined</th>
+                <th className="px-4 py-3 text-premium-label">Status</th>
+                <th className="px-4 py-3 text-premium-label hidden sm:table-cell">Fees</th>
+                <th className="px-4 py-3 text-premium-label text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="p-20 text-center">
+                  <td colSpan={8} className="py-20 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-10 h-10 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
                       <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Synchronizing...</span>
@@ -747,23 +756,44 @@ export default function StudentList() {
                 </tr>
               ) : filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-20 text-center text-slate-400 italic">
-                    No records found matching your filters.
+                  <td colSpan={8} className="py-16 text-center">
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">
+                        <Users className="w-8 h-8 text-slate-300" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-black text-slate-600 uppercase tracking-widest">
+                          {search || activeFilterCount > 0 ? 'No Matches Found' : 'No Students Yet'}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-1">
+                          {search || activeFilterCount > 0
+                            ? 'Try adjusting your search or filters.'
+                            : 'Register your first student to get started.'}
+                        </p>
+                      </div>
+                      {!search && activeFilterCount === 0 && userRole?.role === 'admin' && (
+                        <Link
+                          to="/students/register"
+                          className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-lg shadow-indigo-200"
+                        >
+                          <UserPlus className="w-4 h-4" /> Register First Student
+                        </Link>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ) : (
-                filteredStudents.map((student, i) => (
+                paginatedStudents.map((student, i) => (
                   <motion.tr
                     key={student.id}
-                    initial={{ opacity: 0, y: 10 }}
+                    initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.03 }}
-                    whileHover={{ scale: 1.002, x: 5 }}
+                    transition={{ delay: i * 0.02 }}
                     className={cn('hover:bg-indigo-50/30 transition-all group', selectedIds.includes(student.id) ? 'bg-indigo-50/50' : '')}
                   >
-                    <td className="p-6 text-center" onClick={(e) => e.stopPropagation()}>
-                       <input 
-                         type="checkbox" 
+                    <td className="px-4 py-2 text-center" onClick={(e) => e.stopPropagation()}>
+                       <input
+                         type="checkbox"
                          checked={selectedIds.includes(student.id)}
                          onChange={(e) => {
                            if (e.target.checked) setSelectedIds([...selectedIds, student.id]);
@@ -772,32 +802,32 @@ export default function StudentList() {
                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                        />
                     </td>
-                    <td className="p-6">
-                      <span className="w-10 h-10 flex items-center justify-center bg-slate-100 rounded-xl text-xs font-black text-slate-600 group-hover:bg-white group-hover:shadow-sm transition-all border border-transparent group-hover:border-slate-100">
+                    <td className="px-4 py-2">
+                      <span className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-lg text-xs font-black text-slate-600 group-hover:bg-white group-hover:shadow-sm transition-all border border-transparent group-hover:border-slate-100">
                         {student.roll_number}
                       </span>
                     </td>
-                    <td className="p-6">
+                    <td className="px-4 py-2">
                       <div className="flex flex-col">
-                        <span className="text-sm font-black text-slate-900 uppercase tracking-tight">{student.full_name}</span>
-                        <span className="text-xs text-slate-400 font-medium">CNIC: {student.b_form_cnic || 'N/A'}</span>
+                        <span className="text-sm font-black text-slate-900 uppercase tracking-tight leading-snug">{student.full_name}</span>
+                        <span className="text-xs text-slate-400 font-medium">{student.b_form_cnic || 'No CNIC'}</span>
                       </div>
                     </td>
-                    <td className="p-6">
-                      <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg text-xs font-bold text-slate-600 group-hover:bg-white transition-colors">
+                    <td className="px-4 py-2 hidden sm:table-cell">
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-lg text-xs font-bold text-slate-600 group-hover:bg-white transition-colors">
                         <BookOpen className="w-3 h-3 opacity-50" />
                         {student.classes ? `${student.classes.name} (${student.classes.section})` : 'Unassigned'}
                       </div>
                     </td>
-                    <td className="p-6 text-sm text-slate-500 font-medium">
+                    <td className="px-4 py-2 text-xs text-slate-500 font-medium hidden md:table-cell">
                       {student.admission_date
                         ? new Date(student.admission_date).toLocaleDateString(undefined, { dateStyle: 'medium' })
                         : '-'}
                     </td>
-                    <td className="p-6">
+                    <td className="px-4 py-2">
                       <span
                         className={cn(
-                          'px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm',
+                          'px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest',
                           student.status === 'active' ? 'bg-emerald-500 text-white' :
                           student.status === 'left' ? 'bg-amber-500 text-white' :
                           student.status === 'graduated' ? 'bg-teal-500 text-white' :
@@ -805,21 +835,21 @@ export default function StudentList() {
                           'bg-slate-400 text-white'
                         )}
                       >
-                        {student.status === 'graduated' ? 'Passed Out' : student.status}
+                        {student.status === 'graduated' ? 'Passed' : student.status}
                       </span>
                     </td>
-                    <td className="p-6">
+                    <td className="px-4 py-2 hidden sm:table-cell">
                       {studentsWithDues.has(student.id) ? (
-                        <span className="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-rose-100 text-rose-600 shadow-sm">
+                        <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-rose-100 text-rose-600">
                           Dues
                         </span>
                       ) : (
-                        <span className="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-600 shadow-sm">
+                        <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-600">
                           Clear
                         </span>
                       )}
                     </td>
-                    <td className="p-4 text-right">
+                    <td className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={() => navigate(`/students/edit/${student.id}`)}
@@ -893,6 +923,61 @@ export default function StudentList() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Footer */}
+        {!loading && totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/50">
+            <p className="text-[11px] font-bold text-slate-500">
+              Showing <span className="font-black text-slate-700">{(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredStudents.length)}</span> of <span className="font-black text-slate-700">{filteredStudents.length}</span> students
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                className="px-2 py-1 text-xs font-black text-slate-500 hover:text-indigo-600 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg hover:bg-indigo-50 transition-all"
+              >«</button>
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 text-xs font-black text-slate-500 hover:text-indigo-600 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg hover:bg-indigo-50 transition-all"
+              >Prev</button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
+                const page = start + i;
+                return (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={cn(
+                      'w-8 h-7 text-xs font-black rounded-lg transition-all',
+                      page === currentPage
+                        ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                        : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50'
+                    )}
+                  >{page}</button>
+                );
+              })}
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 text-xs font-black text-slate-500 hover:text-indigo-600 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg hover:bg-indigo-50 transition-all"
+              >Next</button>
+              <button
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                className="px-2 py-1 text-xs font-black text-slate-500 hover:text-indigo-600 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg hover:bg-indigo-50 transition-all"
+              >»</button>
+            </div>
+          </div>
+        )}
+        {/* Row count footer when single page */}
+        {!loading && totalPages <= 1 && filteredStudents.length > 0 && (
+          <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50/50">
+            <p className="text-[11px] font-bold text-slate-400">
+              {filteredStudents.length} student{filteredStudents.length !== 1 ? 's' : ''} shown
+            </p>
+          </div>
+        )}
       </div>
 
       {/* ── Student Detail Drawer (Full-Screen Side Panel) ── */}

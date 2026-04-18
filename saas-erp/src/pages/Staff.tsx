@@ -459,8 +459,8 @@ export default function Staff() {
         ) : (
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left">
-              <thead>
-                <tr className="bg-slate-50/50 border-b border-slate-100">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-slate-50 border-b border-slate-100">
                   <th className="px-4 py-2.5 w-12 text-center">
                     <input
                       type="checkbox"

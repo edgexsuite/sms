@@ -21,6 +21,13 @@ export default function DashboardLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [densityCompact, setDensityCompact] = useState<boolean>(() => localStorage.getItem('density') === 'compact');
+
+  const toggleDensity = () => {
+    const next = !densityCompact;
+    setDensityCompact(next);
+    localStorage.setItem('density', next ? 'compact' : 'comfortable');
+  };
 
   // Initialize dropdown based on current route
   useEffect(() => {
@@ -434,6 +441,16 @@ export default function DashboardLayout() {
               )}
             </div>
 
+            {/* Density toggle — desktop only */}
+            <button
+              onClick={toggleDensity}
+              title={densityCompact ? 'Switch to Comfortable view' : 'Switch to Compact view'}
+              className="hidden sm:flex items-center gap-1.5 text-[10px] font-black text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 px-3 py-2 rounded-xl border border-slate-200 transition-all uppercase tracking-[0.1em]"
+            >
+              <BarChart2 className="w-4 h-4" />
+              {densityCompact ? 'Comfy' : 'Compact'}
+            </button>
+
             {/* Language toggle — desktop only */}
             <button
               onClick={toggleLanguage}
@@ -461,7 +478,7 @@ export default function DashboardLayout() {
         </div>
 
         {/* Page Content */}
-        <main className="theme-shell flex-1 relative p-6 print:p-0 overflow-auto print:overflow-visible print:block pb-20 md:pb-6">
+        <main className="theme-shell flex-1 relative p-6 print:p-0 overflow-auto print:overflow-visible print:block pb-20 md:pb-6" data-density={densityCompact ? 'compact' : 'comfortable'}>
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}

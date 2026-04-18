@@ -333,7 +333,14 @@ export default function MonthlyFeeInvoices() {
     return Array.from(groups.values());
   }, [filteredInvoices, groupByFamily]);
 
+  const FEE_ITEMS_PER_PAGE = 30;
+  const [feeCurrentPage, setFeeCurrentPage] = useState(1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  React.useEffect(() => { setFeeCurrentPage(1); }, [search, classFilter, monthFilter, groupByFamily]);
+
   const displayList = groupByFamily ? (familyGroupedInvoices || []) : filteredInvoices;
+  const feeTotalPages = Math.ceil(displayList.length / FEE_ITEMS_PER_PAGE);
+  const paginatedDisplayList = displayList.slice((feeCurrentPage - 1) * FEE_ITEMS_PER_PAGE, feeCurrentPage * FEE_ITEMS_PER_PAGE);
 
   const totalRevenue = invoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + (i.paid_amount || 0), 0);
   const totalPending = invoices.filter(i => i.status !== 'paid').reduce((sum, i) => sum + (i.total_amount - i.paid_amount), 0);
@@ -486,9 +493,9 @@ export default function MonthlyFeeInvoices() {
       <div className="aura-card overflow-hidden border-none shadow-2xl shadow-slate-200/50">
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left">
-            <thead>
-              <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                <th className="p-6 w-10">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                <th className="px-4 py-3 w-10">
                    <button onClick={() => setSelectedInvoices(selectedInvoices.size === filteredInvoices.length ? new Set() : new Set(filteredInvoices.map(i => i.id)))} className="hover:text-indigo-600 transition-colors">
                       <CheckSquare className="w-5 h-5" />
                    </button>
@@ -506,7 +513,7 @@ export default function MonthlyFeeInvoices() {
                 <tr><td colSpan={7} className="p-20 text-center"><div className="w-10 h-10 border-4 border-indigo-500/10 border-t-indigo-500 rounded-full animate-spin mx-auto"></div></td></tr>
               ) : displayList.length === 0 ? (
                 <tr><td colSpan={7} className="p-20 text-center text-slate-400 font-bold uppercase text-[10px] tracking-widest italic opacity-50">No invoices found for the selected filters.</td></tr>
-              ) : displayList.map((inv, i) => {
+              ) : paginatedDisplayList.map((inv, i) => {
                 const balance = groupByFamily ? inv.balance : ((inv.total_amount || 0) - (inv.paid_amount || 0));
                 const isFamily = groupByFamily;
                 
@@ -570,6 +577,31 @@ export default function MonthlyFeeInvoices() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {!loading && feeTotalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/50">
+            <p className="text-[11px] font-bold text-slate-500">
+              Showing <span className="font-black text-slate-700">{(feeCurrentPage - 1) * FEE_ITEMS_PER_PAGE + 1}–{Math.min(feeCurrentPage * FEE_ITEMS_PER_PAGE, displayList.length)}</span> of <span className="font-black text-slate-700">{displayList.length}</span> invoices
+            </p>
+            <div className="flex items-center gap-1">
+              <button onClick={() => setFeeCurrentPage(p => Math.max(1, p - 1))} disabled={feeCurrentPage === 1}
+                className="px-3 py-1 text-xs font-black text-slate-500 hover:text-indigo-600 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg hover:bg-indigo-50 transition-all">Prev</button>
+              {Array.from({ length: Math.min(5, feeTotalPages) }, (_, i) => {
+                const start = Math.max(1, Math.min(feeCurrentPage - 2, feeTotalPages - 4));
+                const page = start + i;
+                return (
+                  <button key={page} onClick={() => setFeeCurrentPage(page)}
+                    className={cn('w-8 h-7 text-xs font-black rounded-lg transition-all',
+                      page === feeCurrentPage ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50'
+                    )}>{page}</button>
+                );
+              })}
+              <button onClick={() => setFeeCurrentPage(p => Math.min(feeTotalPages, p + 1))} disabled={feeCurrentPage === feeTotalPages}
+                className="px-3 py-1 text-xs font-black text-slate-500 hover:text-indigo-600 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg hover:bg-indigo-50 transition-all">Next</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modernized Modals... (Simplified for Brevity but Premium Styles) */}
