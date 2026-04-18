@@ -445,10 +445,15 @@ export default function DashboardLayout() {
             <button
               onClick={toggleDensity}
               title={densityCompact ? 'Switch to Comfortable view' : 'Switch to Compact view'}
-              className="hidden sm:flex items-center gap-1.5 text-[10px] font-black text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 px-3 py-2 rounded-xl border border-slate-200 transition-all uppercase tracking-[0.1em]"
+              className={cn(
+                "hidden sm:flex items-center gap-1.5 text-[10px] font-black px-3 py-2 rounded-xl border transition-all uppercase tracking-[0.1em]",
+                densityCompact
+                  ? "text-indigo-600 bg-indigo-50 border-indigo-200"
+                  : "text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border-slate-200"
+              )}
             >
               <BarChart2 className="w-4 h-4" />
-              {densityCompact ? 'Comfy' : 'Compact'}
+              {densityCompact ? 'Compact ✓' : 'Compact'}
             </button>
 
             {/* Language toggle — desktop only */}

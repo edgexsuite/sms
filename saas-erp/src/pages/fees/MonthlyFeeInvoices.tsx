@@ -347,72 +347,55 @@ export default function MonthlyFeeInvoices() {
   const collectionRate = invoices.length > 0 ? (invoices.filter(i => i.status === 'paid').length / invoices.length) * 100 : 0;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-10 pb-20">
-      
+    <div className="max-w-7xl mx-auto space-y-4 pb-20">
+
       {/* Header Section */}
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6"
-      >
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tighter font-display uppercase italic">Billing Terminal</h1>
-          <p className="text-slate-500 text-sm font-bold mt-1 opacity-70 uppercase tracking-[0.2em]">Enterprise Invoicing & Revenue Control</p>
+          <h1 className="text-xl font-black text-slate-900 tracking-tight uppercase">Billing Terminal</h1>
+          <p className="text-slate-500 text-xs font-medium mt-0.5">Invoicing & revenue control</p>
         </div>
         <div className="flex flex-wrap gap-2">
-            <button 
-              onClick={() => setGroupByFamily(!groupByFamily)}
-              className={cn(
-                "flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition shadow-sm active:scale-95",
-                groupByFamily ? "bg-indigo-600 text-white shadow-xl shadow-indigo-100" : "bg-white hover:bg-slate-50 text-slate-700 border border-slate-200"
-              )}
-            >
-                <Users className="w-4 h-4" /> {groupByFamily ? 'Family Mode Active' : 'Group by Family'}
-            </button>
-            <button onClick={() => navigate('/fees/challan-settings')} className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition shadow-sm active:scale-95">
-                <Layout className="w-4 h-4" /> Config
-            </button>
-            <button onClick={() => setShowGenerateModal(true)} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 transition active:scale-95">
-                <PlusCircle className="w-4 h-4" /> Generate Invoices
-            </button>
-        </div>
-      </motion.div>
-
-      {/* Stats Bento Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Revenue Collected', value: `Rs. ${totalRevenue.toLocaleString()}`, icon: TrendingUp, theme: 'bg-emerald-500 text-white shadow-emerald-100' },
-          { label: 'Outstanding Debt', value: `Rs. ${totalPending.toLocaleString()}`, icon: AlertCircle, theme: 'bg-rose-500 text-white shadow-rose-100' },
-          { label: 'Collection Rate', value: `${collectionRate.toFixed(1)}%`, icon: CheckCircle2, theme: 'bg-indigo-600 text-white shadow-indigo-100' },
-          { label: 'Total Invoices', value: invoices.length, icon: FileText, theme: 'bg-white text-slate-700 border-slate-100' },
-        ].map((stat, i) => (
-          <motion.div 
-            key={stat.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className={cn("rounded-3xl border p-6 flex flex-col justify-between h-40 transition-all hover:scale-[1.02] cursor-default shadow-xl", stat.theme, !stat.theme.includes('bg-white') && 'border-none')}
+          <button
+            onClick={() => setGroupByFamily(!groupByFamily)}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition shadow-sm active:scale-95",
+              groupByFamily ? "bg-indigo-600 text-white" : "bg-white hover:bg-slate-50 text-slate-700 border border-slate-200"
+            )}
           >
-            <div className="flex justify-between items-start">
-                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center">
-                  <stat.icon className="w-5 h-5" />
-                </div>
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">{stat.label}</span>
+            <Users className="w-3.5 h-3.5" /> {groupByFamily ? 'By Family' : 'By Family'}
+          </button>
+          <button onClick={() => navigate('/fees/challan-settings')} className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition shadow-sm active:scale-95">
+            <Layout className="w-3.5 h-3.5" /> Config
+          </button>
+          <button onClick={() => setShowGenerateModal(true)} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-200 transition active:scale-95">
+            <PlusCircle className="w-3.5 h-3.5" /> Generate
+          </button>
+        </div>
+      </div>
+
+      {/* Stats Row — compact inline cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: 'Collected', value: `Rs. ${totalRevenue.toLocaleString()}`, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-100' },
+          { label: 'Outstanding', value: `Rs. ${totalPending.toLocaleString()}`, icon: AlertCircle, color: 'text-rose-600', bg: 'bg-rose-50 border-rose-100' },
+          { label: 'Collection Rate', value: `${collectionRate.toFixed(1)}%`, icon: CheckCircle2, color: 'text-indigo-600', bg: 'bg-indigo-50 border-indigo-100' },
+          { label: 'Total Invoices', value: invoices.length, icon: FileText, color: 'text-slate-600', bg: 'bg-white border-slate-100' },
+        ].map((stat) => (
+          <div key={stat.label} className={cn('rounded-2xl border p-4 flex items-center gap-3', stat.bg)}>
+            <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0', stat.color, 'bg-white shadow-sm border border-current/10')}>
+              <stat.icon className="w-4 h-4" />
             </div>
-            <div>
-              <p className="text-2xl font-black font-display tracking-tight leading-none">{stat.value}</p>
-              <div className="w-8 h-1 bg-current opacity-20 mt-3 rounded-full"></div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none">{stat.label}</p>
+              <p className={cn('text-lg font-black leading-tight mt-0.5', stat.color)}>{stat.value}</p>
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
 
       {/* Command Bar */}
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.98 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="aura-card p-4 flex flex-col lg:flex-row gap-4 items-center border-none shadow-2xl shadow-slate-200/50"
-      >
+      <div className="aura-card p-3 flex flex-col sm:flex-row gap-3 items-center border-none shadow-xl shadow-slate-200/40">
         <div className="relative flex-1 group w-full">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
           <input 
@@ -423,34 +406,30 @@ export default function MonthlyFeeInvoices() {
             className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-transparent rounded-2xl text-sm font-bold focus:bg-white focus:border-slate-100 focus:ring-4 focus:ring-indigo-100/50 transition-all outline-none" 
           />
         </div>
-        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-          <div className="flex gap-1 bg-slate-50 p-1 rounded-2xl border border-slate-100">
-            <select value={classFilter} onChange={e => setClassFilter(e.target.value)} className="bg-transparent border-none text-xs font-black uppercase tracking-widest text-slate-500 px-4 py-2 outline-none cursor-pointer">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <div className="flex gap-0 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden">
+            <select value={classFilter} onChange={e => setClassFilter(e.target.value)} className="bg-transparent border-none text-xs font-black uppercase tracking-widest text-slate-500 px-3 py-2 outline-none cursor-pointer">
               <option value="">All Classes</option>
               {classes.map(c => <option key={c.id} value={c.id}>{c.name} {c.section}</option>)}
             </select>
-            <div className="w-[1px] bg-slate-200 my-2"></div>
-            <input type="month" value={monthFilter} onChange={e => setMonthFilter(e.target.value)} className="bg-transparent border-none text-xs font-black uppercase tracking-widest text-slate-500 px-4 py-2 outline-none cursor-pointer" />
+            <div className="w-px bg-slate-200 my-1.5" />
+            <input type="month" value={monthFilter} onChange={e => setMonthFilter(e.target.value)} className="bg-transparent border-none text-xs font-black uppercase tracking-widest text-slate-500 px-3 py-2 outline-none cursor-pointer" />
           </div>
-          
-          {filteredInvoices.length > 0 && (
-            <button
-              onClick={handleBatchClassPrint}
-              disabled={batchPrinting}
-              title={!classFilter || !monthFilter ? 'Select Class + Month to batch print challans' : `Print all ${filteredInvoices.length} challans`}
-              className={cn(
-                "flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl active:scale-95 disabled:opacity-50",
-                classFilter && monthFilter
-                  ? "bg-slate-900 hover:bg-black text-white"
-                  : "bg-slate-200 hover:bg-slate-300 text-slate-600"
-              )}
-            >
-              <Printer className="w-4 h-4" />
-              {batchPrinting ? 'Generating PDF…' : classFilter && monthFilter ? `Print Class Challans (${filteredInvoices.length})` : 'Select Class + Month to Print'}
-            </button>
-          )}
+
+          <button
+            onClick={handleBatchClassPrint}
+            disabled={batchPrinting || !classFilter || !monthFilter}
+            title={!classFilter || !monthFilter ? 'Select a class and month first' : `Batch print ${filteredInvoices.length} challans`}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed",
+              classFilter && monthFilter ? "bg-slate-900 hover:bg-black text-white shadow-lg" : "bg-slate-100 text-slate-400"
+            )}
+          >
+            <Printer className="w-3.5 h-3.5" />
+            {batchPrinting ? 'Printing…' : classFilter && monthFilter ? `Batch Print (${filteredInvoices.length})` : 'Batch Print'}
+          </button>
         </div>
-      </motion.div>
+      </div>
 
       {/* Bulk Action Bar - Aura Style */}
       <AnimatePresence>
@@ -459,7 +438,7 @@ export default function MonthlyFeeInvoices() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
-            className="bg-indigo-600 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between shadow-2xl shadow-indigo-200 text-white"
+            className="bg-indigo-600 rounded-2xl px-5 py-3 flex flex-col md:flex-row items-center justify-between shadow-xl shadow-indigo-200 text-white"
           >
             <div className="flex items-center gap-4 text-sm font-black uppercase tracking-widest">
               <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
@@ -500,12 +479,12 @@ export default function MonthlyFeeInvoices() {
                       <CheckSquare className="w-5 h-5" />
                    </button>
                 </th>
-                <th className="p-6">Invoice</th>
-                <th className="p-6">Student Information</th>
-                <th className="p-6">Month</th>
-                <th className="p-6 text-right">Amount</th>
-                <th className="p-6 text-center">Status</th>
-                <th className="p-6 text-right">Actions</th>
+                <th className="px-4 py-3">Invoice</th>
+                <th className="px-4 py-3">Student</th>
+                <th className="px-4 py-3 hidden sm:table-cell">Month</th>
+                <th className="px-4 py-3 text-right">Amount</th>
+                <th className="px-4 py-3 text-center hidden sm:table-cell">Status</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -525,51 +504,52 @@ export default function MonthlyFeeInvoices() {
                     transition={{ delay: i * 0.02 }}
                     className="hover:bg-indigo-50/20 transition-all group"
                   >
-                    <td className="p-6" onClick={(e) => { e.stopPropagation(); if(isFamily) return; const s = new Set(selectedInvoices); s.has(inv.id) ? s.delete(inv.id) : s.add(inv.id); setSelectedInvoices(s); }}>
-                      <div className={cn("w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all cursor-pointer", selectedInvoices.has(inv.id) ? "bg-indigo-600 border-indigo-600 shadow-lg shadow-indigo-100" : "border-slate-200 bg-white")}>
-                        {selectedInvoices.has(inv.id) && <CheckSquare className="w-4 h-4 text-white" />}
+                    <td className="px-4 py-2" onClick={(e) => { e.stopPropagation(); if(isFamily) return; const s = new Set(selectedInvoices); s.has(inv.id) ? s.delete(inv.id) : s.add(inv.id); setSelectedInvoices(s); }}>
+                      <div className={cn("w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all cursor-pointer", selectedInvoices.has(inv.id) ? "bg-indigo-600 border-indigo-600" : "border-slate-200 bg-white")}>
+                        {selectedInvoices.has(inv.id) && <CheckSquare className="w-3 h-3 text-white" />}
                       </div>
                     </td>
-                    <td className="p-6">
-                      <p className="text-[10px] font-mono font-black text-slate-400 tracking-tighter uppercase">{isFamily ? `FAM-ACC-${inv.id.substring(0,6)}` : (inv.invoice_number || 'LEGACY-TRX')}</p>
-                      {!isFamily && <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1 flex items-center gap-1"><Clock className="w-3 h-3" /> Due: {inv.due_date ? new Date(inv.due_date).toLocaleDateString() : 'N/A'}</p>}
+                    <td className="px-4 py-2">
+                      <p className="text-[10px] font-mono font-black text-slate-500 tracking-tight uppercase">{isFamily ? `FAM-${inv.id.substring(0,6)}` : (inv.invoice_number || 'LEGACY')}</p>
+                      {!isFamily && <p className="text-[9px] font-bold text-slate-400 mt-0.5 flex items-center gap-1"><Clock className="w-2.5 h-2.5" /> {inv.due_date ? new Date(inv.due_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : 'No due date'}</p>}
                     </td>
-                    <td className="p-6">
+                    <td className="px-4 py-2">
                       <p className="text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">{isFamily ? inv.name : inv.students?.full_name}</p>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{isFamily ? `${inv.count} siblings linked` : (inv.students?.classes ? `${inv.students.classes.name} ${inv.students.classes.section}` : 'N/A')}</p>
+                      <p className="text-[10px] text-slate-400 font-bold">{isFamily ? `${inv.count} students` : (inv.students?.classes ? `${inv.students.classes.name}-${inv.students.classes.section}` : 'N/A')}</p>
                     </td>
-                    <td className="p-6">
-                       <span className="bg-slate-100 text-slate-600 font-black px-3 py-1.5 rounded-xl text-[9px] uppercase tracking-widest">
+                    <td className="px-4 py-2 hidden sm:table-cell">
+                      <span className="bg-slate-100 text-slate-600 font-black px-2.5 py-1 rounded-lg text-[9px] uppercase tracking-widest">
                         {new Date(inv.month_year).toLocaleString('default', { month: 'short', year: 'numeric' })}
-                       </span>
+                      </span>
                     </td>
-                    <td className="p-6 text-right">
-                       <p className="text-sm font-black text-slate-900 tracking-tighter">Rs. {Number(inv.total_amount).toLocaleString()}</p>
-                       <p className={cn("text-[10px] font-black uppercase tracking-widest mt-0.5", balance > 0 ? 'text-rose-500' : 'text-emerald-500')}>
-                         {balance > 0 ? `Unpaid: ${balance.toLocaleString()}` : 'Settled'}
-                       </p>
+                    <td className="px-4 py-2 text-right">
+                      <p className="text-sm font-black text-slate-900">Rs. {Number(inv.total_amount).toLocaleString()}</p>
+                      <p className={cn("text-[10px] font-black mt-0.5", balance > 0 ? 'text-rose-500' : 'text-emerald-500')}>
+                        {balance > 0 ? `Unpaid: ${balance.toLocaleString()}` : '✓ Settled'}
+                      </p>
                     </td>
-                    <td className="p-6 text-center">
-                       <span className={cn(
-                         "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm",
-                         inv.status === 'paid' ? "bg-emerald-500 text-white shadow-emerald-100" : 
-                         inv.status === 'overdue' ? "bg-rose-500 text-white shadow-rose-100" : "bg-slate-200 text-slate-500"
-                       )}>
-                         {inv.status}
-                       </span>
+                    <td className="px-4 py-2 text-center hidden sm:table-cell">
+                      <span className={cn(
+                        "px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest",
+                        inv.status === 'paid' ? "bg-emerald-100 text-emerald-700" :
+                        inv.status === 'overdue' ? "bg-rose-100 text-rose-700" :
+                        inv.status === 'partial' ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500"
+                      )}>
+                        {inv.status}
+                      </span>
                     </td>
-                    <td className="p-6 text-right">
-                       <div className="flex items-center justify-end gap-2 transition-all">
-                          {!isFamily ? (
-                            <>
-                              <button onClick={() => handlePrintChallan(inv)} className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-90" title="Render PDF"><Printer className="w-5 h-5" /></button>
-                              <button onClick={() => handleSendWhatsApp(inv)} className="p-2.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90" title="Push Reminder"><MessageCircle className="w-5 h-5" /></button>
-                              <button onClick={() => setEditingInvoice(inv)} className="p-2.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all active:scale-90" title="Adjust Artifact"><Edit className="w-5 h-5" /></button>
-                            </>
-                          ) : (
-                            <button onClick={() => handlePrintFamilyChallan(inv)} className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-indigo-100 transition-all"><Printer className="w-4 h-4" /> Family Challan</button>
-                          )}
-                       </div>
+                    <td className="px-3 py-2 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        {!isFamily ? (
+                          <>
+                            <button onClick={() => handlePrintChallan(inv)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" title="Print Challan"><Printer className="w-4 h-4" /></button>
+                            <button onClick={() => handleSendWhatsApp(inv)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all" title="WhatsApp Reminder"><MessageCircle className="w-4 h-4" /></button>
+                            <button onClick={() => setEditingInvoice(inv)} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all" title="Edit Invoice"><Edit className="w-4 h-4" /></button>
+                          </>
+                        ) : (
+                          <button onClick={() => handlePrintFamilyChallan(inv)} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg font-bold text-[10px] uppercase tracking-widest hover:bg-indigo-100 transition-all"><Printer className="w-3.5 h-3.5" /> Family</button>
+                        )}
+                      </div>
                     </td>
                   </motion.tr>
                 );
