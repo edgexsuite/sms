@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import {
   GraduationCap, LogOut, Download, MessageCircle, ChevronRight, Eye, EyeOff,
@@ -382,15 +383,20 @@ export default function ParentPortal() {
         </div>
 
         {/* Right Panel: Form */}
-        <div className="flex-1 flex items-center justify-center p-6 bg-gray-50">
-          <div className="w-full max-w-md">
+        <div className="flex-1 flex items-center justify-center p-6 bg-[#041a15] lg:bg-gray-50 relative overflow-hidden">
+          {/* Mobile-only Background Elements */}
+          <div className="lg:hidden absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)', backgroundSize: '30px 30px' }} />
+          <div className="lg:hidden absolute -top-20 -right-20 w-80 h-80 bg-emerald-600/20 rounded-full blur-[100px] pointer-events-none" />
+          <div className="lg:hidden absolute -bottom-20 -left-20 w-80 h-80 bg-teal-600/20 rounded-full blur-[100px] pointer-events-none" />
+
+          <div className="w-full max-w-md relative z-10">
             {/* Mobile header */}
             <div className="lg:hidden text-center mb-10">
-              <div className="inline-flex items-center justify-center w-14 h-14 bg-emerald-600 rounded-2xl shadow-lg shadow-emerald-600/30 mb-4">
-                <Users className="w-7 h-7 text-white" />
+              <div className="inline-flex items-center justify-center w-14 h-14 bg-white/10 backdrop-blur-md rounded-2xl shadow-lg border border-white/10 mb-4">
+                <Users className="w-7 h-7 text-emerald-400" />
               </div>
-              <h1 className="text-2xl font-black text-slate-900">Parent Portal</h1>
-              <p className="text-slate-500 text-sm mt-1">Stay connected with your child's school life</p>
+              <h1 className="text-2xl font-black text-white">Parent Portal</h1>
+              <p className="text-emerald-400/80 text-sm mt-1 font-medium">Stay connected with your child's school life</p>
             </div>
 
             <div className="mb-8 hidden lg:block">
@@ -398,62 +404,72 @@ export default function ParentPortal() {
               <p className="text-slate-500 mt-1.5">Sign in with your family credentials</p>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-100 p-8">
-              <form onSubmit={handleLogin} className="space-y-5">
+            <div className="bg-white/5 lg:bg-white backdrop-blur-2xl lg:backdrop-blur-none rounded-3xl shadow-2xl lg:shadow-xl shadow-black/50 lg:shadow-slate-200/60 border border-white/10 lg:border-slate-100 p-8">
+              <form onSubmit={handleLogin} className="space-y-6">
                 <div>
-                  <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Family Number</label>
+                  <label className="block text-xs font-black text-slate-400 lg:text-slate-500 uppercase tracking-widest mb-2.5">
+                    Family Number
+                  </label>
                   <input
                     type="text"
                     value={familyNumber}
                     onChange={e => setFamilyNumber(e.target.value)}
                     placeholder="e.g. FAM-2024-001"
-                    className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-medium placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition bg-slate-50 focus:bg-white"
+                    className="w-full px-5 py-3.5 border border-white/10 lg:border-slate-200 rounded-xl text-sm font-medium text-white lg:text-slate-900 placeholder-slate-500 lg:placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition bg-white/5 lg:bg-slate-50 focus:bg-white/10 lg:focus:bg-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Password</label>
+                  <label className="block text-xs font-black text-slate-400 lg:text-slate-500 uppercase tracking-widest mb-2.5">
+                    Password
+                  </label>
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full px-4 py-3 pr-12 border border-slate-200 rounded-xl text-sm font-medium placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition bg-slate-50 focus:bg-white"
+                      className="w-full px-5 py-3.5 pr-12 border border-white/10 lg:border-slate-200 rounded-xl text-sm font-medium text-white lg:text-slate-900 placeholder-slate-500 lg:placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition bg-white/5 lg:bg-slate-50 focus:bg-white/10 lg:focus:bg-white"
                     />
                     <button type="button" onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600 transition-colors">
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 lg:text-slate-400 hover:text-emerald-400 lg:hover:text-emerald-600 transition-colors">
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
                   </div>
                 </div>
 
                 {loginError && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                    {loginError}
+                  <div className="bg-red-500/10 lg:bg-red-50 border border-red-500/20 lg:border-red-200 text-red-400 lg:text-red-700 px-4 py-3 rounded-xl text-sm flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 shrink-0" />
+                    <span className="pt-0.5 leading-snug">{loginError}</span>
                   </div>
                 )}
 
                 <button type="submit" disabled={loggingIn}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-emerald-600/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2">
+                  className="w-full bg-emerald-500 hover:bg-emerald-400 lg:bg-emerald-600 lg:hover:bg-emerald-700 active:bg-emerald-600 lg:active:bg-emerald-800 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-emerald-500/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-4">
                   {loggingIn ? (
                     <>
                       <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                       </svg>
-                      Signing in...
+                      Authenticating...
                     </>
                   ) : 'Sign In →'}
                 </button>
               </form>
 
-              <div className="mt-6 pt-5 border-t border-slate-100">
-                <p className="text-center text-xs text-slate-400">
+              <div className="mt-8 pt-6 border-t border-white/5 lg:border-slate-100">
+                <p className="text-center text-xs text-slate-400 lg:text-slate-400">
                   Credentials provided by school administration.<br />
-                  <span className="font-semibold text-slate-500">Contact your school</span> if you need access.
+                  <span className="font-bold text-white lg:text-slate-500">Contact your school</span> if you need access.
                 </p>
               </div>
+            </div>
+            
+            <div className="mt-8 lg:hidden flex justify-center">
+               <Link to="/login" className="flex items-center gap-2 text-xs font-black text-emerald-400 uppercase tracking-widest hover:text-emerald-300 transition">
+                  <ChevronLeft className="w-4 h-4" /> Go back to Main Portal
+               </Link>
             </div>
           </div>
         </div>
