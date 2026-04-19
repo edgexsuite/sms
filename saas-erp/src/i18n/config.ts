@@ -8,11 +8,13 @@ i18n.use(initReactI18next).init({
     en: { translation: en },
     ur: { translation: ur },
   },
-  lng: 'en', // Default language
+  lng: 'en',
   fallbackLng: 'en',
   interpolation: {
-    escapeValue: false, // React already safes from xss
+    escapeValue: false,
   },
+  // Disable debug/info logs (suppresses the Locize promo message)
+  debug: false,
 });
 
 // Listen to language changes to update document direction for RTL support

@@ -29,19 +29,19 @@ export default function DashboardAlerts() {
 
   const fetchAnnouncements = async (sid: string) => {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('announcements')
         .select('id, title, message, type')
         .eq('is_active', true)
-        .or(`is_global.eq.true,school_id.eq.${sid}`)
+        .or(`is_global.is.true,school_id.eq.${sid}`)  // .is.true for boolean columns (not .eq.true)
         .order('created_at', { ascending: false })
         .limit(1);
 
-      if (data && data.length > 0) {
-        setAnnouncements(data);
-      }
+      // Table doesn't exist or column mismatch — skip silently (no console noise)
+      if (error) return;
+      if (data && data.length > 0) setAnnouncements(data);
     } catch {
-      // announcements table may not exist yet — silently ignore
+      // silently ignore
     }
   };
 
