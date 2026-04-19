@@ -415,7 +415,7 @@ export default function ParentPortal() {
                     value={familyNumber}
                     onChange={e => setFamilyNumber(e.target.value)}
                     placeholder="e.g. FAM-2024-001"
-                    className="w-full px-5 py-3.5 border border-white/10 lg:border-slate-200 rounded-xl text-sm font-medium text-white lg:text-slate-900 placeholder-slate-500 lg:placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition bg-white/5 lg:bg-slate-50 focus:bg-white/10 lg:focus:bg-white"
+                    className="w-full px-6 py-4 lg:px-5 lg:py-3.5 border border-white/10 lg:border-slate-200 rounded-xl text-base lg:text-sm font-medium text-white lg:text-slate-900 placeholder-slate-500 lg:placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition bg-white/5 lg:bg-slate-50 focus:bg-white/10 lg:focus:bg-white"
                   />
                 </div>
                 <div>
@@ -428,11 +428,11 @@ export default function ParentPortal() {
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full px-5 py-3.5 pr-12 border border-white/10 lg:border-slate-200 rounded-xl text-sm font-medium text-white lg:text-slate-900 placeholder-slate-500 lg:placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition bg-white/5 lg:bg-slate-50 focus:bg-white/10 lg:focus:bg-white"
+                      className="w-full px-6 py-4 lg:px-5 lg:py-3.5 pr-14 lg:pr-12 border border-white/10 lg:border-slate-200 rounded-xl text-base lg:text-sm font-medium text-white lg:text-slate-900 placeholder-slate-500 lg:placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition bg-white/5 lg:bg-slate-50 focus:bg-white/10 lg:focus:bg-white"
                     />
                     <button type="button" onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 lg:text-slate-400 hover:text-emerald-400 lg:hover:text-emerald-600 transition-colors">
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      className="absolute right-5 lg:right-4 top-1/2 -translate-y-1/2 text-slate-500 lg:text-slate-400 hover:text-emerald-400 lg:hover:text-emerald-600 transition-colors">
+                      {showPassword ? <EyeOff className="w-6 h-6 lg:w-5 lg:h-5" /> : <Eye className="w-6 h-6 lg:w-5 lg:h-5" />}
                     </button>
                   </div>
                 </div>
@@ -445,10 +445,10 @@ export default function ParentPortal() {
                 )}
 
                 <button type="submit" disabled={loggingIn}
-                  className="w-full bg-emerald-500 hover:bg-emerald-400 lg:bg-emerald-600 lg:hover:bg-emerald-700 active:bg-emerald-600 lg:active:bg-emerald-800 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-emerald-500/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-4">
+                  className="w-full bg-emerald-500 hover:bg-emerald-400 lg:bg-emerald-600 lg:hover:bg-emerald-700 active:bg-emerald-600 lg:active:bg-emerald-800 text-white font-black lg:font-bold text-lg lg:text-base py-4 lg:py-4 rounded-xl transition-all shadow-lg shadow-emerald-500/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-6 lg:mt-4">
                   {loggingIn ? (
                     <>
-                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                      <svg className="animate-spin w-5 h-5 lg:w-4 lg:h-4" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                       </svg>

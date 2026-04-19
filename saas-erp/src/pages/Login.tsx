@@ -175,7 +175,7 @@ export default function Login() {
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
                   placeholder="e.g., admin@email.com, STU-123, FAM-001"
-                  className="w-full px-5 py-3.5 border border-white/10 lg:border-slate-200 rounded-xl text-sm font-medium text-white lg:text-slate-900 placeholder-slate-500 lg:placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white/5 lg:bg-slate-50 focus:bg-white/10 lg:focus:bg-white"
+                  className="w-full px-6 py-4 lg:px-5 lg:py-3.5 border border-white/10 lg:border-slate-200 rounded-xl text-base lg:text-sm font-medium text-white lg:text-slate-900 placeholder-slate-500 lg:placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white/5 lg:bg-slate-50 focus:bg-white/10 lg:focus:bg-white"
                 />
               </div>
 
@@ -190,19 +190,19 @@ export default function Login() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full px-5 py-3.5 pr-12 border border-white/10 lg:border-slate-200 rounded-xl text-sm font-medium text-white lg:text-slate-900 placeholder-slate-500 lg:placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white/5 lg:bg-slate-50 focus:bg-white/10 lg:focus:bg-white"
+                    className="w-full px-6 py-4 lg:px-5 lg:py-3.5 pr-14 lg:pr-12 border border-white/10 lg:border-slate-200 rounded-xl text-base lg:text-sm font-medium text-white lg:text-slate-900 placeholder-slate-500 lg:placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white/5 lg:bg-slate-50 focus:bg-white/10 lg:focus:bg-white"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 lg:text-slate-400 hover:text-indigo-400 lg:hover:text-indigo-600 transition-colors"
+                    className="absolute right-5 lg:right-4 top-1/2 -translate-y-1/2 text-slate-500 lg:text-slate-400 hover:text-indigo-400 lg:hover:text-indigo-600 transition-colors"
                   >
                     {showPassword ? (
-                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="h-6 w-6 lg:h-5 lg:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
                       </svg>
                     ) : (
-                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="h-6 w-6 lg:h-5 lg:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                       </svg>
@@ -214,11 +214,11 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-indigo-500 hover:bg-indigo-400 lg:bg-indigo-600 lg:hover:bg-indigo-700 active:bg-indigo-600 lg:active:bg-indigo-800 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-indigo-500/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-4"
+                className="w-full bg-indigo-500 hover:bg-indigo-400 lg:bg-indigo-600 lg:hover:bg-indigo-700 active:bg-indigo-600 lg:active:bg-indigo-800 text-white font-black lg:font-bold text-lg lg:text-base py-4 lg:py-4 rounded-xl transition-all shadow-lg shadow-indigo-500/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-6 lg:mt-4"
               >
                 {loading ? (
                   <>
-                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <svg className="animate-spin w-5 h-5 lg:w-4 lg:h-4" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
@@ -231,23 +231,23 @@ export default function Login() {
 
           {/* Role Routing Helper Panels */}
           <div className="mt-8 grid grid-cols-2 gap-3 lg:gap-4">
-            <Link to="/parent-portal" className="group p-4 bg-white/5 lg:bg-white border border-white/10 lg:border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-white/10 lg:hover:border-indigo-300 transition-all shadow-sm">
-              <div className="w-10 h-10 rounded-full bg-emerald-500/10 lg:bg-emerald-50 text-emerald-400 lg:text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+            <Link to="/parent-portal" className="group p-5 lg:p-4 bg-white/5 lg:bg-white border border-white/10 lg:border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-3 lg:gap-2 hover:bg-white/10 lg:hover:border-indigo-300 transition-all shadow-sm">
+              <div className="w-12 h-12 lg:w-10 lg:h-10 rounded-full bg-emerald-500/10 lg:bg-emerald-50 text-emerald-400 lg:text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <svg className="w-6 h-6 lg:w-5 lg:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
               </div>
               <div className="text-center">
-                <span className="block text-xs font-black text-white lg:text-slate-900 tracking-tight">Parent Portal</span>
-                <span className="block text-[10px] text-slate-400 lg:text-slate-500 font-medium mt-0.5">FAM-XXX</span>
+                <span className="block text-sm lg:text-xs font-black text-white lg:text-slate-900 tracking-tight">Parent Portal</span>
+                <span className="block text-xs lg:text-[10px] text-slate-400 lg:text-slate-500 font-medium mt-0.5">FAM-XXX</span>
               </div>
             </Link>
 
-            <Link to="/student-portal" className="group p-4 bg-white/5 lg:bg-white border border-white/10 lg:border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-white/10 lg:hover:border-indigo-300 transition-all shadow-sm">
-              <div className="w-10 h-10 rounded-full bg-blue-500/10 lg:bg-blue-50 text-blue-400 lg:text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <GraduationCap className="w-5 h-5" />
+            <Link to="/student-portal" className="group p-5 lg:p-4 bg-white/5 lg:bg-white border border-white/10 lg:border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-3 lg:gap-2 hover:bg-white/10 lg:hover:border-indigo-300 transition-all shadow-sm">
+              <div className="w-12 h-12 lg:w-10 lg:h-10 rounded-full bg-blue-500/10 lg:bg-blue-50 text-blue-400 lg:text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <GraduationCap className="w-6 h-6 lg:w-5 lg:h-5" />
               </div>
               <div className="text-center">
-                <span className="block text-xs font-black text-white lg:text-slate-900 tracking-tight">Student Portal</span>
-                <span className="block text-[10px] text-slate-400 lg:text-slate-500 font-medium mt-0.5">STU-XXX</span>
+                <span className="block text-sm lg:text-xs font-black text-white lg:text-slate-900 tracking-tight">Student Portal</span>
+                <span className="block text-xs lg:text-[10px] text-slate-400 lg:text-slate-500 font-medium mt-0.5">STU-XXX</span>
               </div>
             </Link>
           </div>
