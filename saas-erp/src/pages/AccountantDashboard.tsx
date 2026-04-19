@@ -167,7 +167,7 @@ export default function AccountantDashboard() {
           <h2 className="font-black text-gray-900 mb-4 flex items-center gap-2">
             <BarChart2 className="w-5 h-5 text-emerald-600" /> 6-Month Income vs Expenses
           </h2>
-          <ResponsiveContainer width="100%" height={220}>
+          <ResponsiveContainer width="100%" height={220} minWidth={0}>
             <BarChart data={monthlyChart} barGap={4}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="month" tick={{ fontSize: 11 }} />

@@ -1,0 +1,52 @@
+<svg viewBox="0 0 512 512" width="512" height="512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#4338CA"/>
+      <stop offset="100%" stop-color="#6D28D9"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- App icon background -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- Subtle top shine -->
+  <rect width="512" height="256" rx="112" fill="url(#shine)"/>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!--  GRADUATION CAP (mortarboard)          -->
+  <!-- ═══════════════════════════════════════ -->
+
+  <!-- Board / flat diamond top of the cap -->
+  <polygon
+    points="256,138  420,218  256,278  92,218"
+    fill="white"
+    opacity="0.97"
+  />
+
+  <!-- Crown: the cylindrical body below the board centre -->
+  <!-- Starts at the horizontal mid-line of the board, tapers slightly -->
+  <path
+    d="M192,250 L320,250 L320,318 Q256,346 192,318 Z"
+    fill="white"
+    opacity="0.9"
+  />
+
+  <!-- Tassel stem from right board tip downward -->
+  <line x1="420" y1="220" x2="420" y2="316"
+    stroke="white" stroke-width="11"
+    stroke-linecap="round" opacity="0.82"/>
+
+  <!-- Tassel knot circle -->
+  <circle cx="420" cy="328" r="15" fill="white" opacity="0.82"/>
+
+  <!-- Tassel fringe (three threads) -->
+  <line x1="406" y1="336" x2="396" y2="370"
+    stroke="white" stroke-width="7" stroke-linecap="round" opacity="0.68"/>
+  <line x1="420" y1="340" x2="420" y2="375"
+    stroke="white" stroke-width="7" stroke-linecap="round" opacity="0.68"/>
+  <line x1="434" y1="336" x2="444" y2="370"
+    stroke="white" stroke-width="7" stroke-linecap="round" opacity="0.68"/>
+</svg>

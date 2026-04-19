@@ -32,7 +32,7 @@ export default function DashboardAlerts() {
       const { data, error } = await supabase
         .from('announcements')
         .select('id, title, message, type')
-        .eq('is_active', true)
+        .is('is_active', true)
         .or(`is_global.is.true,school_id.eq.${sid}`)  // .is.true for boolean columns (not .eq.true)
         .order('created_at', { ascending: false })
         .limit(1);

@@ -119,7 +119,7 @@ export default function ProfitLoss() {
       {/* Chart */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 no-print">
         {loading ? <div className="h-64 flex items-center justify-center text-gray-400">Loading...</div> : (
-          <ResponsiveContainer width="100%" height={280}>
+          <ResponsiveContainer width="100%" height={280} minWidth={0}>
             <BarChart data={rows} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="month" tick={{ fontSize: 12 }} />
