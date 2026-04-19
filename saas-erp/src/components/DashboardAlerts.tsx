@@ -29,19 +29,21 @@ export default function DashboardAlerts() {
 
   const fetchAnnouncements = async (sid: string) => {
     try {
+      /* NOTE: We intentionally omit the server-side boolean filter for is_active.
+         PostgREST rejects .eq('is_active', true) → eq.true on some versions (400).
+         Instead we select is_active and filter client-side — works on all versions. */
       const { data, error } = await supabase
         .from('announcements')
-        .select('id, title, message, type')
-        .is('is_active', true)
-        .or(`is_global.is.true,school_id.eq.${sid}`)  // .is.true for boolean columns (not .eq.true)
+        .select('id, title, message, type, is_active')
+        .or(`is_global.is.true,school_id.eq.${sid}`)
         .order('created_at', { ascending: false })
-        .limit(1);
+        .limit(5);
 
-      // Table doesn't exist or column mismatch — skip silently (no console noise)
-      if (error) return;
-      if (data && data.length > 0) setAnnouncements(data);
+      if (error) return; // table may not exist — skip silently
+      const active = (data ?? []).filter(a => a.is_active);
+      if (active.length > 0) setAnnouncements(active.slice(0, 1));
     } catch {
-      // silently ignore
+      // silently ignore network / table-not-found errors
     }
   };
 

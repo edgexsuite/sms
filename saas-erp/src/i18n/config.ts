@@ -3,7 +3,22 @@ import { initReactI18next } from 'react-i18next';
 import en from './locales/en.json';
 import ur from './locales/ur.json';
 
-i18n.use(initReactI18next).init({
+/* ── Suppress the i18next Locize promo banner ───────────────────────────────
+   The library calls this.logger.log() unconditionally regardless of debug:false.
+   We provide a custom logger plugin that filters out that specific message.    */
+const silentLogger = {
+  type: 'logger' as const,
+  log:   (...args: any[]) => {
+    const msg = String(args[0] ?? '');
+    if (msg.includes('i18next') || msg.includes('locize') || msg.includes('Locize')) return;
+    // eslint-disable-next-line no-console
+    console.log(...args);
+  },
+  warn:  (...args: any[]) => console.warn(...args),
+  error: (...args: any[]) => console.error(...args),
+};
+
+i18n.use(silentLogger).use(initReactI18next).init({
   resources: {
     en: { translation: en },
     ur: { translation: ur },
