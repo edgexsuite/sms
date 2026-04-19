@@ -15,6 +15,7 @@ const DashboardLayout = lazy(() => import('./layouts/DashboardLayout'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Login = lazy(() => import('./pages/Login'));
 const SignUp = lazy(() => import('./pages/SignUp'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const StudentsLayout = lazy(() => import('./pages/students/StudentsLayout'));
 const Parents = lazy(() => import('./pages/Parents'));
 const Staff = lazy(() => import('./pages/Staff'));
@@ -109,6 +110,7 @@ export default function App() {
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<SignUp />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/parent-portal" element={<ParentPortal />} />
               <Route path="/student-portal" element={<StudentPortal />} />
               <Route path="/" element={
