@@ -32,15 +32,15 @@ export default function DashboardAlerts() {
       /* NOTE: is_active is fetched and filtered client-side (avoids PostgREST boolean quirks).
          is_global uses .eq.true (not .is.true) — the `is` operator is invalid inside OR clauses. */
       const { data, error } = await supabase
-        .from('announcements')
-        .select('id, title, message, type, is_active')
-        .or(`is_global.eq.true,school_id.eq.${sid}`)
+        .from('notifications')
+        .select('id, title, message, created_at')
+        .eq('school_id', sid)
+        .in('target_audience', ['all', 'teachers'])
         .order('created_at', { ascending: false })
-        .limit(5);
+        .limit(1);
 
-      if (error) return; // table may not exist — skip silently
-      const active = (data ?? []).filter(a => a.is_active);
-      if (active.length > 0) setAnnouncements(active.slice(0, 1));
+      if (error) return; 
+      if (data && data.length > 0) setAnnouncements(data);
     } catch {
       // silently ignore network / table-not-found errors
     }
