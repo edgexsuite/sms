@@ -29,13 +29,12 @@ export default function DashboardAlerts() {
 
   const fetchAnnouncements = async (sid: string) => {
     try {
-      /* NOTE: We intentionally omit the server-side boolean filter for is_active.
-         PostgREST rejects .eq('is_active', true) → eq.true on some versions (400).
-         Instead we select is_active and filter client-side — works on all versions. */
+      /* NOTE: is_active is fetched and filtered client-side (avoids PostgREST boolean quirks).
+         is_global uses .eq.true (not .is.true) — the `is` operator is invalid inside OR clauses. */
       const { data, error } = await supabase
         .from('announcements')
         .select('id, title, message, type, is_active')
-        .or(`is_global.is.true,school_id.eq.${sid}`)
+        .or(`is_global.eq.true,school_id.eq.${sid}`)
         .order('created_at', { ascending: false })
         .limit(5);
 
