@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabase';
 import { GraduationCap } from 'lucide-react';
 
+
 export default function Login() {
   const { t } = useTranslation();
   const navigate = useNavigate();
