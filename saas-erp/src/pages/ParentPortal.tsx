@@ -154,7 +154,7 @@ export default function ParentPortal() {
         : Promise.resolve({ data: [] }),
       // Notices
       supabase.from('notifications')
-        .select('id, title, message, created_at, type')
+        .select('id, title, message, created_at')
         .eq('school_id', parentData!.school_id)
         .order('created_at', { ascending: false })
         .limit(20),
