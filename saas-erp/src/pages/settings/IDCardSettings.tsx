@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { 
-  CreditCard, Layout, Save, CheckCircle2, AlertCircle, 
+import {
+  CreditCard, Layout, Save, CheckCircle2, AlertCircle,
   Settings as SettingsIcon, Users, Briefcase, ChevronRight
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { TEMPLATES, TemplateId } from '../../lib/idCardTemplates';
 
 const STUDENT_FIELDS = [
   { id: 'roll_number', label: 'Roll Number' },
@@ -34,6 +35,8 @@ export default function IDCardSettings() {
   const [saving, setSaving] = useState(false);
   const [studentFields, setStudentFields] = useState<string[]>([]);
   const [staffFields, setStaffFields] = useState<string[]>([]);
+  const [studentTemplate, setStudentTemplate] = useState<TemplateId>('classic');
+  const [staffTemplate, setStaffTemplate] = useState<TemplateId>('classic');
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   useEffect(() => {
@@ -50,8 +53,14 @@ export default function IDCardSettings() {
     if (data) {
       const student = data.find(d => d.card_type === 'student');
       const staff = data.find(d => d.card_type === 'staff');
-      if (student) setStudentFields(student.fields || []);
-      if (staff) setStaffFields(staff.fields || []);
+      if (student) {
+        setStudentFields(student.fields || []);
+        if (student.template) setStudentTemplate(student.template as TemplateId);
+      }
+      if (staff) {
+        setStaffFields(staff.fields || []);
+        if (staff.template) setStaffTemplate(staff.template as TemplateId);
+      }
     }
     setLoading(false);
   };
@@ -70,6 +79,7 @@ export default function IDCardSettings() {
     setMessage(null);
 
     const targetFields = activeTab === 'student' ? studentFields : staffFields;
+    const targetTemplate = activeTab === 'student' ? studentTemplate : staffTemplate;
 
     const { error } = await supabase
       .from('id_card_settings')
@@ -77,6 +87,7 @@ export default function IDCardSettings() {
         school_id: userRole.school_id,
         card_type: activeTab,
         fields: targetFields,
+        template: targetTemplate,
       }, { onConflict: 'school_id,card_type' });
 
     if (error) {
@@ -148,6 +159,34 @@ export default function IDCardSettings() {
         </div>
 
         <div className="p-8">
+          {/* Template Picker */}
+          <div className="mb-8">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Card Template</p>
+            <div className="flex gap-3 flex-wrap">
+              {TEMPLATES.map(t => {
+                const isSelected = (activeTab === 'student' ? studentTemplate : staffTemplate) === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => activeTab === 'student' ? setStudentTemplate(t.id) : setStaffTemplate(t.id)}
+                    className={cn(
+                      'flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all w-28',
+                      isSelected ? 'border-indigo-600 bg-indigo-50 shadow-lg shadow-indigo-100' : 'border-slate-100 hover:border-slate-300 bg-white'
+                    )}
+                  >
+                    {/* Mini colour swatch */}
+                    <div style={{ width: 40, height: t.orientation === 'horizontal' ? 26 : 40, borderRadius: 4, background: t.preview, border: '1px solid rgba(0,0,0,0.08)' }} />
+                    <div className={cn('text-[10px] font-black uppercase tracking-tight text-center leading-tight', isSelected ? 'text-indigo-700' : 'text-slate-600')}>{t.name}</div>
+                    <div className={cn('text-[8px] uppercase tracking-widest font-bold', t.orientation === 'horizontal' ? 'text-cyan-500' : 'text-violet-400')}>
+                      {t.orientation}
+                    </div>
+                    {isSelected && <div className="w-3 h-3 rounded-full bg-indigo-600 flex items-center justify-center"><span style={{ color: 'white', fontSize: 8 }}>✓</span></div>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {availableFields.map(field => (
                 <div 

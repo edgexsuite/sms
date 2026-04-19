@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Printer, Users, CheckSquare, Square, CreditCard } from 'lucide-react';
-import QRCode from 'react-qr-code';
 import { cn } from '../../lib/utils';
+import { CardTemplate, TemplateId } from '../../lib/idCardTemplates';
 
 export default function DigitalIDCards() {
   const { userRole } = useAuth();
@@ -13,6 +13,7 @@ export default function DigitalIDCards() {
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [schoolInfo, setSchoolInfo] = useState<any>(null);
   const [activeFields, setActiveFields] = useState<string[]>([]);
+  const [template, setTemplate] = useState<TemplateId>('classic');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -29,7 +30,7 @@ export default function DigitalIDCards() {
   }, [selectedClass]);
 
   const fetchSchoolInfo = async () => {
-    const { data } = await supabase.from('schools').select('*').eq('id', userRole?.school_id).single();
+    const { data } = await supabase.from('schools').select('name, logo_url, address, contact_phone').eq('id', userRole?.school_id).single();
     if (data) setSchoolInfo(data);
   };
 
@@ -41,17 +42,18 @@ export default function DigitalIDCards() {
   const fetchSettings = async () => {
     const { data } = await supabase
       .from('id_card_settings')
-      .select('fields')
+      .select('fields, template')
       .eq('school_id', userRole?.school_id)
       .eq('card_type', 'student')
       .maybeSingle();
-    
+
     if (data?.fields) {
       setActiveFields(data.fields);
     } else {
       // Defaults
       setActiveFields(['roll_number', 'class_id', 'blood_group', 'emergency_contact']);
     }
+    setTemplate((data?.template as TemplateId) ?? 'classic');
   };
 
   const fetchStudents = async () => {
@@ -90,6 +92,7 @@ export default function DigitalIDCards() {
   };
 
   const currentClass = classes.find(c => c.id === selectedClass);
+  const isHorizontal = ['horizon', 'mint'].includes(template);
 
   return (
     <div className="space-y-6">
@@ -97,17 +100,20 @@ export default function DigitalIDCards() {
         @media print {
           .no-print { display: none !important; }
           body { background: white; margin: 0; padding: 0; }
-          .id-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10mm; justify-content: center; }
-          .id-card { 
-             width: 54mm; height: 86mm; 
-             page-break-inside: avoid; 
-             -webkit-print-color-adjust: exact !important; 
-             print-color-adjust: exact !important; 
-             border: 1px solid #ddd;
+          .id-grid { display: flex; flex-wrap: wrap; gap: 8mm; justify-content: center; }
+          .id-card {
+            width: ${isHorizontal ? '86mm' : '54mm'};
+            height: ${isHorizontal ? '54mm' : '86mm'};
+            page-break-inside: avoid;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
         }
         @media screen {
-          .id-card { width: 54mm; height: 86mm; }
+          .id-card {
+            width: ${isHorizontal ? '86mm' : '54mm'};
+            height: ${isHorizontal ? '54mm' : '86mm'};
+          }
         }
       `}</style>
       
@@ -163,62 +169,23 @@ export default function DigitalIDCards() {
         
         <div className="id-grid flex flex-wrap gap-8 justify-center bg-slate-100 p-12 rounded-[40px] print:p-0 print:bg-white print:gap-[10mm]">
           {students.filter(s => selectedStudents.has(s.id)).map(student => (
-            <div key={student.id} className="id-card bg-white rounded-xl shadow-lg relative overflow-hidden flex flex-col font-sans border border-slate-200">
-              {/* Header Curve */}
-              <div className="bg-blue-600 h-24 w-full absolute top-0 flex flex-col items-center justify-start pt-3" style={{ borderBottomLeftRadius: '50%', borderBottomRightRadius: '50%', transform: 'scaleX(1.2)' }}>
-              </div>
-              
-              {/* School Info */}
-              <div className="relative z-10 w-full text-center pt-2 px-2 pb-1">
-                <h2 className="text-white font-black text-[9px] leading-tight max-w-[45mm] mx-auto uppercase tracking-tighter">{schoolInfo?.name || 'School Name Here'}</h2>
-                <p className="text-blue-100 text-[6px] tracking-widest uppercase mt-0.5 font-black">STUDENT IDENTITY CARD</p>
-              </div>
-
-              {/* Photo Area */}
-              <div className="relative z-10 mx-auto mt-1 w-16 h-16 rounded-full border-[3px] border-white shadow-lg bg-slate-50 overflow-hidden flex items-center justify-center">
-                {student.photograph_url ? (
-                  <img src={student.photograph_url} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <Users className="w-8 h-8 text-slate-200" />
-                )}
-              </div>
-
-              {/* Student Details */}
-              <div className="flex-1 flex flex-col items-center text-center px-4 mt-2">
-                <h3 className="font-black text-[13px] text-slate-900 tracking-tight leading-tight uppercase">{student.full_name || 'STUDENT NAME'}</h3>
-                <span className="text-[9px] font-black text-blue-600 uppercase mt-0.5 tracking-wider bg-blue-50 px-2 py-0.5 rounded border border-blue-100 italic">CLASS: {currentClass ? `${currentClass.name} ${currentClass.section}` : '-'}</span>
-
-                <div className="w-full mt-3 flex flex-col gap-1.5 text-[9px] text-center border-t border-slate-100 pt-3 px-1">
-                   {activeFields.includes('roll_number') && (
-                     <div className="font-extrabold text-slate-800 tracking-wider">#{student.roll_number}</div>
-                   )}
-                   {activeFields.includes('blood_group') && (
-                     <div className="font-extrabold text-red-600 uppercase italic">BLOOD: {student.blood_group || 'N/A'}</div>
-                   )}
-                   {activeFields.includes('emergency_contact') && (
-                     <div className="font-extrabold text-slate-500">{student.parents?.whatsapp_number || 'N/A'}</div>
-                   )}
-                   {activeFields.includes('dob') && (
-                     <div className="font-bold text-slate-500">{student.dob || 'N/A'}</div>
-                   )}
-                   {activeFields.includes('address') && (
-                     <div className="font-medium text-slate-400 leading-tight block truncate uppercase italic line-clamp-1">{student.address || 'Not Provided'}</div>
-                   )}
-                </div>
-              </div>
-
-              {/* QR Code / Footer: Enlarged and Centered */}
-              <div className="flex-1 flex flex-col items-center justify-center p-3">
-                 <div className="bg-white p-2 rounded-xl border-2 border-slate-50 shadow-sm">
-                    <QRCode 
-                      value={JSON.stringify({ type: 'student_attendance', student_id: student.id, roll: student.roll_number })} 
-                      size={56} 
-                      level="M" 
-                    />
-                 </div>
-                 {/* Aura Brand Accent Line */}
-                 <div className="mt-3 w-8 h-1 bg-blue-600 rounded-full opacity-20" />
-              </div>
+            <div key={student.id} className="id-card shadow-lg">
+              <CardTemplate
+                template={template}
+                mode="student"
+                name={student.full_name}
+                photo={student.photograph_url}
+                className={currentClass ? `${currentClass.name} ${currentClass.section}` : ''}
+                rollNumber={student.roll_number}
+                schoolName={schoolInfo?.name || ''}
+                schoolLogo={schoolInfo?.logo_url || null}
+                qrValue={JSON.stringify({ type: 'student_attendance', student_id: student.id, roll: student.roll_number })}
+                activeFields={activeFields}
+                bloodGroup={student.blood_group}
+                dob={student.dob}
+                phone={student.parents?.whatsapp_number}
+                address={student.address}
+              />
             </div>
           ))}
         </div>
