@@ -129,6 +129,8 @@ export default function QRScanner() {
   const [cameraStatus, setCameraStatus] = useState<'idle' | 'starting' | 'active' | 'error'>('idle');
   const [cameraError, setCameraError] = useState('');
   const [scannerKey, setScannerKey] = useState(0);
+  const [availableCameras, setAvailableCameras] = useState<{ id: string; label: string }[]>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState<string>(''); // '' = auto
 
   /* ── Refs ── */
   const kioskRef = useRef<HTMLDivElement>(null);
@@ -137,10 +139,12 @@ export default function QRScanner() {
   const lateAfterRef = useRef(lateAfter);
   const schoolIdRef = useRef<string | undefined>(userRole?.school_id);
   const resultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const selectedCameraIdRef = useRef<string>('');
 
   useEffect(() => { gapRef.current = gapMinutes; }, [gapMinutes]);
   useEffect(() => { lateAfterRef.current = lateAfter; }, [lateAfter]);
   useEffect(() => { schoolIdRef.current = userRole?.school_id; }, [userRole]);
+  useEffect(() => { selectedCameraIdRef.current = selectedCameraId; }, [selectedCameraId]);
 
   /* ── Fetch today's DB stats ──────────────────────────────────────────── */
   const fetchDayStats = useCallback(async () => {
@@ -409,9 +413,17 @@ export default function QRScanner() {
         if (cancelled) return;
         if (!cams?.length) throw new Error('No camera found on this device');
 
-        /* Prefer labelled back/environment camera */
-        const cam = cams.find((c: any) => /back|rear|environment/i.test(c.label))
-          ?? cams[cams.length - 1];
+        /* Populate camera list for the settings picker */
+        if (!cancelled) setAvailableCameras(cams.map((c: any) => ({ id: c.id, label: c.label || c.id })));
+
+        /* Camera selection priority:
+           1. User-picked camera (selectedCameraId)
+           2. Front/user-facing camera (ideal for laptop kiosk facing students)
+           3. First available camera */
+        const currentSelected = selectedCameraIdRef.current;
+        const cam = (currentSelected && cams.find((c: any) => c.id === currentSelected))
+          ?? cams.find((c: any) => /front|user|facing/i.test(c.label))
+          ?? cams[0];
 
         await instance.start(
           cam.id,
@@ -827,6 +839,24 @@ export default function QRScanner() {
                   <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                     <Settings className="w-3 h-3" /> Kiosk Settings
                   </h3>
+
+                  {/* Camera Selector */}
+                  <div>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5 flex items-center gap-1">
+                      <Camera className="w-3 h-3 text-indigo-400" /> Camera
+                    </label>
+                    <select
+                      value={selectedCameraId}
+                      onChange={e => { setSelectedCameraId(e.target.value); setScannerKey(k => k + 1); }}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 transition"
+                    >
+                      <option value="">Auto (front-facing preferred)</option>
+                      {availableCameras.map(c => (
+                        <option key={c.id} value={c.id}>{c.label}</option>
+                      ))}
+                    </select>
+                    <p className="text-[9px] text-slate-600 mt-1">Changing camera restarts the scanner</p>
+                  </div>
 
                   {/* Session Name */}
                   <div>
