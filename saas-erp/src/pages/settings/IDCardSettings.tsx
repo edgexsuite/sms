@@ -3,10 +3,10 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   CreditCard, Layout, Save, CheckCircle2, AlertCircle,
-  Settings as SettingsIcon, Users, Briefcase, ChevronRight
+  Settings as SettingsIcon, Users, Briefcase, ChevronRight, Eye,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { TEMPLATES, TemplateId } from '../../lib/idCardTemplates';
+import { TEMPLATES, TemplateId, CardTemplate } from '../../lib/idCardTemplates';
 
 const STUDENT_FIELDS = [
   { id: 'roll_number', label: 'Roll Number' },
@@ -28,16 +28,47 @@ const STAFF_FIELDS = [
   { id: 'ref_id', label: 'Reference ID' },
 ];
 
+/* ── Sample dummy data for preview ───────────────────────────────────────── */
+const SAMPLE_STUDENT = {
+  mode: 'student' as const,
+  name: 'Ahmed Raza Khan',
+  photo: null,
+  className: 'Class 9-A',
+  rollNumber: 42,
+  schoolName: 'The Edge School',
+  schoolLogo: null,
+  qrValue: JSON.stringify({ type: 'student_attendance', student_id: 'preview' }),
+  bloodGroup: 'B+',
+  dob: '2009-03-15',
+  phone: '+92 300 1234567',
+  address: '24 Garden Town, Lahore',
+};
+
+const SAMPLE_STAFF = {
+  mode: 'staff' as const,
+  name: 'Sara Imtiaz',
+  photo: null,
+  role: 'Senior Teacher',
+  designation: 'Head of Science',
+  department: 'Science & Math',
+  joiningDate: '2019-08-01',
+  refId: 'EMP-0042',
+  phone: '+92 321 9876543',
+  schoolName: 'The Edge School',
+  schoolLogo: null,
+  qrValue: JSON.stringify({ type: 'staff_attendance', staff_id: 'preview' }),
+};
+
 export default function IDCardSettings() {
   const { userRole } = useAuth();
   const [activeTab, setActiveTab] = useState<'student' | 'staff'>('student');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [studentFields, setStudentFields] = useState<string[]>([]);
-  const [staffFields, setStaffFields] = useState<string[]>([]);
+  const [studentFields, setStudentFields] = useState<string[]>(['roll_number', 'blood_group', 'emergency_contact']);
+  const [staffFields, setStaffFields] = useState<string[]>(['designation', 'department', 'joining_date']);
   const [studentTemplate, setStudentTemplate] = useState<TemplateId>('classic');
   const [staffTemplate, setStaffTemplate] = useState<TemplateId>('classic');
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     if (userRole?.school_id) fetchSettings();
@@ -49,16 +80,16 @@ export default function IDCardSettings() {
       .from('id_card_settings')
       .select('*')
       .eq('school_id', userRole?.school_id);
-    
+
     if (data) {
       const student = data.find(d => d.card_type === 'student');
-      const staff = data.find(d => d.card_type === 'staff');
+      const staff   = data.find(d => d.card_type === 'staff');
       if (student) {
-        setStudentFields(student.fields || []);
+        setStudentFields(student.fields || ['roll_number', 'blood_group', 'emergency_contact']);
         if (student.template) setStudentTemplate(student.template as TemplateId);
       }
       if (staff) {
-        setStaffFields(staff.fields || []);
+        setStaffFields(staff.fields || ['designation', 'department', 'joining_date']);
         if (staff.template) setStaffTemplate(staff.template as TemplateId);
       }
     }
@@ -78,7 +109,7 @@ export default function IDCardSettings() {
     setSaving(true);
     setMessage(null);
 
-    const targetFields = activeTab === 'student' ? studentFields : staffFields;
+    const targetFields   = activeTab === 'student' ? studentFields   : staffFields;
     const targetTemplate = activeTab === 'student' ? studentTemplate : staffTemplate;
 
     const { error } = await supabase
@@ -86,15 +117,13 @@ export default function IDCardSettings() {
       .upsert({
         school_id: userRole.school_id,
         card_type: activeTab,
-        fields: targetFields,
-        template: targetTemplate,
+        fields:    targetFields,
+        template:  targetTemplate,
       }, { onConflict: 'school_id,card_type' });
 
-    if (error) {
-      setMessage({ type: 'error', text: 'Failed to save settings.' });
-    } else {
-      setMessage({ type: 'success', text: 'Settings updated successfully!' });
-    }
+    setMessage(error
+      ? { type: 'error',   text: 'Failed to save settings.' }
+      : { type: 'success', text: 'Settings saved!' });
     setSaving(false);
   };
 
@@ -104,127 +133,261 @@ export default function IDCardSettings() {
     </div>
   );
 
-  const availableFields = activeTab === 'student' ? STUDENT_FIELDS : STAFF_FIELDS;
-  const currentFields = activeTab === 'student' ? studentFields : staffFields;
+  const availableFields   = activeTab === 'student' ? STUDENT_FIELDS : STAFF_FIELDS;
+  const currentFields     = activeTab === 'student' ? studentFields  : staffFields;
+  const currentTemplate   = activeTab === 'student' ? studentTemplate : staffTemplate;
+  const setCurrentTemplate = (t: TemplateId) =>
+    activeTab === 'student' ? setStudentTemplate(t) : setStaffTemplate(t);
+
+  const selectedTemplateMeta = TEMPLATES.find(t => t.id === currentTemplate)!;
+  const isHorizontal = selectedTemplateMeta?.orientation === 'horizontal';
+
+  /* Preview card props */
+  const previewProps = activeTab === 'student'
+    ? { ...SAMPLE_STUDENT, activeFields: studentFields, template: studentTemplate }
+    : { ...SAMPLE_STAFF,   activeFields: staffFields,   template: staffTemplate };
+
+  /* Scale the physical mm card to fit the preview panel.
+     Vertical card ≈ 204×325px, Horizontal ≈ 325×204px at 96dpi.
+     We want max ~220px wide in the panel. */
+  const SCALE = isHorizontal ? 0.60 : 0.72;
+  const cardPxW = isHorizontal ? 325 : 204;
+  const cardPxH = isHorizontal ? 204 : 325;
+  const scaledW = Math.round(cardPxW * SCALE);
+  const scaledH = Math.round(cardPxH * SCALE);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-            <SettingsIcon className="w-6 h-6 text-indigo-600" /> ID Card Designer Settings
+            <SettingsIcon className="w-6 h-6 text-indigo-600" /> ID Card Designer
           </h1>
-          <p className="text-slate-500 text-sm mt-1">Select which data fields appear on each identity card.</p>
+          <p className="text-slate-500 text-sm mt-1">Choose a template and select fields for each card type.</p>
         </div>
-        <button 
+        <button
           onClick={saveSettings}
           disabled={saving}
           className="flex items-center gap-2 px-6 py-2 bg-[#0d1526] text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg active:scale-95 disabled:opacity-50"
         >
-          {saving ? 'Saving...' : <><Save className="w-4 h-4" /> Save Configuration</>}
+          {saving ? 'Saving…' : <><Save className="w-4 h-4" /> Save Configuration</>}
         </button>
       </div>
 
       {message && (
         <div className={cn(
-          "p-4 rounded-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2",
-          message.type === 'success' ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+          'p-4 rounded-2xl flex items-center gap-3',
+          message.type === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700',
         )}>
           {message.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
           <p className="text-sm font-bold">{message.text}</p>
         </div>
       )}
 
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
-        {/* Tabs */}
-        <div className="flex border-b border-slate-100">
-          <button 
-            onClick={() => setActiveTab('student')}
-            className={cn(
-              "flex-1 py-4 text-xs font-black uppercase tracking-widest transition-all",
-              activeTab === 'student' ? "bg-indigo-50 text-indigo-700 border-b-2 border-indigo-600" : "text-slate-400 hover:bg-slate-50"
-            )}
-          >
-            <Users className="w-4 h-4 inline-block mr-2" /> Student Card
-          </button>
-          <button 
-            onClick={() => setActiveTab('staff')}
-            className={cn(
-              "flex-1 py-4 text-xs font-black uppercase tracking-widest transition-all",
-              activeTab === 'staff' ? "bg-indigo-50 text-indigo-700 border-b-2 border-indigo-600" : "text-slate-400 hover:bg-slate-50"
-            )}
-          >
-            <Briefcase className="w-4 h-4 inline-block mr-2" /> Staff Card
-          </button>
-        </div>
+      {/* Main layout: settings left, preview right */}
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
 
-        <div className="p-8">
-          {/* Template Picker */}
-          <div className="mb-8">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Card Template</p>
-            <div className="flex gap-3 flex-wrap">
-              {TEMPLATES.map(t => {
-                const isSelected = (activeTab === 'student' ? studentTemplate : staffTemplate) === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => activeTab === 'student' ? setStudentTemplate(t.id) : setStaffTemplate(t.id)}
-                    className={cn(
-                      'flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all w-28',
-                      isSelected ? 'border-indigo-600 bg-indigo-50 shadow-lg shadow-indigo-100' : 'border-slate-100 hover:border-slate-300 bg-white'
-                    )}
-                  >
-                    {/* Mini colour swatch */}
-                    <div style={{ width: 40, height: t.orientation === 'horizontal' ? 26 : 40, borderRadius: 4, background: t.preview, border: '1px solid rgba(0,0,0,0.08)' }} />
-                    <div className={cn('text-[10px] font-black uppercase tracking-tight text-center leading-tight', isSelected ? 'text-indigo-700' : 'text-slate-600')}>{t.name}</div>
-                    <div className={cn('text-[8px] uppercase tracking-widest font-bold', t.orientation === 'horizontal' ? 'text-cyan-500' : 'text-violet-400')}>
-                      {t.orientation}
-                    </div>
-                    {isSelected && <div className="w-3 h-3 rounded-full bg-indigo-600 flex items-center justify-center"><span style={{ color: 'white', fontSize: 8 }}>✓</span></div>}
-                  </button>
-                );
-              })}
-            </div>
+        {/* ── LEFT: Settings panel ───────────────────────────────────────── */}
+        <div className="flex-1 min-w-0 bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
+
+          {/* Tabs */}
+          <div className="flex border-b border-slate-100">
+            <button
+              onClick={() => setActiveTab('student')}
+              className={cn(
+                'flex-1 py-4 text-xs font-black uppercase tracking-widest transition-all',
+                activeTab === 'student'
+                  ? 'bg-indigo-50 text-indigo-700 border-b-2 border-indigo-600'
+                  : 'text-slate-400 hover:bg-slate-50',
+              )}
+            >
+              <Users className="w-4 h-4 inline-block mr-2" /> Student Card
+            </button>
+            <button
+              onClick={() => setActiveTab('staff')}
+              className={cn(
+                'flex-1 py-4 text-xs font-black uppercase tracking-widest transition-all',
+                activeTab === 'staff'
+                  ? 'bg-indigo-50 text-indigo-700 border-b-2 border-indigo-600'
+                  : 'text-slate-400 hover:bg-slate-50',
+              )}
+            >
+              <Briefcase className="w-4 h-4 inline-block mr-2" /> Staff Card
+            </button>
           </div>
 
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {availableFields.map(field => (
-                <div 
-                  key={field.id}
-                  onClick={() => toggleField(field.id)}
-                  className={cn(
-                    "flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer group",
-                    currentFields.includes(field.id) 
-                      ? "bg-indigo-50 border-indigo-200 shadow-sm" 
-                      : "bg-white border-slate-100 hover:border-slate-300"
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={cn(
-                      "w-6 h-6 rounded-full flex items-center justify-center transition-all",
-                      currentFields.includes(field.id) ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-300 group-hover:bg-slate-200"
-                    )}>
-                      {currentFields.includes(field.id) && <CheckCircle2 className="w-4 h-4" />}
-                    </div>
-                    <p className={cn("text-xs font-bold uppercase tracking-tight", currentFields.includes(field.id) ? "text-indigo-900" : "text-slate-600")}>
-                      {field.label}
-                    </p>
-                  </div>
-                  <ChevronRight className={cn("w-4 h-4 transition-all", currentFields.includes(field.id) ? "text-indigo-600 translate-x-1" : "text-slate-200 group-hover:text-slate-300")} />
-                </div>
-              ))}
-           </div>
+          <div className="p-6 space-y-8">
 
-           <div className="mt-8 p-6 bg-slate-50 rounded-2xl border border-slate-200 flex items-start gap-4">
-              <div className="p-2 bg-white rounded-xl shadow-sm">
-                 <Layout className="w-5 h-5 text-indigo-600" />
+            {/* Template Picker */}
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Card Template</p>
+              <div className="flex gap-3 flex-wrap">
+                {TEMPLATES.map(t => {
+                  const isSelected = currentTemplate === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => setCurrentTemplate(t.id)}
+                      className={cn(
+                        'flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all w-24 relative',
+                        isSelected
+                          ? 'border-indigo-600 bg-indigo-50 shadow-md shadow-indigo-100'
+                          : 'border-slate-100 hover:border-slate-300 bg-white',
+                      )}
+                    >
+                      {/* Colour swatch shaped like the card orientation */}
+                      <div style={{
+                        width: t.orientation === 'horizontal' ? 44 : 30,
+                        height: t.orientation === 'horizontal' ? 28 : 44,
+                        borderRadius: 5,
+                        background: t.preview,
+                        border: '1px solid rgba(0,0,0,0.08)',
+                        flexShrink: 0,
+                      }} />
+                      <div className={cn(
+                        'text-[9px] font-black uppercase tracking-tight text-center leading-tight',
+                        isSelected ? 'text-indigo-700' : 'text-slate-600',
+                      )}>{t.name}</div>
+                      <div className={cn(
+                        'text-[8px] uppercase tracking-widest font-bold',
+                        t.orientation === 'horizontal' ? 'text-cyan-500' : 'text-violet-400',
+                      )}>{t.orientation}</div>
+                      {isSelected && (
+                        <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-indigo-600 border-2 border-white flex items-center justify-center">
+                          <CheckCircle2 className="w-3 h-3 text-white" />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Fields */}
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Visible Fields</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {availableFields.map(field => (
+                  <div
+                    key={field.id}
+                    onClick={() => toggleField(field.id)}
+                    className={cn(
+                      'flex items-center justify-between p-3.5 rounded-2xl border transition-all cursor-pointer group',
+                      currentFields.includes(field.id)
+                        ? 'bg-indigo-50 border-indigo-200 shadow-sm'
+                        : 'bg-white border-slate-100 hover:border-slate-300',
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        'w-5 h-5 rounded-full flex items-center justify-center transition-all shrink-0',
+                        currentFields.includes(field.id)
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-slate-100 text-slate-300 group-hover:bg-slate-200',
+                      )}>
+                        {currentFields.includes(field.id) && <CheckCircle2 className="w-3.5 h-3.5" />}
+                      </div>
+                      <p className={cn(
+                        'text-xs font-bold uppercase tracking-tight',
+                        currentFields.includes(field.id) ? 'text-indigo-900' : 'text-slate-600',
+                      )}>
+                        {field.label}
+                      </p>
+                    </div>
+                    <ChevronRight className={cn(
+                      'w-4 h-4 transition-all',
+                      currentFields.includes(field.id)
+                        ? 'text-indigo-600 translate-x-0.5'
+                        : 'text-slate-200 group-hover:text-slate-300',
+                    )} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Info footer */}
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-start gap-3">
+              <div className="p-1.5 bg-white rounded-lg shadow-sm shrink-0">
+                <Layout className="w-4 h-4 text-indigo-600" />
+              </div>
+              <p className="text-[11px] text-slate-400 font-medium leading-relaxed">
+                Changes saved here reflect immediately in the{' '}
+                <span className="font-black text-slate-600">
+                  {activeTab === 'student' ? 'Digital ID Cards' : 'Staff ID Cards'}
+                </span>{' '}
+                module. The preview on the right updates live as you select templates and toggle fields.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── RIGHT: Live Preview ────────────────────────────────────────── */}
+        <div className="lg:w-72 xl:w-80 shrink-0 lg:sticky lg:top-6">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
+
+            {/* Preview header */}
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+              <div className="w-7 h-7 rounded-xl bg-indigo-50 flex items-center justify-center">
+                <Eye className="w-3.5 h-3.5 text-indigo-600" />
               </div>
               <div>
-                 <p className="text-xs font-black text-slate-800 uppercase tracking-widest mb-1">Live Preview Logic</p>
-                 <p className="text-[11px] text-slate-400 font-medium leading-relaxed">Changes saved here will immediately reflect in the {activeTab === 'student' ? 'Digital ID Cards' : 'Staff ID Cards'} module. Only selected fields will be rendered on the printable cards to ensure high density and clarity.</p>
+                <p className="text-xs font-black text-slate-800 uppercase tracking-widest">Live Preview</p>
+                <p className="text-[10px] text-slate-400 font-medium">
+                  {selectedTemplateMeta?.name} · {selectedTemplateMeta?.orientation}
+                </p>
               </div>
-           </div>
+            </div>
+
+            {/* Card preview area */}
+            <div className="flex flex-col items-center justify-center p-6 bg-[radial-gradient(circle,#e2e8f0_1px,transparent_1px)] bg-[size:12px_12px] bg-slate-50 min-h-[280px]">
+              {/* Scale wrapper — card renders at physical mm size, we scale it down */}
+              <div style={{
+                width:  scaledW,
+                height: scaledH,
+                overflow: 'hidden',
+                borderRadius: 6,
+                boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+              }}>
+                <div style={{
+                  transform: `scale(${SCALE})`,
+                  transformOrigin: 'top left',
+                  width:  cardPxW,
+                  height: cardPxH,
+                }}>
+                  <CardTemplate {...previewProps as any} />
+                </div>
+              </div>
+
+              {/* Template name badge */}
+              <div className="mt-4 flex items-center gap-2">
+                <div
+                  className="w-2.5 h-2.5 rounded-full"
+                  style={{ background: selectedTemplateMeta?.preview }}
+                />
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                  {selectedTemplateMeta?.name}
+                </span>
+                <span className={cn(
+                  'text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full',
+                  isHorizontal
+                    ? 'bg-cyan-50 text-cyan-600'
+                    : 'bg-violet-50 text-violet-600',
+                )}>
+                  {selectedTemplateMeta?.orientation}
+                </span>
+              </div>
+            </div>
+
+            {/* Sample data note */}
+            <div className="px-5 py-3 border-t border-slate-100 bg-amber-50">
+              <p className="text-[10px] text-amber-700 font-bold text-center">
+                ✦ Preview uses sample data · Actual cards show real student/staff info
+              </p>
+            </div>
+          </div>
         </div>
+
       </div>
     </div>
   );
