@@ -97,6 +97,8 @@ export default function RegisterStudent() {
   const [photoFiles, setPhotoFiles] = useState<(File | null)[]>([null]);
   const [photoPreviews, setPhotoPreviews] = useState<(string | null)[]>([null]);
   const [photoErrors, setPhotoErrors] = useState<(string | null)[]>([null]);
+  const [photoProcessing, setPhotoProcessing] = useState<boolean[]>([false]);
+  const [photoSizes, setPhotoSizes] = useState<(string | null)[]>([null]); // "12.3 KB WebP"
   const photoInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
@@ -360,7 +362,7 @@ export default function RegisterStudent() {
     setStudents(updatedStudents);
   };
 
-  const handlePhotoChange = (index: number, file: File | null) => {
+  const handlePhotoChange = async (index: number, file: File | null) => {
     if (!file) return;
 
     // Validate type
@@ -369,14 +371,46 @@ export default function RegisterStudent() {
       return;
     }
 
-    // Show immediate preview from raw file
+    // Reject if raw file is larger than 20 KB
+    if (file.size > 20 * 1024) {
+      const errs = [...photoErrors];
+      errs[index] = 'Photo must be under 20 KB. Please compress and resize the image before uploading.';
+      setPhotoErrors(errs);
+      return;
+    }
+
+    // Show raw preview immediately while processing runs in background
     const prev = [...photoPreviews];
     if (prev[index]) URL.revokeObjectURL(prev[index]!);
     prev[index] = URL.createObjectURL(file);
     setPhotoPreviews(prev);
 
-    const files = [...photoFiles]; files[index] = file; setPhotoFiles(files);
+    // Clear old error + size, mark processing
     const errs = [...photoErrors]; errs[index] = null; setPhotoErrors(errs);
+    const sizes = [...photoSizes]; sizes[index] = null; setPhotoSizes(sizes);
+    const proc = [...photoProcessing]; proc[index] = true; setPhotoProcessing(proc);
+
+    try {
+      const result = await import('../../lib/uploadUtils').then(m => m.processStudentPhoto(file));
+      // Replace preview with compressed WebP blob URL
+      if (prev[index]) URL.revokeObjectURL(prev[index]!);
+      const newPrev = [...photoPreviews];
+      newPrev[index] = URL.createObjectURL(result.blob);
+      setPhotoPreviews(newPrev);
+
+      // Store processed blob as a synthetic File so upload step can use it
+      const processedFile = new File([result.blob], `photo.${result.format}`, { type: `image/${result.format}` });
+      const files = [...photoFiles]; files[index] = processedFile; setPhotoFiles(files);
+
+      const newSizes = [...photoSizes];
+      newSizes[index] = `${result.sizeKB} KB · ${result.format.toUpperCase()}`;
+      setPhotoSizes(newSizes);
+    } catch (err: any) {
+      const newErrs = [...photoErrors]; newErrs[index] = err.message || 'Failed to process image.'; setPhotoErrors(newErrs);
+      clearPhoto(index);
+    } finally {
+      const proc = [...photoProcessing]; proc[index] = false; setPhotoProcessing(proc);
+    }
   };
 
   const clearPhoto = (index: number) => {
@@ -384,6 +418,7 @@ export default function RegisterStudent() {
     const prev = [...photoPreviews]; prev[index] = null; setPhotoPreviews(prev);
     const files = [...photoFiles]; files[index] = null; setPhotoFiles(files);
     const errs = [...photoErrors]; errs[index] = null; setPhotoErrors(errs);
+    const sizes = [...photoSizes]; sizes[index] = null; setPhotoSizes(sizes);
     if (photoInputRefs.current[index]) photoInputRefs.current[index]!.value = '';
   };
 
@@ -392,6 +427,8 @@ export default function RegisterStudent() {
     setPhotoFiles([...photoFiles, null]);
     setPhotoPreviews([...photoPreviews, null]);
     setPhotoErrors([...photoErrors, null]);
+    setPhotoProcessing([...photoProcessing, false]);
+    setPhotoSizes([...photoSizes, null]);
   };
 
   const removeStudent = (index: number) => {
@@ -400,6 +437,8 @@ export default function RegisterStudent() {
     setPhotoFiles(photoFiles.filter((_, i) => i !== index));
     setPhotoPreviews(photoPreviews.filter((_, i) => i !== index));
     setPhotoErrors(photoErrors.filter((_, i) => i !== index));
+    setPhotoProcessing(photoProcessing.filter((_, i) => i !== index));
+    setPhotoSizes(photoSizes.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -471,11 +510,11 @@ export default function RegisterStudent() {
 
         if (studentUpdateErr) throw studentUpdateErr;
 
-        // 3. Handle photo upload
+        // 3. Handle photo upload — file is already processed (WebP/JPEG blob)
         const file = photoFiles[0];
         if (file) {
-          const blob = await processStudentPhoto(file);
-          const url = await uploadFile(`${userRole.school_id}/students/${studentId}`, blob);
+          const fmt = file.type.includes('webp') ? 'webp' : 'jpeg';
+          const url = await uploadFile(`${userRole.school_id}/students/${studentId}`, file, fmt);
           await supabase.from('students').update({ photograph_url: url }).eq('id', studentId);
         }
 
@@ -576,16 +615,17 @@ export default function RegisterStudent() {
         .select('id');
       if (studentError) throw studentError;
 
-      // Upload photos (compress → 150×180 px, ≤ 20 KB)
+      // Upload photos — already processed as WebP/JPEG blobs by handlePhotoChange
       if (insertedStudents) {
         for (let i = 0; i < insertedStudents.length; i++) {
           const file = photoFiles[i];
           if (!file) continue;
           try {
-            const blob = await processStudentPhoto(file);
+            const fmt = file.type.includes('webp') ? 'webp' : 'jpeg';
             const url = await uploadFile(
               `${userRole.school_id}/students/${insertedStudents[i].id}`,
-              blob
+              file,
+              fmt
             );
             await supabase
               .from('students')
@@ -994,14 +1034,24 @@ export default function RegisterStudent() {
                       ref={el => { photoInputRefs.current[index] = el; }}
                       onChange={e => handlePhotoChange(index, e.target.files?.[0] ?? null)}
                     />
-                    {photoPreviews[index] ? (
-                      <div className="relative">
+                    {photoProcessing[index] ? (
+                      <div className="flex flex-col items-center justify-center border-2 border-dashed border-indigo-300 rounded-lg p-4 bg-indigo-50 w-full h-full gap-2">
+                        <div className="w-7 h-7 border-[3px] border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                        <span className="text-xs text-indigo-600 font-semibold">Converting to WebP…</span>
+                      </div>
+                    ) : photoPreviews[index] ? (
+                      <div className="relative flex flex-col items-center gap-1">
                         <img
                           src={photoPreviews[index]!}
                           alt="Preview"
                           style={{ width: PHOTO_WIDTH, height: PHOTO_HEIGHT, objectFit: 'cover' }}
                           className="rounded border-2 border-blue-300"
                         />
+                        {photoSizes[index] && (
+                          <span className="text-[10px] font-bold tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                            {photoSizes[index]}
+                          </span>
+                        )}
                         <button
                           type="button"
                           onClick={() => clearPhoto(index)}
@@ -1012,7 +1062,7 @@ export default function RegisterStudent() {
                         <button
                           type="button"
                           onClick={() => photoInputRefs.current[index]?.click()}
-                          className="mt-1 text-xs text-blue-600 hover:underline w-full text-center"
+                          className="text-xs text-blue-600 hover:underline w-full text-center"
                         >
                           Change
                         </button>
@@ -1026,7 +1076,7 @@ export default function RegisterStudent() {
                         <Camera className="w-8 h-8 text-gray-400 mb-2" />
                         <span className="text-sm text-gray-600 font-medium">Upload Photo</span>
                         <span className="text-xs text-gray-400 mt-1">
-                          {PHOTO_WIDTH}×{PHOTO_HEIGHT}px • max {PHOTO_MAX_BYTES / 1024}KB
+                          {PHOTO_WIDTH}×{PHOTO_HEIGHT}px • auto-compressed
                         </span>
                       </button>
                     )}
@@ -1035,10 +1085,9 @@ export default function RegisterStudent() {
                     )}
                     <div className="mt-2 text-xs text-gray-500 text-center space-y-0.5">
                       <p className="font-medium text-gray-600">Photo Requirements:</p>
-                      <p>• Size: max <span className="font-semibold">20 KB</span></p>
+                      <p>• Output: max <span className="font-semibold">20 KB</span></p>
                       <p>• Dimensions: <span className="font-semibold">{PHOTO_WIDTH} × {PHOTO_HEIGHT} px</span></p>
-                      <p>• Format: JPG / PNG</p>
-                      <p className="text-blue-500 italic">Auto-resized on upload</p>
+                      <p className="text-indigo-500 font-semibold">Auto-converted to WebP ≤ 20 KB</p>
                     </div>
                   </div>
                 </div>

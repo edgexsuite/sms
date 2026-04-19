@@ -50,6 +50,8 @@ export default function Staff() {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [photoProcessing, setPhotoProcessing] = useState(false);
+  const [photoSize, setPhotoSize] = useState<string | null>(null);
   const photoInputRef = React.useRef<HTMLInputElement>(null);
 
   // Bulk Selection States
@@ -91,6 +93,8 @@ export default function Staff() {
     setPhotoFile(null);
     setPhotoPreview(null);
     setPhotoError(null);
+    setPhotoProcessing(false);
+    setPhotoSize(null);
     setShowForm(true);
   };
 
@@ -109,6 +113,8 @@ export default function Staff() {
     setPhotoFile(null);
     setPhotoPreview(s.photograph_url || null);
     setPhotoError(null);
+    setPhotoProcessing(false);
+    setPhotoSize(null);
     setShowForm(true);
   };
 
@@ -149,11 +155,11 @@ export default function Staff() {
         staffId = newStaff.id;
       }
 
-      // Handle Photo Upload if selected
+      // Handle Photo Upload if selected (file is already WebP-processed in handlePhotoChange)
       if (photoFile && staffId) {
         try {
-          const blob = await processStudentPhoto(photoFile);
-          photoUrl = await uploadFile(`${userRole?.school_id}/staff/${staffId}`, blob);
+          const ext = photoFile.name.endsWith('.jpeg') ? 'jpeg' : 'webp';
+          photoUrl = await uploadFile(`${userRole?.school_id}/staff/${staffId}`, photoFile, ext as 'webp' | 'jpeg');
           await supabase.from('staff').update({ photograph_url: photoUrl }).eq('id', staffId);
         } catch (photoErr) {
           console.error('Photo upload failed:', photoErr);
@@ -184,15 +190,34 @@ export default function Staff() {
     }, 500);
   };
 
-  const handlePhotoChange = (file: File | null) => {
+  const handlePhotoChange = async (file: File | null) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       setPhotoError('Please select an image file.');
       return;
     }
-    setPhotoFile(file);
-    setPhotoPreview(URL.createObjectURL(file));
+    if (file.size > 20 * 1024) {
+      setPhotoError('Photo must be under 20 KB. Please compress and resize the image before uploading.');
+      return;
+    }
     setPhotoError(null);
+    setPhotoSize(null);
+    // Show raw preview immediately
+    setPhotoPreview(URL.createObjectURL(file));
+    setPhotoProcessing(true);
+    try {
+      const result = await processStudentPhoto(file);
+      const processedFile = new File([result.blob], `photo.${result.format}`, { type: result.blob.type });
+      setPhotoFile(processedFile);
+      setPhotoPreview(URL.createObjectURL(result.blob));
+      setPhotoSize(`${result.sizeKB} KB · ${result.format.toUpperCase()}`);
+    } catch (err: any) {
+      setPhotoError(err.message || 'Failed to process image.');
+      setPhotoFile(null);
+      setPhotoPreview(null);
+    } finally {
+      setPhotoProcessing(false);
+    }
   };
 
   const handleToggleActive = async (s: any) => {
@@ -599,7 +624,12 @@ export default function Staff() {
                 <div className="flex flex-col items-center justify-center space-y-3 bg-gray-50 p-6 rounded-2xl border-2 border-dashed border-gray-200">
                   <div className="relative group">
                     <div className="w-32 h-32 rounded-3xl bg-white shadow-lg overflow-hidden border-4 border-white group-hover:border-indigo-100 transition-all">
-                      {photoPreview ? (
+                      {photoProcessing ? (
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-indigo-50 gap-2">
+                          <div className="w-7 h-7 border-[3px] border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                          <span className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest">Converting…</span>
+                        </div>
+                      ) : photoPreview ? (
                         <img src={photoPreview} className="w-full h-full object-cover" alt="Preview" />
                       ) : formData.photograph_url ? (
                         <img src={formData.photograph_url} className="w-full h-full object-cover" alt="Profile" />
@@ -610,9 +640,10 @@ export default function Staff() {
                         </div>
                       )}
                     </div>
-                    <button 
+                    <button
                       onClick={() => photoInputRef.current?.click()}
                       className="absolute -bottom-2 -right-2 bg-indigo-600 text-white p-2.5 rounded-2xl shadow-xl hover:bg-indigo-700 transition-all hover:scale-110 active:scale-95"
+                      disabled={photoProcessing}
                     >
                       <Camera className="w-5 h-5" />
                     </button>
@@ -620,7 +651,14 @@ export default function Staff() {
                   </div>
                   <div className="text-center">
                     <h4 className="text-sm font-bold text-gray-900 uppercase tracking-tight">Staff Photograph</h4>
-                    <p className="text-[10px] text-gray-400 font-medium tracking-wide">JPG/PNG up to 2MB</p>
+                    {photoSize ? (
+                      <span className="text-[10px] font-bold tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        {photoSize}
+                      </span>
+                    ) : (
+                      <p className="text-[10px] text-indigo-500 font-semibold tracking-wide">Auto-converted to WebP ≤ 20 KB</p>
+                    )}
+                    {photoError && <p className="text-[10px] text-red-500 mt-1">{photoError}</p>}
                   </div>
                 </div>
 
