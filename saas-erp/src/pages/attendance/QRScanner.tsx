@@ -478,8 +478,8 @@ export default function QRScanner() {
     <div
       ref={kioskRef}
       className={cn(
-        'bg-slate-950 text-white overflow-hidden select-none',
-        isFullscreen ? 'fixed inset-0 z-[200]' : 'rounded-2xl',
+        'bg-slate-950 text-white overflow-hidden select-none flex flex-col',
+        isFullscreen ? 'fixed inset-0 z-[200]' : 'rounded-2xl min-h-[88vh]',
       )}
     >
       {/* ─── Global CSS ─────────────────────────────────────────────────── */}
@@ -492,16 +492,29 @@ export default function QRScanner() {
           56%  { top: 12%; opacity: 1; }
           100% { top: 12%; opacity: 1; }
         }
-        [id^="qr-reader-"] { border: none !important; background: transparent !important; }
+        [id^="qr-reader-"] {
+          border: none !important;
+          background: transparent !important;
+          height: 100% !important;
+          width: 100% !important;
+          position: absolute !important;
+          inset: 0 !important;
+        }
         [id^="qr-reader-"] > div:first-child { display: none !important; }
         [id^="qr-reader-"] video {
-          display: block !important; width: 100% !important;
-          max-width: 100% !important; height: auto !important;
-          min-height: 300px !important; border-radius: 0 !important;
+          display: block !important;
+          width: 100% !important;
+          height: 100% !important;
+          max-width: 100% !important;
+          border-radius: 0 !important;
           object-fit: cover !important;
+          position: absolute !important;
+          inset: 0 !important;
         }
         [id^="qr-reader-"] canvas { display: none !important; }
         [id^="qr-reader-"] img    { display: none !important; }
+        [id$="__scan_region"] > img { display: none !important; }
+        [id$="__scan_region"] { height: 100% !important; }
         [id$="__dashboard"]              { display: none !important; }
         [id$="__status_span"]            { display: none !important; }
         [id$="__header_message"]         { display: none !important; }
@@ -509,6 +522,8 @@ export default function QRScanner() {
         [id$="__header_message"] ~ div   { display: none !important; }
         button[id$="__camera_selection_change_btn"] { display: none !important; }
         select[id$="__camera_selection"]            { display: none !important; }
+        /* Hide the qr box overlay drawn by html5-qrcode */
+        [id$="__scan_region"] > div { display: none !important; }
       `}</style>
 
       {/* ─── TOP BAR ────────────────────────────────────────────────────── */}
@@ -575,10 +590,10 @@ export default function QRScanner() {
       </div>
 
       {/* ─── BODY ───────────────────────────────────────────────────────── */}
-      <div className="flex flex-col lg:flex-row">
+      <div className="flex flex-col lg:flex-row flex-1 min-h-0">
 
         {/* ─── LEFT: Stats + Camera + Manual ──────────────────────────── */}
-        <div className="flex-1 flex flex-col gap-3 p-4 min-w-0">
+        <div className="flex-1 flex flex-col gap-3 p-4 min-w-0 min-h-0">
 
           {/* Today's Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -589,10 +604,7 @@ export default function QRScanner() {
           </div>
 
           {/* Camera Area */}
-          <div
-            className="relative rounded-2xl overflow-hidden bg-slate-900 border border-slate-800"
-            style={{ minHeight: 360 }}
-          >
+          <div className="relative rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 flex-1 min-h-0" style={{ minHeight: 320 }}>
             {/* html5-qrcode mounts here — fresh DOM id per retry */}
             <div id={elementId} style={{ width: '100%' }} />
 
@@ -778,6 +790,23 @@ export default function QRScanner() {
                 ? cameraError
                 : 'Waiting for camera…'}
             </p>
+          </div>
+
+          {/* Quick-link to existing ID card pages */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">Print ID Cards:</span>
+            <a
+              href="/students/digital-id"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl text-[11px] font-bold transition-all border border-slate-700"
+            >
+              <GraduationCap className="w-3 h-3" /> Students
+            </a>
+            <a
+              href="/staff/digital-id"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl text-[11px] font-bold transition-all border border-slate-700"
+            >
+              <Briefcase className="w-3 h-3" /> Staff
+            </a>
           </div>
         </div>
 

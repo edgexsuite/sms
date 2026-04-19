@@ -5,7 +5,7 @@ import {
   CalendarOff, ClipboardList, AlertTriangle, Wallet, TrendingUp, PiggyBank,
   Banknote, DollarSign, Scale, BarChart3, BarChart2, ClipboardCheck, UserX,
   LineChart, Library, Home, Bell, Key, Trash2, Box, Package, Clock, Palette,
-  Receipt, Layers, BookMarked, Landmark, BarChart, LifeBuoy, QrCode
+  Receipt, Layers, BookMarked, Landmark, BarChart, LifeBuoy
 } from 'lucide-react';
 
 export const ALL_ADMIN = ['admin', 'principal', 'director'];
@@ -100,7 +100,6 @@ export const NAV_SECTIONS = [
           { name: 'Staff Attendance', path: '/attendance/staff', icon: Briefcase, roles: ALL_ADMIN },
           { name: 'Staff Report', path: '/attendance/staff-report', icon: LineChart, roles: ALL_ADMIN },
           { name: 'Smart Kiosk', path: '/attendance/scanner', icon: Wifi, roles: ALL_STAFF },
-          { name: 'QR Cards', path: '/attendance/qr-cards', icon: QrCode, roles: ALL_STAFF },
           { name: 'SMS History', path: '/attendance/sms-history', icon: MessageSquare, roles: ALL_STAFF },
         ]
       },
