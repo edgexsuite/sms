@@ -106,8 +106,26 @@ export default function ImportStaffModal({ onClose, onSuccess }: ImportStaffModa
             // Handle numeric / date conversions
             if (dbCol === 'salary') val = parseFloat(val) || 0;
             if (dbCol === 'joining_date' || dbCol === 'dob') {
-              if (val instanceof Date) val = val.toISOString().split('T')[0];
-              if (typeof val === 'string' && val.trim() === '') val = null;
+              if (val instanceof Date) {
+                val = val.toISOString().split('T')[0];
+              } else if (typeof val === 'string' && val.trim() !== '') {
+                // Handle DD-MM-YYYY, DD/MM/YYYY, DD.MM.YYYY formats
+                const cleaned = val.trim();
+                const separatorMatch = cleaned.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+                if (separatorMatch) {
+                  const [, d, m, y] = separatorMatch;
+                  val = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+                }
+                // Handle YYYY-MM-DD (already correct) — no change needed
+                // Handle Excel serial date numbers
+              } else if (typeof val === 'number') {
+                // Excel serial date → JS Date → ISO string
+                const excelEpoch = new Date(1899, 11, 30);
+                const jsDate = new Date(excelEpoch.getTime() + val * 86400000);
+                val = jsDate.toISOString().split('T')[0];
+              } else {
+                val = null;
+              }
             }
 
             payload[dbCol] = val;

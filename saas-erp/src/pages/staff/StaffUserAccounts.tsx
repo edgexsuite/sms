@@ -4,7 +4,7 @@ import { useAuth, PermissionSet } from '../../contexts/AuthContext';
 import {
   UserPlus, Shield, ShieldOff, Key, Trash2, Search, RefreshCw,
   CheckCircle, XCircle, Clock, Eye, EyeOff, Copy, AlertTriangle,
-  ChevronRight, Users, Lock, Unlock, Settings, X, Save
+  ChevronRight, Users, Lock, Unlock, Settings, X, Save, MessageCircle
 } from 'lucide-react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -32,28 +32,28 @@ const SYSTEM_ROLES = ['director', 'principal', 'admin', 'teacher', 'staff', 'acc
 type SystemRole = typeof SYSTEM_ROLES[number];
 
 const ROLE_COLORS: Record<string, string> = {
-  director:   'bg-slate-900 text-white border-slate-700 shadow-md ring-1 ring-slate-800',
-  principal:  'bg-blue-700 text-white border-blue-600 shadow-sm',
-  admin:      'bg-red-600 text-white border-red-500 shadow-sm',
-  teacher:    'bg-blue-500/15 text-blue-400 border-blue-500/30',
-  staff:      'bg-violet-500/15 text-violet-400 border-violet-500/30',
+  director: 'bg-slate-900 text-white border-slate-700 shadow-md ring-1 ring-slate-800',
+  principal: 'bg-blue-700 text-white border-blue-600 shadow-sm',
+  admin: 'bg-red-600 text-white border-red-500 shadow-sm',
+  teacher: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+  staff: 'bg-violet-500/15 text-violet-400 border-violet-500/30',
   accountant: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
-  librarian:  'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+  librarian: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
 };
 
 const MODULES = [
   { key: 'students', label: 'Students Module' },
   { key: 'academic', label: 'Academic Suite' },
-  { key: 'finance',  label: 'Financial Module' },
+  { key: 'finance', label: 'Financial Module' },
   { key: 'services', label: 'School Services' },
-  { key: 'reports',  label: 'Reporting Suite' },
+  { key: 'reports', label: 'Reporting Suite' },
   { key: 'settings', label: 'System Settings' },
 ];
 
 const ACTIONS = [
-  { key: 'delete_student',  label: 'Delete Students',  danger: true },
-  { key: 'delete_staff',    label: 'Delete Staff',     danger: true },
-  { key: 'delete_expenses', label: 'Delete Expenses',  danger: true },
+  { key: 'delete_student', label: 'Delete Students', danger: true },
+  { key: 'delete_staff', label: 'Delete Staff', danger: true },
+  { key: 'delete_expenses', label: 'Delete Expenses', danger: true },
 ];
 
 const ROLE_PRESETS: Record<string, PermissionSet> = {
@@ -70,26 +70,26 @@ const ROLE_PRESETS: Record<string, PermissionSet> = {
     actions: { delete_student: true, delete_staff: true, delete_expenses: true },
   },
   teacher: {
-    modules: { students: true,  academic: true,  finance: false, services: false, reports: false, settings: false },
+    modules: { students: true, academic: true, finance: false, services: false, reports: false, settings: false },
     actions: { delete_student: false, delete_staff: false, delete_expenses: false },
   },
   staff: {
-    modules: { students: true,  academic: false, finance: true,  services: true,  reports: false, settings: false },
+    modules: { students: true, academic: false, finance: true, services: true, reports: false, settings: false },
     actions: { delete_student: false, delete_staff: false, delete_expenses: false },
   },
   accountant: {
-    modules: { students: false, academic: false, finance: true,  services: false, reports: true,  settings: false },
+    modules: { students: false, academic: false, finance: true, services: false, reports: true, settings: false },
     actions: { delete_student: false, delete_staff: false, delete_expenses: true },
   },
   librarian: {
-    modules: { students: true,  academic: false, finance: false, services: true,  reports: false, settings: false },
+    modules: { students: true, academic: false, finance: false, services: true, reports: false, settings: false },
     actions: { delete_student: false, delete_staff: false, delete_expenses: false },
   },
 };
 
 function generatePassword(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#!';
-  return Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  const digits = Math.floor(1000 + Math.random() * 9000); // 4-digit random number (1000-9999)
+  return `Edge@${digits}`;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -98,38 +98,38 @@ export default function StaffUserAccounts() {
   const { userRole } = useAuth();
 
   // Data
-  const [staffList, setStaffList]       = useState<StaffWithAccount[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [selected, setSelected]         = useState<StaffWithAccount | null>(null);
+  const [staffList, setStaffList] = useState<StaffWithAccount[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<StaffWithAccount | null>(null);
 
   // Filters
-  const [search, setSearch]             = useState('');
+  const [search, setSearch] = useState('');
   const [filterAccess, setFilterAccess] = useState<'all' | 'has' | 'none'>('all');
 
   // Create-account form
-  const [showCreate, setShowCreate]     = useState(false);
-  const [createRole, setCreateRole]     = useState<SystemRole>('teacher');
-  const [createEmail, setCreateEmail]   = useState('');
-  const [createPass, setCreatePass]     = useState('');
-  const [showPass, setShowPass]         = useState(false);
-  const [creating, setCreating]         = useState(false);
-  const [createError, setCreateError]   = useState('');
+  const [showCreate, setShowCreate] = useState(false);
+  const [createRole, setCreateRole] = useState<SystemRole>('teacher');
+  const [createEmail, setCreateEmail] = useState('');
+  const [createPass, setCreatePass] = useState('');
+  const [showPass, setShowPass] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
   const [createSuccess, setCreateSuccess] = useState('');
 
   // Reset-password form
-  const [showReset, setShowReset]       = useState(false);
-  const [resetPass, setResetPass]       = useState('');
+  const [showReset, setShowReset] = useState(false);
+  const [resetPass, setResetPass] = useState('');
   const [showResetPass, setShowResetPass] = useState(false);
-  const [resetting, setResetting]       = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   // Permission editor
-  const [showPerms, setShowPerms]       = useState(false);
-  const [editPerms, setEditPerms]       = useState<PermissionSet>({ modules: {}, actions: {} });
-  const [savingPerms, setSavingPerms]   = useState(false);
+  const [showPerms, setShowPerms] = useState(false);
+  const [editPerms, setEditPerms] = useState<PermissionSet>({ modules: {}, actions: {} });
+  const [savingPerms, setSavingPerms] = useState(false);
 
   // Confirm modal
-  const [confirm, setConfirm]           = useState<{ action: string; label: string } | null>(null);
-  const [working, setWorking]           = useState(false);
+  const [confirm, setConfirm] = useState<{ action: string; label: string } | null>(null);
+  const [working, setWorking] = useState(false);
 
   // Admin-only guard (Allow Director, Principal as well)
   if (!['admin', 'director', 'principal'].includes(userRole?.role || '')) {
@@ -194,21 +194,21 @@ export default function StaffUserAccounts() {
 
       // Build staff_id → role map; also match by user_id for pre-migration rows
       const rolesMapByStaff = new Map<string, any>();
-      const rolesMapByUser  = new Map<string, any>();
+      const rolesMapByUser = new Map<string, any>();
       rolesData.forEach(r => {
         if (r.staff_id) rolesMapByStaff.set(r.staff_id, r);
-        if (r.user_id)  rolesMapByUser.set(r.user_id, r);
+        if (r.user_id) rolesMapByUser.set(r.user_id, r);
       });
 
       const merged: StaffWithAccount[] = staffData.map(s => {
         const r = rolesMapByStaff.get(s.id) ?? (s.user_id ? rolesMapByUser.get(s.user_id) : undefined);
         return {
           ...s,
-          system_role:    r?.role ?? null,
+          system_role: r?.role ?? null,
           account_active: r?.is_active ?? null,
-          last_login:     r?.last_login ?? null,
-          permissions:    r?.permissions ?? null,
-          user_roles_id:  r?.id ?? null,
+          last_login: r?.last_login ?? null,
+          permissions: r?.permissions ?? null,
+          user_roles_id: r?.id ?? null,
         };
       });
 
@@ -233,7 +233,7 @@ export default function StaffUserAccounts() {
       (s.role ?? '').toLowerCase().includes(search.toLowerCase());
     const matchAccess = filterAccess === 'all' ? true
       : filterAccess === 'has' ? s.has_login
-      : !s.has_login;
+        : !s.has_login;
     return matchSearch && matchAccess;
   });
 
@@ -385,7 +385,32 @@ export default function StaffUserAccounts() {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  const copyToClipboard = (text: string) => navigator.clipboard.writeText(text).catch(() => {});
+  const copyToClipboard = (text: string) => navigator.clipboard.writeText(text).catch(() => { });
+
+  /** Open WhatsApp with pre-filled credentials message */
+  const sendViaWhatsApp = (phone: string | null, email: string, password: string) => {
+    if (!phone) {
+      alert('No WhatsApp number found for this staff member. Please update their profile first.');
+      return;
+    }
+    // Normalize: strip spaces, dashes, leading 0 → +92
+    let num = phone.replace(/[\s\-()]/g, '');
+    if (num.startsWith('0')) num = '92' + num.slice(1);
+    if (!num.startsWith('+')) num = num.startsWith('92') ? num : '92' + num;
+    num = num.replace('+', '');
+
+    const portalUrl = 'https://portal.theedgeschool.com';
+    const msg = encodeURIComponent(
+      `*Your The Edge School Login Credentials*
+
+Email: ${email}
+Password: ${password}
+Portal: ${portalUrl}
+
+_This is a system-generated message._`
+    );
+    window.open(`https://wa.me/${num}?text=${msg}`, '_blank');
+  };
 
   const statusBadge = (s: StaffWithAccount) => {
     if (!s.has_login) return (
@@ -433,11 +458,10 @@ export default function StaffUserAccounts() {
               <button
                 key={f}
                 onClick={() => setFilterAccess(f)}
-                className={`flex-1 text-[10px] font-semibold py-1 rounded-md transition-colors ${
-                  filterAccess === f
+                className={`flex-1 text-[10px] font-semibold py-1 rounded-md transition-colors ${filterAccess === f
                     ? 'bg-indigo-600 text-white'
                     : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                }`}
+                  }`}
               >
                 {f === 'all' ? 'All' : f === 'has' ? 'Has Access' : 'No Access'}
               </button>
@@ -456,9 +480,8 @@ export default function StaffUserAccounts() {
               <button
                 key={s.id}
                 onClick={() => { setSelected(s); setShowCreate(false); setShowReset(false); setShowPerms(false); setCreateSuccess(''); }}
-                className={`w-full flex items-center gap-3 px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors text-left ${
-                  selected?.id === s.id ? 'bg-indigo-50 border-l-2 border-l-indigo-500' : ''
-                }`}
+                className={`w-full flex items-center gap-3 px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors text-left ${selected?.id === s.id ? 'bg-indigo-50 border-l-2 border-l-indigo-500' : ''
+                  }`}
               >
                 {/* Avatar */}
                 {s.photograph_url ? (
@@ -536,9 +559,25 @@ export default function StaffUserAccounts() {
                   <p className="text-sm font-semibold text-emerald-800 mb-1">Account Created Successfully</p>
                   <p className="text-xs text-emerald-700 font-mono bg-emerald-100 px-2 py-1 rounded">{createSuccess}</p>
                 </div>
-                <button onClick={() => copyToClipboard(createSuccess)} className="text-emerald-600 hover:text-emerald-800">
-                  <Copy className="w-4 h-4" />
-                </button>
+                <div className="flex gap-1.5 shrink-0">
+                  <button onClick={() => copyToClipboard(createSuccess)} className="text-emerald-600 hover:text-emerald-800 p-1 rounded-lg hover:bg-emerald-100 transition-colors" title="Copy">
+                    <Copy className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      const emailMatch = createSuccess.match(/Email:\s*(\S+)/);
+                      const passMatch = createSuccess.match(/Password:\s*(\S+)/);
+                      if (emailMatch && passMatch) {
+                        sendViaWhatsApp(selected.whatsapp_number, emailMatch[1], passMatch[1]);
+                      }
+                    }}
+                    className="flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-white bg-emerald-100 hover:bg-emerald-600 px-2.5 py-1 rounded-lg transition-all"
+                    title="Send credentials via WhatsApp"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    WhatsApp
+                  </button>
+                </div>
               </div>
             )}
 
@@ -582,11 +621,10 @@ export default function StaffUserAccounts() {
                         <button
                           key={r}
                           onClick={() => setCreateRole(r)}
-                          className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-all ${
-                            createRole === r
+                          className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-all ${createRole === r
                               ? `${ROLE_COLORS[r]} border-current`
                               : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-gray-300'
-                          }`}
+                            }`}
                         >
                           {r.charAt(0).toUpperCase() + r.slice(1)}
                         </button>
@@ -770,6 +808,17 @@ export default function StaffUserAccounts() {
                         {resetting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />}
                         {resetting ? 'Resetting…' : 'Reset Password'}
                       </button>
+                      {selected.whatsapp_number && (
+                        <button
+                          onClick={() => sendViaWhatsApp(selected.whatsapp_number, selected.email || 'N/A', resetPass)}
+                          disabled={!resetPass}
+                          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                          title="Send new password via WhatsApp"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          Send via WhatsApp
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -876,14 +925,13 @@ export default function StaffUserAccounts() {
               </button>
               <button
                 onClick={() => {
-                  if (confirm.action === 'suspend')    handleSetActive(false);
+                  if (confirm.action === 'suspend') handleSetActive(false);
                   if (confirm.action === 'reactivate') handleSetActive(true);
-                  if (confirm.action === 'revoke')     handleRevoke();
+                  if (confirm.action === 'revoke') handleRevoke();
                 }}
                 disabled={working}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg transition-colors disabled:opacity-50 ${
-                  confirm.action === 'reactivate' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg transition-colors disabled:opacity-50 ${confirm.action === 'reactivate' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'
+                  }`}
               >
                 {working ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : null}
                 {confirm.action === 'suspend' ? 'Suspend' : confirm.action === 'reactivate' ? 'Reactivate' : 'Revoke'}

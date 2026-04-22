@@ -53,6 +53,7 @@ export default function Staff() {
   const [photoProcessing, setPhotoProcessing] = useState(false);
   const [photoSize, setPhotoSize] = useState<string | null>(null);
   const photoInputRef = React.useRef<HTMLInputElement>(null);
+  const [waDropdown, setWaDropdown] = useState<string | null>(null); // staff id for open dropdown
 
   // Bulk Selection States
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -147,7 +148,7 @@ export default function Staff() {
       let staffId = editId;
 
       if (editId) {
-        const { error } = await supabase.from('staff').update({ ...payload, updated_at: new Date() }).eq('id', editId);
+        const { error } = await supabase.from('staff').update(payload).eq('id', editId);
         if (error) throw error;
       } else {
         const { data: newStaff, error } = await supabase.from('staff').insert([payload]).select().single();
@@ -244,9 +245,23 @@ export default function Staff() {
     fetchStaff();
   };
 
-  const sendWhatsApp = (phone: string, name: string) => {
-    const msg = encodeURIComponent(`Dear ${name}, this is a message from the school administration.`);
-    window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${msg}`, '_blank');
+  const WA_TEMPLATES = [
+    { label: 'General Message', msg: (name: string) => `Dear ${name}, this is a message from the school administration.` },
+    { label: 'Meeting Notice', msg: (name: string) => `Dear ${name}, you are requested to attend a staff meeting scheduled for tomorrow. Please be on time.\n\n- The Edge School Administration` },
+    { label: 'Salary Slip Ready', msg: (name: string) => `Dear ${name}, your salary slip for this month is ready. Please collect it from the accounts department.\n\n- The Edge School Administration` },
+    { label: 'Leave Approved', msg: (name: string) => `Dear ${name}, your leave application has been approved. Please ensure your classes are covered during your absence.\n\n- The Edge School Administration` },
+    { label: 'Leave Rejected', msg: (name: string) => `Dear ${name}, we regret to inform you that your leave application has not been approved due to operational requirements. Please contact the administration for further details.\n\n- The Edge School Administration` },
+    { label: 'Duty Reminder', msg: (name: string) => `Dear ${name}, this is a reminder regarding your assigned duty. Please ensure you are present and prepared as scheduled.\n\n- The Edge School Administration` },
+    { label: 'Document Required', msg: (name: string) => `Dear ${name}, kindly submit your pending documents to the admin office at the earliest. Thank you.\n\n- The Edge School Administration` },
+    { label: 'Custom Message', msg: (name: string) => `` },
+  ];
+
+  const sendWhatsApp = (phone: string, message: string) => {
+    let num = phone.replace(/[\s\-()]/g, '');
+    if (num.startsWith('0')) num = '92' + num.slice(1);
+    if (!num.startsWith('92')) num = '92' + num;
+    window.open(`https://wa.me/${num}?text=${encodeURIComponent(message)}`, '_blank');
+    setWaDropdown(null);
   };
 
   const handleExportExcel = () => {
@@ -585,8 +600,9 @@ export default function Staff() {
                           <Award className="w-5 h-5" />
                         </button>
                         {s.whatsapp_number && (
-                          <button onClick={() => sendWhatsApp(s.whatsapp_number, s.full_name)} 
-                            className="p-2.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90">
+                          <button onClick={(e) => { e.stopPropagation(); setWaDropdown(waDropdown === s.id ? null : s.id); }}
+                            className="p-2.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90"
+                            title="Send WhatsApp Message">
                             <MessageSquare className="w-5 h-5" />
                           </button>
                         )}
@@ -607,6 +623,39 @@ export default function Staff() {
           </div>
         )}
       </div>
+
+      {/* WhatsApp Template Picker Modal */}
+      {waDropdown && (() => {
+        const s = staff.find(st => st.id === waDropdown);
+        if (!s || !s.whatsapp_number) return null;
+        return (
+          <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setWaDropdown(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="bg-emerald-600 px-5 py-3 flex justify-between items-center">
+                <div>
+                  <h3 className="text-sm font-black text-white">Send WhatsApp Message</h3>
+                  <p className="text-emerald-100 text-xs font-medium mt-0.5">To: {s.full_name}</p>
+                </div>
+                <button onClick={() => setWaDropdown(null)} className="text-emerald-200 hover:text-white transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-2 max-h-[60vh] overflow-y-auto">
+                {WA_TEMPLATES.map((t, i) => (
+                  <button
+                    key={i}
+                    onClick={() => sendWhatsApp(s.whatsapp_number, t.msg(s.full_name))}
+                    className="w-full text-left px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl transition-colors flex items-center gap-3"
+                  >
+                    <MessageSquare className="w-4 h-4 text-emerald-500 shrink-0" />
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Add / Edit Modal */}
       {showForm && (
