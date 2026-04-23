@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Printer, Users, CheckSquare, Square, CreditCard } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { CardTemplate, TemplateId } from '../../lib/idCardTemplates';
+import { CardTemplate, TemplateId, CardCustomization } from '../../lib/idCardTemplates';
 
 export default function DigitalIDCards() {
   const { userRole } = useAuth();
@@ -14,6 +14,7 @@ export default function DigitalIDCards() {
   const [schoolInfo, setSchoolInfo] = useState<any>(null);
   const [activeFields, setActiveFields] = useState<string[]>([]);
   const [template, setTemplate] = useState<TemplateId>('classic');
+  const [customization, setCustomization] = useState<CardCustomization | undefined>(undefined);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -42,7 +43,7 @@ export default function DigitalIDCards() {
   const fetchSettings = async () => {
     const { data } = await supabase
       .from('id_card_settings')
-      .select('fields, template')
+      .select('fields, template, layout_config')
       .eq('school_id', userRole?.school_id)
       .eq('card_type', 'student')
       .maybeSingle();
@@ -54,6 +55,7 @@ export default function DigitalIDCards() {
       setActiveFields(['roll_number', 'class_id', 'blood_group', 'emergency_contact']);
     }
     setTemplate((data?.template as TemplateId) ?? 'classic');
+    if (data?.layout_config?.customization) setCustomization(data.layout_config.customization);
   };
 
   const fetchStudents = async () => {
@@ -185,6 +187,7 @@ export default function DigitalIDCards() {
                 dob={student.dob}
                 phone={student.parents?.whatsapp_number}
                 address={student.address}
+                customization={customization}
               />
             </div>
           ))}

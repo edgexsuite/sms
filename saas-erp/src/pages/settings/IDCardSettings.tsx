@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import {
   CreditCard, Layout, Save, CheckCircle2, AlertCircle,
   Settings as SettingsIcon, Users, Briefcase, ChevronRight, Eye,
+  Minus, Plus, RotateCcw, Palette,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { TEMPLATES, TemplateId, CardTemplate } from '../../lib/idCardTemplates';
@@ -27,6 +28,29 @@ const STAFF_FIELDS = [
   { id: 'whatsapp_number', label: 'WhatsApp' },
   { id: 'ref_id', label: 'Reference ID' },
 ];
+
+/* ── Default customization values ───────────────────────────────────────── */
+export interface CardCustomization {
+  nameFontSize: number;      // px, default 10
+  fieldFontSize: number;     // px, default 6
+  schoolFontSize: number;    // px, default 7
+  photoSize: number;         // px, default 36
+  qrSize: number;            // px, default 40
+  primaryColor: string;      // header bg
+  accentColor: string;       // badges, highlights
+  textColor: string;         // name color
+}
+
+const DEFAULT_CUSTOM: CardCustomization = {
+  nameFontSize: 10,
+  fieldFontSize: 6,
+  schoolFontSize: 7,
+  photoSize: 36,
+  qrSize: 40,
+  primaryColor: '#1d4ed8',
+  accentColor: '#3b82f6',
+  textColor: '#0f172a',
+};
 
 /* ── Sample dummy data for preview ───────────────────────────────────────── */
 const SAMPLE_STUDENT = {
@@ -59,6 +83,58 @@ const SAMPLE_STAFF = {
   qrValue: JSON.stringify({ type: 'staff_attendance', staff_id: 'preview' }),
 };
 
+/* ── Slider component ───────────────────────────────────────────────────── */
+function SizeControl({ label, value, onChange, min, max, step = 1, unit = 'px' }: {
+  label: string; value: number; onChange: (v: number) => void; min: number; max: number; step?: number; unit?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-[11px] font-bold text-slate-600 w-28 shrink-0">{label}</span>
+      <div className="flex items-center gap-2 flex-1">
+        <button
+          onClick={() => onChange(Math.max(min, value - step))}
+          className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors active:scale-90 shrink-0"
+        >
+          <Minus className="w-3 h-3" />
+        </button>
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={e => onChange(Number(e.target.value))}
+          className="flex-1 h-1.5 bg-slate-200 rounded-full appearance-none cursor-pointer accent-indigo-600 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:bg-indigo-600 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:shadow-md"
+        />
+        <button
+          onClick={() => onChange(Math.min(max, value + step))}
+          className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors active:scale-90 shrink-0"
+        >
+          <Plus className="w-3 h-3" />
+        </button>
+        <span className="text-[10px] font-black text-indigo-600 w-10 text-right tabular-nums">{value}{unit}</span>
+      </div>
+    </div>
+  );
+}
+
+function ColorControl({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-[11px] font-bold text-slate-600 w-28 shrink-0">{label}</span>
+      <div className="flex items-center gap-2 flex-1">
+        <input
+          type="color"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="w-8 h-8 rounded-lg border-2 border-slate-200 cursor-pointer p-0.5"
+        />
+        <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">{value}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function IDCardSettings() {
   const { userRole } = useAuth();
   const [activeTab, setActiveTab] = useState<'student' | 'staff'>('student');
@@ -68,6 +144,8 @@ export default function IDCardSettings() {
   const [staffFields, setStaffFields] = useState<string[]>(['designation', 'department', 'joining_date']);
   const [studentTemplate, setStudentTemplate] = useState<TemplateId>('classic');
   const [staffTemplate, setStaffTemplate] = useState<TemplateId>('classic');
+  const [studentCustom, setStudentCustom] = useState<CardCustomization>({ ...DEFAULT_CUSTOM });
+  const [staffCustom, setStaffCustom] = useState<CardCustomization>({ ...DEFAULT_CUSTOM });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
@@ -87,10 +165,12 @@ export default function IDCardSettings() {
       if (student) {
         setStudentFields(student.fields || ['roll_number', 'blood_group', 'emergency_contact']);
         if (student.template) setStudentTemplate(student.template as TemplateId);
+        if (student.layout_config?.customization) setStudentCustom({ ...DEFAULT_CUSTOM, ...student.layout_config.customization });
       }
       if (staff) {
         setStaffFields(staff.fields || ['designation', 'department', 'joining_date']);
         if (staff.template) setStaffTemplate(staff.template as TemplateId);
+        if (staff.layout_config?.customization) setStaffCustom({ ...DEFAULT_CUSTOM, ...staff.layout_config.customization });
       }
     }
     setLoading(false);
@@ -104,6 +184,19 @@ export default function IDCardSettings() {
     }
   };
 
+  const currentCustom = activeTab === 'student' ? studentCustom : staffCustom;
+  const setCurrentCustom = (updates: Partial<CardCustomization>) => {
+    if (activeTab === 'student') {
+      setStudentCustom(prev => ({ ...prev, ...updates }));
+    } else {
+      setStaffCustom(prev => ({ ...prev, ...updates }));
+    }
+  };
+
+  const resetCustomization = () => {
+    setCurrentCustom({ ...DEFAULT_CUSTOM });
+  };
+
   const saveSettings = async () => {
     if (!userRole?.school_id) return;
     setSaving(true);
@@ -111,6 +204,7 @@ export default function IDCardSettings() {
 
     const targetFields   = activeTab === 'student' ? studentFields   : staffFields;
     const targetTemplate = activeTab === 'student' ? studentTemplate : staffTemplate;
+    const targetCustom   = activeTab === 'student' ? studentCustom   : staffCustom;
 
     const { error } = await supabase
       .from('id_card_settings')
@@ -119,6 +213,7 @@ export default function IDCardSettings() {
         card_type: activeTab,
         fields:    targetFields,
         template:  targetTemplate,
+        layout_config: { customization: targetCustom },
       }, { onConflict: 'school_id,card_type' });
 
     setMessage(error
@@ -144,12 +239,10 @@ export default function IDCardSettings() {
 
   /* Preview card props */
   const previewProps = activeTab === 'student'
-    ? { ...SAMPLE_STUDENT, activeFields: studentFields, template: studentTemplate }
-    : { ...SAMPLE_STAFF,   activeFields: staffFields,   template: staffTemplate };
+    ? { ...SAMPLE_STUDENT, activeFields: studentFields, template: studentTemplate, customization: studentCustom }
+    : { ...SAMPLE_STAFF,   activeFields: staffFields,   template: staffTemplate,  customization: staffCustom };
 
-  /* Scale the physical mm card to fit the preview panel.
-     Vertical card ≈ 204×325px, Horizontal ≈ 325×204px at 96dpi.
-     We want max ~220px wide in the panel. */
+  /* Scale the physical mm card to fit the preview panel. */
   const SCALE = isHorizontal ? 0.60 : 0.72;
   const cardPxW = isHorizontal ? 325 : 204;
   const cardPxH = isHorizontal ? 204 : 325;
@@ -164,14 +257,14 @@ export default function IDCardSettings() {
           <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
             <SettingsIcon className="w-6 h-6 text-indigo-600" /> ID Card Designer
           </h1>
-          <p className="text-slate-500 text-sm mt-1">Choose a template and select fields for each card type.</p>
+          <p className="text-slate-500 text-sm mt-1">Choose a template, customize sizes & colors, and select fields.</p>
         </div>
         <button
           onClick={saveSettings}
           disabled={saving}
           className="flex items-center gap-2 px-6 py-2 bg-[#0d1526] text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg active:scale-95 disabled:opacity-50"
         >
-          {saving ? 'Saving…' : <><Save className="w-4 h-4" /> Save Configuration</>}
+          {saving ? 'Saving...' : <><Save className="w-4 h-4" /> Save Configuration</>}
         </button>
       </div>
 
@@ -264,6 +357,41 @@ export default function IDCardSettings() {
               </div>
             </div>
 
+            {/* ── Customization Controls ── */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                  <Palette className="w-3.5 h-3.5" /> Size & Color Customization
+                </p>
+                <button
+                  onClick={resetCustomization}
+                  className="flex items-center gap-1 text-[10px] font-bold text-slate-400 hover:text-indigo-600 transition-colors"
+                >
+                  <RotateCcw className="w-3 h-3" /> Reset Defaults
+                </button>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-4">
+                {/* Size controls */}
+                <div className="space-y-3">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Sizes</p>
+                  <SizeControl label="Name Font" value={currentCustom.nameFontSize} onChange={v => setCurrentCustom({ nameFontSize: v })} min={6} max={18} />
+                  <SizeControl label="School Font" value={currentCustom.schoolFontSize} onChange={v => setCurrentCustom({ schoolFontSize: v })} min={4} max={14} />
+                  <SizeControl label="Field Font" value={currentCustom.fieldFontSize} onChange={v => setCurrentCustom({ fieldFontSize: v })} min={4} max={12} />
+                  <SizeControl label="Photo Size" value={currentCustom.photoSize} onChange={v => setCurrentCustom({ photoSize: v })} min={20} max={60} step={2} />
+                  <SizeControl label="QR Code Size" value={currentCustom.qrSize} onChange={v => setCurrentCustom({ qrSize: v })} min={20} max={70} step={2} />
+                </div>
+
+                {/* Color controls */}
+                <div className="border-t border-slate-200 pt-4 space-y-3">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Colors</p>
+                  <ColorControl label="Primary Color" value={currentCustom.primaryColor} onChange={v => setCurrentCustom({ primaryColor: v })} />
+                  <ColorControl label="Accent Color" value={currentCustom.accentColor} onChange={v => setCurrentCustom({ accentColor: v })} />
+                  <ColorControl label="Name Color" value={currentCustom.textColor} onChange={v => setCurrentCustom({ textColor: v })} />
+                </div>
+              </div>
+            </div>
+
             {/* Fields */}
             <div>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Visible Fields</p>
@@ -316,7 +444,7 @@ export default function IDCardSettings() {
                 <span className="font-black text-slate-600">
                   {activeTab === 'student' ? 'Digital ID Cards' : 'Staff ID Cards'}
                 </span>{' '}
-                module. The preview on the right updates live as you select templates and toggle fields.
+                module. The preview on the right updates live as you adjust settings.
               </p>
             </div>
           </div>
@@ -379,10 +507,30 @@ export default function IDCardSettings() {
               </div>
             </div>
 
+            {/* Customization summary */}
+            <div className="px-5 py-3 border-t border-slate-100 bg-slate-50">
+              <div className="flex flex-wrap gap-2">
+                <span className="text-[9px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded-full border border-slate-100">
+                  Name: {currentCustom.nameFontSize}px
+                </span>
+                <span className="text-[9px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded-full border border-slate-100">
+                  Photo: {currentCustom.photoSize}px
+                </span>
+                <span className="text-[9px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded-full border border-slate-100">
+                  QR: {currentCustom.qrSize}px
+                </span>
+                <span className="text-[9px] font-bold bg-white px-2 py-0.5 rounded-full border border-slate-100 flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full" style={{ background: currentCustom.primaryColor }} />
+                  <span className="w-2 h-2 rounded-full" style={{ background: currentCustom.accentColor }} />
+                  <span className="w-2 h-2 rounded-full" style={{ background: currentCustom.textColor }} />
+                </span>
+              </div>
+            </div>
+
             {/* Sample data note */}
             <div className="px-5 py-3 border-t border-slate-100 bg-amber-50">
               <p className="text-[10px] text-amber-700 font-bold text-center">
-                ✦ Preview uses sample data · Actual cards show real student/staff info
+                Preview uses sample data · Actual cards show real info
               </p>
             </div>
           </div>

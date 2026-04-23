@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Printer, Users, CheckSquare, Square, Shield, ChevronRight } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { CardTemplate, TemplateId } from '../../lib/idCardTemplates';
+import { CardTemplate, TemplateId, CardCustomization } from '../../lib/idCardTemplates';
 
 export default function StaffDigitalIDCards() {
   const { userRole } = useAuth();
@@ -13,6 +13,7 @@ export default function StaffDigitalIDCards() {
   const [loading, setLoading] = useState(true);
   const [activeFields, setActiveFields] = useState<string[]>([]);
   const [template, setTemplate] = useState<TemplateId>('classic');
+  const [customization, setCustomization] = useState<CardCustomization | undefined>(undefined);
 
   useEffect(() => {
     if (userRole?.school_id) {
@@ -40,7 +41,7 @@ export default function StaffDigitalIDCards() {
   const fetchSettings = async () => {
     const { data } = await supabase
       .from('id_card_settings')
-      .select('fields, template')
+      .select('fields, template, layout_config')
       .eq('school_id', userRole?.school_id)
       .eq('card_type', 'staff')
       .maybeSingle();
@@ -52,6 +53,7 @@ export default function StaffDigitalIDCards() {
       setActiveFields(['designation', 'department', 'joining_date', 'ref_id']);
     }
     setTemplate((data?.template as TemplateId) ?? 'classic');
+    if (data?.layout_config?.customization) setCustomization(data.layout_config.customization);
   };
 
   const toggleStaff = (id: string) => {
@@ -171,6 +173,7 @@ export default function StaffDigitalIDCards() {
                 schoolLogo={schoolInfo?.logo_url || null}
                 qrValue={JSON.stringify({ type: 'staff_attendance', staff_id: st.id })}
                 activeFields={activeFields}
+                customization={customization}
               />
             </div>
           ))}
