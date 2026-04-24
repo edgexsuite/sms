@@ -372,7 +372,6 @@ export default function Ledger() {
           </div>
         </div>
       )}
-    </div>
     </>
   );
 }
