@@ -15,14 +15,17 @@ import { motion, AnimatePresence } from 'framer-motion';
 const DB_COLUMNS = [
   { key: 'full_name', label: 'Full Name', required: true, aliases: ['name', 'student name', 'full name'] },
   { key: 'roll_number', label: 'Roll Number', required: true, aliases: ['roll', 'roll no', 'reg no', 'id'] },
-  { key: 'b_form_cnic', label: 'B-Form / CNIC', aliases: ['cnic', 'bform'] },
-  { key: 'dob', label: 'Date of Birth', aliases: ['birth', 'dob', 'date of birth'] },
-  { key: 'gender', label: 'Gender', aliases: ['sex'] },
-  { key: 'admission_date', label: 'Admission Date', aliases: ['adm date', 'date of admission'] },
-  { key: 'father_name', label: 'Father Name', aliases: ['father', 'parent name'] },
-  { key: 'father_contact', label: 'Father Mobile', aliases: ['contact', 'phone', 'mobile'] },
-  { key: 'address', label: 'Address', aliases: ['residencial address', 'home'] },
-  { key: 'fee_waiver_percentage', label: 'Waiver %', aliases: ['discount', 'waiver', 'scholarship', 'free'] },
+  { key: 'b_form_cnic', label: 'B-Form / CNIC', aliases: ['cnic', 'bform', 'b-form', 'id card'] },
+  { key: 'dob', label: 'Date of Birth', aliases: ['birth', 'dob', 'date of birth', 'birth date'] },
+  { key: 'gender', label: 'Gender', aliases: ['sex', 'gender'] },
+  { key: 'admission_date', label: 'Admission Date', aliases: ['adm date', 'date of admission', 'admission date', 'joining date'] },
+  { key: 'father_name', label: 'Father Name', aliases: ['father', 'parent name', 'father name', 'guardian name'] },
+  { key: 'father_contact', label: 'Father Mobile (WhatsApp)', aliases: ['father mobile', 'father whatsapp', 'father phone', 'mobile', 'phone', 'contact', 'whatsapp', 'mobile number'] },
+  { key: 'mother_name', label: 'Mother Name', aliases: ['mother', 'mother name'] },
+  { key: 'mother_contact', label: 'Mother Mobile', aliases: ['mother mobile', 'mother phone', 'mother whatsapp'] },
+  { key: 'emergency_contact', label: 'Emergency Mobile', aliases: ['emergency', 'emergency phone', 'emergency mobile', 'emergency contact'] },
+  { key: 'address', label: 'Address', aliases: ['residencial address', 'home', 'address', 'current address'] },
+  { key: 'fee_waiver_percentage', label: 'Waiver %', aliases: ['discount', 'waiver', 'scholarship', 'free', 'percentage', 'discount %'] },
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -188,11 +191,14 @@ export default function BulkEnrollment() {
         const fatherInit = (first.father_name || 'Parent').split(' ')[0].toLowerCase();
         const { data: parent, error: pE } = await supabase.from('parents').insert({
           school_id: userRole!.school_id,
-          family_group_id: fg.id,
           family_number: `${fatherInit}${Math.random().toString(36).substring(7)}`,
           auth_password: `${fatherInit}123`,
           full_name: first.father_name || 'Parent',
+          father_name: first.father_name || '',
+          mother_name: first.mother_name || '',
           whatsapp_number: first.father_contact || '',
+          // Using emergency_mobile as it definitely exists in your schema
+          emergency_mobile: first.emergency_contact || first.mother_contact || '',
           address: first.address || ''
         }).select().single();
 

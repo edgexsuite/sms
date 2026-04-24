@@ -34,7 +34,7 @@ export default function ImportStaffModal({ onClose, onSuccess }: ImportStaffModa
     { key: 'department', label: 'Department' },
     { key: 'qualification', label: 'Qualification' },
     { key: 'cnic', label: 'CNIC' },
-    { key: 'whatsapp_number', label: 'WhatsApp / Phone' },
+    { key: 'whatsapp_number', label: 'Mobile Number / WhatsApp' },
     { key: 'email', label: 'Email' },
     { key: 'salary', label: 'Salary / Rate' },
     { key: 'employment_type', label: 'Employment Type (full-time/visiting)' },
