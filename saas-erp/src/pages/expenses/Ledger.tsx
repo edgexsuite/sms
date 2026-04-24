@@ -133,6 +133,18 @@ export default function Ledger() {
         .eq('id', editingTx.id);
 
       if (error) throw error;
+
+      // ── SMART SYNC: Update Fee Record if this is a Fee Collection ────
+      if (editingTx.category === 'Fee Collection') {
+        // Find invoice number in remarks: "Fee — Student (Month) · INV-1001"
+        const invoiceMatch = editForm.description.match(/INV-\d+/);
+        if (invoiceMatch) {
+          await supabase.from('fee_records').update({
+            paid_amount: parseFloat(editForm.amount),
+            paid_at: editForm.date + 'T12:00:00Z',
+          }).eq('invoice_number', invoiceMatch[0]);
+        }
+      }
       
       setEditingTx(null);
       await fetchLedger();
@@ -151,6 +163,7 @@ export default function Ledger() {
   const netCash = totalIncome - totalExpense;
 
   return (
+    <>
     <div className="space-y-6">
       <style>{`
         @media print {
@@ -359,7 +372,7 @@ export default function Ledger() {
           </div>
         </div>
       )}
-
     </div>
+    </>
   );
 }
