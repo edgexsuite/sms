@@ -13,6 +13,11 @@ export default function Ledger() {
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
+  // Editing State
+  const [editingTx, setEditingTx] = useState<any | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editForm, setEditForm] = useState({ date: '', amount: '', description: '' });
+
   useEffect(() => {
     if (userRole?.school_id) fetchLedger();
   }, [userRole, dateType, customStart, customEnd]);
@@ -104,6 +109,40 @@ export default function Ledger() {
     }
   };
 
+  const openEditModal = (t: any) => {
+    setEditingTx(t);
+    setEditForm({
+      date: t.date,
+      amount: String(t.amount),
+      description: t.description
+    });
+  };
+
+  const handleUpdateTx = async () => {
+    if (!editingTx || !editForm.amount || !editForm.date) return;
+    setEditLoading(true);
+
+    try {
+      const { error } = await supabase
+        .from('financial_transactions')
+        .update({
+          amount: parseFloat(editForm.amount),
+          date: editForm.date,
+          remarks: editForm.description
+        })
+        .eq('id', editingTx.id);
+
+      if (error) throw error;
+      
+      setEditingTx(null);
+      await fetchLedger();
+    } catch (err: any) {
+      alert('Error updating transaction: ' + err.message);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   const handlePrint = () => window.print();
 
   // Metrics
@@ -186,7 +225,7 @@ export default function Ledger() {
                 <th className="p-4 font-medium text-gray-500">Pay Mode</th>
                 <th className="p-4 font-medium text-gray-500 text-right">Debit (In)</th>
                 <th className="p-4 font-medium text-gray-500 text-right">Credit (Out)</th>
-                <th className="p-4 font-medium text-gray-500 text-right">Running Bal</th>
+                <th className="p-4 font-medium text-gray-500 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 font-mono">
@@ -206,7 +245,14 @@ export default function Ledger() {
                       <td className="p-4 text-gray-500">{t.mode}</td>
                       <td className="p-4 text-right font-bold text-green-600">{t.type === 'income' ? t.amount.toLocaleString() : '-'}</td>
                       <td className="p-4 text-right font-bold text-red-600">{t.type === 'expense' ? t.amount.toLocaleString() : '-'}</td>
-                      <td className="p-4 text-right text-gray-400">-</td>
+                      <td className="p-4 text-right">
+                        <button 
+                          onClick={() => openEditModal(t)}
+                          className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded border border-indigo-100 transition-colors"
+                        >
+                          Edit
+                        </button>
+                      </td>
                     </tr>
                   )
                 })
@@ -252,6 +298,67 @@ export default function Ledger() {
             </tbody>
          </table>
       </div>
+
+      </div>
+
+      {/* EDIT MODAL */}
+      {editingTx && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-xs font-black uppercase tracking-widest text-gray-900">Edit Transaction</h3>
+              <button onClick={() => setEditingTx(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Transaction Date</label>
+                <input 
+                  type="date" 
+                  value={editForm.date} 
+                  onChange={e => setEditForm({...editForm, date: e.target.value})}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Amount (Rs)</label>
+                <input 
+                  type="number" 
+                  value={editForm.amount} 
+                  onChange={e => setEditForm({...editForm, amount: e.target.value})}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-lg font-black text-indigo-600 focus:ring-2 focus:ring-indigo-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Description</label>
+                <textarea 
+                  value={editForm.description} 
+                  onChange={e => setEditForm({...editForm, description: e.target.value})}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs h-20 resize-none focus:ring-2 focus:ring-indigo-500 outline-none"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button 
+                  onClick={handleUpdateTx}
+                  disabled={editLoading}
+                  className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl text-sm hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-lg shadow-indigo-100"
+                >
+                  {editLoading ? 'Updating...' : 'Save Changes'}
+                </button>
+                <button 
+                  onClick={() => setEditingTx(null)}
+                  className="px-4 py-3 border border-gray-200 text-gray-500 font-bold rounded-xl text-sm hover:bg-gray-50 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

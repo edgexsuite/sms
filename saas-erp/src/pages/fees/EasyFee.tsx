@@ -58,6 +58,7 @@ export default function EasyFee() {
   // Payment Form
   const [payAmount, setPayAmount] = useState('');
   const [payMode, setPayMode] = useState('Cash');
+  const [payDate, setPayDate] = useState(new Date().toISOString().split('T')[0]);
   const [payRemarks, setPayRemarks] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -215,7 +216,7 @@ export default function EasyFee() {
         await supabase.from('fee_records').update({
           paid_amount: Number(fee.paid_amount) + paying,
           status: (Number(fee.paid_amount) + paying) >= Number(fee.total_amount) ? 'paid' : 'partial',
-          paid_at: new Date().toISOString(),
+          paid_at: payDate + 'T12:00:00Z', // Use the selected date
           payment_mode: payMode
         }).eq('id', fee.id);
 
@@ -232,7 +233,7 @@ export default function EasyFee() {
         type: 'income',
         category: 'Fee Collection',
         amount: amount,
-        date: new Date().toISOString().split('T')[0],
+        date: payDate,
         payment_mode: payMode,
         remarks: `Fee — ${selectedStudent.full_name} [${coveredMonths}]${payRemarks ? ` (${payRemarks})` : ''}`
       });
@@ -244,7 +245,7 @@ export default function EasyFee() {
           roll_number: selectedStudent.roll_number,
           class_name: `${selectedStudent.class?.name || ''}-${selectedStudent.class?.section || ''}`,
           amount,
-          date: new Date().toLocaleDateString(),
+          date: new Date(payDate).toLocaleDateString(),
           mode: payMode,
           invoice_number: paidRecords[0]?.invoice_number || '',
           months: coveredMonths,
@@ -256,6 +257,7 @@ export default function EasyFee() {
       setSelectedStudent(null);
       setPayAmount('');
       setPayRemarks('');
+      setPayDate(new Date().toISOString().split('T')[0]); // Reset to today
       await fetchRecentActivity();
     } catch (error) {
       console.error('Payment Error:', error);

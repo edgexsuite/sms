@@ -48,8 +48,14 @@ export default function StudentDetailPage() {
   const [collectingFee, setCollectingFee] = useState<any | null>(null); // the fee_record being collected
   const [collectAmount, setCollectAmount] = useState('');
   const [collectMode, setCollectMode] = useState('Cash');
+  const [collectDate, setCollectDate] = useState(new Date().toISOString().split('T')[0]);
   const [collectSaving, setCollectSaving] = useState(false);
   const [school, setSchool] = useState<any>(null);
+
+  // Edit Fee Record State
+  const [editingFee, setEditingFee] = useState<any | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editForm, setEditForm] = useState({ total_amount: '', paid_amount: '', paid_at: '', month_year: '' });
 
   useEffect(() => {
     if (userRole?.school_id) {
@@ -203,7 +209,7 @@ export default function StudentDetailPage() {
         paid_amount: newPaid,
         status: newStatus,
         payment_mode: collectMode,
-        paid_at: new Date().toISOString(),
+        paid_at: collectDate + 'T12:00:00Z',
       }).eq('id', collectingFee.id);
       if (recErr) throw recErr;
 
@@ -212,7 +218,7 @@ export default function StudentDetailPage() {
         type: 'income',
         category: 'Fee Collection',
         amount: amt,
-        date: new Date().toISOString().split('T')[0],
+        date: collectDate,
         payment_mode: collectMode,
         remarks: `Fee — ${student.full_name} (${collectingFee.invoice_number || collectingFee.id.slice(0,8)})`,
       });
@@ -231,7 +237,7 @@ export default function StudentDetailPage() {
         student_name: student.full_name,
         roll_number: student.roll_number,
         class_name: cls ? `${cls.name}${cls.section ? ' - ' + cls.section : ''}` : '',
-        issue_date: new Date().toISOString().split('T')[0],
+        issue_date: collectDate,
       };
       const schoolInfo: SchoolInfo = {
         name: school?.name || 'School',
@@ -244,11 +250,44 @@ export default function StudentDetailPage() {
       setCollectingFee(null);
       setCollectAmount('');
       setCollectMode('Cash');
+      setCollectDate(new Date().toISOString().split('T')[0]); // Reset
       handleFeeModalSave();
     } catch (err: any) {
       alert(err.message || 'Payment failed.');
     } finally {
       setCollectSaving(false);
+    }
+  };
+
+  const openEditFee = (f: any) => {
+    setEditingFee(f);
+    setEditForm({
+      total_amount: String(f.total_amount),
+      paid_amount: String(f.paid_amount),
+      paid_at: f.paid_at ? f.paid_at.split('T')[0] : '',
+      month_year: f.month_year.slice(0, 7)
+    });
+  };
+
+  const handleUpdateFeeRecord = async () => {
+    if (!editingFee) return;
+    setEditSaving(true);
+    try {
+      const { error } = await supabase.from('fee_records').update({
+        total_amount: parseFloat(editForm.total_amount),
+        paid_amount: parseFloat(editForm.paid_amount),
+        paid_at: editForm.paid_at ? editForm.paid_at + 'T12:00:00Z' : null,
+        month_year: editForm.month_year + '-01',
+        status: parseFloat(editForm.paid_amount) >= parseFloat(editForm.total_amount) ? 'paid' : (parseFloat(editForm.paid_amount) > 0 ? 'partial' : 'pending')
+      }).eq('id', editingFee.id);
+
+      if (error) throw error;
+      setEditingFee(null);
+      handleFeeModalSave();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -317,6 +356,17 @@ export default function StudentDetailPage() {
                   placeholder={String(Math.max(0, (collectingFee.total_amount || 0) - (collectingFee.paid_amount || 0)))}
                   className="w-full px-4 py-3 border border-slate-200 rounded-xl text-lg font-bold font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   autoFocus
+                />
+              </div>
+
+              {/* Date */}
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Payment Date</label>
+                <input
+                  type="date"
+                  value={collectDate}
+                  onChange={e => setCollectDate(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
@@ -898,18 +948,26 @@ export default function StudentDetailPage() {
                               </span>
                             </td>
                             <td className="px-5 py-3">
-                              {f.status !== 'paid' && bal > 0 && (
+                              <div className="flex items-center gap-2">
+                                {f.status !== 'paid' && bal > 0 && (
+                                  <button
+                                    onClick={() => {
+                                      setCollectingFee(f);
+                                      setCollectAmount(String(bal));
+                                      setCollectMode('Cash');
+                                    }}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-bold hover:bg-emerald-100 transition"
+                                  >
+                                    <Wallet className="w-3.5 h-3.5" /> Collect
+                                  </button>
+                                )}
                                 <button
-                                  onClick={() => {
-                                    setCollectingFee(f);
-                                    setCollectAmount(String(bal));
-                                    setCollectMode('Cash');
-                                  }}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-bold hover:bg-emerald-100 transition"
+                                  onClick={() => openEditFee(f)}
+                                  className="flex items-center gap-1 text-[10px] font-black uppercase text-slate-400 hover:text-indigo-600 transition"
                                 >
-                                  <Wallet className="w-3.5 h-3.5" /> Collect
+                                  Edit
                                 </button>
-                              )}
+                              </div>
                             </td>
                           </tr>
                         );
@@ -980,6 +1038,48 @@ export default function StudentDetailPage() {
           )}
         </div>
       </div>
+
+      {/* ── Edit Fee Record Modal ── */}
+      {editingFee && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="bg-slate-900 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-white font-black text-sm uppercase tracking-widest">Edit Fee Record</h2>
+              <button onClick={() => setEditingFee(null)} className="text-white/60 hover:text-white">✕</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Fee Month</label>
+                  <input type="month" value={editForm.month_year} onChange={e => setEditForm({...editForm, month_year: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-xl text-sm font-bold" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Payment Date</label>
+                  <input type="date" value={editForm.paid_at} onChange={e => setEditForm({...editForm, paid_at: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-xl text-sm" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Total Fee (Rs)</label>
+                  <input type="number" value={editForm.total_amount} onChange={e => setEditForm({...editForm, total_amount: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-xl font-mono text-sm font-bold text-slate-800" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Amount Paid (Rs)</label>
+                  <input type="number" value={editForm.paid_amount} onChange={e => setEditForm({...editForm, paid_amount: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-xl font-mono text-sm font-bold text-emerald-600" />
+                </div>
+              </div>
+              <button onClick={handleUpdateFeeRecord} disabled={editSaving}
+                className="w-full py-3 bg-indigo-600 text-white font-black rounded-xl text-sm hover:bg-indigo-700 transition disabled:opacity-50">
+                {editSaving ? 'Saving Changes...' : 'Update Record'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

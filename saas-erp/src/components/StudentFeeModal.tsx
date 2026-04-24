@@ -144,6 +144,7 @@ export default function StudentFeeModal({ student, onSave, onClose, includeAdmis
   const [collectNow, setCollectNow] = useState(false);
   const [payAmount, setPayAmount] = useState('');
   const [payMode, setPayMode] = useState('Cash');
+  const [payDate, setPayDate] = useState(new Date().toISOString().split('T')[0]);
 
   /* ── Post-save state for receipt printing ── */
   const [savedInvoiceNo, setSavedInvoiceNo] = useState('');
@@ -364,7 +365,7 @@ export default function StudentFeeModal({ student, onSave, onClose, includeAdmis
         status: collectNow ? payStatus : 'pending',
         due_date: dueDate,
         payment_mode: collectNow ? payMode : 'Pending',
-        paid_at: collectNow ? new Date().toISOString() : null,
+        paid_at: collectNow ? payDate + 'T12:00:00Z' : null,
         breakdown,
         invoice_number: invoiceNo,
         remarks: remarks || null,
@@ -377,7 +378,7 @@ export default function StudentFeeModal({ student, onSave, onClose, includeAdmis
           type: 'income',
           category: 'Fee Collection',
           amount: payNum,
-          date: today,
+          date: payDate,
           payment_mode: payMode,
           remarks: `Fee — ${student.full_name} (${monthYear}) · ${invoiceNo}`,
         }]);
@@ -631,6 +632,11 @@ export default function StudentFeeModal({ student, onSave, onClose, includeAdmis
                           className="w-full px-4 py-2.5 border border-emerald-200 bg-white rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500">
                           {PAY_MODES.map(m => <option key={m}>{m}</option>)}
                         </select>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Payment Date</label>
+                        <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)}
+                          className="w-full px-4 py-2.5 border border-emerald-200 bg-white rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500" />
                       </div>
                     </div>
 
