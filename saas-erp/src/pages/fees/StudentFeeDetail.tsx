@@ -50,6 +50,11 @@ export default function StudentFeeDetail() {
   const [paymentMode, setPaymentMode] = useState('Cash');
   const [waiveFine, setWaiveFine] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Edit State
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editForm, setEditForm] = useState({ total_amount: '', paid_amount: '', month_year: '', paid_at: '' });
   const [school, setSchool] = useState<any>(null);
 
   // ── Fetch Metadata ─────────────────────────────────────────────────────────
@@ -184,6 +189,30 @@ export default function StudentFeeDetail() {
       alert(err.message);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleUpdateInvoice = async () => {
+    if (!editingInvoice) return;
+    setEditSaving(true);
+    try {
+      const newPaid = parseFloat(editForm.paid_amount) || 0;
+      const newTotal = parseFloat(editForm.total_amount) || 0;
+      const { error } = await supabase.from('fee_records').update({
+        total_amount: newTotal,
+        paid_amount: newPaid,
+        month_year: editForm.month_year + '-01',
+        paid_at: newPaid > 0 ? editForm.paid_at + 'T12:00:00Z' : null,
+        status: newPaid >= newTotal ? 'paid' : (newPaid > 0 ? 'partial' : 'pending')
+      }).eq('id', editingInvoice.id);
+
+      if (error) throw error;
+      setEditingInvoice(null);
+      selectStudent(selectedStudent);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -447,25 +476,41 @@ export default function StudentFeeDetail() {
                               </span>
                             </td>
                             <td className="px-5 py-3 text-right">
-                              {inv.status === 'paid' ? (
-                                <button
-                                  onClick={() => handlePrintReceipt(inv)}
-                                  className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
-                                  title="Print Receipt"
-                                >
-                                  <Printer className="w-4 h-4" />
-                                </button>
-                              ) : (
+                              <div className="flex items-center justify-end gap-2 text-right">
+                                {inv.status === 'paid' ? (
+                                  <button
+                                    onClick={() => handlePrintReceipt(inv)}
+                                    className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+                                    title="Print Receipt"
+                                  >
+                                    <Printer className="w-4 h-4" />
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => {
+                                      setPayingInvoice(inv);
+                                      setPaymentAmount(inv.total_amount - (inv.paid_amount || 0));
+                                    }}
+                                    className="bg-indigo-600 text-white px-4 py-1.5 rounded-lg text-xs font-semibold hover:bg-indigo-700 transition-colors"
+                                  >
+                                    Collect
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => {
-                                    setPayingInvoice(inv);
-                                    setPaymentAmount(inv.total_amount - (inv.paid_amount || 0));
+                                    setEditingInvoice(inv);
+                                    setEditForm({
+                                      total_amount: String(inv.total_amount),
+                                      paid_amount: String(inv.paid_amount),
+                                      month_year: inv.month_year.slice(0, 7),
+                                      paid_at: (inv as any).paid_at ? (inv as any).paid_at.split('T')[0] : inv.month_year.slice(0, 10)
+                                    });
                                   }}
-                                  className="bg-indigo-600 text-white px-4 py-1.5 rounded-lg text-xs font-semibold hover:bg-indigo-700 transition-colors"
+                                  className="text-[10px] font-black uppercase text-slate-400 hover:text-indigo-600 transition"
                                 >
-                                  Collect
+                                  Edit
                                 </button>
-                              )}
+                              </div>
                             </td>
                           </tr>
                           {/* Breakdown Row */}
@@ -621,6 +666,59 @@ export default function StudentFeeDetail() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Edit Modal */}
+      <AnimatePresence>
+        {editingInvoice && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 text-left"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+              className="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="bg-slate-900 px-6 py-4 flex items-center justify-between text-white">
+                <h2 className="text-sm font-black uppercase tracking-widest leading-none">Edit Record</h2>
+                <button onClick={() => setEditingInvoice(null)} className="text-white/60 hover:text-white">✕</button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Fee Month</label>
+                    <input type="month" value={editForm.month_year} onChange={e => setEditForm({...editForm, month_year: e.target.value})}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-bold" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Paid At</label>
+                    <input type="date" value={editForm.paid_at} onChange={e => setEditForm({...editForm, paid_at: e.target.value})}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Billed (Rs)</label>
+                    <input type="number" value={editForm.total_amount} onChange={e => setEditForm({...editForm, total_amount: e.target.value})}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-black text-slate-800 font-mono" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Paid (Rs)</label>
+                    <input type="number" value={editForm.paid_amount} onChange={e => setEditForm({...editForm, paid_amount: e.target.value})}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-black text-emerald-600 font-mono" />
+                  </div>
+                </div>
+                <div className="pt-2">
+                  <button onClick={handleUpdateInvoice} disabled={editSaving}
+                    className="w-full py-3 bg-indigo-600 text-white font-black rounded-xl text-sm hover:bg-indigo-700 transition disabled:opacity-50">
+                    {editSaving ? 'Updating...' : 'Save Changes'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

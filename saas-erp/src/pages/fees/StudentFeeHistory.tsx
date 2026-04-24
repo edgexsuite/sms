@@ -69,6 +69,11 @@ export default function StudentFeeHistory() {
   const [monthTo, setMonthTo] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
 
+  // Editing State
+  const [editingRecord, setEditingRecord] = useState<any | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editForm, setEditForm] = useState({ total_amount: '', paid_amount: '', month_year: '', paid_at: '' });
+
   // ── Bootstrap ──────────────────────────────────────────────────────────────
 
   const fetchBootstrap = useCallback(async () => {
@@ -207,6 +212,40 @@ export default function StudentFeeHistory() {
       DEFAULT_CHALLAN_CONFIG,
       'fee-history-report.pdf',
     );
+  };
+
+  const openEditModal = (r: any) => {
+    setEditingRecord(r);
+    setEditForm({
+      total_amount: String(r.total_amount),
+      paid_amount: String(r.paid_amount),
+      month_year: r.month_year.slice(0, 7),
+      paid_at: r.paid_at ? r.paid_at.split('T')[0] : r.month_year.slice(0, 10)
+    });
+  };
+
+  const handleUpdateRecord = async () => {
+    if (!editingRecord) return;
+    setEditSaving(true);
+    try {
+      const newPaid = parseFloat(editForm.paid_amount) || 0;
+      const newTotal = parseFloat(editForm.total_amount) || 0;
+      const { error } = await supabase.from('fee_records').update({
+        total_amount: newTotal,
+        paid_amount: newPaid,
+        month_year: editForm.month_year + '-01',
+        paid_at: newPaid > 0 ? editForm.paid_at + 'T12:00:00Z' : null,
+        status: newPaid >= newTotal ? 'paid' : (newPaid > 0 ? 'partial' : 'pending')
+      }).eq('id', editingRecord.id);
+
+      if (error) throw error;
+      setEditingRecord(null);
+      fetchRecords();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   const handleExport = () => {
@@ -504,13 +543,21 @@ export default function StudentFeeHistory() {
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-sm">{r.payment_mode || '—'}</td>
                       <td className="px-4 py-3 text-center">
-                        <button
-                          onClick={() => handlePrintOne(r)}
-                          title="Print Challan"
-                          className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => handlePrintOne(r)}
+                            title="Print Challan"
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => openEditModal(r)}
+                            className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1.5 rounded transition"
+                          >
+                            Edit
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -520,6 +567,51 @@ export default function StudentFeeHistory() {
           </div>
         )}
       </div>
+
+      {/* EDIT MODAL */}
+      {editingRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="bg-slate-900 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-white font-black text-xs uppercase tracking-widest leading-none">Edit Record</h2>
+              <button onClick={() => setEditingRecord(null)} className="text-white/60 hover:text-white">✕</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Fee Month</label>
+                  <input type="month" value={editForm.month_year} onChange={e => setEditForm({...editForm, month_year: e.target.value})}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-bold" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Paid At</label>
+                  <input type="date" value={editForm.paid_at} onChange={e => setEditForm({...editForm, paid_at: e.target.value})}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Billed (Rs)</label>
+                  <input type="number" value={editForm.total_amount} onChange={e => setEditForm({...editForm, total_amount: e.target.value})}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-black text-slate-800 font-mono" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Paid (Rs)</label>
+                  <input type="number" value={editForm.paid_amount} onChange={e => setEditForm({...editForm, paid_amount: e.target.value})}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-black text-emerald-600 font-mono" />
+                </div>
+              </div>
+              <div className="pt-2">
+                <button onClick={handleUpdateRecord} disabled={editSaving}
+                  className="w-full py-3 bg-indigo-600 text-white font-black rounded-xl text-sm hover:bg-indigo-700 transition disabled:opacity-50">
+                  {editSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
