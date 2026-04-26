@@ -150,13 +150,16 @@ export default function Staff() {
         'employment_type','payment_basis','is_active','photograph_url','exclude_from_vacations',
         'designation','school_id',
       ];
+      const DATE_COLUMNS = ['dob', 'joining_date'];
       const rawPayload = {
         ...formData,
         school_id: userRole?.school_id,
         salary: formData.salary ? parseFloat(formData.salary) : null,
       };
       const payload = Object.fromEntries(
-        Object.entries(rawPayload).filter(([k]) => STAFF_COLUMNS.includes(k))
+        Object.entries(rawPayload)
+          .filter(([k]) => STAFF_COLUMNS.includes(k))
+          .map(([k, v]) => [k, DATE_COLUMNS.includes(k) && v === '' ? null : v])
       );
 
       let staffId = editId;
