@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type ReportTemplateId = 'classic' | 'modern' | 'minimal' | 'elegant' | 'compact';
+export type ReportTemplateId = 'classic' | 'modern' | 'minimal' | 'elegant' | 'compact' | 'royal';
 
 export interface ReportCardCustomization {
   headerFontSize: number;
@@ -61,6 +61,7 @@ export const REPORT_TEMPLATES: { id: ReportTemplateId; name: string; description
   { id: 'minimal', name: 'Minimalist', description: 'Simple grid, focus on numbers', preview: '#475569' },
   { id: 'elegant', name: 'Elegant Profile', description: 'Centric photo, refined layout', preview: '#7c3aed' },
   { id: 'compact', name: 'Compact Summary', description: 'Dense layout for extensive marks', preview: '#059669' },
+  { id: 'royal', name: 'Royal Gold', description: 'Dark navy & gold with wave accent', preview: '#b8860b' },
 ];
 
 function getCustom(props: ReportCardProps): ReportCardCustomization {
@@ -599,6 +600,226 @@ export function CompactReport(props: ReportCardProps) {
   );
 }
 
+export function RoyalReport(props: ReportCardProps) {
+  const c = getCustom(props);
+  const { activeFields, subjects } = props;
+
+  // Royal palette — overrides user primary/border with navy+gold
+  const NAVY  = '#1a2744';
+  const GOLD  = '#c8960c';
+  const GOLD2 = '#e8b84b';
+  const font  = c.titleFont || 'Georgia, serif';
+
+  // Grade → remark mapping
+  const gradeRemark = (g: string) =>
+    g === 'A+' ? 'Outstanding' : g === 'A' ? 'Excellent' :
+    g === 'B+' ? 'Very Good'  : g === 'B' ? 'Good' :
+    g === 'C'  ? 'Satisfactory' : g === 'D' ? 'Needs Improvement' : 'Unsatisfactory';
+
+  const activeSigs = (c.signatures || []).filter(s => s.active);
+
+  return (
+    <div style={{
+      width: '210mm', height: '297mm', background: '#ffffff',
+      fontFamily: font, color: '#1a1a1a',
+      position: 'relative', overflow: 'hidden', boxSizing: 'border-box',
+    }}>
+
+      {/* ── RIGHT-SIDE WAVE DECORATION ── */}
+      <svg
+        viewBox="0 0 160 842"
+        xmlns="http://www.w3.org/2000/svg"
+        style={{ position: 'absolute', right: 0, top: 0, height: '100%', width: '160px', zIndex: 0 }}
+        preserveAspectRatio="none"
+      >
+        {/* Dark navy wave fill */}
+        <path
+          d="M160,0 L80,0 Q20,120 60,210 Q110,310 40,420 Q-10,530 50,630 Q100,720 60,842 L160,842 Z"
+          fill={NAVY}
+        />
+        {/* Gold outline wave (slightly offset) */}
+        <path
+          d="M160,0 L95,0 Q35,130 72,220 Q118,325 52,432 Q4,540 62,640 Q108,730 72,842 L85,842 Q52,730 100,640 Q42,540 90,432 Q156,325 108,220 Q72,130 110,0 Z"
+          fill={GOLD}
+          opacity="0.85"
+        />
+        {/* Thin gold line wave */}
+        <path
+          d="M118,0 Q82,140 105,250 Q138,360 95,460 Q62,555 98,660 Q118,730 100,842"
+          fill="none"
+          stroke={GOLD2}
+          strokeWidth="2"
+          opacity="0.6"
+        />
+      </svg>
+
+      {/* Watermark */}
+      {activeFields.includes('watermark') && props.schoolLogo && (
+        <div style={{ position: 'absolute', top: 0, left: 0, right: '160px', bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 0, pointerEvents: 'none' }}>
+          <img src={props.schoolLogo} alt="" style={{ width: '320px', height: '320px', objectFit: 'contain', opacity: c.watermarkOpacity, transform: 'rotate(-20deg)' }} />
+        </div>
+      )}
+
+      {/* ── CONTENT AREA (padded, z above waves) ── */}
+      <div style={{ position: 'relative', zIndex: 1, padding: '8mm 50mm 6mm 10mm', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
+
+        {/* ── HEADER ── */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', borderBottom: `2px solid ${GOLD}`, paddingBottom: '8px', marginBottom: '10px' }}>
+          {/* Logo / Shield */}
+          <div style={{ marginRight: '12px', flexShrink: 0 }}>
+            {activeFields.includes('school_logo') && props.schoolLogo ? (
+              <img src={props.schoolLogo} alt="" style={{ width: c.logoSize * 0.9, height: c.logoSize * 0.9, objectFit: 'contain' }} />
+            ) : (
+              <div style={{ width: 52, height: 52, background: NAVY, borderRadius: '6px 6px 50% 50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ color: GOLD, fontSize: 22, fontWeight: 'bold' }}>E</span>
+              </div>
+            )}
+          </div>
+          {/* School name */}
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: c.headerFontSize * 1.35, fontWeight: 'bold', color: NAVY, textTransform: 'uppercase', letterSpacing: '1px', lineHeight: 1.1 }}>
+              {props.schoolName}
+            </div>
+            <div style={{ fontSize: c.tableFontSize * 0.95, color: GOLD, fontStyle: 'italic', letterSpacing: '2px', marginTop: '3px' }}>
+              INSPIRE. EMPOWER. EXCEL.
+            </div>
+          </div>
+          {/* Report Card label */}
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+            <div style={{ fontSize: c.headerFontSize * 1.1, fontWeight: '900', color: GOLD, textTransform: 'uppercase', letterSpacing: '1px' }}>REPORT CARD</div>
+            <div style={{ fontSize: c.tableFontSize * 1.1, color: NAVY, fontWeight: '600' }}>
+              {props.examSession || props.examName || '2024 – 2025'}
+            </div>
+          </div>
+        </div>
+
+        {/* Gold diamond ornament */}
+        <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+          <span style={{ color: GOLD, fontSize: 10 }}>◆</span>
+        </div>
+
+        {/* ── STUDENT INFO GRID ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px 20px', fontSize: c.tableFontSize * 1.0, marginBottom: '10px', color: '#222' }}>
+          {[
+            ['Student Name', props.studentName],
+            ['Term',         props.examName || '—'],
+            ['Roll / ID',    props.rollNumber],
+            ['Academic Year', props.examSession || '—'],
+            ['Grade / Class', props.className],
+            ['Date',         new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })],
+            ['Division',     '—'],
+            ...(activeFields.includes('attendance_stats') ? [['Attendance', props.attendance]] : []),
+          ].map(([label, val], i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: '6px', borderBottom: '1px solid #e5e5e5', paddingBottom: '2px' }}>
+              <span style={{ fontWeight: '600', color: '#444', minWidth: '80px', fontSize: c.tableFontSize * 0.9 }}>{label}:</span>
+              <span style={{ flex: 1, borderBottom: '1px solid #aaa' }}>{val}</span>
+            </div>
+          ))}
+          {props.positionInClass && props.totalStudents && (
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', borderBottom: '1px solid #e5e5e5', paddingBottom: '2px' }}>
+              <span style={{ fontWeight: '600', color: '#444', minWidth: '80px', fontSize: c.tableFontSize * 0.9 }}>Position:</span>
+              <span style={{ color: GOLD, fontWeight: 'bold' }}>{props.positionInClass} / {props.totalStudents}</span>
+            </div>
+          )}
+        </div>
+
+        {/* ── MARKS TABLE ── */}
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: c.tableFontSize, marginBottom: '10px' }}>
+          <thead>
+            <tr style={{ background: NAVY, color: GOLD, textTransform: 'uppercase', fontSize: c.tableFontSize * 0.85, letterSpacing: '0.5px' }}>
+              <th style={{ padding: '7px 10px', textAlign: 'left', border: `1px solid ${NAVY}` }}>Subject</th>
+              <th style={{ padding: '7px 8px', textAlign: 'center', border: `1px solid ${NAVY}` }}>Performance</th>
+              <th style={{ padding: '7px 8px', textAlign: 'center', border: `1px solid ${NAVY}` }}>Score</th>
+              <th style={{ padding: '7px 8px', textAlign: 'center', border: `1px solid ${NAVY}` }}>Grade</th>
+              <th style={{ padding: '7px 8px', textAlign: 'center', border: `1px solid ${NAVY}` }}>Remarks</th>
+            </tr>
+          </thead>
+          <tbody>
+            {subjects.map((sub, i) => (
+              <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#fafaf7', borderBottom: `1px solid #e8e5d8` }}>
+                <td style={{ padding: '5px 10px', textTransform: 'uppercase', fontSize: c.tableFontSize * 0.9, fontWeight: '500', border: `1px solid #e5e2d5` }}>{sub.name}</td>
+                <td style={{ padding: '5px 8px', textAlign: 'center', border: `1px solid #e5e2d5`, fontWeight: 'bold', color: NAVY }}>{sub.grade}</td>
+                <td style={{ padding: '5px 8px', textAlign: 'center', border: `1px solid #e5e2d5` }}>{sub.marks} – {sub.total}</td>
+                <td style={{ padding: '5px 8px', textAlign: 'center', border: `1px solid #e5e2d5`, fontWeight: 'bold' }}>{sub.grade}</td>
+                <td style={{ padding: '5px 8px', textAlign: 'center', border: `1px solid #e5e2d5`, color: '#555' }}>{gradeRemark(sub.grade)}</td>
+              </tr>
+            ))}
+          </tbody>
+          {activeFields.includes('gpa_summary') && (
+            <tfoot>
+              <tr style={{ background: '#f5f0e0', fontWeight: 'bold', borderTop: `2px solid ${GOLD}` }}>
+                <td colSpan={2} style={{ padding: '6px 10px', textAlign: 'right', fontSize: c.tableFontSize * 0.9, color: NAVY }}>OVERALL</td>
+                <td style={{ padding: '6px 8px', textAlign: 'center', color: NAVY }}>{props.obtainedMarks}/{props.totalMarks}</td>
+                <td style={{ padding: '6px 8px', textAlign: 'center', color: GOLD, fontSize: c.tableFontSize * 1.1 }}>{props.grade}</td>
+                <td style={{ padding: '6px 8px', textAlign: 'center', color: NAVY }}>{props.percentage}%{props.finalStatus ? ` — ${props.finalStatus}` : ''}</td>
+              </tr>
+            </tfoot>
+          )}
+        </table>
+
+        {/* ── BOTTOM: Teacher Comments + Grading Scale ── */}
+        <div style={{ display: 'flex', gap: '10px', flex: 1, marginBottom: '10px' }}>
+
+          {/* Teacher comments */}
+          {activeFields.includes('teacher_remarks') && (
+            <div style={{ flex: 1.2, border: `1px solid #e0d8c0`, borderRadius: '6px', padding: '8px 10px', background: '#fffef9' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                <span style={{ fontSize: 16 }}>👤</span>
+                <span style={{ fontSize: c.tableFontSize * 0.9, fontWeight: '700', color: GOLD, textTransform: 'uppercase', letterSpacing: '1px' }}>Teacher's Comments</span>
+              </div>
+              <div style={{ fontSize: c.remarksFontSize * 0.85, color: '#333', lineHeight: 1.6 }}>
+                A diligent and enthusiastic learner.<br />
+                Shows great potential and a positive attitude.<br />
+                Keep up the excellent work!
+              </div>
+            </div>
+          )}
+
+          {/* Grading Scale */}
+          <div style={{ flex: 1, border: `1px solid #e0d8c0`, borderRadius: '6px', padding: '8px 10px', background: '#fffef9' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+              <span style={{ fontSize: 16 }}>🏅</span>
+              <span style={{ fontSize: c.tableFontSize * 0.9, fontWeight: '700', color: GOLD, textTransform: 'uppercase', letterSpacing: '1px' }}>Grading Scale</span>
+            </div>
+            {[['A+','90 – 100','Outstanding'],['A','80 – 89','Excellent'],['B+','70 – 79','Very Good'],['B','60 – 69','Good'],['C','50 – 59','Satisfactory'],['D','40 – 49','Needs Improvement'],['E','Below 40','Unsatisfactory']]
+              .map(([g, r, l]) => (
+                <div key={g} style={{ display: 'flex', gap: '6px', fontSize: c.tableFontSize * 0.82, color: '#333', marginBottom: '1px' }}>
+                  <span style={{ fontWeight: 'bold', width: '22px', color: NAVY }}>{g}</span>
+                  <span style={{ width: '60px', color: '#555' }}>{r}</span>
+                  <span>{l}</span>
+                </div>
+              ))
+            }
+          </div>
+        </div>
+
+        {/* ── SIGNATURES ── */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', paddingTop: '6px', borderTop: `1px solid ${GOLD}` }}>
+          {activeSigs.map((sig, idx) => (
+            <div key={idx} style={{ textAlign: 'center', minWidth: '100px' }}>
+              <div style={{ height: '28px', borderBottom: `1px solid #aaa`, marginBottom: '4px' }} />
+              <div style={{ fontSize: c.tableFontSize * 0.9, color: '#333', fontWeight: '600' }}>{sig.label}</div>
+            </div>
+          ))}
+          {/* Centre seal/motto */}
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ width: 52, height: 52, borderRadius: '50%', border: `2px solid ${GOLD}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', margin: '0 auto 4px' }}>
+              <div style={{ fontSize: 7, fontWeight: 'bold', color: NAVY, textAlign: 'center', lineHeight: 1.3 }}>LEARN<br/>LEAD<br/>SUCCEED</div>
+              <div style={{ fontSize: 10, color: GOLD }}>★</div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── BOTTOM MOTTO ── */}
+        <div style={{ textAlign: 'center', marginTop: '6px', fontSize: c.tableFontSize * 0.8, color: NAVY, letterSpacing: '1.5px', fontStyle: 'italic', borderTop: `1px solid ${GOLD}`, paddingTop: '5px' }}>
+          AT THE EDGE, WE SHAPE TOMORROW'S LEADERS.
+        </div>
+
+      </div>{/* end content */}
+    </div>
+  );
+}
+
 export function ReportCardLayoutRenderer(props: ReportCardProps & { template: ReportTemplateId }) {
   const { template, ...rest } = props;
   switch (template) {
@@ -606,6 +827,7 @@ export function ReportCardLayoutRenderer(props: ReportCardProps & { template: Re
     case 'minimal': return <MinimalReport {...rest} />;
     case 'elegant': return <ElegantReport {...rest} />;
     case 'compact': return <CompactReport {...rest} />;
+    case 'royal':   return <RoyalReport {...rest} />;
     default:        return <ClassicReport {...rest} />;
   }
 }
