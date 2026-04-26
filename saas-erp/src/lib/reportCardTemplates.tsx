@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type ReportTemplateId = 'classic' | 'modern' | 'minimal' | 'elegant' | 'compact' | 'royal';
+export type ReportTemplateId = 'classic' | 'modern' | 'minimal' | 'elegant' | 'compact' | 'royal' | 'prestige' | 'pearl';
 
 export interface ReportCardCustomization {
   headerFontSize: number;
@@ -61,7 +61,9 @@ export const REPORT_TEMPLATES: { id: ReportTemplateId; name: string; description
   { id: 'minimal', name: 'Minimalist', description: 'Simple grid, focus on numbers', preview: '#475569' },
   { id: 'elegant', name: 'Elegant Profile', description: 'Centric photo, refined layout', preview: '#7c3aed' },
   { id: 'compact', name: 'Compact Summary', description: 'Dense layout for extensive marks', preview: '#059669' },
-  { id: 'royal', name: 'Royal Gold', description: 'Dark navy & gold with wave accent', preview: '#b8860b' },
+  { id: 'royal',    name: 'Royal Gold',   description: 'Dark navy & gold with wave accent',    preview: '#b8860b' },
+  { id: 'prestige', name: 'Prestige',      description: 'Forest green sidebar, corporate style', preview: '#14532d' },
+  { id: 'pearl',    name: 'Pearl',         description: 'Teal-navy gradient, modern clean layout',preview: '#0d9488' },
 ];
 
 function getCustom(props: ReportCardProps): ReportCardCustomization {
@@ -820,14 +822,269 @@ export function RoyalReport(props: ReportCardProps) {
   );
 }
 
+export function PrestigeReport(props: ReportCardProps) {
+  const c = getCustom(props);
+  const { activeFields, subjects } = props;
+  const GREEN = '#14532d';
+  const LIME  = '#4ade80';
+  const GOLD  = '#d4af37';
+  const font  = c.titleFont || 'Georgia, serif';
+  const activeSigs = (c.signatures || []).filter(s => s.active);
+
+  return (
+    <div style={{ width:'210mm', height:'297mm', background:'#fff', fontFamily:font, color:'#111', position:'relative', overflow:'hidden', boxSizing:'border-box', display:'flex' }}>
+      {/* Left green sidebar */}
+      <div style={{ width:'52px', background:GREEN, flexShrink:0, display:'flex', flexDirection:'column', alignItems:'center', padding:'14px 0', gap:'12px', position:'relative' }}>
+        {activeFields.includes('school_logo') && props.schoolLogo
+          ? <img src={props.schoolLogo} alt="" style={{ width:38, height:38, objectFit:'contain', borderRadius:'50%', background:'#fff', padding:'3px' }} />
+          : <div style={{ width:36, height:36, borderRadius:'50%', background:GOLD, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'bold', color:GREEN, fontSize:16 }}>P</div>
+        }
+        <div style={{ flex:1, display:'flex', alignItems:'center' }}>
+          <div style={{ transform:'rotate(-90deg)', whiteSpace:'nowrap', color:GOLD, fontSize:9, fontWeight:'bold', letterSpacing:'2px', textTransform:'uppercase' }}>
+            {props.schoolName}
+          </div>
+        </div>
+        <div style={{ width:32, height:2, background:GOLD, borderRadius:'2px' }} />
+        <div style={{ color:'#fff', fontSize:7, textAlign:'center', padding:'0 4px', opacity:0.7, letterSpacing:'1px' }}>
+          {props.examSession || new Date().getFullYear().toString()}
+        </div>
+        {/* Watermark in sidebar */}
+        {activeFields.includes('watermark') && props.schoolLogo && (
+          <div style={{ position:'absolute', bottom:'60px', left:0, right:0, display:'flex', justifyContent:'center', opacity:c.watermarkOpacity * 0.5 }}>
+            <img src={props.schoolLogo} alt="" style={{ width:46, objectFit:'contain', filter:'invert(1)' }} />
+          </div>
+        )}
+      </div>
+
+      {/* Main content */}
+      <div style={{ flex:1, padding:'10mm 8mm 8mm 8mm', display:'flex', flexDirection:'column', overflow:'hidden' }}>
+        {/* Header */}
+        <div style={{ borderBottom:`3px solid ${GREEN}`, paddingBottom:'8px', marginBottom:'10px' }}>
+          <div style={{ fontSize:c.headerFontSize*1.3, fontWeight:'900', color:GREEN, textTransform:'uppercase', letterSpacing:'1.5px', lineHeight:1.1 }}>{props.schoolName}</div>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:'4px' }}>
+            <div style={{ fontSize:c.tableFontSize, color:'#555', fontStyle:'italic' }}>Academic Report Card{props.examName ? ` — ${props.examName}` : ''}</div>
+            <div style={{ fontSize:c.tableFontSize*1.4, fontWeight:'bold', color:GOLD, background:GREEN, padding:'2px 10px', borderRadius:'4px' }}>{props.grade}</div>
+          </div>
+        </div>
+
+        {/* Info grid */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'4px 16px', fontSize:c.tableFontSize, background:'#f0fdf4', border:`1px solid ${LIME}33`, borderRadius:'6px', padding:'8px 10px', marginBottom:'10px' }}>
+          {[['Student',props.studentName],['Roll No',props.rollNumber],['Class',props.className],['Status',props.finalStatus||'—'],
+            ...(activeFields.includes('attendance_stats')?[['Attendance',props.attendance]]:[]),
+            ...(props.positionInClass&&props.totalStudents?[['Position',`${props.positionInClass} of ${props.totalStudents}`]]:[]),
+          ].map(([l,v],i)=>(
+            <div key={i} style={{ display:'flex', gap:'6px' }}>
+              <span style={{ color:'#555', minWidth:'60px', fontSize:c.tableFontSize*0.9 }}>{l}:</span>
+              <span style={{ fontWeight:'600', color:GREEN }}>{v}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Marks table */}
+        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:c.tableFontSize, marginBottom:'10px' }}>
+          <thead>
+            <tr style={{ background:GREEN, color:'#fff' }}>
+              {['Subject','Total','Marks','%','Grade','Status'].map(h=>(
+                <th key={h} style={{ padding:'6px 8px', textAlign:h==='Subject'?'left':'center', fontSize:c.tableFontSize*0.85, letterSpacing:'0.5px' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {subjects.map((s,i)=>{
+              const pct=s.total>0?Math.round(s.marks/s.total*100):0;
+              return (
+                <tr key={i} style={{ background:i%2?'#f0fdf4':'#fff', borderBottom:'1px solid #dcfce7' }}>
+                  <td style={{ padding:'5px 8px', fontWeight:'500' }}>{s.name}</td>
+                  <td style={{ padding:'5px 8px', textAlign:'center', color:'#555' }}>{s.total}</td>
+                  <td style={{ padding:'5px 8px', textAlign:'center', fontWeight:'bold', color:GREEN }}>{s.marks}</td>
+                  <td style={{ padding:'5px 8px', textAlign:'center', color:'#555' }}>{pct}%</td>
+                  <td style={{ padding:'5px 8px', textAlign:'center', fontWeight:'bold', color:GOLD }}>{s.grade}</td>
+                  <td style={{ padding:'5px 8px', textAlign:'center', fontSize:c.tableFontSize*0.85, color:s.status==='Pass'?GREEN:s.status==='Fail'?'#dc2626':'#666' }}>{s.status||'—'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr style={{ background:GREEN, color:'#fff', fontWeight:'bold' }}>
+              <td style={{ padding:'6px 8px' }}>TOTAL</td>
+              <td style={{ padding:'6px 8px', textAlign:'center' }}>{props.totalMarks}</td>
+              <td style={{ padding:'6px 8px', textAlign:'center' }}>{props.obtainedMarks}</td>
+              <td style={{ padding:'6px 8px', textAlign:'center' }}>{props.percentage}%</td>
+              <td style={{ padding:'6px 8px', textAlign:'center', color:GOLD }}>{props.grade}</td>
+              <td style={{ padding:'6px 8px', textAlign:'center', color:LIME }}>{props.finalStatus||'—'}</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        {/* Remarks */}
+        {activeFields.includes('teacher_remarks') && (
+          <div style={{ background:'#f0fdf4', border:`1px solid ${LIME}55`, borderRadius:'6px', padding:'8px 10px', marginBottom:'10px' }}>
+            <div style={{ fontSize:c.tableFontSize*0.85, fontWeight:'bold', color:GREEN, marginBottom:'4px', textTransform:'uppercase', letterSpacing:'1px' }}>Teacher Remarks</div>
+            <div style={{ borderBottom:'1px dashed #86efac', height:'20px' }} />
+          </div>
+        )}
+
+        {/* Signatures */}
+        <div style={{ display:'flex', justifyContent:'space-between', borderTop:`2px solid ${GREEN}`, paddingTop:'8px', marginTop:'auto' }}>
+          {activeSigs.map((sig,i)=>(
+            <div key={i} style={{ textAlign:'center', minWidth:'100px' }}>
+              <div style={{ height:'26px', borderBottom:'1px solid #888', marginBottom:'4px' }} />
+              <div style={{ fontSize:c.tableFontSize*0.85, color:GREEN, fontWeight:'600' }}>{sig.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function PearlReport(props: ReportCardProps) {
+  const c = getCustom(props);
+  const { activeFields, subjects } = props;
+  const TEAL = '#0d9488';
+  const NAVY = '#1e3a5f';
+  const font = c.titleFont || 'sans-serif';
+  const activeSigs = (c.signatures || []).filter(s => s.active);
+  const gradeColor = (g:string) => g.startsWith('A')?TEAL:g.startsWith('B')?NAVY:g==='C'?'#d97706':g==='D'?'#ea580c':'#dc2626';
+
+  return (
+    <div style={{ width:'210mm', height:'297mm', background:'#f8fafc', fontFamily:font, color:'#0f172a', position:'relative', overflow:'hidden', boxSizing:'border-box' }}>
+      {/* Gradient top header band */}
+      <div style={{ background:`linear-gradient(135deg, ${TEAL} 0%, ${NAVY} 100%)`, padding:'14px 18px', display:'flex', alignItems:'center', gap:'14px', position:'relative', overflow:'hidden' }}>
+        {/* Decorative circles */}
+        <div style={{ position:'absolute', right:'-20px', top:'-20px', width:'100px', height:'100px', borderRadius:'50%', background:'rgba(255,255,255,0.08)' }} />
+        <div style={{ position:'absolute', right:'40px', bottom:'-30px', width:'80px', height:'80px', borderRadius:'50%', background:'rgba(255,255,255,0.06)' }} />
+
+        {/* Logo */}
+        {activeFields.includes('school_logo') && props.schoolLogo
+          ? <img src={props.schoolLogo} alt="" style={{ width:c.logoSize*0.85, height:c.logoSize*0.85, objectFit:'contain', background:'rgba(255,255,255,0.15)', borderRadius:'8px', padding:'4px', flexShrink:0 }} />
+          : <div style={{ width:48, height:48, borderRadius:'12px', background:'rgba(255,255,255,0.2)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              <span style={{ color:'#fff', fontSize:20, fontWeight:'900' }}>S</span>
+            </div>
+        }
+
+        <div style={{ flex:1, zIndex:1 }}>
+          <div style={{ color:'#fff', fontSize:c.headerFontSize*1.2, fontWeight:'900', letterSpacing:'0.5px' }}>{props.schoolName}</div>
+          <div style={{ color:'rgba(255,255,255,0.8)', fontSize:c.tableFontSize*0.9, marginTop:'2px' }}>Academic Progress Report{props.examName?` — ${props.examName}`:''}</div>
+        </div>
+
+        {/* Right: grade badge */}
+        <div style={{ zIndex:1, textAlign:'center', background:'rgba(255,255,255,0.15)', borderRadius:'10px', padding:'8px 14px', border:'1.5px solid rgba(255,255,255,0.3)' }}>
+          <div style={{ color:'rgba(255,255,255,0.8)', fontSize:c.tableFontSize*0.75, textTransform:'uppercase', letterSpacing:'1px' }}>Overall</div>
+          <div style={{ color:'#fff', fontSize:c.tableFontSize*2.2, fontWeight:'900', lineHeight:1 }}>{props.grade}</div>
+          <div style={{ color:'rgba(255,255,255,0.9)', fontSize:c.tableFontSize*0.85, marginTop:'2px' }}>{props.percentage}%</div>
+        </div>
+
+        {activeFields.includes('student_photo') && props.studentPhoto && (
+          <img src={props.studentPhoto} alt="Student" style={{ width:70, height:70, objectFit:'cover', borderRadius:'50%', border:'3px solid rgba(255,255,255,0.4)', zIndex:1 }} />
+        )}
+      </div>
+
+      {/* Watermark */}
+      {activeFields.includes('watermark') && props.schoolLogo && (
+        <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', opacity:c.watermarkOpacity, zIndex:0, pointerEvents:'none' }}>
+          <img src={props.schoolLogo} alt="" style={{ width:'350px', height:'350px', objectFit:'contain' }} />
+        </div>
+      )}
+
+      {/* Content */}
+      <div style={{ padding:'10px 14px', position:'relative', zIndex:1 }}>
+        {/* Student info cards */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'8px', marginBottom:'10px' }}>
+          {[['Student',props.studentName],['Roll No',props.rollNumber],['Class',props.className],
+            props.positionInClass&&props.totalStudents?['Rank',`${props.positionInClass}/${props.totalStudents}`]:['Status',props.finalStatus||'—']
+          ].map(([l,v],i)=>(
+            <div key={i} style={{ background:'#fff', borderRadius:'8px', padding:'8px 10px', border:`1px solid ${TEAL}22`, boxShadow:'0 1px 4px rgba(0,0,0,0.06)' }}>
+              <div style={{ fontSize:c.tableFontSize*0.78, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'2px' }}>{l}</div>
+              <div style={{ fontSize:c.tableFontSize*1.0, fontWeight:'700', color:NAVY, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{v}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Subject table */}
+        <div style={{ background:'#fff', borderRadius:'10px', overflow:'hidden', border:`1px solid ${TEAL}22`, boxShadow:'0 2px 8px rgba(0,0,0,0.05)', marginBottom:'10px' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:c.tableFontSize }}>
+            <thead>
+              <tr style={{ background:`linear-gradient(90deg,${TEAL},${NAVY})` }}>
+                {['Subject','Max','Obtained','%','Grade','Status'].map((h,i)=>(
+                  <th key={h} style={{ padding:'7px 10px', color:'#fff', textAlign:i===0?'left':'center', fontSize:c.tableFontSize*0.82, fontWeight:'700', letterSpacing:'0.5px' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {subjects.map((s,i)=>{
+                const pct=s.total>0?Math.round(s.marks/s.total*100):0;
+                return (
+                  <tr key={i} style={{ background:i%2?'#f8fafc':'#fff', borderBottom:`1px solid ${TEAL}15` }}>
+                    <td style={{ padding:'6px 10px', fontWeight:'500', color:'#1e293b' }}>{s.name}</td>
+                    <td style={{ padding:'6px 10px', textAlign:'center', color:'#64748b' }}>{s.total}</td>
+                    <td style={{ padding:'6px 10px', textAlign:'center', fontWeight:'bold', color:NAVY }}>{s.marks}</td>
+                    <td style={{ padding:'6px 10px', textAlign:'center' }}>
+                      <div style={{ display:'inline-block', background:`${TEAL}18`, color:TEAL, borderRadius:'12px', padding:'1px 7px', fontWeight:'bold', fontSize:c.tableFontSize*0.85 }}>{pct}%</div>
+                    </td>
+                    <td style={{ padding:'6px 10px', textAlign:'center' }}>
+                      <span style={{ display:'inline-block', background:`${gradeColor(s.grade)}18`, color:gradeColor(s.grade), borderRadius:'6px', padding:'2px 8px', fontWeight:'900', fontSize:c.tableFontSize*0.9 }}>{s.grade}</span>
+                    </td>
+                    <td style={{ padding:'6px 10px', textAlign:'center', fontSize:c.tableFontSize*0.85, fontWeight:'600', color:s.status==='Pass'?TEAL:s.status==='Fail'?'#dc2626':'#94a3b8' }}>{s.status||'—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr style={{ background:`${NAVY}`, color:'#fff', fontWeight:'bold' }}>
+                <td style={{ padding:'7px 10px' }}>OVERALL</td>
+                <td style={{ padding:'7px 10px', textAlign:'center' }}>{props.totalMarks}</td>
+                <td style={{ padding:'7px 10px', textAlign:'center' }}>{props.obtainedMarks}</td>
+                <td style={{ padding:'7px 10px', textAlign:'center' }}>{props.percentage}%</td>
+                <td style={{ padding:'7px 10px', textAlign:'center', color:'#5eead4' }}>{props.grade}</td>
+                <td style={{ padding:'7px 10px', textAlign:'center', color:'#5eead4', fontSize:c.tableFontSize*0.85 }}>{props.finalStatus||'—'}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        {/* Bottom row: attendance + remarks + grading */}
+        <div style={{ display:'flex', gap:'10px', marginBottom:'10px' }}>
+          {activeFields.includes('attendance_stats') && (
+            <div style={{ background:'#fff', borderRadius:'8px', padding:'8px 12px', border:`1px solid ${TEAL}22`, flexShrink:0 }}>
+              <div style={{ fontSize:c.tableFontSize*0.78, color:'#64748b', textTransform:'uppercase', marginBottom:'2px' }}>Attendance</div>
+              <div style={{ fontSize:c.tableFontSize*1.1, fontWeight:'bold', color:TEAL }}>{props.attendance}</div>
+            </div>
+          )}
+          {activeFields.includes('teacher_remarks') && (
+            <div style={{ flex:1, background:'#fff', borderRadius:'8px', padding:'8px 12px', border:`1px solid ${TEAL}22` }}>
+              <div style={{ fontSize:c.tableFontSize*0.78, color:'#64748b', textTransform:'uppercase', marginBottom:'4px', letterSpacing:'0.5px' }}>Teacher Remarks</div>
+              <div style={{ borderBottom:'1px dashed #cbd5e1', marginBottom:'4px', height:'16px' }} />
+              <div style={{ borderBottom:'1px dashed #cbd5e1', height:'16px' }} />
+            </div>
+          )}
+        </div>
+
+        {/* Signatures */}
+        <div style={{ display:'flex', justifyContent:'space-between', borderTop:`2px solid ${TEAL}`, paddingTop:'8px' }}>
+          {activeSigs.map((sig,i)=>(
+            <div key={i} style={{ textAlign:'center', minWidth:'90px' }}>
+              <div style={{ height:'24px', borderBottom:`1px solid #94a3b8`, marginBottom:'4px' }} />
+              <div style={{ fontSize:c.tableFontSize*0.82, color:NAVY, fontWeight:'600' }}>{sig.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ReportCardLayoutRenderer(props: ReportCardProps & { template: ReportTemplateId }) {
   const { template, ...rest } = props;
   switch (template) {
-    case 'modern':  return <ModernReport {...rest} />;
-    case 'minimal': return <MinimalReport {...rest} />;
-    case 'elegant': return <ElegantReport {...rest} />;
-    case 'compact': return <CompactReport {...rest} />;
-    case 'royal':   return <RoyalReport {...rest} />;
-    default:        return <ClassicReport {...rest} />;
+    case 'modern':   return <ModernReport   {...rest} />;
+    case 'minimal':  return <MinimalReport  {...rest} />;
+    case 'elegant':  return <ElegantReport  {...rest} />;
+    case 'compact':  return <CompactReport  {...rest} />;
+    case 'royal':    return <RoyalReport    {...rest} />;
+    case 'prestige': return <PrestigeReport {...rest} />;
+    case 'pearl':    return <PearlReport    {...rest} />;
+    default:         return <ClassicReport  {...rest} />;
   }
 }
+
