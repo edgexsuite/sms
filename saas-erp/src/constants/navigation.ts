@@ -5,7 +5,7 @@ import {
   CalendarOff, ClipboardList, AlertTriangle, Wallet, TrendingUp, PiggyBank,
   Banknote, DollarSign, Scale, BarChart3, BarChart2, ClipboardCheck, UserX,
   LineChart, Library, Home, Bell, Key, Trash2, Box, Package, Clock, Palette,
-  Receipt, Layers, BookMarked, Landmark, BarChart, LifeBuoy
+  Receipt, Layers, BookMarked, Landmark, BarChart, LifeBuoy, Users2
 } from 'lucide-react';
 
 export const ALL_ADMIN = ['admin', 'principal', 'director'];
@@ -75,6 +75,7 @@ export const NAV_SECTIONS = [
         subItems: [
           { name: 'Class & Section Setup', path: '/classes/manage', exact: true, icon: BookOpen },
           { name: 'Subject Management', path: '/classes/subjects', icon: FileText },
+          { name: 'Class Students', path: '/classes/students', icon: Users2 },
         ]
       },
       { name: 'Timetable', path: '/timetable', icon: Calendar, roles: ALL_STAFF },
