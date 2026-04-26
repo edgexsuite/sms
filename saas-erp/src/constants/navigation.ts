@@ -131,6 +131,7 @@ export const NAV_SECTIONS = [
         subItems: [
           { name: 'Exam Types', path: '/result/exam-types', icon: SettingsIcon, roles: ALL_ADMIN },
           { name: 'Enter Results', path: '/result/add-result', exact: true, icon: Star },
+          { name: 'Import from Excel', path: '/result/import', icon: Upload },
           { name: 'Report Cards', path: '/result/reporting', icon: LineChart },
         ]
       },
