@@ -103,6 +103,47 @@ Deno.serve(async (req) => {
       return ok({ user_id: uid, email, linked_existing: !!authErr });
     }
 
+    // ── UPDATE EMAIL IN AUTH ──────────────────────────────────────────────────
+    if (action === 'update_email') {
+      const { staff_id, old_email, new_email, school_id } = body;
+      if (!new_email) return err('new_email is required');
+
+      // Find auth user_id — try user_roles.staff_id first, then email scan
+      let uid: string | null = null;
+
+      if (staff_id && school_id) {
+        const { data: roleRow } = await admin
+          .from('user_roles')
+          .select('user_id')
+          .eq('staff_id', staff_id)
+          .eq('school_id', school_id)
+          .maybeSingle();
+        uid = roleRow?.user_id ?? null;
+      }
+
+      if (!uid && old_email) {
+        const { data: { users } } = await admin.auth.admin.listUsers({ perPage: 1000 });
+        const user = users.find((u: any) => u.email?.toLowerCase() === old_email.toLowerCase());
+        uid = user?.id ?? null;
+      }
+
+      if (!uid) return err('Could not find auth account for this staff member.');
+
+      // Update email in Supabase Auth
+      const { error: authErr } = await admin.auth.admin.updateUserById(uid, { email: new_email });
+      if (authErr) return err('Auth email update error: ' + authErr.message);
+
+      // Also sync login_email in user_roles
+      if (school_id) {
+        await admin.from('user_roles')
+          .update({ login_email: new_email })
+          .eq('user_id', uid)
+          .eq('school_id', school_id);
+      }
+
+      return ok({ success: true, user_id: uid });
+    }
+
     // ── FIND USER BY EMAIL ────────────────────────────────────────────────────
     if (action === 'find_user_by_email') {
       const { email } = body;

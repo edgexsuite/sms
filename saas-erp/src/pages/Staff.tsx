@@ -55,6 +55,7 @@ export default function Staff() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [editOriginalEmail, setEditOriginalEmail] = useState<string>('');
   const [formData, setFormData] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
@@ -110,6 +111,7 @@ export default function Staff() {
   };
 
   const openEdit = (s: any) => {
+    setEditOriginalEmail(s.email || '');
     setEditId(s.id);
     setFormData({
       full_name: s.full_name || '',
@@ -166,13 +168,22 @@ export default function Staff() {
       if (editId) {
         const { error } = await supabase.from('staff').update(payload).eq('id', editId);
         if (error) throw error;
-        // Sync email change into login credentials if this staff has an account
-        if (formData.email) {
-          await supabase
-            .from('user_roles')
-            .update({ login_email: formData.email })
-            .eq('staff_id', editId)
-            .eq('school_id', userRole?.school_id ?? '');
+        // If email changed, update Supabase Auth + user_roles via edge function
+        const emailChanged = formData.email && formData.email !== editOriginalEmail;
+        if (emailChanged) {
+          supabase.functions.invoke('create-staff-user', {
+            body: {
+              action:     'update_email',
+              staff_id:   editId,
+              old_email:  editOriginalEmail,
+              new_email:  formData.email,
+              school_id:  userRole?.school_id,
+            },
+          }).then(({ data, error: fnErr }) => {
+            if (fnErr || data?.error) {
+              console.warn('Auth email update warning:', fnErr?.message || data?.error);
+            }
+          });
         }
       } else {
         const { data: newStaff, error } = await supabase.from('staff').insert([payload]).select().single();
