@@ -110,7 +110,7 @@ export default function ChartOfAccounts() {
       {showForm && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
           <h2 className="font-semibold text-gray-800 mb-4">New Account</h2>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Account Code</label>
               <input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })}

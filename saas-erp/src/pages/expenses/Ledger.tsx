@@ -225,7 +225,7 @@ export default function Ledger() {
         </div>
 
         {/* LEDGER TABLE */}
-        <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden overflow-x-auto">
           <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
              <h3 className="font-bold text-gray-800">Chronological Transactions List</h3>
           </div>

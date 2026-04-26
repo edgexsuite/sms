@@ -93,7 +93,7 @@ export default function ExpenseReports() {
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Expenses</p>
           <p className="text-2xl font-black text-red-600 mt-1">Rs. {total.toLocaleString()}</p>
@@ -122,7 +122,7 @@ export default function ExpenseReports() {
           transactions.length === 0 ? <div className="p-12 text-center text-gray-400">No expense data for this period.</div> : (
             <div className="p-6">
               {chartView === 'category' ? (
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="h-72 min-w-0">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                     <PieChart>

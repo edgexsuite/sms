@@ -134,7 +134,7 @@ export default function ProfitLoss() {
       </div>
 
       {/* P&L Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden overflow-x-auto">
         <div className="p-4 border-b border-gray-200 flex justify-between items-center">
           <h2 className="font-semibold text-gray-800">Monthly Breakdown — {year}</h2>
         </div>
