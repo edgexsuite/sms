@@ -109,11 +109,49 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
   const [bulkUpdateField, setBulkUpdateField] = useState('');
   const [bulkUpdateValue, setBulkUpdateValue] = useState('');
 
+  // ── Teacher / Staff role access control ─────────────────────────────────
+  // Roles that get FULL admin access to all students
+  const ADMIN_ROLES = ['admin', 'principal', 'director', 'vice principal', 'coordinator', 'accountant'];
+  const isStaffRole = !ADMIN_ROLES.includes((userRole?.role || '').toLowerCase());
+  // Class IDs this teacher is allowed to see (resolved below)
+  const [allowedClassIds, setAllowedClassIds] = useState<string[] | null>(null); // null = not resolved yet
+  const [staffId, setStaffId] = useState<string | null>(null);
+
+  // Resolve the staff record and their allowed classes (incharge + timetable)
+  const resolveTeacherClasses = async () => {
+    if (!isStaffRole) { setAllowedClassIds(null); return; } // admins unrestricted
+    const schoolId = userRole?.school_id;
+    if (!schoolId) return;
+
+    // 1. Find staff record
+    let sid: string | null = userRole?.staff_id || null;
+    if (!sid) {
+      const { data } = await supabase.from('staff').select('id').eq('school_id', schoolId).eq('email', userRole?.email || '').maybeSingle();
+      sid = data?.id || null;
+    }
+    setStaffId(sid);
+    if (!sid) { setAllowedClassIds([]); return; }
+
+    // 2. Classes where they are class incharge
+    const { data: inchargeClasses } = await supabase.from('classes').select('id').eq('school_id', schoolId).eq('class_teacher_id', sid);
+    const inchargeIds = (inchargeClasses || []).map((c: any) => c.id);
+
+    // 3. Classes they appear in on the timetable
+    const { data: slots } = await supabase.from('timetable_slots').select('class_id').eq('school_id', schoolId).eq('teacher_id', sid);
+    const timetableIds = (slots || []).map((s: any) => s.class_id);
+
+    // 4. Union of both
+    const combined = Array.from(new Set([...inchargeIds, ...timetableIds]));
+    setAllowedClassIds(combined);
+  };
+
   useEffect(() => {
     if (userRole?.school_id) {
-      fetchStudents();
-      fetchClasses();
-      fetchFamilyGroups();
+      resolveTeacherClasses().then(() => {
+        fetchStudents();
+        fetchClasses();
+        fetchFamilyGroups();
+      });
     }
   }, [userRole]);
 
@@ -227,6 +265,26 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
           setStudents([]);
           setLoading(false);
           return;
+        }
+      } else if (isStaffRole) {
+        // Teacher/staff: re-resolve allowed classes inline (allowedClassIds state may not be set yet)
+        const schoolId = userRole?.school_id;
+        let sid: string | null = userRole?.staff_id || staffId || null;
+        if (!sid && schoolId && userRole?.email) {
+          const { data } = await supabase.from('staff').select('id').eq('school_id', schoolId).eq('email', userRole.email).maybeSingle();
+          sid = data?.id || null;
+        }
+        if (sid && schoolId) {
+          const { data: inchargeClasses } = await supabase.from('classes').select('id').eq('school_id', schoolId).eq('class_teacher_id', sid);
+          const { data: slots } = await supabase.from('timetable_slots').select('class_id').eq('school_id', schoolId).eq('teacher_id', sid);
+          const ids = Array.from(new Set([
+            ...(inchargeClasses || []).map((c: any) => c.id),
+            ...(slots || []).map((s: any) => s.class_id),
+          ]));
+          if (ids.length === 0) { setStudents([]); setLoading(false); return; }
+          query = query.eq('school_id', schoolId).in('class_id', ids);
+        } else {
+          setStudents([]); setLoading(false); return;
         }
       } else {
         query = query.eq('school_id', userRole?.school_id);
@@ -681,15 +739,19 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
 
           {/* Action buttons */}
           <div className="flex items-center gap-2">
-            <button onClick={handleExport} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-indigo-600 hover:border-indigo-100 transition-all shadow-sm active:scale-95" title="Export current view to Excel">
-              <Download className="w-5 h-5" />
-            </button>
-            <button onClick={handleExportAll} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-emerald-600 hover:border-emerald-100 transition-all shadow-sm active:scale-95" title="Export ALL students (all statuses)">
-              <Users className="w-5 h-5" />
-            </button>
-            <button onClick={handleDownloadTemplate} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-emerald-600 hover:border-emerald-100 transition-all shadow-sm active:scale-95" title="Download Template">
-              <FileSpreadsheet className="w-5 h-5" />
-            </button>
+            {!isStaffRole && (
+              <>
+                <button onClick={handleExport} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-indigo-600 hover:border-indigo-100 transition-all shadow-sm active:scale-95" title="Export current view to Excel">
+                  <Download className="w-5 h-5" />
+                </button>
+                <button onClick={handleExportAll} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-emerald-600 hover:border-emerald-100 transition-all shadow-sm active:scale-95" title="Export ALL students (all statuses)">
+                  <Users className="w-5 h-5" />
+                </button>
+                <button onClick={handleDownloadTemplate} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-emerald-600 hover:border-emerald-100 transition-all shadow-sm active:scale-95" title="Download Template">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </button>
+              </>
+            )}
             {userRole?.role === 'admin' && (
               <>
                 <button onClick={() => setIsImportModalOpen(true)} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-indigo-600 hover:border-indigo-100 transition-all shadow-sm active:scale-95" title="Import CSV">
@@ -847,15 +909,17 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
                     className={cn('hover:bg-indigo-50/30 transition-all group', selectedIds.includes(student.id) ? 'bg-indigo-50/50' : '')}
                   >
                     <td className="px-4 py-2 text-center" onClick={(e) => e.stopPropagation()}>
-                       <input
-                         type="checkbox"
-                         checked={selectedIds.includes(student.id)}
-                         onChange={(e) => {
-                           if (e.target.checked) setSelectedIds([...selectedIds, student.id]);
-                           else setSelectedIds(selectedIds.filter(id => id !== student.id));
-                         }}
-                         className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                       />
+                       {!isStaffRole && (
+                         <input
+                           type="checkbox"
+                           checked={selectedIds.includes(student.id)}
+                           onChange={(e) => {
+                             if (e.target.checked) setSelectedIds([...selectedIds, student.id]);
+                             else setSelectedIds(selectedIds.filter(id => id !== student.id));
+                           }}
+                           className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                         />
+                       )}
                     </td>
                     <td className="px-4 py-2">
                       <span className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-lg text-xs font-black text-slate-600 group-hover:bg-white group-hover:shadow-sm transition-all border border-transparent group-hover:border-slate-100">
@@ -906,13 +970,15 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
                     </td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => navigate(`/students/edit/${student.id}`)}
-                          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                          title="Edit Profile"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
+                        {!isStaffRole && (
+                          <button
+                            onClick={() => navigate(`/students/edit/${student.id}`)}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                            title="Edit Profile"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                        )}
                         <button
                           onClick={() => navigate(`/students/detail/${student.id}`)}
                           className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
@@ -921,55 +987,57 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
                           <Eye className="w-4 h-4" />
                         </button>
                         
-                        {/* ── Administrative Action Menu (Three Dots) ── */}
-                        <div className="relative dropdown-container">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenMenu(openMenu === student.id ? null : student.id);
-                            }}
-                            className={cn(
-                              "p-1.5 rounded-lg transition-all",
-                              openMenu === student.id ? "bg-indigo-600 text-white shadow-lg" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                            )}
-                          >
-                            <MoreVertical className="w-4 h-4" />
-                          </button>
+                        {/* Administrative Action Menu - hidden for staff roles */}
+                        {!isStaffRole && (
+                          <div className="relative dropdown-container">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenu(openMenu === student.id ? null : student.id);
+                              }}
+                              className={cn(
+                                "p-1.5 rounded-lg transition-all",
+                                openMenu === student.id ? "bg-indigo-600 text-white shadow-lg" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                              )}
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
 
-                          {openMenu === student.id && (
-                            <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.12)] border border-slate-100 z-[100] py-1.5 overflow-hidden animate-in fade-in zoom-in duration-200">
-                              <div className="px-3 py-1.5 border-b border-slate-50 mb-1">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Change Status</p>
+                            {openMenu === student.id && (
+                              <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.12)] border border-slate-100 z-[100] py-1.5 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                <div className="px-3 py-1.5 border-b border-slate-50 mb-1">
+                                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Change Status</p>
+                                </div>
+                                <button onClick={() => { setStatusModal({ studentId: student.id, studentName: student.full_name, targetStatus: 'left' }); setOpenMenu(null); }}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-amber-600 hover:bg-amber-50 transition-colors">
+                                  <LogOut className="w-3.5 h-3.5" /> Mark as Left
+                                </button>
+                                <button onClick={() => { setStatusModal({ studentId: student.id, studentName: student.full_name, targetStatus: 'graduated' }); setOpenMenu(null); }}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-teal-600 hover:bg-teal-50 transition-colors">
+                                  <GraduationCap className="w-3.5 h-3.5" /> Mark as Passed Out
+                                </button>
+                                <button onClick={() => { setStatusModal({ studentId: student.id, studentName: student.full_name, targetStatus: 'withdrawn' }); setOpenMenu(null); }}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-rose-600 hover:bg-rose-50 transition-colors">
+                                  <UserX className="w-3.5 h-3.5" /> Admission Withdrawn
+                                </button>
+                                <div className="border-t border-slate-50 my-1" />
+                                <button onClick={() => handleDisableLogin(student.id)}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-slate-600 hover:bg-slate-50 transition-colors">
+                                  <Shield className="w-3.5 h-3.5" /> Disable App Login
+                                </button>
+                                <button onClick={() => { setPwdModal({ studentId: student.id, studentName: student.full_name }); setOpenMenu(null); }}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-slate-600 hover:bg-slate-50 transition-colors">
+                                  <Key className="w-3.5 h-3.5" /> Change Password
+                                </button>
+                                <div className="border-t border-slate-50 my-1" />
+                                <button onClick={() => setDeleteModal({ isOpen: true, id: student.id, name: student.full_name })}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-rose-600 hover:bg-rose-50 transition-colors">
+                                  <Trash2 className="w-3.5 h-3.5" /> Delete Record
+                                </button>
                               </div>
-                              <button onClick={() => { setStatusModal({ studentId: student.id, studentName: student.full_name, targetStatus: 'left' }); setOpenMenu(null); }}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-amber-600 hover:bg-amber-50 transition-colors">
-                                <LogOut className="w-3.5 h-3.5" /> Mark as Left
-                              </button>
-                              <button onClick={() => { setStatusModal({ studentId: student.id, studentName: student.full_name, targetStatus: 'graduated' }); setOpenMenu(null); }}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-teal-600 hover:bg-teal-50 transition-colors">
-                                <GraduationCap className="w-3.5 h-3.5" /> Mark as Passed Out
-                              </button>
-                              <button onClick={() => { setStatusModal({ studentId: student.id, studentName: student.full_name, targetStatus: 'withdrawn' }); setOpenMenu(null); }}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-rose-600 hover:bg-rose-50 transition-colors">
-                                <UserX className="w-3.5 h-3.5" /> Admission Withdrawn
-                              </button>
-                              <div className="border-t border-slate-50 my-1" />
-                              <button onClick={() => handleDisableLogin(student.id)}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-slate-600 hover:bg-slate-50 transition-colors">
-                                <Shield className="w-3.5 h-3.5" /> Disable App Login
-                              </button>
-                              <button onClick={() => { setPwdModal({ studentId: student.id, studentName: student.full_name }); setOpenMenu(null); }}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-slate-600 hover:bg-slate-50 transition-colors">
-                                <Key className="w-3.5 h-3.5" /> Change Password
-                              </button>
-                              <div className="border-t border-slate-50 my-1" />
-                              <button onClick={() => setDeleteModal({ isOpen: true, id: student.id, name: student.full_name })}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-rose-600 hover:bg-rose-50 transition-colors">
-                                <Trash2 className="w-3.5 h-3.5" /> Delete Record
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </td>
                   </motion.tr>

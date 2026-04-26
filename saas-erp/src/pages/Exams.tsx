@@ -30,7 +30,7 @@ interface MarkData {
 
 export default function Exams() {
   const { userRole } = useAuth();
-  const [activeTab, setActiveTab] = useState<'exams' | 'marks'>('exams');
+  const [activeTab, setActiveTab] = useState<'exams' | 'marks'>('marks'); // default to marks for teachers
   
   // Data states
   const [exams, setExams] = useState<Exam[]>([]);
@@ -49,14 +49,46 @@ export default function Exams() {
   const [isAddExamModalOpen, setIsAddExamModalOpen] = useState(false);
   const [examForm, setExamForm] = useState({ name: '', start_date: '', end_date: '' });
 
+  // Teacher RBAC: allowed classes
+  const ADMIN_ROLES = ['admin', 'principal', 'director', 'vice principal', 'coordinator'];
+  const isStaffRole = !ADMIN_ROLES.includes((userRole?.role || '').toLowerCase());
+  const [teacherClassIds, setTeacherClassIds] = useState<string[]>([]);
+
   const subjects = ['English', 'Mathematics', 'Science', 'Urdu', 'Islamic Studies', 'Social Studies', 'Computer Science'];
 
   useEffect(() => {
     if (userRole?.school_id) {
       fetchExams();
-      fetchClasses();
+      if (isStaffRole) {
+        resolveTeacherClasses();
+      } else {
+        fetchClasses();
+      }
     }
   }, [userRole]);
+
+  const resolveTeacherClasses = async () => {
+    const schoolId = userRole?.school_id;
+    if (!schoolId) return;
+    let sid: string | null = userRole?.staff_id || null;
+    if (!sid && userRole?.email) {
+      const { data } = await supabase.from('staff').select('id').eq('school_id', schoolId).eq('email', userRole.email).maybeSingle();
+      sid = data?.id || null;
+    }
+    if (!sid) return;
+    const [{ data: incharge }, { data: slots }] = await Promise.all([
+      supabase.from('classes').select('id, name, section').eq('school_id', schoolId).eq('class_teacher_id', sid),
+      supabase.from('timetable_slots').select('class_id, classes(id, name, section)').eq('school_id', schoolId).eq('teacher_id', sid),
+    ]);
+    const allClassIds = new Set<string>();
+    const allClasses: ClassData[] = [];
+    (incharge || []).forEach((c: any) => { if (!allClassIds.has(c.id)) { allClassIds.add(c.id); allClasses.push(c); } });
+    (slots || []).forEach((s: any) => { if (s.classes && !allClassIds.has(s.classes.id)) { allClassIds.add(s.classes.id); allClasses.push(s.classes); } });
+    setTeacherClassIds(Array.from(allClassIds));
+    setClasses(allClasses);
+    // Auto-select if only one class
+    if (allClasses.length === 1) setSelectedClass(allClasses[0].id);
+  };
 
   useEffect(() => {
     if (userRole?.role === 'parent') {
@@ -282,16 +314,18 @@ export default function Exams() {
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs — hide Exam Terms tab for staff roles */}
       <div className="flex border-b border-gray-200">
-        <button
-          onClick={() => setActiveTab('exams')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'exams' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          Exam Terms
-        </button>
+        {!isStaffRole && (
+          <button
+            onClick={() => setActiveTab('exams')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'exams' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Exam Terms
+          </button>
+        )}
         <button
           onClick={() => setActiveTab('marks')}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -351,14 +385,26 @@ export default function Exams() {
             {userRole?.role !== 'parent' && (
               <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Select Class</label>
-                <select
-                  value={selectedClass}
-                  onChange={(e) => setSelectedClass(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">-- Choose Class --</option>
-                  {classes.map(cls => <option key={cls.id} value={cls.id}>{cls.name} {cls.section ? `(Sec ${cls.section})` : ''}</option>)}
-                </select>
+                {isStaffRole ? (
+                  // Teacher: show locked dropdown with only their assigned classes
+                  <select
+                    value={selectedClass}
+                    onChange={(e) => setSelectedClass(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">-- Choose Class --</option>
+                    {classes.map(cls => <option key={cls.id} value={cls.id}>{cls.name} {cls.section ? `(Sec ${cls.section})` : ''}</option>)}
+                  </select>
+                ) : (
+                  <select
+                    value={selectedClass}
+                    onChange={(e) => setSelectedClass(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">-- Choose Class --</option>
+                    {classes.map(cls => <option key={cls.id} value={cls.id}>{cls.name} {cls.section ? `(Sec ${cls.section})` : ''}</option>)}
+                  </select>
+                )}
               </div>
             )}
             <div className="flex-1">
