@@ -66,15 +66,18 @@ export default function CredentialDispatch() {
     msg += `Dear ${family.full_name},\n\n`;
     msg += `*PARENT PORTAL*\n`;
     msg += `ID: ${family.family_number}\n`;
-    msg += `Pass: ${family.auth_password}\n\n`;
+    msg += `Pass: ${family.auth_password}\n`;
+    msg += `Link: https://portal.theedgeschool.com/parent-portal\n\n`;
+
     if (family.students?.length > 0) {
       msg += `*STUDENT HUB*\n`;
       family.students.forEach((stu: any) => {
         msg += `- ${stu.full_name}: ${stu.student_unique_id} (Pass: ${stu.auth_password})\n`;
       });
-      msg += `\n`;
+      msg += `Link: https://portal.theedgeschool.com/student-portal\n\n`;
     }
-    msg += `Login at: ${window.location.origin}/parent-portal`;
+    
+    msg += `Regards,\nThe Edge School`;
     return msg;
   };
 

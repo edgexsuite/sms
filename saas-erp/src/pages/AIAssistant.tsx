@@ -34,6 +34,17 @@ export default function AIAssistant() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Restrict access to admins only
+  if (!userRole || !['admin', 'director', 'principal'].includes(userRole.role)) {
+    return (
+      <div className="p-8 text-center max-w-md mx-auto mt-20 bg-white rounded-2xl shadow-xl border border-red-100">
+        <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+        <h2 className="text-xl font-bold text-gray-900 mb-2">Access Denied</h2>
+        <p className="text-gray-500">The AI Assistant is currently only available to school administrators.</p>
+      </div>
+    );
+  }
+
   useEffect(() => {
     if (userRole?.school_id) loadContext();
   }, [userRole]);

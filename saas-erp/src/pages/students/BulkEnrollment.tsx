@@ -208,11 +208,12 @@ export default function BulkEnrollment() {
         const studentsToInsert = siblings.map(s => {
           const { father_name, father_contact, mother_name, mother_contact, ...remainder } = s;
           const sNameInit = s.full_name.split(' ')[0].toLowerCase();
+          const randomSuffix = Math.floor(1000 + Math.random() * 9000);
           return {
             ...remainder,
             parent_id: parent.id,
             family_group_id: fg.id,
-            student_unique_id: `${sNameInit}${s.roll_number}`,
+            student_unique_id: `${sNameInit}${s.roll_number}-${randomSuffix}`,
             auth_password: `${sNameInit}123`,
             fee_waiver_percentage: s.fee_waiver_percentage || 0
           };

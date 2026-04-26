@@ -483,6 +483,20 @@ export default function DashboardLayout() {
           <DashboardAlerts />
         </div>
 
+        {/* ── Global Print Header — hidden on screen, shown at top of every print ── */}
+        <div className="hidden print:flex flex-col items-center py-5 border-b-2 border-slate-300 mb-4 gap-1">
+          {schoolLogo
+            ? <img src={schoolLogo} alt={schoolName} className="w-14 h-14 object-contain mb-1" />
+            : <div className="w-14 h-14 rounded-xl bg-indigo-600 flex items-center justify-center mb-1">
+                <School className="w-8 h-8 text-white" />
+              </div>
+          }
+          <h1 className="text-xl font-black uppercase tracking-widest text-slate-900">{schoolName}</h1>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+            {new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'long', year: 'numeric' })}
+          </p>
+        </div>
+
         {/* Page Content */}
         <main className="theme-shell flex-1 relative p-6 print:p-0 overflow-auto print:overflow-visible print:block pb-20 md:pb-6" data-density={densityCompact ? 'compact' : 'comfortable'}>
           <AnimatePresence mode="wait">

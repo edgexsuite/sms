@@ -103,6 +103,11 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
   const [detailResults, setDetailResults] = useState<any[]>([]);
   const fetchedTabsRef = useRef<Set<string>>(new Set());
 
+  // Quick Update state
+  const [isBulkQuickUpdateOpen, setIsBulkQuickUpdateOpen] = useState(false);
+  const [bulkUpdateField, setBulkUpdateField] = useState('');
+  const [bulkUpdateValue, setBulkUpdateValue] = useState('');
+
   useEffect(() => {
     if (userRole?.school_id) {
       fetchStudents();
@@ -476,6 +481,31 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
       fetchStudents();
     } catch (err: any) {
       alert(err.message);
+    }
+  };
+
+  const handleBulkQuickUpdate = async () => {
+    if (!userRole?.school_id || !bulkUpdateField || !bulkUpdateValue || selectedIds.length === 0) return;
+    try {
+      // Cast numerical fields appropriately
+      let value: string | number = bulkUpdateValue;
+      if (bulkUpdateField === 'fee_waiver_percentage') {
+        value = Number(value);
+      }
+      
+      const { error } = await supabase
+        .from('students')
+        .update({ [bulkUpdateField]: value })
+        .in('id', selectedIds);
+      if (error) throw error;
+      alert(`Successfully updated ${bulkUpdateField.replace(/_/g, ' ')} for ${selectedIds.length} students.`);
+      setSelectedIds([]);
+      setBulkUpdateField('');
+      setBulkUpdateValue('');
+      setIsBulkQuickUpdateOpen(false);
+      fetchStudents();
+    } catch (err: any) {
+      alert('Error updating values: ' + err.message);
     }
   };
 
@@ -1575,11 +1605,98 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
               <Upload className="w-3.5 h-3.5 text-indigo-400 shrink-0" /> Reallocate
             </button>
             <button
+              onClick={() => setIsBulkQuickUpdateOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 rounded-xl transition-all text-[11px] font-black uppercase tracking-widest border border-amber-500/10 active:scale-95 whitespace-nowrap"
+            >
+              <Edit className="w-3.5 h-3.5 shrink-0" /> Quick Update
+            </button>
+            <button
               onClick={() => setIsBulkDeleteModalOpen(true)}
               className="flex items-center gap-2 px-4 py-2 bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 rounded-xl transition-all text-[11px] font-black uppercase tracking-widest border border-rose-500/10 active:scale-95 whitespace-nowrap"
             >
               <Trash2 className="w-3.5 h-3.5 shrink-0" /> Trash
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Quick Update Modal */}
+      {isBulkQuickUpdateOpen && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-in fade-in duration-300">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-100">
+            <div className="bg-slate-50 px-8 py-6 border-b border-slate-100 flex justify-between items-center">
+              <div>
+                <h3 className="font-black text-slate-900 uppercase tracking-tight">Quick Batch Update</h3>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Updating {selectedIds.length} Students</p>
+              </div>
+              <button onClick={() => setIsBulkQuickUpdateOpen(false)} className="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-slate-900 transition-colors shadow-sm"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-8 space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Field to Update</label>
+                <select 
+                  value={bulkUpdateField} 
+                  onChange={(e) => {
+                    setBulkUpdateField(e.target.value);
+                    setBulkUpdateValue(''); // reset value when field changes
+                  }} 
+                  className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-bold focus:ring-4 focus:ring-indigo-100 outline-none transition-all shadow-inner"
+                >
+                  <option value="">Select Field...</option>
+                  <option value="gender">Gender</option>
+                  <option value="religion">Religion</option>
+                  <option value="blood_group">Blood Group</option>
+                  <option value="fee_waiver_percentage">Fee Waiver (%)</option>
+                </select>
+              </div>
+              
+              {bulkUpdateField && (
+                <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">New Value</label>
+                  
+                  {bulkUpdateField === 'gender' ? (
+                    <select value={bulkUpdateValue} onChange={(e) => setBulkUpdateValue(e.target.value)} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-bold focus:ring-4 focus:ring-indigo-100 outline-none transition-all shadow-inner">
+                      <option value="">Select Gender...</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                    </select>
+                  ) : bulkUpdateField === 'religion' ? (
+                    <select value={bulkUpdateValue} onChange={(e) => setBulkUpdateValue(e.target.value)} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-bold focus:ring-4 focus:ring-indigo-100 outline-none transition-all shadow-inner">
+                      <option value="">Select Religion...</option>
+                      <option value="Islam">Islam</option>
+                      <option value="Christianity">Christianity</option>
+                      <option value="Hinduism">Hinduism</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  ) : bulkUpdateField === 'blood_group' ? (
+                    <select value={bulkUpdateValue} onChange={(e) => setBulkUpdateValue(e.target.value)} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-bold focus:ring-4 focus:ring-indigo-100 outline-none transition-all shadow-inner">
+                      <option value="">Select Blood Group...</option>
+                      {['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-', 'Unknown'].map(bg => (
+                        <option key={bg} value={bg}>{bg}</option>
+                      ))}
+                    </select>
+                  ) : bulkUpdateField === 'fee_waiver_percentage' ? (
+                    <input 
+                      type="number" 
+                      min="0" 
+                      max="100" 
+                      placeholder="Enter percentage (0-100)" 
+                      value={bulkUpdateValue} 
+                      onChange={(e) => setBulkUpdateValue(e.target.value)} 
+                      className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-bold focus:ring-4 focus:ring-indigo-100 outline-none transition-all shadow-inner" 
+                    />
+                  ) : null}
+                </div>
+              )}
+
+              <button
+                onClick={handleBulkQuickUpdate}
+                disabled={!bulkUpdateField || !bulkUpdateValue}
+                className="w-full bg-amber-500 text-white py-5 rounded-[1.5rem] font-black uppercase tracking-widest hover:bg-amber-600 shadow-xl shadow-amber-500/20 disabled:opacity-30 transition-all mt-2 active:scale-95"
+              >
+                Apply Update
+              </button>
+            </div>
           </div>
         </div>
       )}

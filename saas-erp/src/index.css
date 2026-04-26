@@ -221,11 +221,64 @@ h1, h2, h3, h4, .font-display {
   font-weight: 600;
 }
 
-/* Print Overrides */
+/* ── Print Overrides ──────────────────────────────────────────────────────── */
 @media print {
+  /* Hide all interactive / navigation chrome */
   .no-print { display: none !important; }
-  body { background: white !important; font-size: 10pt; }
-  .aura-card { border: 1px solid #eee !important; box-shadow: none !important; }
+
+  /* Clean white background, readable font size */
+  html, body { background: white !important; color: #0d1526 !important; font-size: 10pt; }
+
+  /* Remove decorative shadows and rounded corners */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  .aura-card,
+  [class*="rounded-"],
+  [class*="shadow"] {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* Tables: always show borders, prevent splitting across pages */
+  table { border-collapse: collapse !important; width: 100% !important; }
+  th, td { border: 1px solid #d1d5db !important; padding: 6px 10px !important; }
+  thead { display: table-header-group; }
+  tr { page-break-inside: avoid; }
+
+  /* Headings & labels stay dark */
+  h1, h2, h3, h4 { color: #0d1526 !important; }
+
+  /* Status badges: keep colour but ensure border */
+  [class*="bg-green"],
+  [class*="bg-emerald"],
+  [class*="bg-red"],
+  [class*="bg-rose"],
+  [class*="bg-amber"],
+  [class*="bg-yellow"],
+  [class*="bg-blue"],
+  [class*="bg-indigo"] {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Links: no underline, no colour change */
+  a { text-decoration: none !important; color: inherit !important; }
+
+  /* Page margins */
+  @page { margin: 12mm 14mm; }
+
+  /* Ensure full-width content when sidebar is gone */
+  .print-full,
+  main, [role="main"] { width: 100% !important; max-width: 100% !important; padding: 0 !important; }
+
+  /* Common card wrappers: keep border for structure */
+  [class*="border"] { border-color: #e2e8f0 !important; }
+
+  /* Overflow-x-auto sections: un-clip them for print */
+  [class*="overflow-x-auto"],
+  [class*="overflow-hidden"] { overflow: visible !important; }
 }
 
 /* Animations Core */

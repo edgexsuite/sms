@@ -290,6 +290,46 @@ export default function ReportCardSettings() {
               </div>
             </div>
 
+            {/* ── Signature Controls ── */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                  <FileText className="w-3.5 h-3.5" /> Authorization Signatures
+                </p>
+              </div>
+              <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-3">
+                <p className="text-[11px] text-slate-500 mb-2">Enable and customize up to 4 signature lines to display at the bottom of the report card.</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {(customization.signatures || DEFAULT_REPORT_CUSTOM.signatures).map((sig, idx) => (
+                    <div key={idx} className={cn(
+                      "flex flex-col gap-2 p-3 rounded-xl border transition-colors",
+                      sig.active ? "bg-white border-indigo-200 shadow-sm" : "bg-transparent border-slate-200 opacity-60"
+                    )}>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={sig.active} 
+                          onChange={e => updateSignature(idx, { active: e.target.checked })}
+                          className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer border-slate-300"
+                        />
+                        <span className={cn("text-xs font-bold", sig.active ? "text-indigo-900" : "text-slate-500")}>
+                          Signature Line {idx + 1}
+                        </span>
+                      </label>
+                      <input 
+                        type="text" 
+                        value={sig.label}
+                        onChange={e => updateSignature(idx, { label: e.target.value })}
+                        disabled={!sig.active}
+                        className="w-full h-8 text-xs border-slate-200 rounded-lg focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400 font-medium px-2"
+                        placeholder="e.g. Class Coordinator"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             {/* Fields */}
             <div>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Display Elements</p>

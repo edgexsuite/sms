@@ -722,8 +722,8 @@ export default function RegisterStudent() {
   /* ── Send WhatsApp admission welcome message ─────────────────────── */
   const sendAdmissionWhatsApp = () => {
     if (!admissionSuccess) return;
-    const portalLink = `${window.location.origin}/parent-portal`;
-    const studentLink = `${window.location.origin}/student-portal`;
+    const portalLink = `https://portal.theedgeschool.com/parent-portal`;
+    const studentLink = `https://portal.theedgeschool.com/student-portal`;
 
     // Build student credentials block
     const studentLines = admissionSuccess.students.map(stu => {
