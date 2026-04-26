@@ -143,11 +143,21 @@ export default function Staff() {
     if (!formData.full_name || !formData.role) return alert('Name and Role are required');
     setSaving(true);
     try {
-      const payload = { 
+      // Known staff columns — keeps payload clean if DB migration hasn't run yet
+      const STAFF_COLUMNS = [
+        'full_name','father_name','role','department','qualification','cnic','dob','gender',
+        'joining_date','whatsapp_number','mobile_number','email','address','salary',
+        'employment_type','payment_basis','is_active','photograph_url','exclude_from_vacations',
+        'designation','school_id',
+      ];
+      const rawPayload = {
         ...formData,
         school_id: userRole?.school_id,
         salary: formData.salary ? parseFloat(formData.salary) : null,
       };
+      const payload = Object.fromEntries(
+        Object.entries(rawPayload).filter(([k]) => STAFF_COLUMNS.includes(k))
+      );
 
       let staffId = editId;
       if (editId) {
