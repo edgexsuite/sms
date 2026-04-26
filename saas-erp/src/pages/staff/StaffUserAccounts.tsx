@@ -152,6 +152,7 @@ export default function StaffUserAccounts() {
   // Reset-password
   const [showReset,     setShowReset]     = useState(false);
   const [resetPass,     setResetPass]     = useState('');
+  const [resetEmail,    setResetEmail]    = useState('');
   const [showResetPass, setShowResetPass] = useState(false);
   const [resetting,     setResetting]     = useState(false);
 
@@ -283,14 +284,25 @@ export default function StaffUserAccounts() {
   };
 
   // ── Store credentials in user_roles after create/reset ────────────────────
+  // Matches by staff_id first (most reliable), falls back to user_id
 
-  const storeCredentials = async (userId: string, email: string, password: string) => {
+  const storeCredentials = async (staffId: string, email: string, password: string, userId?: string | null) => {
     try {
-      await supabase
+      const updates = { plain_password: password, login_email: email };
+      // Try staff_id match first (set when account was created via this page)
+      const { error: e1 } = await supabase
         .from('user_roles')
-        .update({ plain_password: password, login_email: email })
-        .eq('user_id', userId)
+        .update(updates)
+        .eq('staff_id', staffId)
         .eq('school_id', userRole!.school_id);
+      // If no row matched by staff_id and we have a user_id, try that too
+      if (e1 && userId) {
+        await supabase
+          .from('user_roles')
+          .update(updates)
+          .eq('user_id', userId)
+          .eq('school_id', userRole!.school_id);
+      }
     } catch { /* non-critical */ }
   };
 
@@ -308,9 +320,9 @@ export default function StaffUserAccounts() {
       });
       if (error || data?.error) throw new Error(edgeFnError(error, data));
       setCreateSuccess(`Account created! Email: ${createEmail}  Password: ${createPass}`);
-      // Store credentials
-      if (data?.user_id) await storeCredentials(data.user_id, createEmail, createPass);
       await fetchStaff();
+      // Store credentials — after fetchStaff so user_roles row definitely exists
+      await storeCredentials(selected.id, createEmail, createPass, data?.user_id);
       setShowCreate(false);
     } catch (err: any) {
       setCreateError(err.message ?? 'Unknown error — check console.');
@@ -329,7 +341,8 @@ export default function StaffUserAccounts() {
         body: { action: 'reset_password', user_id: selected.user_id, new_password: resetPass },
       });
       if (error || data?.error) throw new Error(edgeFnError(error, data));
-      await storeCredentials(selected.user_id, selected.login_email || selected.email || '', resetPass);
+      // Use resetEmail (editable field) so admin can also correct email at reset time
+      await storeCredentials(selected.id, resetEmail || selected.email || '', resetPass, selected.user_id);
       await fetchStaff();
       setShowReset(false);
       setResetPass('');
@@ -404,7 +417,7 @@ export default function StaffUserAccounts() {
           body: { action: 'create', email: s.email, password: pw, school_id: userRole!.school_id, role, staff_id: s.id, permissions: ROLE_PRESETS[role] },
         });
         if (error || data?.error) { failed++; continue; }
-        if (data?.user_id) await storeCredentials(data.user_id, s.email!, pw);
+        await storeCredentials(s.id, s.email!, pw, data?.user_id);
         success++;
       } catch { failed++; }
     }
@@ -802,7 +815,7 @@ export default function StaffUserAccounts() {
                     <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Account Management</h3>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
 
-                      <button onClick={() => { setResetPass(generatePassword()); setShowReset(true); setShowPerms(false); }}
+                      <button onClick={() => { setResetPass(generatePassword()); setResetEmail(selected.login_email || selected.email || ''); setShowReset(true); setShowPerms(false); }}
                         className="flex flex-col items-center gap-2.5 p-4 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all group">
                         <div className="w-9 h-9 rounded-xl bg-indigo-100 group-hover:bg-indigo-200 flex items-center justify-center transition-colors">
                           <Key className="w-4.5 h-4.5 text-indigo-600" />
@@ -853,30 +866,48 @@ export default function StaffUserAccounts() {
                         <h3 className="text-sm font-bold text-gray-900">Reset Password</h3>
                         <button onClick={() => setShowReset(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
                       </div>
-                      <div className="flex gap-2">
-                        <div className="relative flex-1">
-                          <input type={showResetPass ? 'text' : 'password'} value={resetPass} onChange={e => setResetPass(e.target.value)}
-                            className="w-full px-3 py-2.5 pr-9 text-sm font-mono border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
-                          <button type="button" onClick={() => setShowResetPass(p => !p)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400">
-                            {showResetPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+
+                      {/* Email — editable so admin can correct it at reset time */}
+                      <div className="mb-3">
+                        <label className="block text-xs font-semibold text-gray-500 mb-1.5">Login Email</label>
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input type="email" value={resetEmail} onChange={e => setResetEmail(e.target.value)}
+                            placeholder="staff@school.com"
+                            className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-1">Correct the email here if it has changed — will be saved to credentials.</p>
+                      </div>
+
+                      {/* New password */}
+                      <div className="mb-3">
+                        <label className="block text-xs font-semibold text-gray-500 mb-1.5">New Password</label>
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <input type={showResetPass ? 'text' : 'password'} value={resetPass} onChange={e => setResetPass(e.target.value)}
+                              className="w-full px-3 py-2.5 pr-9 text-sm font-mono border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
+                            <button type="button" onClick={() => setShowResetPass(p => !p)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400">
+                              {showResetPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                          <button onClick={() => setResetPass(generatePassword())} className="px-3 text-xs font-semibold bg-gray-100 rounded-xl hover:bg-gray-200">New</button>
+                          <button onClick={() => copyField('reset', resetPass)} className="p-2.5 text-gray-400 hover:text-indigo-600 rounded-xl hover:bg-indigo-50 transition-colors">
+                            {copiedField === 'reset' ? <CheckCheck className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
                           </button>
                         </div>
-                        <button onClick={() => setResetPass(generatePassword())} className="px-3 text-xs font-semibold bg-gray-100 rounded-xl hover:bg-gray-200">New</button>
-                        <button onClick={() => copyField('reset', resetPass)} className="p-2.5 text-gray-400 hover:text-indigo-600 rounded-xl hover:bg-indigo-50 transition-colors">
-                          {copiedField === 'reset' ? <CheckCheck className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                        </button>
                       </div>
-                      <p className="text-[10px] text-amber-600 mt-2 flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" /> New password will be saved in the credentials card above.
+
+                      <p className="text-[10px] text-amber-600 flex items-center gap-1 mb-3">
+                        <AlertTriangle className="w-3 h-3" /> Both email and password will be saved to the credentials card.
                       </p>
-                      <div className="flex flex-wrap gap-2 mt-3">
+                      <div className="flex flex-wrap gap-2">
                         <button onClick={handleResetPassword} disabled={resetting || !resetPass}
                           className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50">
                           {resetting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />}
                           {resetting ? 'Resetting…' : 'Reset Password'}
                         </button>
                         {selected.whatsapp_number && (
-                          <button onClick={() => sendViaWhatsApp(selected.whatsapp_number, selected.login_email || selected.email || '', resetPass, selected.full_name)}
+                          <button onClick={() => sendViaWhatsApp(selected.whatsapp_number, resetEmail || selected.email || '', resetPass, selected.full_name)}
                             disabled={!resetPass}
                             className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-700 disabled:opacity-50">
                             <MessageCircle className="w-4 h-4" /> Send via WhatsApp

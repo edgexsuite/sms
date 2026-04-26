@@ -166,6 +166,14 @@ export default function Staff() {
       if (editId) {
         const { error } = await supabase.from('staff').update(payload).eq('id', editId);
         if (error) throw error;
+        // Sync email change into login credentials if this staff has an account
+        if (formData.email) {
+          await supabase
+            .from('user_roles')
+            .update({ login_email: formData.email })
+            .eq('staff_id', editId)
+            .eq('school_id', userRole?.school_id ?? '');
+        }
       } else {
         const { data: newStaff, error } = await supabase.from('staff').insert([payload]).select().single();
         if (error) throw error;
