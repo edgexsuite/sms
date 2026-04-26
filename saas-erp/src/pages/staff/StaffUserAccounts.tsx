@@ -212,6 +212,9 @@ export default function StaffUserAccounts() {
         const r = byStaff.get(s.id) ?? (s.user_id ? byUser.get(s.user_id) : undefined);
         return {
           ...s,
+          // Prefer user_roles.user_id (always set for auth accounts) over staff.user_id
+          user_id:        r?.user_id       ?? s.user_id ?? null,
+          has_login:      !!r,
           system_role:    r?.role          ?? null,
           account_active: r?.is_active     ?? null,
           last_login:     r?.last_login    ?? null,
@@ -286,23 +289,14 @@ export default function StaffUserAccounts() {
   // ── Store credentials in user_roles after create/reset ────────────────────
   // Matches by staff_id first (most reliable), falls back to user_id
 
-  const storeCredentials = async (staffId: string, email: string, password: string, userId?: string | null) => {
+  const storeCredentials = async (_staffId: string, email: string, password: string, userId?: string | null) => {
+    if (!userId) return; // can't update without a user_id
     try {
-      const updates = { plain_password: password, login_email: email };
-      // Try staff_id match first (set when account was created via this page)
-      const { error: e1 } = await supabase
+      await supabase
         .from('user_roles')
-        .update(updates)
-        .eq('staff_id', staffId)
+        .update({ plain_password: password, login_email: email })
+        .eq('user_id', userId)
         .eq('school_id', userRole!.school_id);
-      // If no row matched by staff_id and we have a user_id, try that too
-      if (e1 && userId) {
-        await supabase
-          .from('user_roles')
-          .update(updates)
-          .eq('user_id', userId)
-          .eq('school_id', userRole!.school_id);
-      }
     } catch { /* non-critical */ }
   };
 
@@ -334,7 +328,11 @@ export default function StaffUserAccounts() {
   // ── Reset password ────────────────────────────────────────────────────────
 
   const handleResetPassword = async () => {
-    if (!selected?.user_id || !resetPass) return;
+    if (!resetPass) return;
+    if (!selected?.user_id) {
+      alert('No linked auth account found for this staff member. Try revoking and re-granting access.');
+      return;
+    }
     setResetting(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-staff-user', {
