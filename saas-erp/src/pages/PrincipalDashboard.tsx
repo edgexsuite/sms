@@ -103,17 +103,33 @@ export default function PrincipalDashboard() {
       .limit(8);
     if (!classes) return;
 
-    const { data: att } = await supabase
-      .from('attendance')
-      .select('class_id, status')
+    // attendance has no class_id — get student_id→class_id map first
+    const { data: classStudents } = await supabase
+      .from('students')
+      .select('id, class_id')
       .eq('school_id', userRole?.school_id)
-      .eq('date', today)
+      .eq('status', 'active')
       .in('class_id', classes.map(c => c.id));
+
+    const stuToClass = new Map<string, string>();
+    (classStudents || []).forEach((s: any) => stuToClass.set(s.id, s.class_id));
+    const stuIds = [...stuToClass.keys()];
+
+    const { data: att } = stuIds.length > 0
+      ? await supabase
+          .from('attendance')
+          .select('student_id, status')
+          .eq('school_id', userRole?.school_id)
+          .eq('date', today)
+          .in('student_id', stuIds)
+      : { data: [] };
 
     const attByClass = new Map<string, { present: number; absent: number }>();
     (att || []).forEach((a: any) => {
-      if (!attByClass.has(a.class_id)) attByClass.set(a.class_id, { present: 0, absent: 0 });
-      const e = attByClass.get(a.class_id)!;
+      const cid = stuToClass.get(a.student_id);
+      if (!cid) return;
+      if (!attByClass.has(cid)) attByClass.set(cid, { present: 0, absent: 0 });
+      const e = attByClass.get(cid)!;
       if (a.status === 'present' || a.status === 'P') e.present++;
       else if (a.status === 'absent' || a.status === 'A') e.absent++;
     });
@@ -128,7 +144,7 @@ export default function PrincipalDashboard() {
   const fetchRecentExams = async () => {
     const { data } = await supabase
       .from('exam_results')
-      .select('marks_obtained, total_marks, subject_id, subjects(subject_name)')
+      .select('obtained_marks, total_marks, subject_id, subjects(subject_name)')
       .eq('school_id', userRole?.school_id)
       .order('created_at', { ascending: false })
       .limit(100);
@@ -141,8 +157,8 @@ export default function PrincipalDashboard() {
       if (!subMap.has(sub)) subMap.set(sub, { total: 0, sum: 0, pass: 0 });
       const e = subMap.get(sub)!;
       e.total++;
-      e.sum += r.marks_obtained || 0;
-      if (r.total_marks > 0 && (r.marks_obtained / r.total_marks) >= 0.4) e.pass++;
+      e.sum += r.obtained_marks || 0;
+      if (r.total_marks > 0 && (r.obtained_marks / r.total_marks) >= 0.4) e.pass++;
     });
 
     const results = Array.from(subMap.entries())

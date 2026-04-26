@@ -117,31 +117,38 @@ export default function TeacherDashboard() {
 
     const classIds = Array.from(classMap.keys());
 
-    // Get student counts per class
+    // Get student counts per class (also need id for attendance lookup)
     const { data: students } = await supabase
       .from('students')
-      .select('class_id')
+      .select('id, class_id')
       .eq('school_id', userRole?.school_id)
       .eq('status', 'active')
       .in('class_id', classIds);
 
     const studentCountMap = new Map<string, number>();
+    const stuClassMap = new Map<string, string>(); // student_id → class_id
     (students || []).forEach((s: any) => {
       studentCountMap.set(s.class_id, (studentCountMap.get(s.class_id) || 0) + 1);
+      stuClassMap.set(s.id, s.class_id);
     });
 
-    // Get today's attendance per class
-    const { data: attendance } = await supabase
-      .from('attendance')
-      .select('class_id, status')
-      .eq('school_id', userRole?.school_id)
-      .eq('date', today)
-      .in('class_id', classIds);
+    // Get today's attendance — attendance has no class_id, filter by student_id
+    const studentIds = [...stuClassMap.keys()];
+    const { data: attendance } = studentIds.length > 0
+      ? await supabase
+          .from('attendance')
+          .select('student_id, status')
+          .eq('school_id', userRole?.school_id)
+          .eq('date', today)
+          .in('student_id', studentIds)
+      : { data: [] };
 
     const attMap = new Map<string, { present: number; absent: number; total: number }>();
     (attendance || []).forEach((a: any) => {
-      if (!attMap.has(a.class_id)) attMap.set(a.class_id, { present: 0, absent: 0, total: 0 });
-      const entry = attMap.get(a.class_id)!;
+      const cid = stuClassMap.get(a.student_id);
+      if (!cid) return;
+      if (!attMap.has(cid)) attMap.set(cid, { present: 0, absent: 0, total: 0 });
+      const entry = attMap.get(cid)!;
       entry.total++;
       if (a.status === 'present' || a.status === 'P') entry.present++;
       else if (a.status === 'absent' || a.status === 'A') entry.absent++;
@@ -238,13 +245,20 @@ export default function TeacherDashboard() {
 
     const classIds = [...new Set(slots.map((s: any) => s.class_id))];
 
-    const { data } = await supabase
-      .from('exam_results')
-      .select('student_id, marks_obtained, total_marks, grade, students(full_name), subjects(subject_name)')
-      .eq('school_id', userRole?.school_id)
-      .in('class_id', classIds)
-      .order('created_at', { ascending: false })
-      .limit(5);
+    // exam_results has no class_id — filter by student_id instead
+    const classStudentIds = slots.length > 0
+      ? (await supabase.from('students').select('id').in('class_id', classIds)).data?.map((s: any) => s.id) ?? []
+      : [];
+
+    const { data } = classStudentIds.length > 0
+      ? await supabase
+          .from('exam_results')
+          .select('student_id, obtained_marks, total_marks, grade, students(full_name), subjects(subject_name)')
+          .eq('school_id', userRole?.school_id)
+          .in('student_id', classStudentIds)
+          .order('created_at', { ascending: false })
+          .limit(5)
+      : { data: [] };
 
     if (data) setRecentResults(data);
   };
@@ -465,7 +479,7 @@ export default function TeacherDashboard() {
                       <p className="text-[10px] text-gray-400">{r.subjects?.subject_name}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs font-black text-indigo-700">{r.marks_obtained}/{r.total_marks}</p>
+                      <p className="text-xs font-black text-indigo-700">{r.obtained_marks}/{r.total_marks}</p>
                       {r.grade && (
                         <span className="text-[10px] font-bold text-gray-500">{r.grade}</span>
                       )}
