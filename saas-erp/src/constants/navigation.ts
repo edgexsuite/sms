@@ -132,6 +132,7 @@ export const NAV_SECTIONS = [
           { name: 'Exam Types', path: '/result/exam-types', icon: SettingsIcon, roles: ALL_ADMIN },
           { name: 'Enter Results', path: '/result/add-result', exact: true, icon: Star },
           { name: 'Import from Excel', path: '/result/import', icon: Upload },
+          { name: 'Enter Marks', path: '/result/teacher-marks', icon: Star, roles: ['admin','principal','director','teacher','staff'] },
           { name: 'Report Cards', path: '/result/reporting', icon: LineChart },
         ]
       },
@@ -229,6 +230,7 @@ export const NAV_SECTIONS = [
       { name: 'Settings', path: '/settings', icon: SettingsIcon, roles: ALL_ADMIN },
       { name: 'Permission Manager', path: '/settings/permissions', icon: Key, roles: ALL_ADMIN },
       { name: 'ID Card Designer', path: '/settings/id-cards', icon: Palette, roles: ALL_ADMIN },
+      { name: 'Report Card Designer', path: '/settings/report-cards', icon: LineChart, roles: ALL_ADMIN },
       { name: 'Credential Dispatch', path: '/credentials', icon: ShieldCheck, roles: ALL_ADMIN },
       { name: 'Help & Support', path: '/help-support', icon: LifeBuoy, roles: ALL_ADMIN },
       { name: 'Trashbin', path: '/settings/trashbin', icon: Trash2, roles: ['admin'] },

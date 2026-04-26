@@ -9,6 +9,7 @@ import ResultReporting from './ResultReporting';
 import ResultSetting from './ResultSetting';
 import RollNumberSlips from './RollNumberSlips';
 import ImportResult from './ImportResult';
+import TeacherMarks from './TeacherMarks';
 
 export default function ResultLayout() {
   return (
@@ -22,6 +23,7 @@ export default function ResultLayout() {
       <Route path="settings" element={<ResultSetting />} />
       <Route path="roll-slips" element={<RollNumberSlips />} />
       <Route path="import" element={<ImportResult />} />
+      <Route path="teacher-marks" element={<TeacherMarks />} />
       <Route path="*" element={<Navigate to="/result/exam-types" replace />} />
     </Routes>
   );
