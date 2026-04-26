@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { FileText, PlusCircle, Trash2, Save, X, BookOpen, Target, Settings as SettingsIcon, Edit2 } from 'lucide-react';
@@ -321,8 +322,8 @@ export default function SubjectManagement() {
       )}
 
       {/* Add Subject Modal */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+      {showForm && createPortal(
+        <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
             <div className="bg-purple-600 px-6 py-4 flex justify-between items-center">
               <h3 className="font-bold text-lg text-white flex items-center gap-2">
@@ -393,12 +394,13 @@ export default function SubjectManagement() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Preset Manager Modal */}
-      {showPresetManager && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+      {showPresetManager && createPortal(
+        <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="bg-gray-900 px-6 py-4 flex justify-between items-center shrink-0">
               <h3 className="font-bold text-lg text-white flex items-center gap-2">
@@ -470,7 +472,8 @@ export default function SubjectManagement() {
             </div>
             
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

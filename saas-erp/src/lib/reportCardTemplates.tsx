@@ -7,6 +7,7 @@ export interface ReportCardCustomization {
   tableFontSize: number;
   remarksFontSize: number;
   logoSize: number;
+  watermarkOpacity: number;
   primaryColor: string;
   tableHeaderColor: string;
   borderColor: string;
@@ -18,6 +19,7 @@ export const DEFAULT_REPORT_CUSTOM: ReportCardCustomization = {
   tableFontSize: 10,
   remarksFontSize: 12,
   logoSize: 60,
+  watermarkOpacity: 0.1,
   primaryColor: '#1d4ed8',
   tableHeaderColor: '#eff6ff',
   borderColor: '#e2e8f0',
@@ -65,8 +67,24 @@ export function ClassicReport(props: ReportCardProps) {
 
   return (
     <div style={{ width: '210mm', minHeight: '297mm', background: '#fff', padding: '15mm', fontFamily: 'serif', color: '#000', position: 'relative' }}>
+      {/* Watermark */}
+      {activeFields.includes('watermark') && props.schoolLogo && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%) rotate(-45deg)',
+          opacity: c.watermarkOpacity,
+          zIndex: 0,
+          pointerEvents: 'none',
+          userSelect: 'none'
+        }}>
+          <img src={props.schoolLogo} alt="" style={{ width: '400px', height: '400px', objectFit: 'contain' }} />
+        </div>
+      )}
+
       {/* Header Container */}
-      <div style={{ borderBottom: `3px double ${c.borderColor}`, paddingBottom: '10px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+      <div style={{ position: 'relative', zIndex: 1, borderBottom: `3px double ${c.borderColor}`, paddingBottom: '10px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
         {activeFields.includes('school_logo') && props.schoolLogo && (
           <img src={props.schoolLogo} alt="" style={{ width: c.logoSize, height: c.logoSize, objectFit: 'contain', marginBottom: '10px' }} />
         )}
@@ -159,10 +177,26 @@ export function ModernReport(props: ReportCardProps) {
   const { activeFields, subjects } = props;
 
   return (
-    <div style={{ width: '210mm', minHeight: '297mm', background: '#f8fafc', padding: '15mm', fontFamily: 'sans-serif', color: '#0f172a' }}>
+    <div style={{ width: '210mm', minHeight: '297mm', background: '#f8fafc', padding: '15mm', fontFamily: 'sans-serif', color: '#0f172a', position: 'relative' }}>
       
+      {/* Watermark */}
+      {activeFields.includes('watermark') && props.schoolLogo && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%) rotate(-45deg)',
+          opacity: c.watermarkOpacity,
+          zIndex: 0,
+          pointerEvents: 'none',
+          userSelect: 'none'
+        }}>
+          <img src={props.schoolLogo} alt="" style={{ width: '450px', height: '450px', objectFit: 'contain' }} />
+        </div>
+      )}
+
       {/* Dynamic Header Block */}
-      <div style={{ background: c.primaryColor, padding: '20px', borderRadius: '8px', color: '#fff', display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '25px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
+      <div style={{ position: 'relative', zIndex: 1, background: c.primaryColor, padding: '20px', borderRadius: '8px', color: '#fff', display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '25px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
         {activeFields.includes('school_logo') && props.schoolLogo && (
           <div style={{ background: '#fff', padding: '5px', borderRadius: '8px' }}>
             <img src={props.schoolLogo} alt="" style={{ width: c.logoSize, height: c.logoSize, objectFit: 'contain' }} />
@@ -267,16 +301,34 @@ export function MinimalReport(props: ReportCardProps) {
   const { activeFields, subjects } = props;
 
   return (
-    <div style={{ width: '210mm', minHeight: '297mm', background: '#fff', padding: '15mm', fontFamily: 'monospace', color: '#000' }}>
+    <div style={{ width: '210mm', minHeight: '297mm', background: '#fff', padding: '15mm', fontFamily: 'monospace', color: '#000', position: 'relative' }}>
+      
+      {/* Watermark */}
+      {activeFields.includes('watermark') && props.schoolLogo && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%) rotate(-15deg)',
+          opacity: c.watermarkOpacity,
+          zIndex: 0,
+          pointerEvents: 'none',
+          userSelect: 'none',
+          filter: 'grayscale(100%)'
+        }}>
+          <img src={props.schoolLogo} alt="" style={{ width: '400px', height: '400px', objectFit: 'contain' }} />
+        </div>
+      )}
+
       {/* Minimal Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: `2px solid #000`, paddingBottom: '15px', marginBottom: '30px' }}>
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '20px', borderBottom: `2px solid #000`, paddingBottom: '15px', marginBottom: '30px' }}>
+        {activeFields.includes('school_logo') && props.schoolLogo && (
+          <img src={props.schoolLogo} alt="" style={{ width: c.logoSize, height: c.logoSize, objectFit: 'contain', filter: 'grayscale(100%)' }} />
+        )}
         <div>
           <h1 style={{ fontSize: c.headerFontSize, margin: 0, textTransform: 'uppercase' }}>{props.schoolName}</h1>
           <h2 style={{ fontSize: c.headerFontSize * 0.7, margin: '5px 0 0', fontWeight: 'normal' }}>ACADEMIC TRANSCRIPT</h2>
         </div>
-        {activeFields.includes('school_logo') && props.schoolLogo && (
-          <img src={props.schoolLogo} alt="" style={{ width: c.logoSize, height: c.logoSize, objectFit: 'contain', filter: 'grayscale(100%)' }} />
-        )}
       </div>
 
       {/* Info */}
@@ -363,14 +415,37 @@ export function ElegantReport(props: ReportCardProps) {
   const { activeFields, subjects } = props;
 
   return (
-    <div style={{ width: '210mm', minHeight: '297mm', background: '#fafafa', padding: '15mm', fontFamily: 'serif', color: '#111827' }}>
+    <div style={{ width: '210mm', minHeight: '297mm', background: '#fafafa', padding: '15mm', fontFamily: 'serif', color: '#111827', position: 'relative' }}>
       
+      {/* Watermark */}
+      {activeFields.includes('watermark') && props.schoolLogo && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          opacity: c.watermarkOpacity,
+          zIndex: 0,
+          pointerEvents: 'none',
+          userSelect: 'none'
+        }}>
+          <img src={props.schoolLogo} alt="" style={{ width: '500px', height: '500px', objectFit: 'contain' }} />
+        </div>
+      )}
+
       {/* Decorative Header */}
-      <div style={{ textAlign: 'center', marginBottom: '30px', position: 'relative' }}>
-        <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: '1px', background: c.borderColor, zIndex: 1 }}></div>
-        <h1 style={{ fontSize: c.headerFontSize * 1.1, margin: 0, color: c.primaryColor, textTransform: 'uppercase', letterSpacing: '3px', background: '#fafafa', display: 'inline-block', padding: '0 20px', position: 'relative', zIndex: 2 }}>
-          {props.schoolName}
-        </h1>
+      <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', marginBottom: '30px' }}>
+        {activeFields.includes('school_logo') && props.schoolLogo && (
+          <div style={{ marginBottom: '15px' }}>
+            <img src={props.schoolLogo} alt="" style={{ width: c.logoSize, height: c.logoSize, objectFit: 'contain', margin: '0 auto' }} />
+          </div>
+        )}
+        <div style={{ position: 'relative' }}>
+          <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: '1px', background: c.borderColor, zIndex: 1 }}></div>
+          <h1 style={{ fontSize: c.headerFontSize * 1.1, margin: 0, color: c.primaryColor, textTransform: 'uppercase', letterSpacing: '3px', background: '#fafafa', display: 'inline-block', padding: '0 20px', position: 'relative', zIndex: 2 }}>
+            {props.schoolName}
+          </h1>
+        </div>
         <div style={{ marginTop: '10px', fontSize: c.headerFontSize * 0.6, letterSpacing: '5px', color: '#6b7280', textTransform: 'uppercase' }}>Student Progress Report</div>
       </div>
 
@@ -385,9 +460,6 @@ export function ElegantReport(props: ReportCardProps) {
             <div style={{ marginTop: '5px', fontSize: c.tableFontSize * 1.1, color: '#4b5563' }}><strong>Attendance:</strong> {props.attendance}</div>
           )}
         </div>
-        {activeFields.includes('school_logo') && props.schoolLogo && (
-          <img src={props.schoolLogo} alt="" style={{ width: c.logoSize, height: c.logoSize, objectFit: 'contain' }} />
-        )}
         {activeFields.includes('student_photo') && props.studentPhoto && (
           <img src={props.studentPhoto} alt="Student" style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '50%', border: `4px solid ${c.tableHeaderColor}`, boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }} />
         )}
@@ -459,10 +531,26 @@ export function CompactReport(props: ReportCardProps) {
   const { activeFields, subjects } = props;
 
   return (
-    <div style={{ width: '210mm', minHeight: '297mm', background: '#fff', padding: '10mm', fontFamily: 'sans-serif', color: '#1e293b' }}>
+    <div style={{ width: '210mm', minHeight: '297mm', background: '#fff', padding: '10mm', fontFamily: 'sans-serif', color: '#1e293b', position: 'relative' }}>
       
+      {/* Watermark */}
+      {activeFields.includes('watermark') && props.schoolLogo && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%) rotate(-30deg)',
+          opacity: c.watermarkOpacity,
+          zIndex: 0,
+          pointerEvents: 'none',
+          userSelect: 'none'
+        }}>
+          <img src={props.schoolLogo} alt="" style={{ width: '350px', height: '350px', objectFit: 'contain' }} />
+        </div>
+      )}
+
       {/* Dense Header */}
-      <div style={{ display: 'flex', alignItems: 'center', borderBottom: `3px solid ${c.primaryColor}`, paddingBottom: '10px', marginBottom: '15px' }}>
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', borderBottom: `3px solid ${c.primaryColor}`, paddingBottom: '10px', marginBottom: '15px' }}>
         {activeFields.includes('school_logo') && props.schoolLogo && (
           <img src={props.schoolLogo} alt="" style={{ width: c.logoSize * 0.8, height: c.logoSize * 0.8, objectFit: 'contain', marginRight: '15px' }} />
         )}

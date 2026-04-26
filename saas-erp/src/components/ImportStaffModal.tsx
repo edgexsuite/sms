@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -153,8 +154,8 @@ export default function ImportStaffModal({ onClose, onSuccess }: ImportStaffModa
     }
   };
 
-  return (
-    <div className="fixed inset-0 bg-slate-900/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
+  return createPortal(
+    <div className="fixed inset-0 bg-slate-900/60 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
         <div className="bg-slate-800 px-6 py-4 flex justify-between items-center shrink-0">
           <h3 className="text-lg font-black text-white flex items-center gap-2 tracking-tight">
@@ -254,6 +255,7 @@ export default function ImportStaffModal({ onClose, onSuccess }: ImportStaffModa
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

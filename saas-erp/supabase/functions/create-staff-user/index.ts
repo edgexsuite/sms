@@ -42,15 +42,32 @@ Deno.serve(async (req) => {
       if (!staff_id)  return err('staff_id is required');
 
       // 1. Create auth user
+      let uid: string;
       const { data: authData, error: authErr } = await admin.auth.admin.createUser({
         email,
         password,
         email_confirm: true,
         user_metadata: { school_id, role },
       });
-      if (authErr) return err('Auth error: ' + authErr.message);
 
-      const uid = authData.user.id;
+      if (authErr) {
+        if (authErr.message.includes('already been registered') || authErr.message.includes('already exists')) {
+          // User exists — lookup directly in auth
+          const { data: { users }, error: listErr } = await admin.auth.admin.listUsers();
+          const user = users.find((u: any) => u.email === email);
+          
+          if (listErr || !user) {
+             return err('Auth error: ' + authErr.message + ' (and fallback lookup failed)');
+          }
+          uid = user.id;
+          
+          // Optional: update metadata to include this school if needed (keeping it simple for now)
+        } else {
+          return err('Auth error: ' + authErr.message);
+        }
+      } else {
+        uid = authData.user.id;
+      }
 
       // 2. Insert user_roles row
       const { error: roleErr } = await admin.from('user_roles').insert({
@@ -61,21 +78,29 @@ Deno.serve(async (req) => {
         permissions: permissions ?? {},
         is_active:   true,
       });
+
       if (roleErr) {
-        await admin.auth.admin.deleteUser(uid); // rollback
+        // If it's a duplicate key error, it means the user already has a role here
+        if (roleErr.code === '23505') {
+           return err('Account already exists: This user already has an active role in this school.');
+        }
+        // If we just created the auth user, we should roll back (delete them)
+        // But if they were an existing user, we should NOT delete them.
+        if (!authErr) {
+          await admin.auth.admin.deleteUser(uid); 
+        }
         return err('user_roles insert error: ' + roleErr.message);
       }
 
-      // 3. Update staff record (best-effort — columns may not exist yet if migration pending)
+      // 3. Update staff record
       const { error: staffErr } = await admin.from('staff')
         .update({ user_id: uid, has_login: true })
         .eq('id', staff_id);
       if (staffErr) {
-        // Non-fatal: user account created, just log the warning
         console.warn('staff update warning:', staffErr.message);
       }
 
-      return ok({ user_id: uid, email });
+      return ok({ user_id: uid, email, linked_existing: !!authErr });
     }
 
     // ── RESET PASSWORD ────────────────────────────────────────────────────────

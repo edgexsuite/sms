@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Lock, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -55,8 +56,8 @@ export default function DeletePinModal({ isOpen, onClose, onConfirm, title, item
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+  return createPortal(
+    <div className="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-red-100 transform animate-in zoom-in-95 duration-200">
         <div className="bg-red-600 px-6 py-4 flex justify-between items-center shrink-0">
           <h3 className="font-bold text-white flex items-center gap-2">
@@ -123,6 +124,7 @@ export default function DeletePinModal({ isOpen, onClose, onConfirm, title, item
           Only authorized school directors can update this PIN.
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

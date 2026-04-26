@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { FileText, Printer, Search } from 'lucide-react';
+import { ReportCardLayoutRenderer, DEFAULT_REPORT_CUSTOM } from '../../lib/reportCardTemplates';
 
 const getGrade = (obtained: number, total: number, passing: number): { grade: string; status: string; pct: number } => {
   if (total === 0) return { grade: '—', status: '—', pct: 0 };
@@ -19,6 +20,7 @@ export default function ResultReporting() {
   const [subjects, setSubjects] = useState<any[]>([]);
   const [results, setResults] = useState<any[]>([]);
   const [schoolInfo, setSchoolInfo] = useState<any>(null);
+  const [rcSettings, setRcSettings] = useState<any>(null);
 
   const [selectedExamType, setSelectedExamType] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
@@ -28,7 +30,13 @@ export default function ResultReporting() {
   useEffect(() => {
     if (userRole?.school_id) {
       fetchInit();
-      supabase.from('schools').select('*').eq('id', userRole.school_id).single().then(({ data }) => { if (data) setSchoolInfo(data); });
+      Promise.all([
+        supabase.from('schools').select('*').eq('id', userRole.school_id).single(),
+        supabase.from('report_card_settings').select('*').eq('school_id', userRole.school_id).maybeSingle()
+      ]).then(([{ data: school }, { data: settings }]) => {
+        if (school) setSchoolInfo(school);
+        if (settings) setRcSettings(settings);
+      });
     }
   }, [userRole]);
 
@@ -132,99 +140,30 @@ export default function ResultReporting() {
             </button>
           </div>
 
-          <div className="result-card bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            {/* Card Header */}
-            <div className="bg-gradient-to-r from-teal-700 to-teal-500 text-white px-8 py-6 text-center">
-              <h1 className="text-xl font-black uppercase tracking-wide">{schoolInfo?.name || 'School Name'}</h1>
-              <p className="text-teal-100 text-sm mt-0.5">{schoolInfo?.address || ''}</p>
-              <div className="mt-3 bg-white/20 rounded-lg px-4 py-1.5 inline-block">
-                <p className="text-sm font-black uppercase tracking-widest text-white">Result Card — {currentExam?.name} {currentExam?.session}</p>
-              </div>
-            </div>
-
-            {/* Student Info */}
-            <div className="grid grid-cols-2 gap-0 border-b border-gray-200">
-              {[
-                ['Student Name', currentStudent?.full_name],
-                ['Roll Number', currentStudent?.roll_number],
-                ['Class', `${currentClass?.name} — ${currentClass?.section}`],
-                ['Exam', `${currentExam?.name} (${currentExam?.session})`],
-              ].map(([label, val]) => (
-                <div key={label as string} className="px-6 py-3 border-b border-gray-100 flex gap-2">
-                  <span className="text-xs font-bold text-gray-500 uppercase w-28 shrink-0">{label}:</span>
-                  <span className="text-sm font-bold text-gray-900">{val}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Marks Table */}
-            <div className="px-6 py-4">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-gray-50 border border-gray-200">
-                    <th className="px-4 py-2 text-left text-xs font-bold text-gray-600 uppercase">Subject</th>
-                    <th className="px-4 py-2 text-center text-xs font-bold text-gray-600 uppercase">Total</th>
-                    <th className="px-4 py-2 text-center text-xs font-bold text-gray-600 uppercase">Pass</th>
-                    <th className="px-4 py-2 text-center text-xs font-bold text-gray-600 uppercase">Obtained</th>
-                    <th className="px-4 py-2 text-center text-xs font-bold text-gray-600 uppercase">Grade</th>
-                    <th className="px-4 py-2 text-center text-xs font-bold text-gray-600 uppercase">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {subjectRows.map(({ subj, r, grade, status }) => (
-                    <tr key={subj.id} className={`border-b border-gray-100 ${status === 'Fail' || status === 'Absent' ? 'bg-red-50' : ''}`}>
-                      <td className="px-4 py-2.5 font-bold text-gray-900 text-sm">{subj.subject_name}</td>
-                      <td className="px-4 py-2.5 text-center text-sm font-medium text-gray-600">{subj.total_marks}</td>
-                      <td className="px-4 py-2.5 text-center text-sm font-medium text-orange-600">{subj.passing_marks || 33}</td>
-                      <td className="px-4 py-2.5 text-center text-lg font-black text-gray-900">{r ? r.obtained_marks : <span className="text-gray-400 text-sm">Absent</span>}</td>
-                      <td className="px-4 py-2.5 text-center"><span className="font-black text-sm">{grade}</span></td>
-                      <td className="px-4 py-2.5 text-center">
-                        <span className={`text-xs font-black px-2 py-0.5 rounded-full ${status === 'Pass' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{status}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="bg-gray-800 text-white">
-                    <td className="px-4 py-3 font-black text-sm uppercase">Grand Total</td>
-                    <td className="px-4 py-3 text-center font-bold">{grandTotal}</td>
-                    <td></td>
-                    <td className="px-4 py-3 text-center text-xl font-black">{totalObtained}</td>
-                    <td className="px-4 py-3 text-center font-black text-yellow-300">{overallGrade}</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`text-xs font-black px-3 py-1 rounded-full ${finalStatus === 'PROMOTED' ? 'bg-green-400 text-green-900' : 'bg-red-400 text-white'}`}>{finalStatus}</span>
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-
-            {/* Overall Summary */}
-            <div className="border-t border-gray-200 bg-gray-50 px-8 py-5 flex justify-between items-center">
-              <div>
-                <p className="text-xs text-gray-500 font-bold uppercase">Overall Percentage</p>
-                <p className="text-4xl font-black text-gray-900">{overallPct}%</p>
-              </div>
-              <div className="text-center">
-                <p className="text-xs text-gray-500 font-bold uppercase">Final Grade</p>
-                <p className="text-4xl font-black text-teal-600">{overallGrade}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-gray-500 font-bold uppercase">Result</p>
-                <p className={`text-2xl font-black ${finalStatus === 'PROMOTED' ? 'text-green-600' : 'text-red-600'}`}>{finalStatus}</p>
-              </div>
-            </div>
-
-            {/* Signatures */}
-            <div className="border-t border-gray-100 px-8 py-6 grid grid-cols-3 gap-8 text-center text-xs text-gray-500">
-              {['Class Teacher', 'Principal', "Parent's Signature"].map(sig => (
-                <div key={sig}>
-                  <div className="border-b border-gray-400 mb-2 mt-6"></div>
-                  <p className="font-bold uppercase">{sig}</p>
-                </div>
-              ))}
-            </div>
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+            <ReportCardLayoutRenderer
+              template={rcSettings?.template || 'classic'}
+              studentName={currentStudent?.full_name || ''}
+              rollNumber={currentStudent?.roll_number || ''}
+              className={`${currentClass?.name} — ${currentClass?.section}`}
+              schoolName={schoolInfo?.name || ''}
+              schoolLogo={schoolInfo?.logo_url}
+              activeFields={rcSettings?.fields || ['school_logo', 'student_photo', 'gpa_summary', 'teacher_remarks']}
+              customization={rcSettings?.layout_config?.customization || DEFAULT_REPORT_CUSTOM}
+              subjects={subjectRows.map(row => ({
+                name: row.subj.subject_name,
+                marks: row.r?.obtained_marks || 0,
+                total: row.subj.total_marks || 100,
+                grade: row.grade
+              }))}
+              totalMarks={grandTotal}
+              obtainedMarks={totalObtained}
+              percentage={overallPct}
+              grade={overallGrade}
+              attendance={currentStudent?.attendance || 'N/A'}
+            />
           </div>
+
         </>
       )}
     </div>

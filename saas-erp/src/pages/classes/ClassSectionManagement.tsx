@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { BookOpen, PlusCircle, Pencil, Trash2, Save, X, Users2, ChevronDown } from 'lucide-react';
@@ -183,8 +184,8 @@ export default function ClassSectionManagement() {
       </div>
 
       {/* Create / Edit Modal */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+      {showForm && createPortal(
+        <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
             <div className="bg-blue-600 px-6 py-4 flex justify-between items-center">
               <h3 className="font-bold text-lg text-white flex items-center gap-2">
@@ -251,7 +252,8 @@ export default function ClassSectionManagement() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

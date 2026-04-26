@@ -14,6 +14,7 @@ import {
 
 const REPORT_FIELDS = [
   { id: 'school_logo', label: 'School Logo' },
+  { id: 'watermark', label: 'Background Watermark' },
   { id: 'student_photo', label: 'Student Photo' },
   { id: 'attendance_stats', label: 'Attendance Statistics' },
   { id: 'gpa_summary', label: 'GPA & Percentage Summary' },
@@ -101,6 +102,7 @@ export default function ReportCardSettings() {
   const [fields, setFields] = useState<string[]>(['school_logo', 'student_photo', 'gpa_summary', 'teacher_remarks']);
   const [template, setTemplate] = useState<ReportTemplateId>('classic');
   const [customization, setCustomization] = useState<ReportCardCustomization>({ ...DEFAULT_REPORT_CUSTOM });
+  const [schoolInfo, setSchoolInfo] = useState<any>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
@@ -109,16 +111,17 @@ export default function ReportCardSettings() {
 
   const fetchSettings = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('report_card_settings')
-      .select('*')
-      .eq('school_id', userRole?.school_id)
-      .maybeSingle();
+    const [{ data: settings }, { data: school }] = await Promise.all([
+      supabase.from('report_card_settings').select('*').eq('school_id', userRole?.school_id).maybeSingle(),
+      supabase.from('schools').select('*').eq('id', userRole?.school_id).single()
+    ]);
+    
+    if (school) setSchoolInfo(school);
 
-    if (data) {
-      if (data.fields) setFields(data.fields);
-      if (data.template) setTemplate(data.template as ReportTemplateId);
-      if (data.layout_config?.customization) setCustomization({ ...DEFAULT_REPORT_CUSTOM, ...data.layout_config.customization });
+    if (settings) {
+      if (settings.fields) setFields(settings.fields);
+      if (settings.template) setTemplate(settings.template as ReportTemplateId);
+      if (settings.layout_config?.customization) setCustomization({ ...DEFAULT_REPORT_CUSTOM, ...settings.layout_config.customization });
     }
     setLoading(false);
   };
@@ -278,6 +281,7 @@ export default function ReportCardSettings() {
                   <SizeControl label="Marks Table" value={customization.tableFontSize} onChange={v => updateCustom({ tableFontSize: v })} min={8} max={16} />
                   <SizeControl label="Remarks Block" value={customization.remarksFontSize} onChange={v => updateCustom({ remarksFontSize: v })} min={8} max={18} />
                   <SizeControl label="Logo Dimension" value={customization.logoSize} onChange={v => updateCustom({ logoSize: v })} min={30} max={120} step={5} />
+                  <SizeControl label="Watermark Opacity" value={customization.watermarkOpacity} onChange={v => updateCustom({ watermarkOpacity: v })} min={0} max={1} step={0.05} unit="" />
                 </div>
 
                 {/* Color controls */}
@@ -424,6 +428,8 @@ export default function ReportCardSettings() {
                   <ReportCardLayoutRenderer 
                     template={template} 
                     {...SAMPLE_PREVIEW} 
+                    schoolName={schoolInfo?.name || SAMPLE_PREVIEW.schoolName}
+                    schoolLogo={schoolInfo?.logo_url || SAMPLE_PREVIEW.schoolLogo}
                     activeFields={fields}
                     customization={customization}
                   />

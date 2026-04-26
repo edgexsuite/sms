@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Search, Upload, Download, Trash2, BookOpen, FileSpreadsheet, UserPlus, Eye, X, ChevronDown, Users, CheckCircle, MoreVertical, Edit, UserX, Key, GraduationCap, LogOut, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -1502,8 +1503,8 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
       </AnimatePresence>
 
       {/* ── Import Modal ──────────────────────────────────────────────────── */}
-      {isImportModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      {isImportModalOpen && createPortal(
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[9999]">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md flex flex-col overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
               <h3 className="text-lg font-bold text-gray-900">Import Students Data</h3>
@@ -1557,7 +1558,8 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Delete Pin Modal */}
@@ -1569,60 +1571,61 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
         onConfirm={executeDelete}
       />
 
-      {/* Bulk Action Bar — fixed to bottom so it never covers the topbar/tabs */}
-      {selectedIds.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur-xl text-white px-5 py-3 rounded-2xl shadow-[0_20px_60px_-10px_rgba(0,0,0,0.6)] flex items-center gap-4 z-[100] border border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-300 max-w-[calc(100vw-2rem)]">
+      {/* Bulk Action Bar — Relocated to Top for better visibility */}
+      {selectedIds.length > 0 && createPortal(
+        <div className="fixed top-[4.5rem] left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md text-slate-900 px-4 py-2 rounded-full shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] flex items-center gap-4 z-[9998] border border-indigo-100 animate-in fade-in slide-in-from-top-4 duration-300 max-w-[calc(100vw-2rem)]">
           {/* Count + clear */}
-          <div className="flex items-center gap-3 border-r border-white/10 pr-4 shrink-0">
-            <div className="bg-indigo-600 w-8 h-8 flex items-center justify-center rounded-xl shadow-lg shadow-indigo-500/30 shrink-0">
-              <Users className="w-4 h-4" />
+          <div className="flex items-center gap-3 border-r border-slate-200 pr-4 shrink-0">
+            <div className="bg-indigo-600 w-7 h-7 flex items-center justify-center rounded-lg shadow-lg shadow-indigo-500/30 shrink-0">
+              <Users className="w-3.5 h-3.5 text-white" />
             </div>
             <div>
-              <p className="text-xs font-black leading-none whitespace-nowrap">
-                {selectedIds.length} {selectedIds.length === 1 ? 'Student' : 'Students'} Selected
+              <p className="text-[11px] font-black leading-none whitespace-nowrap">
+                {selectedIds.length} {selectedIds.length === 1 ? 'Student' : 'Students'}
               </p>
               <button
                 onClick={() => setSelectedIds([])}
-                className="text-[9px] text-white/40 hover:text-white/80 uppercase tracking-widest font-black mt-1 transition-colors"
+                className="text-[9px] text-indigo-600 hover:text-indigo-800 uppercase tracking-widest font-black mt-0.5 transition-colors"
               >
-                Clear
+                Clear Selection
               </button>
             </div>
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => setIsBulkStatusOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl transition-all text-[11px] font-black uppercase tracking-widest border border-white/5 active:scale-95 whitespace-nowrap"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 rounded-lg transition-all text-[10px] font-black uppercase tracking-widest border border-transparent active:scale-95 whitespace-nowrap"
             >
-              <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" /> Status
+              <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0" /> Status
             </button>
             <button
               onClick={() => setIsBulkClassOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl transition-all text-[11px] font-black uppercase tracking-widest border border-white/5 active:scale-95 whitespace-nowrap"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 rounded-lg transition-all text-[10px] font-black uppercase tracking-widest border border-transparent active:scale-95 whitespace-nowrap"
             >
-              <Upload className="w-3.5 h-3.5 text-indigo-400 shrink-0" /> Reallocate
+              <Upload className="w-3 h-3 text-indigo-500 shrink-0" /> Move
             </button>
             <button
               onClick={() => setIsBulkQuickUpdateOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 rounded-xl transition-all text-[11px] font-black uppercase tracking-widest border border-amber-500/10 active:scale-95 whitespace-nowrap"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-amber-50 text-slate-700 hover:text-amber-700 rounded-lg transition-all text-[10px] font-black uppercase tracking-widest border border-transparent active:scale-95 whitespace-nowrap"
             >
-              <Edit className="w-3.5 h-3.5 shrink-0" /> Quick Update
+              <Edit className="w-3 h-3 text-amber-500 shrink-0" /> Edit
             </button>
             <button
               onClick={() => setIsBulkDeleteModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 rounded-xl transition-all text-[11px] font-black uppercase tracking-widest border border-rose-500/10 active:scale-95 whitespace-nowrap"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition-all text-[10px] font-black uppercase tracking-widest border border-rose-100 active:scale-95 whitespace-nowrap"
             >
-              <Trash2 className="w-3.5 h-3.5 shrink-0" /> Trash
+              <Trash2 className="w-3 h-3 shrink-0" /> Trash
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Bulk Quick Update Modal */}
-      {isBulkQuickUpdateOpen && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-in fade-in duration-300">
+      {isBulkQuickUpdateOpen && createPortal(
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999] animate-in fade-in duration-300">
           <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-100">
             <div className="bg-slate-50 px-8 py-6 border-b border-slate-100 flex justify-between items-center">
               <div>
@@ -1698,12 +1701,13 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Bulk Status Modal */}
-      {isBulkStatusOpen && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-in fade-in duration-300">
+      {isBulkStatusOpen && createPortal(
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999] animate-in fade-in duration-300">
           <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-100">
             <div className="bg-slate-50 px-8 py-6 border-b border-slate-100 flex justify-between items-center">
               <div>
@@ -1727,12 +1731,13 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
               ))}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Bulk Class Modal */}
-      {isBulkClassOpen && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-in fade-in duration-300">
+      {isBulkClassOpen && createPortal(
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999] animate-in fade-in duration-300">
           <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-100">
             <div className="bg-slate-50 px-8 py-6 border-b border-slate-100 flex justify-between items-center">
               <div>
@@ -1764,7 +1769,8 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Bulk Delete Confirmation */}
@@ -1779,8 +1785,8 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
       )}
 
       {/* ── Status Change Modal ── */}
-      {statusModal && (
-        <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4">
+      {statusModal && createPortal(
+        <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
             <h3 className="text-base font-black text-slate-900 mb-1">
               {statusModal.targetStatus === 'left' ? 'Mark as Left' :
@@ -1830,12 +1836,13 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── Change Password Modal ── */}
-      {pwdModal && (
-        <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4">
+      {pwdModal && createPortal(
+        <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
             <h3 className="text-base font-black text-slate-900 mb-1">Change Portal Password</h3>
             <p className="text-sm text-slate-500 mb-4">Student: <strong>{pwdModal.studentName}</strong></p>
@@ -1860,7 +1867,8 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
