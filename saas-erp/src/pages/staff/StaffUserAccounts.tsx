@@ -319,17 +319,26 @@ export default function StaffUserAccounts() {
     return null;
   };
 
-  // Resolve auth user_id from user_roles for a given staff record
-  const resolveAuthUserId = async (staffId: string, knownUserId?: string | null): Promise<string | null> => {
+  // Resolve auth user_id — tries every available strategy
+  const resolveAuthUserId = async (staffId: string, knownUserId?: string | null, email?: string | null): Promise<string | null> => {
+    // 1. Already known
     if (knownUserId) return knownUserId;
-    // Direct DB lookup — most reliable
-    const { data } = await supabase
+    // 2. Query user_roles by staff_id
+    const { data: byStaffId } = await supabase
       .from('user_roles')
       .select('user_id')
       .eq('staff_id', staffId)
       .eq('school_id', userRole!.school_id)
       .maybeSingle();
-    return data?.user_id ?? null;
+    if (byStaffId?.user_id) return byStaffId.user_id;
+    // 3. Last resort — ask edge function to find auth user by email
+    if (email) {
+      const { data: found } = await supabase.functions.invoke('create-staff-user', {
+        body: { action: 'find_user_by_email', email },
+      });
+      if (found?.user_id) return found.user_id;
+    }
+    return null;
   };
 
   // ── Create account ────────────────────────────────────────────────────────
@@ -347,7 +356,7 @@ export default function StaffUserAccounts() {
       if (error || data?.error) throw new Error(edgeFnError(error, data));
       setCreateSuccess(`Account created! Email: ${createEmail}  Password: ${createPass}`);
       // Resolve auth user_id — edge fn may or may not return it; query DB as fallback
-      const authUserId = await resolveAuthUserId(selected.id, data?.user_id);
+      const authUserId = await resolveAuthUserId(selected.id, data?.user_id, createEmail);
       if (authUserId) {
         const credErr = await storeCredentials(createEmail, createPass, authUserId);
         if (credErr) setCreateError(`Account created but credentials card failed to save: ${credErr}\n\nRun staff_credentials_migration.sql in Supabase.`);
@@ -367,21 +376,27 @@ export default function StaffUserAccounts() {
     if (!resetPass) return;
     setResetting(true);
     try {
-      // Resolve auth user_id — prefer selected.user_id, fallback to DB lookup
-      const authUserId = await resolveAuthUserId(selected!.id, selected?.user_id);
-      if (!authUserId) {
-        alert('Could not find the auth account for this staff member.\nTry: Revoke Access → Grant Login Access again.');
-        return;
-      }
+      const email = resetEmail || selected?.login_email || selected?.email || '';
+      // Resolve auth user_id via all available strategies including email lookup
+      const authUserId = await resolveAuthUserId(selected!.id, selected?.user_id, email);
+
+      // Call edge function — passes both user_id AND email so it can find the user either way
       const { data, error } = await supabase.functions.invoke('create-staff-user', {
-        body: { action: 'reset_password', user_id: authUserId, new_password: resetPass },
+        body: {
+          action: 'reset_password',
+          user_id: authUserId,   // may be null — edge fn will use email instead
+          email,                 // always send email as fallback
+          new_password: resetPass,
+          school_id: userRole!.school_id,
+          staff_id: selected!.id,
+        },
       });
       if (error || data?.error) throw new Error(edgeFnError(error, data));
-      // Store updated credentials
-      const email = resetEmail || selected?.login_email || selected?.email || '';
-      const credErr = await storeCredentials(email, resetPass, authUserId);
-      if (credErr) {
-        alert(`Password reset successfully, but credentials card could not be saved:\n${credErr}\n\nRun staff_credentials_migration.sql in Supabase SQL Editor.`);
+
+      // Use the resolved user_id from the response (edge fn returns it)
+      const finalUserId = data?.user_id || authUserId;
+      if (finalUserId) {
+        await storeCredentials(email, resetPass, finalUserId);
       }
       await fetchStaff();
       setShowReset(false);

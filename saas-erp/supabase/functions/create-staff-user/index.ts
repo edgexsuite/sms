@@ -103,14 +103,48 @@ Deno.serve(async (req) => {
       return ok({ user_id: uid, email, linked_existing: !!authErr });
     }
 
+    // ── FIND USER BY EMAIL ────────────────────────────────────────────────────
+    if (action === 'find_user_by_email') {
+      const { email } = body;
+      if (!email) return err('email is required');
+      const { data: { users }, error: listErr } = await admin.auth.admin.listUsers({ perPage: 1000 });
+      if (listErr) return err('List error: ' + listErr.message);
+      const user = users.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
+      if (!user) return err('No auth user found with email: ' + email);
+      return ok({ user_id: user.id, email: user.email });
+    }
+
     // ── RESET PASSWORD ────────────────────────────────────────────────────────
     if (action === 'reset_password') {
-      const { user_id, new_password } = body;
-      if (!user_id || !new_password) return err('user_id and new_password are required');
+      const { user_id, email, new_password } = body;
+      if (!new_password) return err('new_password is required');
 
-      const { error: e } = await admin.auth.admin.updateUserById(user_id, { password: new_password });
+      let uid = user_id;
+
+      // If no user_id provided, look up by email
+      if (!uid && email) {
+        const { data: { users }, error: listErr } = await admin.auth.admin.listUsers({ perPage: 1000 });
+        if (listErr) return err('Lookup error: ' + listErr.message);
+        const user = users.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
+        if (!user) return err('No auth user found with email: ' + email);
+        uid = user.id;
+      }
+
+      if (!uid) return err('user_id or email is required');
+
+      const { error: e } = await admin.auth.admin.updateUserById(uid, { password: new_password });
       if (e) return err('Reset error: ' + e.message);
-      return ok({ success: true });
+
+      // Also update the staff record linkage if we can
+      const { school_id, staff_id } = body;
+      if (school_id && uid) {
+        await admin.from('user_roles')
+          .update({ plain_password: new_password, login_email: email ?? null })
+          .eq('user_id', uid)
+          .eq('school_id', school_id);
+      }
+
+      return ok({ success: true, user_id: uid });
     }
 
     // ── REVOKE ACCESS ─────────────────────────────────────────────────────────
