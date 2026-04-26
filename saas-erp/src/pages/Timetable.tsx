@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -918,7 +919,7 @@ export default function Timetable() {
       {/* ══════════════════════════════════════════════════════════════════
           MODAL — Slot Editor (period rows)
       ══════════════════════════════════════════════════════════════════ */}
-      {editSlot && (
+      {editSlot && createPortal(
         <div className="fixed inset-0 bg-slate-950/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
             {/* Header */}
@@ -1038,12 +1039,12 @@ export default function Timetable() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* ══════════════════════════════════════════════════════════════════
           MODAL — Break / Assembly Time Editor
       ══════════════════════════════════════════════════════════════════ */}
-      {editBreakRow && (
+      {editBreakRow && createPortal(
         <div className="fixed inset-0 bg-slate-950/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
             <div className={`px-6 py-5 flex justify-between items-center ${editBreakRow.slot_type === 'break' ? 'bg-amber-500' : 'bg-indigo-600'}`}>
@@ -1096,12 +1097,12 @@ export default function Timetable() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* ══════════════════════════════════════════════════════════════════
           MODAL — Template Editor (create / edit)
       ══════════════════════════════════════════════════════════════════ */}
-      {showTplEditor && (
+      {showTplEditor && createPortal(
         <div className="fixed inset-0 bg-slate-950/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
             {/* Header */}
@@ -1233,7 +1234,7 @@ export default function Timetable() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }
