@@ -19,6 +19,7 @@ const REPORT_FIELDS = [
   { id: 'attendance_stats', label: 'Attendance Statistics' },
   { id: 'gpa_summary', label: 'GPA & Percentage Summary' },
   { id: 'teacher_remarks', label: 'Teacher Remarks' },
+  { id: 'position_in_class', label: 'Position in Class (Rank)' },
 ];
 
 /* ── Sample dummy data for preview ───────────────────────────────────────── */
@@ -91,6 +92,33 @@ function ColorControl({ label, value, onChange }: { label: string; value: string
         />
         <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">{value}</span>
       </div>
+    </div>
+  );
+}
+
+const FONT_OPTIONS = [
+  { value: 'serif', label: 'Serif (Traditional)' },
+  { value: 'sans-serif', label: 'Sans-Serif (Modern)' },
+  { value: 'monospace', label: 'Monospace (Minimal)' },
+  { value: 'Georgia, serif', label: 'Georgia (Elegant)' },
+  { value: 'Verdana, sans-serif', label: 'Verdana (Clean)' },
+  { value: 'cursive', label: 'Cursive (Decorative)' },
+];
+
+function FontControl({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-[11px] font-bold text-slate-600 w-28 shrink-0">Title Font</span>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+        style={{ fontFamily: value }}
+      >
+        {FONT_OPTIONS.map(f => (
+          <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>
+        ))}
+      </select>
     </div>
   );
 }
@@ -282,6 +310,12 @@ export default function ReportCardSettings() {
                   <SizeControl label="Remarks Block" value={customization.remarksFontSize} onChange={v => updateCustom({ remarksFontSize: v })} min={8} max={18} />
                   <SizeControl label="Logo Dimension" value={customization.logoSize} onChange={v => updateCustom({ logoSize: v })} min={30} max={120} step={5} />
                   <SizeControl label="Watermark Opacity" value={customization.watermarkOpacity} onChange={v => updateCustom({ watermarkOpacity: v })} min={0} max={1} step={0.05} unit="" />
+                </div>
+
+                {/* Font family */}
+                <div className="border-t border-slate-200 pt-4 space-y-3">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Typography</p>
+                  <FontControl value={customization.titleFont || 'serif'} onChange={v => updateCustom({ titleFont: v })} />
                 </div>
 
                 {/* Color controls */}

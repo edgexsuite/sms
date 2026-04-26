@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { FileText, Printer, Search } from 'lucide-react';
+import { FileText, Printer } from 'lucide-react';
 import { ReportCardLayoutRenderer, DEFAULT_REPORT_CUSTOM } from '../../lib/reportCardTemplates';
 
 const getGrade = (obtained: number, total: number, passing: number): { grade: string; status: string; pct: number } => {
@@ -19,6 +19,7 @@ export default function ResultReporting() {
   const [students, setStudents] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
   const [results, setResults] = useState<any[]>([]);
+  const [classResults, setClassResults] = useState<any[]>([]); // all class results for position calc
   const [schoolInfo, setSchoolInfo] = useState<any>(null);
   const [rcSettings, setRcSettings] = useState<any>(null);
 
@@ -42,6 +43,9 @@ export default function ResultReporting() {
 
   useEffect(() => { if (selectedClass) fetchClassData(); }, [selectedClass]);
   useEffect(() => { if (selectedExamType && selectedStudent) fetchStudentResults(); }, [selectedExamType, selectedStudent]);
+  useEffect(() => {
+    if (selectedExamType && selectedClass && students.length > 0) fetchAllClassResults();
+  }, [selectedExamType, selectedClass, students.length]);
 
   const fetchInit = async () => {
     const [{ data: et }, { data: cls }] = await Promise.all([
@@ -55,7 +59,7 @@ export default function ResultReporting() {
   const fetchClassData = async () => {
     const [{ data: subs }, { data: stus }] = await Promise.all([
       supabase.from('subjects').select('*').eq('class_id', selectedClass).order('subject_name'),
-      supabase.from('students').select('id, full_name, roll_number').eq('class_id', selectedClass).eq('status', 'active').order('roll_number'),
+      supabase.from('students').select('id, full_name, roll_number, photograph_url').eq('class_id', selectedClass).eq('status', 'active').order('roll_number'),
     ]);
     if (subs) setSubjects(subs);
     if (stus) setStudents(stus);
@@ -68,6 +72,25 @@ export default function ResultReporting() {
     setLoading(false);
   };
 
+  const fetchAllClassResults = async () => {
+    const ids = students.map(s => s.id);
+    if (ids.length === 0) return;
+    const { data } = await supabase.from('exam_results')
+      .select('student_id, obtained_marks')
+      .eq('exam_type_id', selectedExamType)
+      .in('student_id', ids);
+    if (data) setClassResults(data);
+  };
+
+  const computePosition = (): { position: number; outOf: number } => {
+    if (classResults.length === 0 || !selectedStudent) return { position: 0, outOf: 0 };
+    const totals: Record<string, number> = {};
+    classResults.forEach(r => { totals[r.student_id] = (totals[r.student_id] || 0) + r.obtained_marks; });
+    const sorted = Object.entries(totals).sort(([, a], [, b]) => b - a);
+    const pos = sorted.findIndex(([id]) => id === selectedStudent) + 1;
+    return { position: pos, outOf: sorted.length };
+  };
+
   const currentExam = examTypes.find(e => e.id === selectedExamType);
   const currentClass = classes.find(c => c.id === selectedClass);
   const currentStudent = students.find(s => s.id === selectedStudent);
@@ -75,7 +98,9 @@ export default function ResultReporting() {
   let totalObtained = 0, grandTotal = 0, failSubjects = 0;
   const subjectRows = subjects.map(subj => {
     const r = results.find(res => res.subject_id === subj.id);
-    const { grade, status, pct } = r ? getGrade(r.obtained_marks, r.total_marks, subj.passing_marks || 33) : { grade: 'AB', status: 'Absent', pct: 0 };
+    const { grade, status, pct } = r
+      ? getGrade(r.obtained_marks, r.total_marks, subj.passing_marks || 33)
+      : { grade: 'AB', status: 'Absent', pct: 0 };
     if (r) { totalObtained += r.obtained_marks; grandTotal += r.total_marks; }
     else { grandTotal += subj.total_marks || 100; }
     if (status === 'Fail' || status === 'Absent') failSubjects++;
@@ -84,18 +109,27 @@ export default function ResultReporting() {
 
   const overallPct = grandTotal > 0 ? Math.round((totalObtained / grandTotal) * 100) : 0;
   const overallGrade = overallPct >= 90 ? 'A+' : overallPct >= 80 ? 'A' : overallPct >= 70 ? 'B' : overallPct >= 60 ? 'C' : overallPct >= 50 ? 'D' : 'F';
-  const finalStatus = failSubjects === 0 ? 'PROMOTED' : 'NOT PROMOTED';
+  const { position, outOf } = computePosition();
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <style>{`
         @media print {
           .no-print { display: none !important; }
-          body { background: white; }
-          .result-card { box-shadow: none !important; border: 2px solid #000; }
-          table { width: 100%; border-collapse: collapse; }
-          th, td { border: 1px solid #555; padding: 4px 8px; }
-          @page { size: portrait; margin: 12mm; }
+          body { background: white; margin: 0; padding: 0; }
+          .result-card-wrapper {
+            width: 210mm !important;
+            height: 297mm !important;
+            overflow: hidden !important;
+            position: relative !important;
+            page-break-after: avoid !important;
+            page-break-inside: avoid !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            border: none !important;
+            margin: 0 !important;
+          }
+          @page { size: A4 portrait; margin: 0; }
         }
       `}</style>
 
@@ -103,10 +137,9 @@ export default function ResultReporting() {
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <FileText className="w-6 h-6 text-teal-600" /> Individual Result Cards
         </h1>
-        <p className="text-gray-500 text-sm mt-1">Generate printable result cards for individual students to take home.</p>
+        <p className="text-gray-500 text-sm mt-1">Generate printable result cards for individual students.</p>
       </div>
 
-      {/* Selectors */}
       <div className="no-print bg-white rounded-xl shadow-sm border border-gray-200 p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <label className="block text-xs font-bold text-gray-600 uppercase mb-2">Exam</label>
@@ -131,7 +164,6 @@ export default function ResultReporting() {
         </div>
       </div>
 
-      {/* Result Card */}
       {selectedExamType && selectedStudent && subjects.length > 0 && !loading && (
         <>
           <div className="no-print flex justify-end">
@@ -140,30 +172,36 @@ export default function ResultReporting() {
             </button>
           </div>
 
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="result-card-wrapper bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
             <ReportCardLayoutRenderer
               template={rcSettings?.template || 'classic'}
               studentName={currentStudent?.full_name || ''}
-              rollNumber={currentStudent?.roll_number || ''}
+              rollNumber={String(currentStudent?.roll_number || '')}
               className={`${currentClass?.name} — ${currentClass?.section}`}
+              examName={currentExam?.name || ''}
+              examSession={currentExam?.session || ''}
               schoolName={schoolInfo?.name || ''}
-              schoolLogo={schoolInfo?.logo_url}
-              activeFields={rcSettings?.fields || ['school_logo', 'student_photo', 'gpa_summary', 'teacher_remarks']}
+              schoolLogo={schoolInfo?.logo_url || null}
+              studentPhoto={currentStudent?.photograph_url || null}
+              activeFields={rcSettings?.fields || ['school_logo', 'gpa_summary', 'teacher_remarks']}
               customization={rcSettings?.layout_config?.customization || DEFAULT_REPORT_CUSTOM}
               subjects={subjectRows.map(row => ({
                 name: row.subj.subject_name,
-                marks: row.r?.obtained_marks || 0,
+                marks: row.r?.obtained_marks ?? 0,
                 total: row.subj.total_marks || 100,
-                grade: row.grade
+                grade: row.grade,
+                status: row.status,
               }))}
               totalMarks={grandTotal}
               obtainedMarks={totalObtained}
               percentage={overallPct}
               grade={overallGrade}
-              attendance={currentStudent?.attendance || 'N/A'}
+              attendance={'N/A'}
+              positionInClass={position > 0 ? position : undefined}
+              totalStudents={outOf > 0 ? outOf : undefined}
+              finalStatus={failSubjects === 0 ? 'PROMOTED' : 'NOT PROMOTED'}
             />
           </div>
-
         </>
       )}
     </div>

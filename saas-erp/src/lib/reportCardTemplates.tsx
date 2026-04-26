@@ -11,6 +11,7 @@ export interface ReportCardCustomization {
   primaryColor: string;
   tableHeaderColor: string;
   borderColor: string;
+  titleFont: string;
   signatures: { label: string; active: boolean }[];
 }
 
@@ -23,6 +24,7 @@ export const DEFAULT_REPORT_CUSTOM: ReportCardCustomization = {
   primaryColor: '#1d4ed8',
   tableHeaderColor: '#eff6ff',
   borderColor: '#e2e8f0',
+  titleFont: 'serif',
   signatures: [
     { label: 'Class Teacher', active: true },
     { label: 'Coordinator', active: false },
@@ -40,8 +42,12 @@ export interface ReportCardProps {
   activeFields: string[];
   studentPhoto?: string | null;
   customization?: ReportCardCustomization;
-  // Mock data for preview
-  subjects: { name: string; marks: number; total: number; grade: string }[];
+  examName?: string;
+  examSession?: string;
+  positionInClass?: number;
+  totalStudents?: number;
+  finalStatus?: string;
+  subjects: { name: string; marks: number; total: number; grade: string; status?: string }[];
   totalMarks: number;
   obtainedMarks: number;
   percentage: number;
@@ -64,110 +70,113 @@ function getCustom(props: ReportCardProps): ReportCardCustomization {
 export function ClassicReport(props: ReportCardProps) {
   const c = getCustom(props);
   const { activeFields, subjects } = props;
+  const font = c.titleFont || 'serif';
 
   return (
-    <div style={{ width: '210mm', minHeight: '297mm', background: '#fff', padding: '15mm', fontFamily: 'serif', color: '#000', position: 'relative' }}>
-      {/* Watermark */}
+    <div style={{ width: '210mm', height: '297mm', background: '#fff', padding: '12mm 15mm', fontFamily: font, color: '#000', position: 'relative', overflow: 'hidden', boxSizing: 'border-box' }}>
+
+      {/* Watermark — fixed inside the card box */}
       {activeFields.includes('watermark') && props.schoolLogo && (
-        <div style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%) rotate(-45deg)',
-          opacity: c.watermarkOpacity,
-          zIndex: 0,
-          pointerEvents: 'none',
-          userSelect: 'none'
-        }}>
-          <img src={props.schoolLogo} alt="" style={{ width: '400px', height: '400px', objectFit: 'contain' }} />
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 0, pointerEvents: 'none' }}>
+          <img src={props.schoolLogo} alt="" style={{ width: '380px', height: '380px', objectFit: 'contain', opacity: c.watermarkOpacity, transform: 'rotate(-45deg)' }} />
         </div>
       )}
 
-      {/* Header Container */}
-      <div style={{ position: 'relative', zIndex: 1, borderBottom: `3px double ${c.borderColor}`, paddingBottom: '10px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
-        {activeFields.includes('school_logo') && props.schoolLogo && (
-          <img src={props.schoolLogo} alt="" style={{ width: c.logoSize, height: c.logoSize, objectFit: 'contain', marginBottom: '10px' }} />
-        )}
-        <h1 style={{ fontSize: c.headerFontSize, fontWeight: 'bold', color: c.primaryColor, margin: 0, textTransform: 'uppercase', textAlign: 'center' }}>{props.schoolName}</h1>
-        <h2 style={{ fontSize: c.headerFontSize * 0.7, margin: '5px 0 0', color: '#4b5563', textTransform: 'uppercase', letterSpacing: '2px' }}>Academic Report Card</h2>
-      </div>
+      {/* All content above watermark */}
+      <div style={{ position: 'relative', zIndex: 1 }}>
 
-      {/* Student Detail Row */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', border: `1px solid ${c.borderColor}`, padding: '10px', marginBottom: '20px', borderRadius: '4px', fontSize: c.tableFontSize * 1.1 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          <div style={{ marginBottom: '5px' }}><strong>Student Name:</strong> {props.studentName}</div>
-          <div><strong>Roll Number:</strong> {props.rollNumber}</div>
+        {/* Header */}
+        <div style={{ borderBottom: `3px double ${c.borderColor}`, paddingBottom: '8px', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+          {activeFields.includes('school_logo') && props.schoolLogo && (
+            <img src={props.schoolLogo} alt="" style={{ width: c.logoSize, height: c.logoSize, objectFit: 'contain', marginBottom: '6px' }} />
+          )}
+          <h1 style={{ fontSize: c.headerFontSize, fontWeight: 'bold', color: c.primaryColor, margin: 0, textTransform: 'uppercase', textAlign: 'center', fontFamily: font }}>{props.schoolName}</h1>
+          <h2 style={{ fontSize: c.headerFontSize * 0.65, margin: '3px 0 0', color: '#4b5563', textTransform: 'uppercase', letterSpacing: '2px' }}>Academic Report Card</h2>
+          {props.examName && <div style={{ fontSize: c.tableFontSize, color: '#6b7280', marginTop: '2px' }}>{props.examName}{props.examSession ? ` — ${props.examSession}` : ''}</div>}
         </div>
-        <div style={{ display: 'flex', gap: '15px', textAlign: 'right' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <div style={{ marginBottom: '5px' }}><strong>Class:</strong> {props.className}</div>
+
+        {/* Student Info Row */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', border: `1px solid ${c.borderColor}`, padding: '8px 10px', marginBottom: '12px', borderRadius: '4px', fontSize: c.tableFontSize }}>
+          <div>
+            <div style={{ marginBottom: '3px' }}><strong>Student:</strong> {props.studentName}</div>
+            <div style={{ marginBottom: '3px' }}><strong>Roll No:</strong> {props.rollNumber}</div>
+            <div><strong>Class:</strong> {props.className}</div>
+          </div>
+          <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '3px', justifyContent: 'center' }}>
             {activeFields.includes('attendance_stats') && <div><strong>Attendance:</strong> {props.attendance}</div>}
+            {props.positionInClass && props.totalStudents && (
+              <div><strong>Position:</strong> <span style={{ color: c.primaryColor, fontWeight: 'bold' }}>{props.positionInClass}</span> / {props.totalStudents}</div>
+            )}
+            {props.finalStatus && <div><strong>Status:</strong> <span style={{ color: props.finalStatus === 'PROMOTED' ? '#15803d' : '#dc2626', fontWeight: 'bold' }}>{props.finalStatus}</span></div>}
           </div>
           {activeFields.includes('student_photo') && props.studentPhoto && (
-            <img src={props.studentPhoto} alt="Student" style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '4px', border: `1px solid ${c.borderColor}` }} />
+            <img src={props.studentPhoto} alt="Student" style={{ width: '70px', height: '70px', objectFit: 'cover', borderRadius: '4px', border: `1px solid ${c.borderColor}`, marginLeft: '10px' }} />
           )}
         </div>
-      </div>
 
-      {/* Marks Table */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: c.tableFontSize }}>
-        <thead>
-          <tr style={{ background: c.tableHeaderColor, color: c.primaryColor, borderBottom: `2px solid ${c.borderColor}` }}>
-            <th style={{ padding: '8px', textAlign: 'left', border: `1px solid ${c.borderColor}` }}>Subject</th>
-            <th style={{ padding: '8px', textAlign: 'center', border: `1px solid ${c.borderColor}` }}>Total Marks</th>
-            <th style={{ padding: '8px', textAlign: 'center', border: `1px solid ${c.borderColor}` }}>Obtained</th>
-            <th style={{ padding: '8px', textAlign: 'center', border: `1px solid ${c.borderColor}` }}>Grade</th>
-          </tr>
-        </thead>
-        <tbody>
-          {subjects.map((sub, i) => (
-            <tr key={i} style={{ borderBottom: `1px solid ${c.borderColor}` }}>
-              <td style={{ padding: '8px', border: `1px solid ${c.borderColor}` }}>{sub.name}</td>
-              <td style={{ padding: '8px', textAlign: 'center', border: `1px solid ${c.borderColor}` }}>{sub.total}</td>
-              <td style={{ padding: '8px', textAlign: 'center', border: `1px solid ${c.borderColor}` }}>{sub.marks}</td>
-              <td style={{ padding: '8px', textAlign: 'center', border: `1px solid ${c.borderColor}`, fontWeight: 'bold' }}>{sub.grade}</td>
+        {/* Marks Table */}
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '12px', fontSize: c.tableFontSize }}>
+          <thead>
+            <tr style={{ background: c.tableHeaderColor, color: c.primaryColor, borderBottom: `2px solid ${c.borderColor}` }}>
+              <th style={{ padding: '6px 8px', textAlign: 'left', border: `1px solid ${c.borderColor}` }}>Subject</th>
+              <th style={{ padding: '6px 8px', textAlign: 'center', border: `1px solid ${c.borderColor}` }}>Total</th>
+              <th style={{ padding: '6px 8px', textAlign: 'center', border: `1px solid ${c.borderColor}` }}>Obtained</th>
+              <th style={{ padding: '6px 8px', textAlign: 'center', border: `1px solid ${c.borderColor}` }}>Grade</th>
+              <th style={{ padding: '6px 8px', textAlign: 'center', border: `1px solid ${c.borderColor}` }}>Status</th>
             </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr style={{ background: '#f8fafc', fontWeight: 'bold' }}>
-            <td style={{ padding: '8px', textAlign: 'right', border: `1px solid ${c.borderColor}` }}>Total</td>
-            <td style={{ padding: '8px', textAlign: 'center', border: `1px solid ${c.borderColor}` }}>{props.totalMarks}</td>
-            <td style={{ padding: '8px', textAlign: 'center', border: `1px solid ${c.borderColor}` }}>{props.obtainedMarks}</td>
-            <td style={{ padding: '8px', textAlign: 'center', border: `1px solid ${c.borderColor}` }}>{props.percentage}%</td>
-          </tr>
-        </tfoot>
-      </table>
-
-      {/* Summary Row */}
-      {activeFields.includes('gpa_summary') && (
-        <div style={{ border: `1px solid ${c.borderColor}`, padding: '15px', borderRadius: '4px', textAlign: 'center', fontSize: c.tableFontSize * 1.2, fontWeight: 'bold', background: c.tableHeaderColor, color: c.primaryColor, marginBottom: '30px' }}>
-          OVERALL GRADE: {props.grade} &nbsp;&nbsp;|&nbsp;&nbsp; PERCENTAGE: {props.percentage}%
-        </div>
-      )}
-
-      {/* Remarks */}
-      {activeFields.includes('teacher_remarks') && (
-        <div style={{ marginBottom: '40px' }}>
-          <h3 style={{ fontSize: c.remarksFontSize, borderBottom: `1px solid ${c.borderColor}`, paddingBottom: '5px' }}>Teacher Remarks</h3>
-          <p style={{ minHeight: '40px', padding: '10px', fontSize: c.remarksFontSize * 0.9, fontStyle: 'italic', color: '#4b5563', borderBottom: '1px dashed #cbd5e1' }}>
-            Excellent performance this term. Keep up the good work!
-          </p>
-        </div>
-      )}
-
-      {/* Signatures */}
-      {(() => {
-        const activeSigs = (c.signatures || []).filter(s => s.active);
-        if (activeSigs.length === 0) return null;
-        return (
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '60px' }}>
-            {activeSigs.map((sig, idx) => (
-              <div key={idx} style={{ borderTop: `1px solid ${c.borderColor}`, width: '200px', textAlign: 'center', paddingTop: '5px', fontSize: c.tableFontSize }}>{sig.label}</div>
+          </thead>
+          <tbody>
+            {subjects.map((sub, i) => (
+              <tr key={i} style={{ borderBottom: `1px solid ${c.borderColor}`, background: i % 2 === 1 ? '#fafafa' : '#fff' }}>
+                <td style={{ padding: '5px 8px', border: `1px solid ${c.borderColor}` }}>{sub.name}</td>
+                <td style={{ padding: '5px 8px', textAlign: 'center', border: `1px solid ${c.borderColor}` }}>{sub.total}</td>
+                <td style={{ padding: '5px 8px', textAlign: 'center', border: `1px solid ${c.borderColor}` }}>{sub.marks}</td>
+                <td style={{ padding: '5px 8px', textAlign: 'center', border: `1px solid ${c.borderColor}`, fontWeight: 'bold' }}>{sub.grade}</td>
+                <td style={{ padding: '5px 8px', textAlign: 'center', border: `1px solid ${c.borderColor}`, fontWeight: 'bold', color: sub.status === 'Pass' ? '#15803d' : sub.status === 'Fail' ? '#dc2626' : '#6b7280', fontSize: c.tableFontSize * 0.9 }}>{sub.status || '—'}</td>
+              </tr>
             ))}
+          </tbody>
+          <tfoot>
+            <tr style={{ background: c.tableHeaderColor, fontWeight: 'bold' }}>
+              <td style={{ padding: '6px 8px', textAlign: 'right', border: `1px solid ${c.borderColor}` }}>TOTAL</td>
+              <td style={{ padding: '6px 8px', textAlign: 'center', border: `1px solid ${c.borderColor}` }}>{props.totalMarks}</td>
+              <td style={{ padding: '6px 8px', textAlign: 'center', border: `1px solid ${c.borderColor}` }}>{props.obtainedMarks}</td>
+              <td style={{ padding: '6px 8px', textAlign: 'center', border: `1px solid ${c.borderColor}`, color: c.primaryColor }}>{props.percentage}%</td>
+              <td style={{ padding: '6px 8px', textAlign: 'center', border: `1px solid ${c.borderColor}`, color: c.primaryColor }}>{props.grade}</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        {/* Summary */}
+        {activeFields.includes('gpa_summary') && (
+          <div style={{ border: `1px solid ${c.borderColor}`, padding: '8px 15px', borderRadius: '4px', display: 'flex', justifyContent: 'space-around', fontSize: c.tableFontSize * 1.1, fontWeight: 'bold', background: c.tableHeaderColor, color: c.primaryColor, marginBottom: '12px' }}>
+            <span>GRADE: {props.grade}</span>
+            <span>SCORE: {props.percentage}%</span>
+            {props.positionInClass && <span>RANK: {props.positionInClass}{props.totalStudents ? `/${props.totalStudents}` : ''}</span>}
           </div>
-        );
-      })()}
+        )}
+
+        {/* Remarks */}
+        {activeFields.includes('teacher_remarks') && (
+          <div style={{ marginBottom: '14px' }}>
+            <div style={{ fontSize: c.remarksFontSize * 0.85, fontWeight: 'bold', borderBottom: `1px solid ${c.borderColor}`, paddingBottom: '3px', marginBottom: '4px' }}>Teacher Remarks:</div>
+            <div style={{ minHeight: '30px', padding: '6px', fontSize: c.remarksFontSize * 0.85, fontStyle: 'italic', color: '#4b5563', borderBottom: '1px dashed #cbd5e1' }}>___________________________________________________________________________________________</div>
+          </div>
+        )}
+
+        {/* Signatures */}
+        {(() => {
+          const activeSigs = (c.signatures || []).filter(s => s.active);
+          if (activeSigs.length === 0) return null;
+          return (
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '30px' }}>
+              {activeSigs.map((sig, idx) => (
+                <div key={idx} style={{ borderTop: `1px solid ${c.borderColor}`, width: `${Math.floor(180 / activeSigs.length)}mm`, textAlign: 'center', paddingTop: '4px', fontSize: c.tableFontSize * 0.9 }}>{sig.label}</div>
+              ))}
+            </div>
+          );
+        })()}
+      </div>
     </div>
   );
 }
@@ -175,23 +184,13 @@ export function ClassicReport(props: ReportCardProps) {
 export function ModernReport(props: ReportCardProps) {
   const c = getCustom(props);
   const { activeFields, subjects } = props;
+  const font = c.titleFont || 'sans-serif';
 
   return (
-    <div style={{ width: '210mm', minHeight: '297mm', background: '#f8fafc', padding: '15mm', fontFamily: 'sans-serif', color: '#0f172a', position: 'relative' }}>
-      
-      {/* Watermark */}
+    <div style={{ width: '210mm', height: '297mm', background: '#f8fafc', padding: '12mm 15mm', fontFamily: font, color: '#0f172a', position: 'relative', overflow: 'hidden', boxSizing: 'border-box' }}>
       {activeFields.includes('watermark') && props.schoolLogo && (
-        <div style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%) rotate(-45deg)',
-          opacity: c.watermarkOpacity,
-          zIndex: 0,
-          pointerEvents: 'none',
-          userSelect: 'none'
-        }}>
-          <img src={props.schoolLogo} alt="" style={{ width: '450px', height: '450px', objectFit: 'contain' }} />
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 0, pointerEvents: 'none' }}>
+          <img src={props.schoolLogo} alt="" style={{ width: '420px', height: '420px', objectFit: 'contain', opacity: c.watermarkOpacity, transform: 'rotate(-45deg)' }} />
         </div>
       )}
 
@@ -299,24 +298,13 @@ export function ModernReport(props: ReportCardProps) {
 export function MinimalReport(props: ReportCardProps) {
   const c = getCustom(props);
   const { activeFields, subjects } = props;
+  const font = c.titleFont || 'monospace';
 
   return (
-    <div style={{ width: '210mm', minHeight: '297mm', background: '#fff', padding: '15mm', fontFamily: 'monospace', color: '#000', position: 'relative' }}>
-      
-      {/* Watermark */}
+    <div style={{ width: '210mm', height: '297mm', background: '#fff', padding: '12mm 15mm', fontFamily: font, color: '#000', position: 'relative', overflow: 'hidden', boxSizing: 'border-box' }}>
       {activeFields.includes('watermark') && props.schoolLogo && (
-        <div style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%) rotate(-15deg)',
-          opacity: c.watermarkOpacity,
-          zIndex: 0,
-          pointerEvents: 'none',
-          userSelect: 'none',
-          filter: 'grayscale(100%)'
-        }}>
-          <img src={props.schoolLogo} alt="" style={{ width: '400px', height: '400px', objectFit: 'contain' }} />
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 0, pointerEvents: 'none' }}>
+          <img src={props.schoolLogo} alt="" style={{ width: '380px', height: '380px', objectFit: 'contain', opacity: c.watermarkOpacity, transform: 'rotate(-15deg)', filter: 'grayscale(100%)' }} />
         </div>
       )}
 
@@ -413,23 +401,13 @@ export function MinimalReport(props: ReportCardProps) {
 export function ElegantReport(props: ReportCardProps) {
   const c = getCustom(props);
   const { activeFields, subjects } = props;
+  const font = c.titleFont || 'serif';
 
   return (
-    <div style={{ width: '210mm', minHeight: '297mm', background: '#fafafa', padding: '15mm', fontFamily: 'serif', color: '#111827', position: 'relative' }}>
-      
-      {/* Watermark */}
+    <div style={{ width: '210mm', height: '297mm', background: '#fafafa', padding: '12mm 15mm', fontFamily: font, color: '#111827', position: 'relative', overflow: 'hidden', boxSizing: 'border-box' }}>
       {activeFields.includes('watermark') && props.schoolLogo && (
-        <div style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          opacity: c.watermarkOpacity,
-          zIndex: 0,
-          pointerEvents: 'none',
-          userSelect: 'none'
-        }}>
-          <img src={props.schoolLogo} alt="" style={{ width: '500px', height: '500px', objectFit: 'contain' }} />
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 0, pointerEvents: 'none' }}>
+          <img src={props.schoolLogo} alt="" style={{ width: '460px', height: '460px', objectFit: 'contain', opacity: c.watermarkOpacity }} />
         </div>
       )}
 
@@ -529,23 +507,13 @@ export function ElegantReport(props: ReportCardProps) {
 export function CompactReport(props: ReportCardProps) {
   const c = getCustom(props);
   const { activeFields, subjects } = props;
+  const font = c.titleFont || 'sans-serif';
 
   return (
-    <div style={{ width: '210mm', minHeight: '297mm', background: '#fff', padding: '10mm', fontFamily: 'sans-serif', color: '#1e293b', position: 'relative' }}>
-      
-      {/* Watermark */}
+    <div style={{ width: '210mm', height: '297mm', background: '#fff', padding: '8mm 10mm', fontFamily: font, color: '#1e293b', position: 'relative', overflow: 'hidden', boxSizing: 'border-box' }}>
       {activeFields.includes('watermark') && props.schoolLogo && (
-        <div style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%) rotate(-30deg)',
-          opacity: c.watermarkOpacity,
-          zIndex: 0,
-          pointerEvents: 'none',
-          userSelect: 'none'
-        }}>
-          <img src={props.schoolLogo} alt="" style={{ width: '350px', height: '350px', objectFit: 'contain' }} />
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 0, pointerEvents: 'none' }}>
+          <img src={props.schoolLogo} alt="" style={{ width: '340px', height: '340px', objectFit: 'contain', opacity: c.watermarkOpacity, transform: 'rotate(-30deg)' }} />
         </div>
       )}
 
