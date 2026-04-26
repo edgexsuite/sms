@@ -3,35 +3,14 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Settings, Save, Plus, Trash2 } from 'lucide-react';
 
-interface GradeThreshold {
-  grade: string;
-  min_pct: number;
-  max_pct: number;
-  remarks: string;
-  color: string;
-}
-
 interface ResultConfig {
-  grading_scale: GradeThreshold[];
-  passing_percentage: number;
   show_gpa: boolean;
   show_position: boolean;
   show_remarks: boolean;
   result_title: string;
 }
 
-const DEFAULT_GRADES: GradeThreshold[] = [
-  { grade: 'A+', min_pct: 90, max_pct: 100, remarks: 'Outstanding', color: '#10b981' },
-  { grade: 'A',  min_pct: 80, max_pct: 89,  remarks: 'Excellent',   color: '#3b82f6' },
-  { grade: 'B',  min_pct: 70, max_pct: 79,  remarks: 'Very Good',   color: '#6366f1' },
-  { grade: 'C',  min_pct: 60, max_pct: 69,  remarks: 'Good',        color: '#f59e0b' },
-  { grade: 'D',  min_pct: 50, max_pct: 59,  remarks: 'Satisfactory',color: '#f97316' },
-  { grade: 'F',  min_pct: 0,  max_pct: 49,  remarks: 'Fail',        color: '#ef4444' },
-];
-
 const DEFAULTS: ResultConfig = {
-  grading_scale: DEFAULT_GRADES,
-  passing_percentage: 50,
   show_gpa: false,
   show_position: true,
   show_remarks: true,
@@ -73,24 +52,6 @@ export default function ResultSetting() {
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const updateGrade = (idx: number, field: keyof GradeThreshold, value: string | number) => {
-    setConfig(prev => ({
-      ...prev,
-      grading_scale: prev.grading_scale.map((g, i) => i === idx ? { ...g, [field]: value } : g),
-    }));
-  };
-
-  const removeGrade = (idx: number) => {
-    setConfig(prev => ({ ...prev, grading_scale: prev.grading_scale.filter((_, i) => i !== idx) }));
-  };
-
-  const addGrade = () => {
-    setConfig(prev => ({
-      ...prev,
-      grading_scale: [...prev.grading_scale, { grade: '', min_pct: 0, max_pct: 0, remarks: '', color: '#6b7280' }],
-    }));
-  };
-
   const Toggle = ({ label, field, desc }: { label: string; field: keyof ResultConfig; desc?: string }) => (
     <label className="flex items-start gap-3 cursor-pointer">
       <div className="relative mt-0.5">
@@ -125,95 +86,20 @@ export default function ResultSetting() {
       <form onSubmit={handleSave} className="space-y-4">
         {/* General */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
-          <h2 className="font-semibold text-gray-800">General</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <h2 className="font-semibold text-gray-800">General Information</h2>
+          <p className="text-sm text-gray-500 mb-4 pb-4 border-b border-gray-100">For configuring pass/fail ranges and grading scales, please use the new <a href="/result/grading-policy" className="text-indigo-600 font-medium hover:underline">Grading Policy</a> module.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Result Card Title</label>
               <input value={config.result_title} onChange={e => setConfig({ ...config, result_title: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
                 placeholder="Result Card" />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Passing Percentage (%)</label>
-              <input type="number" min="0" max="100" value={config.passing_percentage}
-                onChange={e => setConfig({ ...config, passing_percentage: parseInt(e.target.value) || 0 })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500" />
-            </div>
           </div>
-          <div className="space-y-3 pt-2">
+          <div className="space-y-3 pt-4 border-t border-gray-100">
             <Toggle label="Show Position / Rank" field="show_position" desc="Display class position on result card" />
             <Toggle label="Show Remarks" field="show_remarks" desc="Display grade remarks (e.g., Excellent, Good)" />
             <Toggle label="Show GPA" field="show_gpa" desc="Calculate and display GPA on result card" />
-          </div>
-        </div>
-
-        {/* Grading Scale */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="flex justify-between items-center p-4 border-b border-gray-200">
-            <div>
-              <h2 className="font-semibold text-gray-800">Grading Scale</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Define grade thresholds (percentages). Ranges must not overlap.</p>
-            </div>
-            <button type="button" onClick={addGrade} className="flex items-center gap-1 text-indigo-600 text-sm font-medium hover:text-indigo-800">
-              <Plus className="w-4 h-4" /> Add Grade
-            </button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500 w-20">Grade</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500 w-28">Min %</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500 w-28">Max %</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500">Remarks</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500 w-20">Color</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500 w-16">Preview</th>
-                  <th className="px-4 py-3 w-12" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {config.grading_scale.map((g, i) => (
-                  <tr key={i} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <input value={g.grade} onChange={e => updateGrade(i, 'grade', e.target.value)}
-                        className="w-16 border border-gray-300 rounded px-2 py-1 text-sm font-bold text-center focus:ring-2 focus:ring-indigo-500"
-                        placeholder="A+" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <input type="number" min="0" max="100" value={g.min_pct} onChange={e => updateGrade(i, 'min_pct', parseFloat(e.target.value))}
-                        className="w-20 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-indigo-500" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <input type="number" min="0" max="100" value={g.max_pct} onChange={e => updateGrade(i, 'max_pct', parseFloat(e.target.value))}
-                        className="w-20 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-indigo-500" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <input value={g.remarks} onChange={e => updateGrade(i, 'remarks', e.target.value)}
-                        className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-indigo-500"
-                        placeholder="e.g. Excellent" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <input type="color" value={g.color} onChange={e => updateGrade(i, 'color', e.target.value)}
-                        className="w-10 h-8 rounded border border-gray-300 cursor-pointer" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="px-2 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: g.color + '20', color: g.color }}>
-                        {g.grade || '?'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <button type="button" onClick={() => removeGrade(i)} className="text-red-400 hover:text-red-600 p-1">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="p-4 border-t border-gray-100 flex justify-end">
-            <button type="button" onClick={() => setConfig({ ...config, grading_scale: DEFAULT_GRADES })}
-              className="text-sm text-gray-500 hover:text-indigo-600">Reset to defaults</button>
           </div>
         </div>
       </form>

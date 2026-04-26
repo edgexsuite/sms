@@ -35,7 +35,13 @@ interface Student {
 type FeeFilter = 'all' | 'pending' | 'paid';
 type DetailTab = 'overview' | 'attendance' | 'fees' | 'results';
 
-export default function StudentList() {
+interface StudentListProps {
+  /** When set, locks the list to this class and shows an onBack button */
+  initialClassId?: string;
+  onBack?: () => void;
+}
+
+export default function StudentList({ initialClassId, onBack }: StudentListProps = {}) {
   const { t } = useTranslation();
   const { userRole } = useAuth();
   const navigate = useNavigate();
@@ -44,7 +50,7 @@ export default function StudentList() {
   const [search, setSearch] = useState('');
   // statusFilter kept for legacy bulk modal compatibility
   const [statusFilter, setStatusFilter] = useState('all');
-  const [classFilter, setClassFilter] = useState('');
+  const [classFilter, setClassFilter] = useState(initialClassId ?? '');
   const [feeFilter, setFeeFilter] = useState<FeeFilter>('all');
   const [genderFilter, setGenderFilter] = useState('');
   const [familyFilter, setFamilyFilter] = useState('');
@@ -565,9 +571,25 @@ export default function StudentList() {
         animate={{ opacity: 1, x: 0 }}
         className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6"
       >
-        <div>
-          <h1 className="text-xl font-black text-slate-900 tracking-tight uppercase">Student Directory</h1>
-          <p className="text-slate-500 text-xs font-medium mt-0.5">Manage and track your student enrollment across all classes.</p>
+        <div className="flex items-center gap-3">
+          {onBack && (
+            <button onClick={onBack}
+              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors shrink-0">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            </button>
+          )}
+          <div>
+            <h1 className="text-xl font-black text-slate-900 tracking-tight uppercase">
+              {initialClassId
+                ? (classes.find(c => c.id === initialClassId)
+                    ? `${classes.find(c => c.id === initialClassId)!.name} (${classes.find(c => c.id === initialClassId)!.section}) — Students`
+                    : 'Class Students')
+                : 'Student Directory'}
+            </h1>
+            <p className="text-slate-500 text-xs font-medium mt-0.5">
+              {initialClassId ? 'Full student management for this class.' : 'Manage and track your student enrollment across all classes.'}
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
@@ -602,15 +624,17 @@ export default function StudentList() {
             ))}
           </div>
 
-          {/* Class filter */}
-          <div className="relative">
-            <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)}
-              className="appearance-none pl-4 pr-9 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs font-black text-slate-600 shadow-sm cursor-pointer uppercase tracking-widest">
-              <option value="">All Classes</option>
-              {classes.map((cls) => <option key={cls.id} value={cls.id}>{cls.name} ({cls.section})</option>)}
-            </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-          </div>
+          {/* Class filter — hidden when locked to a specific class */}
+          {!initialClassId && (
+            <div className="relative">
+              <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)}
+                className="appearance-none pl-4 pr-9 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs font-black text-slate-600 shadow-sm cursor-pointer uppercase tracking-widest">
+                <option value="">All Classes</option>
+                {classes.map((cls) => <option key={cls.id} value={cls.id}>{cls.name} ({cls.section})</option>)}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            </div>
+          )}
 
           {/* Advanced Filters Toggle */}
           <button onClick={() => setShowAdvancedFilters(p => !p)}
