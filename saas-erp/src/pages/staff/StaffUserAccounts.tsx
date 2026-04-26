@@ -193,26 +193,43 @@ export default function StaffUserAccounts() {
 
       if (staffErr) throw staffErr;
 
-      const { data: rolesData, error: rolesErr } = await supabase
+      // Try full query first; fall back gracefully if migration columns missing
+      let rolesData: any[] = [];
+      const { data: r1, error: re1 } = await supabase
         .from('user_roles')
         .select('id, user_id, staff_id, role, is_active, last_login, permissions, plain_password, login_email')
         .eq('school_id', userRole.school_id)
         .neq('role', 'admin')
         .neq('role', 'parent');
 
-      const roles = (rolesErr ? [] : rolesData ?? []);
+      if (!re1) {
+        rolesData = r1 ?? [];
+      } else {
+        // Fallback: columns plain_password/login_email/staff_id may not exist yet
+        const { data: r2 } = await supabase
+          .from('user_roles')
+          .select('id, user_id, role, is_active, last_login, permissions')
+          .eq('school_id', userRole.school_id)
+          .neq('role', 'admin')
+          .neq('role', 'parent');
+        rolesData = (r2 ?? []).map((r: any) => ({ ...r, staff_id: null, plain_password: null, login_email: null }));
+      }
+
       const byStaff = new Map<string, any>();
       const byUser  = new Map<string, any>();
-      roles.forEach((r: any) => {
+      rolesData.forEach((r: any) => {
         if (r.staff_id) byStaff.set(r.staff_id, r);
         if (r.user_id)  byUser.set(r.user_id, r);
       });
 
       const merged: StaffWithAccount[] = (staffData ?? []).map((s: any) => {
-        const r = byStaff.get(s.id) ?? (s.user_id ? byUser.get(s.user_id) : undefined);
+        // Match by staff_id first, then by staff.user_id, then by email scan
+        const r = byStaff.get(s.id)
+          ?? (s.user_id ? byUser.get(s.user_id) : undefined)
+          ?? rolesData.find((rd: any) => rd.login_email && rd.login_email === s.email);
         return {
           ...s,
-          // Prefer user_roles.user_id (always set for auth accounts) over staff.user_id
+          // Always prefer user_roles.user_id — it's the Supabase auth UUID
           user_id:        r?.user_id       ?? s.user_id ?? null,
           has_login:      !!r,
           system_role:    r?.role          ?? null,
@@ -287,17 +304,32 @@ export default function StaffUserAccounts() {
   };
 
   // ── Store credentials in user_roles after create/reset ────────────────────
-  // Matches by staff_id first (most reliable), falls back to user_id
 
-  const storeCredentials = async (_staffId: string, email: string, password: string, userId?: string | null) => {
-    if (!userId) return; // can't update without a user_id
-    try {
-      await supabase
-        .from('user_roles')
-        .update({ plain_password: password, login_email: email })
-        .eq('user_id', userId)
-        .eq('school_id', userRole!.school_id);
-    } catch { /* non-critical */ }
+  const storeCredentials = async (email: string, password: string, userId: string): Promise<string | null> => {
+    // Try with both columns; if columns don't exist yet, return the migration hint
+    const { error } = await supabase
+      .from('user_roles')
+      .update({ plain_password: password, login_email: email })
+      .eq('user_id', userId)
+      .eq('school_id', userRole!.school_id);
+    if (error) {
+      console.error('storeCredentials error:', error.message);
+      return error.message; // caller can show this
+    }
+    return null;
+  };
+
+  // Resolve auth user_id from user_roles for a given staff record
+  const resolveAuthUserId = async (staffId: string, knownUserId?: string | null): Promise<string | null> => {
+    if (knownUserId) return knownUserId;
+    // Direct DB lookup — most reliable
+    const { data } = await supabase
+      .from('user_roles')
+      .select('user_id')
+      .eq('staff_id', staffId)
+      .eq('school_id', userRole!.school_id)
+      .maybeSingle();
+    return data?.user_id ?? null;
   };
 
   // ── Create account ────────────────────────────────────────────────────────
@@ -314,9 +346,13 @@ export default function StaffUserAccounts() {
       });
       if (error || data?.error) throw new Error(edgeFnError(error, data));
       setCreateSuccess(`Account created! Email: ${createEmail}  Password: ${createPass}`);
+      // Resolve auth user_id — edge fn may or may not return it; query DB as fallback
+      const authUserId = await resolveAuthUserId(selected.id, data?.user_id);
+      if (authUserId) {
+        const credErr = await storeCredentials(createEmail, createPass, authUserId);
+        if (credErr) setCreateError(`Account created but credentials card failed to save: ${credErr}\n\nRun staff_credentials_migration.sql in Supabase.`);
+      }
       await fetchStaff();
-      // Store credentials — after fetchStaff so user_roles row definitely exists
-      await storeCredentials(selected.id, createEmail, createPass, data?.user_id);
       setShowCreate(false);
     } catch (err: any) {
       setCreateError(err.message ?? 'Unknown error — check console.');
@@ -329,18 +365,24 @@ export default function StaffUserAccounts() {
 
   const handleResetPassword = async () => {
     if (!resetPass) return;
-    if (!selected?.user_id) {
-      alert('No linked auth account found for this staff member. Try revoking and re-granting access.');
-      return;
-    }
     setResetting(true);
     try {
+      // Resolve auth user_id — prefer selected.user_id, fallback to DB lookup
+      const authUserId = await resolveAuthUserId(selected!.id, selected?.user_id);
+      if (!authUserId) {
+        alert('Could not find the auth account for this staff member.\nTry: Revoke Access → Grant Login Access again.');
+        return;
+      }
       const { data, error } = await supabase.functions.invoke('create-staff-user', {
-        body: { action: 'reset_password', user_id: selected.user_id, new_password: resetPass },
+        body: { action: 'reset_password', user_id: authUserId, new_password: resetPass },
       });
       if (error || data?.error) throw new Error(edgeFnError(error, data));
-      // Use resetEmail (editable field) so admin can also correct email at reset time
-      await storeCredentials(selected.id, resetEmail || selected.email || '', resetPass, selected.user_id);
+      // Store updated credentials
+      const email = resetEmail || selected?.login_email || selected?.email || '';
+      const credErr = await storeCredentials(email, resetPass, authUserId);
+      if (credErr) {
+        alert(`Password reset successfully, but credentials card could not be saved:\n${credErr}\n\nRun staff_credentials_migration.sql in Supabase SQL Editor.`);
+      }
       await fetchStaff();
       setShowReset(false);
       setResetPass('');
@@ -415,7 +457,8 @@ export default function StaffUserAccounts() {
           body: { action: 'create', email: s.email, password: pw, school_id: userRole!.school_id, role, staff_id: s.id, permissions: ROLE_PRESETS[role] },
         });
         if (error || data?.error) { failed++; continue; }
-        await storeCredentials(s.id, s.email!, pw, data?.user_id);
+        const authId = await resolveAuthUserId(s.id, data?.user_id);
+        if (authId) await storeCredentials(s.email!, pw, authId);
         success++;
       } catch { failed++; }
     }
