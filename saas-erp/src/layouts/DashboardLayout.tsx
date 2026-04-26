@@ -40,6 +40,7 @@ export default function DashboardLayout() {
     else if (location.pathname.startsWith('/accounting')) setOpenDropdown('Accounting');
     else if (location.pathname.startsWith('/library')) setOpenDropdown('Library');
     else if (location.pathname.startsWith('/frontdesk')) setOpenDropdown('Front Desk');
+    else if (location.pathname.startsWith('/transport')) setOpenDropdown('Transport');
   }, [location.pathname]);
 
   const [notifications, setNotifications] = useState<any[]>([]);

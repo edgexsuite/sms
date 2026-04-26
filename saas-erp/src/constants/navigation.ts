@@ -5,7 +5,7 @@ import {
   CalendarOff, ClipboardList, AlertTriangle, Wallet, TrendingUp, PiggyBank,
   Banknote, DollarSign, Scale, BarChart3, BarChart2, ClipboardCheck, UserX,
   LineChart, Library, Home, Bell, Key, Trash2, Box, Package, Clock, Palette,
-  Receipt, Layers, BookMarked, Landmark, BarChart, LifeBuoy, Users2
+  Receipt, Layers, BookMarked, Landmark, BarChart, LifeBuoy, Users2, Bus, MapPin, Truck
 } from 'lucide-react';
 
 export const ALL_ADMIN = ['admin', 'principal', 'director'];
@@ -134,6 +134,7 @@ export const NAV_SECTIONS = [
           { name: 'Import from Excel', path: '/result/import', icon: Upload },
           { name: 'Enter Marks', path: '/result/teacher-marks', icon: Star, roles: ['admin','principal','director','teacher','staff'] },
           { name: 'Report Cards', path: '/result/reporting', icon: LineChart },
+          { name: 'Grading Policy', path: '/result/grading-policy', icon: SettingsIcon, roles: ALL_ADMIN },
         ]
       },
     ]
@@ -217,6 +218,18 @@ export const NAV_SECTIONS = [
     items: [
       { name: 'Library', path: '/library', icon: Library, roles: ['admin', 'staff', 'librarian'] },
       { name: 'Front Desk', path: '/frontdesk', icon: Home, roles: ALL_STAFF },
+      {
+        name: 'Transport',
+        path: '/transport',
+        icon: Bus,
+        roles: ALL_STAFF,
+        subItems: [
+          { name: 'Overview', path: '/transport', exact: true, icon: Bus, roles: ALL_STAFF },
+          { name: 'Routes & Stops', path: '/transport/routes', icon: MapPin, roles: ALL_STAFF },
+          { name: 'Vehicles', path: '/transport/vehicles', icon: Truck, roles: ALL_STAFF },
+          { name: 'Student Allocation', path: '/transport/students', icon: Users, roles: ALL_STAFF },
+        ]
+      },
       { name: 'Inventory', path: '/inventory', icon: Package, roles: ALL_STAFF },
       { name: 'Stationary', path: '/stationary', icon: Box, roles: ALL_STAFF },
       { name: 'Communication', path: '/communication', icon: MessageSquare, roles: ALL_ADMIN },

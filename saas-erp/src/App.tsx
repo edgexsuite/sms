@@ -49,10 +49,12 @@ const ReportsLayout = lazy(() => import('./pages/reports/ReportsLayout'));
 const PermissionManager = lazy(() => import('./pages/settings/PermissionManager'));
 const Trashbin = lazy(() => import('./pages/settings/Trashbin'));
 const IDCardSettings = lazy(() => import('./pages/settings/IDCardSettings'));
+const ReportCardSettings = lazy(() => import('./pages/settings/ReportCardSettings'));
 const TeacherDashboard = lazy(() => import('./pages/TeacherDashboard'));
 const AccountantDashboard = lazy(() => import('./pages/AccountantDashboard'));
 const PrincipalDashboard = lazy(() => import('./pages/PrincipalDashboard'));
 const HelpSupport = lazy(() => import('./pages/HelpSupport'));
+const TransportLayout = lazy(() => import('./pages/transport/TransportLayout'));
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { session, loading, roleNotFound, signOut } = useAuth();
@@ -153,7 +155,9 @@ export default function App() {
                 <Route path="family" element={<FamilyGroups />} />
                 <Route path="settings/permissions" element={<PermissionManager />} />
                 <Route path="settings/id-cards" element={<IDCardSettings />} />
+                <Route path="settings/report-cards" element={<ReportCardSettings />} />
                 <Route path="settings/trashbin" element={<Trashbin />} />
+                <Route path="transport/*" element={<TransportLayout />} />
                 <Route path="help-support" element={<HelpSupport />} />
               </Route>
             </Routes>
