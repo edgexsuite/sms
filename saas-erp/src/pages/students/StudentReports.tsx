@@ -27,6 +27,21 @@ const REPORTS: ReportType[] = [
   { id: 'discount', name: 'Student discount report', description: 'Detailed list of all scholarship/discount holders', category: 'financial', icon: ShieldAlert },
 ];
 
+// Convert remote URL → base64 via canvas (CORS-safe for jsPDF)
+const toBase64 = (url: string): Promise<string> =>
+  new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+      canvas.getContext('2d')?.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => resolve('');
+    img.src = url;
+  });
+
 export default function StudentReports() {
   const { userRole } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -64,13 +79,16 @@ export default function StudentReports() {
       const dateString = `${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`;
       const logoUrl = userRole?.schools?.logo_url;
 
+      // Load logo as base64 (CORS-safe)
+      const logoBase64 = logoUrl ? await toBase64(logoUrl) : '';
+
       // Professional PDF Header Helper
       const addHeader = (title: string, subtitle?: string) => {
         // Logo
-        if (logoUrl) {
+        if (logoBase64) {
           try {
-            doc.addImage(logoUrl, 'PNG', 15, 12, 20, 20);
-          } catch (e) { console.warn('Logo load failed'); }
+            doc.addImage(logoBase64, 'PNG', 15, 12, 20, 20);
+          } catch (e) { console.warn('Logo embed failed'); }
         }
 
         doc.setFont('helvetica', 'bold');

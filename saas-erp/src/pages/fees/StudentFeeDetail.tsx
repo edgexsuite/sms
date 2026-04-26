@@ -258,10 +258,11 @@ export default function StudentFeeDetail() {
   const totalOutstanding = calculateTotalDue();
 
   return (
-    <div className="h-[calc(100vh-140px)] flex gap-4 overflow-hidden">
+    <div className="h-[calc(100vh-140px)] flex gap-4 overflow-hidden print:block print:h-auto">
+      <style>{`@media print { .no-print { display: none !important; } body { background: white; } }`}</style>
 
       {/* ── Left Sidebar ─────────────────────────────────────────────── */}
-      <div className="w-72 flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden shrink-0">
+      <div className="no-print w-72 flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden shrink-0">
         <div className="p-4 border-b border-gray-100">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-bold text-gray-800">Student Ledgers</h2>
@@ -413,7 +414,7 @@ export default function StudentFeeDetail() {
                 <h3 className="text-sm font-bold text-gray-800">Fee Invoices</h3>
                 <button
                   onClick={() => window.print()}
-                  className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors"
+                  className="no-print flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors"
                 >
                   <Printer className="w-3.5 h-3.5" /> Print Statement
                 </button>

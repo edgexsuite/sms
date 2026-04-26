@@ -24,6 +24,21 @@ interface ReportData {
   expenses: any[];
 }
 
+// Convert remote URL → base64 via canvas (CORS-safe for jsPDF)
+const toBase64 = (url: string): Promise<string> =>
+  new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+      canvas.getContext('2d')?.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => resolve('');
+    img.src = url;
+  });
+
 export default function MasterSummaryReport() {
   const { userRole } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -107,16 +122,17 @@ export default function MasterSummaryReport() {
     window.print();
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     const filename = `Executive-Master-Report-${new Date().toISOString().split('T')[0]}.pdf`;
     const doc = new jsPDF({ orientation: 'landscape' });
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    // 1. Header / Letterhead
-    if (schoolInfo?.logo_url) {
+    // 1. Header / Letterhead — logo via canvas (CORS-safe)
+    const logoBase64 = schoolInfo?.logo_url ? await toBase64(schoolInfo.logo_url) : '';
+    if (logoBase64) {
       try {
-        doc.addImage(schoolInfo.logo_url, 'PNG', 20, 10, 20, 20);
-      } catch (e) { console.warn('Logo load failed'); }
+        doc.addImage(logoBase64, 'PNG', 20, 10, 20, 20);
+      } catch (e) { console.warn('Logo embed failed'); }
     }
 
     doc.setFontSize(24);
