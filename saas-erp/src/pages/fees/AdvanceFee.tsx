@@ -46,7 +46,7 @@ export default function AdvanceFee() {
   const fetchStudents = async () => {
     const { data } = await supabase
       .from('students')
-      .select('id, full_name, roll_number, class:class_id(name, section), fee_structures:class_id(amount)')
+      .select('id, full_name, roll_number, class:class_id(name, section, fee_structures(amount))')
       .eq('school_id', userRole!.school_id)
       .eq('status', 'active')
       .order('full_name');

@@ -1557,9 +1557,13 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
 
             {/* Drawer Footer */}
             <div className="px-6 py-4 border-t border-slate-100 flex justify-between items-center shrink-0 bg-slate-50">
-              <Link to={`/students/register?edit=${selectedStudent.id}`} className="text-xs font-black text-indigo-600 hover:text-indigo-800 uppercase tracking-widest transition-colors">
-                Edit Student Profile →
-              </Link>
+              {!isStaffRole ? (
+                <Link to={`/students/register?edit=${selectedStudent.id}`} className="text-xs font-black text-indigo-600 hover:text-indigo-800 uppercase tracking-widest transition-colors">
+                  Edit Student Profile →
+                </Link>
+              ) : (
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">View Only</span>
+              )}
               <button onClick={() => setSelectedStudent(null)}
                 className="px-6 py-2.5 text-xs font-black text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-xl uppercase tracking-widest transition-colors">
                 Close

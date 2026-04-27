@@ -29,10 +29,25 @@ export default function StudentFeeOverrideModal({ student, onClose, onSave }: Pr
   const [classDefault, setClassDefault] = useState<FeeItem[]>([]);    // from fee_structures
   const [recurrent, setRecurrent] = useState<FeeItem[]>([]);          // current override (recurrent)
   const [hasOverride, setHasOverride] = useState(false);              // true if student already has override
+  const [feeItemSuggestions, setFeeItemSuggestions] = useState<string[]>([]);
 
   useEffect(() => {
     load();
+    fetchFeeItems();
   }, [student.id]);
+
+  const fetchFeeItems = async () => {
+    const { data } = await supabase
+      .from('form_settings')
+      .select('sections_config')
+      .eq('school_id', userRole?.school_id)
+      .eq('form_name', 'fee_item_names')
+      .maybeSingle();
+    if (data?.sections_config) {
+      const { recurring = [], onetime = [] } = data.sections_config;
+      setFeeItemSuggestions([...new Set([...recurring, ...onetime])]);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -216,9 +231,13 @@ export default function StudentFeeOverrideModal({ student, onClose, onSave }: Pr
                         <input
                           value={row.item}
                           onChange={e => updateRow(i, 'item', e.target.value)}
+                          list="fee-item-suggestions"
                           placeholder="e.g. Monthly Tuition Fee"
                           className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-1 focus:ring-violet-500"
                         />
+                        <datalist id="fee-item-suggestions">
+                          {feeItemSuggestions.map(s => <option key={s} value={s} />)}
+                        </datalist>
                       </div>
                       <div className="col-span-4">
                         <input

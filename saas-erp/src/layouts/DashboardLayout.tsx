@@ -1,7 +1,6 @@
 import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
-import { LogOut, Globe, GraduationCap, Users, BookOpen, LayoutDashboard, CreditCard, CalendarCheck, FileText, Settings as SettingsIcon, Star, MessageSquare, Calendar, CalendarOff, Package, AlertTriangle, Bot, Briefcase, ClipboardList, ChevronRight, ChevronLeft, UserPlus, Upload, ShieldCheck, Award, LineChart, Menu, X, Wallet, Key, PiggyBank, BarChart3, Banknote, TrendingUp, UserX, ClipboardCheck, BarChart2, Wifi, Ticket, Search, DollarSign, Scale, Library, Home, Bell, Palette, School, Shield, Trash2, Clock, Box } from 'lucide-react';
+import { LogOut, GraduationCap, Users, BookOpen, LayoutDashboard, CreditCard, CalendarCheck, FileText, Settings as SettingsIcon, Star, MessageSquare, Calendar, CalendarOff, Package, AlertTriangle, Bot, Briefcase, ClipboardList, ChevronRight, ChevronLeft, UserPlus, Upload, ShieldCheck, Award, LineChart, Menu, X, Wallet, Key, PiggyBank, BarChart3, Banknote, TrendingUp, UserX, ClipboardCheck, BarChart2, Wifi, Ticket, Search, DollarSign, Scale, Library, Home, Bell, Palette, School, Shield, Trash2, Clock, Box } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { cn } from '../lib/utils';
@@ -13,7 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { NAV_SECTIONS } from '../constants/navigation';
 
 export default function DashboardLayout() {
-  const { t, i18n } = useTranslation();
+
   const { signOut, userRole } = useAuth();
   const { theme, cycleTheme } = useTheme();
   const navigate = useNavigate();
@@ -121,10 +120,7 @@ export default function DashboardLayout() {
     }
   };
 
-  const toggleLanguage = () => {
-    const newLang = i18n.language === 'en' ? 'ur' : 'en';
-    i18n.changeLanguage(newLang);
-  };
+
 
   const handleLogout = async () => {
     await signOut();
@@ -457,14 +453,7 @@ export default function DashboardLayout() {
               {densityCompact ? 'Compact ✓' : 'Compact'}
             </button>
 
-            {/* Language toggle — desktop only */}
-            <button
-              onClick={toggleLanguage}
-              className="hidden sm:flex items-center gap-2 text-[11px] font-black text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 px-3 py-2 rounded-xl border border-slate-200 transition-all uppercase tracking-[0.1em]"
-            >
-              <Globe className="w-4 h-4" />
-              {i18n.language === 'en' ? 'اردو' : 'EN'}
-            </button>
+
 
             {/* Logout — icon only on mobile, icon+text on desktop */}
             <button
@@ -520,27 +509,59 @@ export default function DashboardLayout() {
 
         {/* Mobile Bottom Tab Bar */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200 flex items-center justify-around px-2 py-1 safe-area-pb no-print">
-          {[
-            { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-            { icon: Users, label: 'Students', path: '/students' },
-            { icon: CreditCard, label: 'Fees', path: '/fees' },
-            { icon: CalendarCheck, label: 'Attendance', path: '/attendance' },
-            { icon: SettingsIcon, label: 'More', path: '/settings' },
-          ].map(({ icon: Icon, label, path }) => {
-            const isActive = location.pathname.startsWith(path)
-            return (
-              <Link
-                key={path}
-                to={path}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all ${
-                  isActive ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                <Icon className="w-5 h-5" />
-                <span className="text-[9px] font-black uppercase tracking-wider">{label}</span>
-              </Link>
-            )
-          })}
+          {(() => {
+            const defaultItem = { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' };
+            const allowedItems: any[] = [];
+            
+            if (userRole?.role) {
+              navSections.forEach(section => {
+                if (!section.roles.includes(userRole.role)) return;
+                if (userRole.role !== 'admin' && (section as any).id) {
+                  const permissions = userRole.permissions?.modules;
+                  if (permissions && permissions[(section as any).id] === false) return;
+                }
+                section.items.forEach(item => {
+                  if (item.roles.includes(userRole.role) && item.path !== '/dashboard') {
+                    allowedItems.push({ icon: item.icon, label: item.name.length > 10 ? item.name.split(' ')[0] : item.name, path: item.path });
+                  }
+                });
+              });
+            }
+            
+            // Take up to 3 more items
+            const navItems = [defaultItem, ...allowedItems.slice(0, 3), { icon: Menu, label: 'Menu', path: '#menu' }];
+            
+            return navItems.map(({ icon: Icon, label, path }) => {
+              const isMenu = path === '#menu';
+              const isActive = !isMenu && location.pathname.startsWith(path);
+              
+              if (isMenu) {
+                return (
+                  <button
+                    key={path}
+                    onClick={() => setIsMobileMenuOpen(true)}
+                    className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all text-slate-400 hover:text-slate-600 active:scale-95"
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span className="text-[9px] font-black uppercase tracking-wider">{label}</span>
+                  </button>
+                );
+              }
+
+              return (
+                <Link
+                  key={path}
+                  to={path}
+                  className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all active:scale-95 ${
+                    isActive ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  <Icon className="w-5 h-5" />
+                  <span className="text-[9px] font-black uppercase tracking-wider truncate max-w-[60px] text-center">{label}</span>
+                </Link>
+              );
+            });
+          })()}
         </nav>
       </div>
     </div>

@@ -9,6 +9,9 @@ export interface ChallanConfig {
   show_roll_number: boolean;
   show_class: boolean;
   show_father_name: boolean;
+  show_family_number: boolean;
+  show_valid_till: boolean;
+  show_depositor_phone: boolean;
   show_due_date: boolean;
   show_fine_column: boolean;
   show_discount_column: boolean;
@@ -16,8 +19,9 @@ export interface ChallanConfig {
   show_previous_fee: boolean;
   show_amount_in_words: boolean;
   show_depositor_info: boolean;
+  show_fee_matrix: boolean;
+  show_fine_policy: boolean;
   copies: number;
-  // Custom copy titles (index 0 = leftmost copy)
   copy_labels?: string[];
   footer_note: string;
   header_title: string;
@@ -27,6 +31,8 @@ export interface ChallanConfig {
   signature_left?: string;
   signature_right?: string;
   custom_instructions?: string;
+  /** Font scale: 1.0 = default, 1.2 = larger, 0.85 = smaller */
+  font_scale?: number;
 }
 
 export const DEFAULT_COPY_LABELS: Record<number, string[]> = {
@@ -42,6 +48,9 @@ export const DEFAULT_CHALLAN_CONFIG: ChallanConfig = {
   show_roll_number: true,
   show_class: true,
   show_father_name: true,
+  show_family_number: true,
+  show_valid_till: true,
+  show_depositor_phone: true,
   show_due_date: true,
   show_fine_column: true,
   show_discount_column: true,
@@ -49,6 +58,8 @@ export const DEFAULT_CHALLAN_CONFIG: ChallanConfig = {
   show_previous_fee: true,
   show_amount_in_words: true,
   show_depositor_info: true,
+  show_fee_matrix: false,
+  show_fine_policy: false,
   copies: 3,
   copy_labels: ['SCHOOL/COLLEGE COPY', 'BANK COPY', 'STUDENT COPY'],
   footer_note: 'Please pay before the due date to avoid late fines.',
@@ -56,6 +67,7 @@ export const DEFAULT_CHALLAN_CONFIG: ChallanConfig = {
   fine_note: 'Fine will be charged after due date.',
   signature_left: 'Accountant/Admin',
   signature_right: 'Principal',
+  font_scale: 1.0,
 };
 
 export interface SchoolInfo {
@@ -87,6 +99,15 @@ export interface ChallanRecord {
   discount_amount?: number;
   fine_amount?: number;
   issue_date?: string;
+  /** Full class fee matrix from fee_structures */
+  fee_matrix?: {
+    recurrent: { item: string; amount: number }[];
+    first_time: { item: string; amount: number }[];
+  };
+  /** Active fine rules for this school */
+  fine_rules?: { name: string; type: string; amount: number; grace_days: number }[];
+  /** Waiver percentage applied to this student */
+  fee_waiver_percentage?: number;
   // Raw Supabase join (fallback)
   students?: {
     full_name?: string;
@@ -193,11 +214,12 @@ function drawChallanCopy(
 ): void {
   // Sizing — compact when copies are narrow (3-up landscape ≈ 95mm wide)
   const compact = cw < 110;
-  const fs = compact ? 6 : 7.5;
-  const nameFs = compact ? 8.5 : 12;
-  const bannerFs = compact ? 7.5 : 9;
-  const rowH = compact ? 7 : 8.5;
-  const feeRowH = compact ? 6.5 : 7.5;
+  const scale = config.font_scale ?? 1.0;
+  const fs = (compact ? 7 : 9) * scale;
+  const nameFs = (compact ? 9.5 : 13) * scale;
+  const bannerFs = (compact ? 8 : 10) * scale;
+  const rowH = (compact ? 7.5 : 9.5) * scale;
+  const feeRowH = (compact ? 7 : 8.5) * scale;
   const pad = compact ? 1.5 : 2;
   const logoD = compact ? 14 : 18;
 
@@ -322,22 +344,24 @@ function drawChallanCopy(
   if (config.show_father_name !== false) drawInfoRow('Father Name', fatherName);
   if (config.show_class !== false) drawInfoRow('Class', className);
   if (config.show_roll_number !== false) drawInfoRow('Student Reg No', rollNo);
-  drawInfoRow('Family Number', familyNum);
+  if (config.show_family_number !== false) drawInfoRow('Family Number', familyNum);
   drawInfoRow('Issue Date', fmtDate(record.issue_date || record.month_year));
-  drawInfoRow('Due Date', fmtDate(record.due_date), true);
-  drawInfoRow('Valid Till', fmtDate(record.valid_till || record.due_date));
+  if (config.show_due_date !== false) drawInfoRow('Due Date', fmtDate(record.due_date), true);
+  if (config.show_valid_till !== false) drawInfoRow('Valid Till', fmtDate(record.valid_till || record.due_date));
   drawInfoRow('Challan Form No', challanNo, true, true);
-  
-  if (config.show_depositor_info !== false) {
-    drawInfoRow('Depositor Phone Number', record.depositor_phone || '');
+  if (config.show_depositor_info !== false && config.show_depositor_phone !== false) {
+    drawInfoRow('Depositor Phone', record.depositor_phone || '');
   }
 
   // ── Fee table header ─────────────────────────────────────────────────────
-  doc.setFillColor(60, 60, 60); // Dark Gray
+  doc.setFillColor(235, 235, 235); // Light gray — no dark background
   doc.rect(cx, y, cw, feeRowH, 'F');
-  doc.setFontSize(compact ? 6.5 : 8);
+  doc.setDrawColor(160, 160, 160);
+  doc.setLineWidth(0.3);
+  doc.line(cx, y + feeRowH, cx + cw, y + feeRowH);
+  doc.setFontSize((compact ? 7 : 8.5) * scale);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(255, 255, 255);
+  doc.setTextColor(30, 30, 30);
   doc.text('Description', cx + pad, y + feeRowH - pad);
   doc.text('Amount', cx + cw - pad, y + feeRowH - pad, { align: 'right' });
   doc.setTextColor(0, 0, 0);
@@ -353,11 +377,12 @@ function drawChallanCopy(
     textColor?: RGB,
     amtColor?: RGB,
   ) => {
+    if (y + feeRowH > cy + ch - 14) return; // guard: stop drawing if near bottom
     if (bgColor) {
       doc.setFillColor(...bgColor);
       doc.rect(cx, y, cw, feeRowH, 'F');
     }
-    doc.setFontSize(compact ? 6 : 7);
+    doc.setFontSize((compact ? 6.5 : 8) * scale);
     doc.setFont('helvetica', bold ? 'bold' : 'normal');
     const tc = textColor || ([0, 0, 0] as RGB);
     doc.setTextColor(...tc);
@@ -415,16 +440,17 @@ function drawChallanCopy(
   }
 
   // ── Amount in words ──────────────────────────────────────────────────────
-  if (config.show_amount_in_words !== false) {
+  if (config.show_amount_in_words !== false && y + 10 < cy + ch - 18) {
     const wordsText = `Amount in words : ${numberToWords(feeWithinDue)}`;
-    doc.setFontSize(compact ? 5.5 : 6.5);
+    doc.setFontSize((compact ? 6 : 7.5) * scale);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
-    doc.text(wordsText, cx + pad, y + (compact ? 4 : 5), { maxWidth: cw - pad * 2 });
+    doc.text(wordsText, cx + pad, y + (compact ? 4.5 : 5.5), { maxWidth: cw - pad * 2 });
     doc.setDrawColor(200, 200, 200);
     doc.setLineWidth(0.2);
-    doc.line(cx, y + (compact ? 7 : 8.5), cx + cw, y + (compact ? 7 : 8.5));
-    y += compact ? 8 : 10;
+    const wLineY = y + (compact ? 8 : 10);
+    doc.line(cx, wLineY, cx + cw, wLineY);
+    y += compact ? 9 : 11;
   }
 
   // ── Payment Info Box ────────────────────────────────────────────────────
@@ -438,7 +464,7 @@ function drawChallanCopy(
     doc.rect(cx + pad, y, cw - pad * 2, boxH, 'F');
     doc.rect(cx + pad, y, cw - pad * 2, boxH, 'D');
 
-    doc.setFontSize(compact ? 5 : 6);
+    doc.setFontSize((compact ? 5 : 6) * scale);
     doc.setFont('helvetica', 'bold');
     doc.text('Payment Instructions / Bank Details:', cx + pad + 2, y + (compact ? 3.5 : 4.5));
     
@@ -453,30 +479,98 @@ function drawChallanCopy(
     y += boxH + 2;
   }
 
+  // ── Fee Matrix (Class Fee Structure) ─────────────────────────────────────
+  const feeMatrix = record.fee_matrix;
+  if (config.show_fee_matrix !== false && feeMatrix?.recurrent?.length && y + 28 < cy + ch - 22) {
+    y += 2;
+    const waiver = (record.fee_waiver_percentage || 0) / 100;
+    // Section header
+    doc.setFillColor(230, 235, 255);
+    doc.rect(cx, y, cw, feeRowH, 'F');
+    doc.setDrawColor(180, 190, 255);
+    doc.setLineWidth(0.2);
+    doc.line(cx, y + feeRowH, cx + cw, y + feeRowH);
+    doc.setFontSize((compact ? 6.5 : 8) * scale);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 50, 160);
+    doc.text('CLASS FEE STRUCTURE', cx + pad, y + feeRowH - pad);
+    const colW = cw / 3;
+    doc.text('Fee Item', cx + pad, y + feeRowH - pad);
+    doc.text('Actual', cx + colW + pad, y + feeRowH - pad);
+    doc.text('Payable', cx + cw - pad, y + feeRowH - pad, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
+    y += feeRowH;
+
+    feeMatrix.recurrent.forEach((item: { item: string; amount: number }, i: number) => {
+      if (y + feeRowH > cy + ch - 22) return;
+      if (i % 2 === 0) { doc.setFillColor(248, 249, 255); doc.rect(cx, y, cw, feeRowH, 'F'); }
+      doc.setFontSize((compact ? 6 : 7.5) * scale);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(0, 0, 0);
+      doc.text(item.item, cx + pad, y + feeRowH - pad - 0.5, { maxWidth: colW - pad });
+      doc.text(item.amount.toLocaleString(), cx + colW + pad, y + feeRowH - pad - 0.5);
+      const payable = Math.round(item.amount * (1 - waiver));
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(waiver > 0 ? 0 : 0, waiver > 0 ? 130 : 0, waiver > 0 ? 0 : 0);
+      doc.text(payable.toLocaleString(), cx + cw - pad, y + feeRowH - pad - 0.5, { align: 'right' });
+      doc.setTextColor(0, 0, 0);
+      doc.setDrawColor(220, 225, 255);
+      doc.setLineWidth(0.15);
+      doc.line(cx, y + feeRowH, cx + cw, y + feeRowH);
+      y += feeRowH;
+    });
+
+    // Total row
+    if (y + feeRowH <= cy + ch - 22) {
+      const totalActual = feeMatrix.recurrent.reduce((s: number, i: { amount: number }) => s + i.amount, 0);
+      const totalPayable = Math.round(totalActual * (1 - waiver));
+      doc.setFillColor(215, 225, 255);
+      doc.rect(cx, y, cw, feeRowH, 'F');
+      doc.setFontSize((compact ? 6.5 : 8) * scale);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 50, 160);
+      doc.text('MONTHLY TOTAL', cx + pad, y + feeRowH - pad);
+      doc.text(totalActual.toLocaleString(), cx + colW + pad, y + feeRowH - pad);
+      doc.text(totalPayable.toLocaleString(), cx + cw - pad, y + feeRowH - pad, { align: 'right' });
+      doc.setTextColor(0, 0, 0);
+      y += feeRowH + 2;
+    }
+  }
+
   // ── Signatures ───────────────────────────────────────────────────────────
-  const sigY = cy + ch - (compact ? 12 : 16);
+  const sigH = compact ? 13 : 17;
+  const sigY = cy + ch - sigH;
   const sigW = cw * 0.35;
   doc.setDrawColor(180, 180, 180);
   doc.setLineWidth(0.3);
   
   // Left: Accountant
   doc.line(cx + pad, sigY, cx + pad + sigW, sigY);
-  doc.setFontSize(compact ? 5.5 : 7);
+  doc.setFontSize((compact ? 6 : 7.5) * scale);
   doc.setFont('helvetica', 'bold');
-  doc.text(config.signature_left || 'Accountant/Admin', cx + pad + sigW/2, sigY + (compact ? 3.5 : 4.5), { align: 'center' });
+  doc.text(config.signature_left || 'Accountant/Admin', cx + pad + sigW / 2, sigY + (compact ? 4 : 5), { align: 'center' });
 
   // Right: Principal
   doc.line(cx + cw - pad - sigW, sigY, cx + cw - pad, sigY);
-  doc.text(config.signature_right || 'Principal', cx + cw - pad - sigW/2, sigY + (compact ? 3.5 : 4.5), { align: 'center' });
+  doc.text(config.signature_right || 'Principal', cx + cw - pad - sigW / 2, sigY + (compact ? 4 : 5), { align: 'center' });
 
   // ── Note / Footer ────────────────────────────────────────────────────────
-  const noteText = config.fine_note || config.footer_note;
+  // Build dynamic fine note from rules if available
+  let noteText = config.fine_note || config.footer_note;
+  const fineRulesForNote = record.fine_rules;
+  if (fineRulesForNote?.length) {
+    const parts = fineRulesForNote.map((r: any) => {
+      if (r.type === 'flat') return `Rs.${r.amount}`;
+      if (r.type === 'per_day') return `Rs.${r.amount}/day`;
+      return `${r.amount}%`;
+    });
+    noteText = `NOTE: ${parts.join(' + ')} Fine will be Charged After Due Date`;
+  }
   if (noteText) {
-    doc.setFontSize(compact ? 4.5 : 5.5);
-    doc.setFont('helvetica', 'italic');
-    doc.setTextColor(120, 120, 120);
-    doc.text(noteText, cx + cw / 2, cy + ch - pad, { align: 'center', maxWidth: cw - pad * 2 });
+    doc.setFontSize((compact ? 5 : 6.5) * scale);
+    doc.setFont('helvetica', 'bold');
     doc.setTextColor(0, 0, 0);
+    doc.text(noteText, cx + pad, cy + ch - pad - 1, { maxWidth: cw - pad * 2 });
   }
 }
 
@@ -540,8 +634,8 @@ export function generateChallanPDF(
 
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const margin = 2;
-  const gap = 1;
+  const margin = 8;   // 8mm — inside every printer's safe printable area
+  const gap    = 5;   // 5mm between copies — visible separator + breathing room
   const availW = pageW - margin * 2;
   const copyW = copies === 1 ? availW : (availW - gap * (copies - 1)) / copies;
   const copyH = pageH - margin * 2;
@@ -552,12 +646,12 @@ export function generateChallanPDF(
     for (let c = 0; c < copies; c++) {
       const cx = margin + c * (copyW + gap);
 
-      // Dashed separator between copies
+      // Dashed separator between copies (centered in the gap)
       if (c > 0) {
         const sepX = cx - gap / 2;
-        doc.setDrawColor(160, 160, 160);
-        doc.setLineWidth(0.25);
-        (doc as any).setLineDash([1.5, 1.5], 0);
+        doc.setDrawColor(140, 140, 140);
+        doc.setLineWidth(0.4);
+        (doc as any).setLineDash([2, 2], 0);
         doc.line(sepX, margin, sepX, margin + copyH);
         (doc as any).setLineDash([], 0);
       }

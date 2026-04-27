@@ -242,28 +242,30 @@ export default function ResultReporting() {
 
       {/* SINGLE student card */}
       {printMode === 'single' && selectedStudent && subjects.length > 0 && !loading && (
-        <div className="result-card-wrapper bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-          <ReportCardLayoutRenderer
-            {...commonCardProps}
-            studentName={currentStudent?.full_name || ''}
-            rollNumber={String(currentStudent?.roll_number || '')}
-            studentPhoto={currentStudent?.photograph_url || null}
-            subjects={subjectRows.map(row => ({
-              name: row.subj.subject_name,
-              marks: row.r?.obtained_marks ?? 0,
-              total: row.subj.total_marks || 100,
-              grade: row.grade,
-              status: row.status,
-            }))}
-            totalMarks={grandTotal}
-            obtainedMarks={totalObtained}
-            percentage={overallPct}
-            grade={overallGrade}
-            attendance={'N/A'}
-            positionInClass={position > 0 ? position : undefined}
-            totalStudents={outOf > 0 ? outOf : undefined}
-            finalStatus={failSubjects === 0 ? 'PROMOTED' : 'NOT PROMOTED'}
-          />
+        <div className="w-full overflow-x-auto custom-scrollbar pb-4 print:overflow-visible">
+          <div className="result-card-wrapper bg-white shadow-lg border border-gray-200 overflow-hidden mx-auto min-w-[210mm]">
+            <ReportCardLayoutRenderer
+              {...commonCardProps}
+              studentName={currentStudent?.full_name || ''}
+              rollNumber={String(currentStudent?.roll_number || '')}
+              studentPhoto={currentStudent?.photograph_url || null}
+              subjects={subjectRows.map(row => ({
+                name: row.subj.subject_name,
+                marks: row.r?.obtained_marks ?? 0,
+                total: row.subj.total_marks || 100,
+                grade: row.grade,
+                status: row.status,
+              }))}
+              totalMarks={grandTotal}
+              obtainedMarks={totalObtained}
+              percentage={overallPct}
+              grade={overallGrade}
+              attendance={'N/A'}
+              positionInClass={position > 0 ? position : undefined}
+              totalStudents={outOf > 0 ? outOf : undefined}
+              finalStatus={failSubjects === 0 ? 'PROMOTED' : 'NOT PROMOTED'}
+            />
+          </div>
         </div>
       )}
 
