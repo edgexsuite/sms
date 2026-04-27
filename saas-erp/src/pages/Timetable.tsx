@@ -621,37 +621,39 @@ export default function Timetable() {
     doc.save(`Schedule_${teacher.full_name.replace(/ /g, '_')}.pdf`);
   };
 
-  /** Timetable PDF — Whole school, all days in one table.
-   *  Rows = period slots, columns = classes.
-   *  Each cell lists every day: "Mon: Subject / Teacher"
-   *  Timing is only appended when it differs from the template row's standard time (e.g. Friday prayers).
+  /** Timetable PDF — Whole school, one entry per cell (Mon as reference).
+   *  Assumes timetable is same every day.
+   *  Any day with different TIMING is collected and printed as a footnote table at the bottom.
    */
   const generateSchoolPDF = () => {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
     pdfHeader(
       doc,
-      'School Timetable — All Days',
-      `${classes.length} classes  ·  Mon – Sat  ·  Alternate timing shown where schedule differs`
+      'School Timetable',
+      `${classes.length} classes  ·  Timetable valid Mon – Sat  ·  Timing variations noted below`
     );
 
     const rows = FALLBACK_ROWS;
-    const pageW = doc.internal.pageSize.getWidth(); // A3 landscape = 420mm
-    const periodColW = 26;
-    const dynColW = Math.max(22, (pageW - 10 - periodColW) / classes.length);
+    const pageW = doc.internal.pageSize.getWidth(); // A3 landscape ≈ 420mm
+    const periodColW = 28;
+    const dynColW = Math.max(20, (pageW - 10 - periodColW) / classes.length);
 
-    const head = [['Period / Time', ...classes.map(c => `${c.name} ${c.section}`)]];
+    // Collect timing exceptions: days whose slot time ≠ reference (Monday) time
+    type TimingException = { period: string; day: string; classLabel: string; time: string };
+    const timingExceptions: TimingException[] = [];
+
+    const head = [['Period / Time', ...classes.map(c => `${c.name}\n${c.section}`)]];
     const body: any[] = [];
 
     rows.forEach(row => {
       if (row.slot_type !== 'period') {
-        // Break / assembly — full-width banner
         body.push([{
           content: `${row.slot_type === 'break' ? '☕' : '🎒'}  ${row.label}  (${row.start_time} – ${row.end_time})`,
           colSpan: classes.length + 1,
           styles: {
             fillColor: row.slot_type === 'break' ? [255, 251, 235] : [238, 242, 255],
             textColor: row.slot_type === 'break' ? [146, 64, 14] : [79, 70, 229],
-            fontStyle: 'bold', halign: 'center', fontSize: 6,
+            fontStyle: 'bold', halign: 'center', fontSize: 6.5,
           },
         }]);
         return;
@@ -660,29 +662,33 @@ export default function Timetable() {
       body.push([
         {
           content: `${row.label}\n${row.start_time}–${row.end_time}`,
-          styles: { fontStyle: 'bold', fontSize: 6, fillColor: [241, 245, 249] },
+          styles: { fontStyle: 'bold', fontSize: 7, fillColor: [241, 245, 249] },
         },
         ...classes.map(cls => {
-          // Build one line per day
-          const lines = DAYS.map(day => {
-            const slot = allSchoolSlots.find(s =>
-              s.day_of_week === day && s.class_id === cls.id && s.period_number === row.sort_order
-            );
-            if (!slot) return `${day.slice(0, 3)}: —`;
+          // Use Monday as the reference slot; fall back to any day
+          const ref = allSchoolSlots.find(s => s.day_of_week === 'Monday' && s.class_id === cls.id && s.period_number === row.sort_order)
+                   ?? allSchoolSlots.find(s => s.class_id === cls.id && s.period_number === row.sort_order);
 
-            const subj    = slot.subjects?.subject_name || '—';
-            const teacher = slot.staff?.full_name       || '';
-            // Show actual time only when it differs from the template-row standard time
-            const timeNote = (slot.start_time && slot.start_time !== row.start_time)
-              ? ` [${slot.start_time}–${slot.end_time}]`
-              : '';
+          if (!ref) return { content: '—', styles: { textColor: [200, 200, 200], halign: 'center' as const, fontSize: 6 } };
 
-            return `${day.slice(0, 3)}: ${subj}${teacher ? ' / ' + teacher : ''}${timeNote}`;
+          // Detect timing differences on other days
+          DAYS.forEach(day => {
+            const daySlot = allSchoolSlots.find(s => s.day_of_week === day && s.class_id === cls.id && s.period_number === row.sort_order);
+            if (!daySlot || !daySlot.start_time) return;
+            const refTime = ref.start_time || row.start_time;
+            if (daySlot.start_time !== refTime) {
+              timingExceptions.push({
+                period:     row.label,
+                day,
+                classLabel: `${cls.name} ${cls.section}`,
+                time:       `${daySlot.start_time} – ${daySlot.end_time}`,
+              });
+            }
           });
 
           return {
-            content: lines.join('\n'),
-            styles: { fontSize: 5.5, cellPadding: { top: 1.5, bottom: 1.5, left: 2, right: 2 } },
+            content: `${ref.subjects?.subject_name || '—'}\n${ref.staff?.full_name || ''}`,
+            styles: { fontSize: 6.5 },
           };
         }),
       ]);
@@ -696,24 +702,46 @@ export default function Timetable() {
       theme: 'grid',
       headStyles: {
         fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold',
-        fontSize: 6.5, halign: 'center',
+        fontSize: 7, halign: 'center',
         cellPadding: { top: 3, bottom: 3, left: 2, right: 2 },
       },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       columnStyles: {
         0: { cellWidth: periodColW, fontStyle: 'bold', fillColor: [241, 245, 249] },
-        ...Object.fromEntries(classes.map((_, i) => [i + 1, { cellWidth: dynColW }])),
+        ...Object.fromEntries(classes.map((_, i) => [i + 1, { cellWidth: dynColW, halign: 'center' as const }])),
       },
       styles: {
-        fontSize: 5.5,
-        cellPadding: { top: 1.5, bottom: 1.5, left: 2, right: 2 },
+        fontSize: 6.5,
+        cellPadding: { top: 3, bottom: 3, left: 2, right: 2 },
         overflow: 'linebreak',
         lineColor: [226, 232, 240],
       },
       rowPageBreak: 'avoid',
     });
 
-    doc.save('School_Timetable_AllDays.pdf');
+    // ── Timing exceptions footnote ────────────────────────────────────────
+    if (timingExceptions.length > 0) {
+      const lastY = (doc as any).lastAutoTable?.finalY ?? 26;
+      const noteY = lastY + 8;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(146, 64, 14);
+      doc.text('⚠  Schedule Timing Variations  (periods below have different timings on specific days)', 5, noteY);
+
+      autoTable(doc, {
+        head: [['Period', 'Day', 'Class', 'Actual Time on That Day']],
+        body: timingExceptions.map(e => [e.period, e.day, e.classLabel, e.time]),
+        startY: noteY + 4,
+        margin: { left: 5, right: 5 },
+        theme: 'grid',
+        headStyles: { fillColor: [255, 237, 213], textColor: [154, 52, 18], fontStyle: 'bold', fontSize: 7 },
+        styles: { fontSize: 6.5, cellPadding: { top: 2, bottom: 2, left: 3, right: 3 } },
+        columnStyles: { 0: { cellWidth: 26 }, 1: { cellWidth: 22 }, 2: { cellWidth: 30 } },
+      });
+    }
+
+    doc.save('School_Timetable.pdf');
   };
 
   /** Open a printable HTML page in a new window */
@@ -746,23 +774,35 @@ export default function Timetable() {
         return `<tr><td class="period-col"><strong>${row.label}</strong><br/><small>${row.start_time} – ${row.end_time}</small></td>${cells}</tr>`;
       }).join('');
 
-    // Build school table rows — all days in one cell per class
+    // Build school table rows — single clean entry per cell (Mon as reference), collect timing exceptions
+    type HtmlTimingException = { period: string; day: string; classLabel: string; time: string };
+    const htmlTimingExceptions: HtmlTimingException[] = [];
+
     const buildSchoolRows = (rows: TemplateRow[]) =>
       rows.map(row => {
         if (row.slot_type !== 'period') {
           return `<tr class="break-row"><td colspan="${classes.length + 1}">${row.slot_type === 'break' ? '☕' : '🎒'} ${row.label} &nbsp;(${row.start_time} – ${row.end_time})</td></tr>`;
         }
         const cells = classes.map(cls => {
-          const dayLines = DAYS.map(day => {
+          // Use Monday as reference; fall back to first available day slot
+          const ref = allSchoolSlots.find(sl => sl.day_of_week === 'Monday'  && sl.class_id === cls.id && sl.period_number === row.sort_order)
+                   || allSchoolSlots.find(sl => sl.class_id === cls.id && sl.period_number === row.sort_order);
+          if (!ref) return `<td><span class="empty">—</span></td>`;
+          const subj    = ref.subjects?.subject_name || '—';
+          const teacher = ref.staff?.full_name       || '';
+          // Detect timing exceptions across all days
+          DAYS.forEach(day => {
             const s = allSchoolSlots.find(sl => sl.day_of_week === day && sl.class_id === cls.id && sl.period_number === row.sort_order);
-            if (!s) return `<span class="day-line"><b>${day.slice(0,3)}:</b> <em class="empty">—</em></span>`;
-            const subj    = s.subjects?.subject_name || '—';
-            const teacher = s.staff?.full_name       || '';
-            const timeNote = (s.start_time && s.start_time !== row.start_time)
-              ? ` <span class="time-note">[${s.start_time}–${s.end_time}]</span>` : '';
-            return `<span class="day-line"><b>${day.slice(0,3)}:</b> ${subj}${teacher ? ' / ' + teacher : ''}${timeNote}</span>`;
-          }).join('');
-          return `<td>${dayLines}</td>`;
+            if (s && s.start_time && s.start_time !== ref.start_time) {
+              htmlTimingExceptions.push({
+                period: row.label,
+                day,
+                classLabel: `${cls.name} ${cls.section}`,
+                time: `${s.start_time} – ${s.end_time}`,
+              });
+            }
+          });
+          return `<td><strong>${subj}</strong><br/><span>${teacher}</span></td>`;
         }).join('');
         return `<tr><td class="period-col"><strong>${row.label}</strong><br/><small>${row.start_time} – ${row.end_time}</small></td>${cells}</tr>`;
       }).join('');
@@ -770,11 +810,25 @@ export default function Timetable() {
     const dayHeaders = DAYS.map(d => `<th>${d}</th>`).join('');
     const classHeaders = classes.map(c => `<th>${c.name} ${c.section}</th>`).join('');
 
+    const schoolTableRows = mode === 'school' ? buildSchoolRows(FALLBACK_ROWS) : '';
+    const exceptionsHtml = (mode === 'school' && htmlTimingExceptions.length > 0)
+      ? `<div class="exceptions-section">
+           <div class="exceptions-header">⚠ Schedule Timing Variations (days with different timing)</div>
+           <table class="exceptions-table">
+             <thead><tr><th>Period</th><th>Day</th><th>Class</th><th>Actual Time on That Day</th></tr></thead>
+             <tbody>${htmlTimingExceptions.map(e =>
+               `<tr><td>${e.period}</td><td>${e.day}</td><td>${e.classLabel}</td><td>${e.time}</td></tr>`
+             ).join('')}</tbody>
+           </table>
+         </div>`
+      : '';
+
     const tables = mode === 'school'
       ? `<table>
            <thead><tr><th style="width:72px">Period / Time</th>${classHeaders}</tr></thead>
-           <tbody>${buildSchoolRows(FALLBACK_ROWS)}</tbody>
-         </table>`
+           <tbody>${schoolTableRows}</tbody>
+         </table>
+         ${exceptionsHtml}`
       : `<table>
            <thead><tr><th style="width:72px">Period / Time</th>${dayHeaders}</tr></thead>
            <tbody>${buildClassTeacherRows(
@@ -814,6 +868,11 @@ export default function Timetable() {
         @page { size: A4 landscape; }
       }
       .print-btn { margin-bottom: 10px; padding: 7px 16px; background: #4f46e5; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 11px; }
+      .exceptions-section { margin-top: 14px; }
+      .exceptions-header { background: #fef3c7; color: #92400e; font-weight: bold; font-size: 8px; padding: 4px 8px; border-left: 3px solid #f59e0b; border-radius: 3px; margin-bottom: 4px; }
+      .exceptions-table { width: auto; border-collapse: collapse; font-size: 8px; }
+      .exceptions-table th { background: #fef3c7; color: #92400e; padding: 3px 8px; font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.3px; }
+      .exceptions-table td { border: 1px solid #fde68a; padding: 3px 8px; color: #78350f; }
     </style></head>
     <body>
     <button class="print-btn no-print" onclick="window.print()">🖨 Print</button>
