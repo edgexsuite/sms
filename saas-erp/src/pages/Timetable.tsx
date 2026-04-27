@@ -116,6 +116,9 @@ export default function Timetable() {
   const [printDay,        setPrintDay]        = useState('all');
   const [generating,      setGenerating]      = useState(false);
 
+  // ── School branding ──────────────────────────────────────────────────────
+  const [schoolInfo, setSchoolInfo] = useState<{ name: string; address: string; phone: string; logo_url: string | null } | null>(null);
+
   // ── Slot editor ──────────────────────────────────────────────────────────
   const [editSlot, setEditSlot]           = useState<{ row: TemplateRow; day: string; classId: string } | null>(null);
   const [slotForm, setSlotForm]           = useState({ subject_id: '', teacher_id: '', start_time: '', end_time: '', is_combined: false });
@@ -150,12 +153,14 @@ export default function Timetable() {
         { data: tmpls },
         { data: tplRowsData },
         { data: allSlots },
+        { data: school },
       ] = await Promise.all([
         supabase.from('classes').select('id, name, section, period_template_id').eq('school_id', sid).order('name').order('section'),
         supabase.from('staff').select('id, full_name, role').eq('school_id', sid).eq('is_active', true).order('full_name'),
         supabase.from('period_templates').select('*').eq('school_id', sid).order('created_at'),
         supabase.from('period_template_rows').select('*').eq('school_id', sid).order('sort_order'),
         supabase.from('timetable_slots').select('*, subjects(subject_name), staff(full_name), classes(name, section)').eq('school_id', sid),
+        supabase.from('schools').select('name, address, contact_phone, logo_url').eq('id', sid).maybeSingle(),
       ]);
 
       if (cls) {
@@ -166,6 +171,7 @@ export default function Timetable() {
       }
       if (tchr) setTeachers(tchr);
       if (allSlots) setAllSchoolSlots(allSlots);
+      if (school) setSchoolInfo({ name: school.name || '', address: school.address || '', phone: school.contact_phone || '', logo_url: school.logo_url || null });
 
       if (tmpls) {
         setTemplates(tmpls);
@@ -503,230 +509,139 @@ export default function Timetable() {
 
   const schoolName = () => 'School Timetable'; // replaced below by actual school name if available
 
-  /** Shared PDF header — school name + subtitle + date */
+  /** Shared PDF header — school branding + doc title + subtitle */
   const pdfHeader = (doc: jsPDF, title: string, subtitle: string) => {
-    doc.setFillColor(30, 41, 59);   // slate-900
-    doc.rect(0, 0, doc.internal.pageSize.getWidth(), 22, 'F');
+    const W = doc.internal.pageSize.getWidth();
+    const H = 28; // header band height
+    doc.setFillColor(30, 41, 59);
+    doc.rect(0, 0, W, H, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
-    doc.text(title, 10, 9);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.text(subtitle, 10, 16);
+    // School name (large, centred-ish)
+    if (schoolInfo?.name) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.text(schoolInfo.name, W / 2, 9, { align: 'center' });
+      if (schoolInfo.address || schoolInfo.phone) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        const detail = [schoolInfo.address, schoolInfo.phone].filter(Boolean).join('  •  ');
+        doc.text(detail, W / 2, 14.5, { align: 'center' });
+      }
+      // Doc title + subtitle below school name
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.text(title, 10, 21);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.text(subtitle, 10, 26);
+    } else {
+      // No school info — fallback to original style
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.text(title, 10, 10);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.text(subtitle, 10, 18);
+    }
     const d = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    doc.text(`Generated: ${d}`, doc.internal.pageSize.getWidth() - 10, 16, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.text(`Generated: ${d}`, W - 10, 26, { align: 'right' });
     doc.setTextColor(0, 0, 0);
   };
 
-  /** Timetable PDF — Class-wise (one entry per period using Monday as reference; day exceptions below) */
-  const generateClassPDF = (classId: string) => {
-    const cls = classes.find(c => c.id === classId);
-    if (!cls) return;
-    const rows = getClassRows(classId);
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const title = `Class Timetable — ${cls.name} ${cls.section}`;
-    const tplName = cls.period_template_id ? (templates.find(t => t.id === cls.period_template_id)?.name ?? 'Custom') : 'Default';
-    pdfHeader(doc, title, `Template: ${tplName}  ·  ${rows.filter(r => r.slot_type === 'period').length} periods  ·  Mon–Sat (variations below)`);
+  /** Timetable PDF — All classes as rows, periods as columns, cell = Subject + Teacher */
+  const generateClassPDF = (_classId?: string) => {
+    const schoolRows = getSchoolRows().filter(r => r.slot_type === 'period');
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
+    pdfHeader(doc, 'Class-wise Timetable', `${classes.length} classes  ·  ${schoolRows.length} periods  ·  Monday schedule`);
 
-    type ClassException = { period: string; day: string; subject: string; teacher: string };
-    const exceptions: ClassException[] = [];
-
-    const head = [['Period / Time', 'Subject', 'Teacher']];
-    const body: any[] = [];
-
-    rows.forEach(row => {
-      if (row.slot_type !== 'period') {
-        body.push([{
-          content: `${row.slot_type === 'break' ? '☕' : '🎒'}  ${row.label}  (${row.start_time} – ${row.end_time})`,
-          colSpan: 3,
-          styles: {
-            fillColor: row.slot_type === 'break' ? [255, 251, 235] : [238, 242, 255],
-            textColor: row.slot_type === 'break' ? [146, 64, 14] : [79, 70, 229],
-            fontStyle: 'bold', halign: 'center' as const, fontSize: 8,
-          },
-        }]);
-        return;
-      }
-      // Reference = Monday slot, fallback to first available day
-      const ref = findSlot(row, 'Monday', classId)
-               ?? DAYS.map(d => findSlot(row, d, classId)).find(Boolean);
-
-      // Collect day exceptions (different subject or teacher vs reference)
-      DAYS.forEach(day => {
-        const s = findSlot(row, day, classId);
-        if (!s) return;
-        if (!ref || s.subject_id !== ref.subject_id || s.teacher_id !== ref.teacher_id) {
-          if (ref && day !== 'Monday') {
-            exceptions.push({ period: row.label, day, subject: s.subjects?.subject_name || '—', teacher: s.staff?.full_name || '' });
-          }
-        }
+    // Head: Class | Period1 | Period2 | ...
+    const head = [['Class', ...schoolRows.map(r => `${r.label}\n${r.start_time}–${r.end_time}`)]];
+    const body: any[] = classes.map(cls => {
+      const cells: any[] = schoolRows.map(row => {
+        const ref = allSchoolSlots.find(s => s.day_of_week === 'Monday' && s.class_id === cls.id && s.period_number === row.sort_order)
+                 ?? allSchoolSlots.find(s => s.class_id === cls.id && s.period_number === row.sort_order);
+        if (!ref) return { content: '—', styles: { textColor: [200, 200, 200], halign: 'center' as const, fontSize: 6 } };
+        return {
+          content: `${ref.subjects?.subject_name || '—'}\n${ref.staff?.full_name || ''}`,
+          styles: { fontSize: 6.5 },
+        };
       });
-
-      body.push([
-        { content: `${row.label}\n${row.start_time} – ${row.end_time}`, styles: { fontStyle: 'bold', fontSize: 8, fillColor: [241, 245, 249] } },
-        { content: ref?.subjects?.subject_name || '—', styles: { fontSize: 8 } },
-        { content: ref?.staff?.full_name || '—', styles: { fontSize: 8 } },
-      ]);
+      return [
+        { content: `${cls.name} ${cls.section}`, styles: { fontStyle: 'bold', fillColor: [241, 245, 249], fontSize: 7 } },
+        ...cells,
+      ];
     });
 
     const pageW = doc.internal.pageSize.getWidth();
-    const usable = pageW - 10;
-    const periodColW = 35;
-    const otherColW = (usable - periodColW) / 2;
+    const classColW = 24;
+    const periodColW = Math.max(18, (pageW - 10 - classColW) / schoolRows.length);
 
     autoTable(doc, {
-      head,
-      body,
-      startY: 26,
-      margin: { left: 5, right: 5, top: 26, bottom: 5 },
+      head, body,
+      startY: 32,
+      margin: { left: 5, right: 5, top: 32, bottom: 5 },
       theme: 'grid',
-      headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold', fontSize: 9, cellPadding: { top: 4, bottom: 4, left: 3, right: 3 } },
+      headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold', fontSize: 7, halign: 'center', cellPadding: { top: 3, bottom: 3, left: 2, right: 2 } },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       columnStyles: {
-        0: { cellWidth: periodColW, fontStyle: 'bold', fillColor: [241, 245, 249] },
-        1: { cellWidth: otherColW },
-        2: { cellWidth: otherColW },
+        0: { cellWidth: classColW, fontStyle: 'bold', fillColor: [241, 245, 249] },
+        ...Object.fromEntries(schoolRows.map((_, i) => [i + 1, { cellWidth: periodColW, halign: 'center' as const }])),
       },
-      styles: { fontSize: 8, cellPadding: { top: 4, bottom: 4, left: 4, right: 4 }, overflow: 'linebreak', lineColor: [226, 232, 240] },
+      styles: { fontSize: 6.5, cellPadding: { top: 3, bottom: 3, left: 2, right: 2 }, overflow: 'linebreak', lineColor: [226, 232, 240] },
       rowPageBreak: 'avoid',
     });
 
-    // Day-variation exceptions footnote
-    if (exceptions.length > 0) {
-      const lastY = (doc as any).lastAutoTable?.finalY ?? 26;
-      const noteY = lastY + 8;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7);
-      doc.setTextColor(146, 64, 14);
-      doc.text('⚠  Day Variations  (periods where subject/teacher differs from Monday)', 5, noteY);
-      autoTable(doc, {
-        head: [['Period', 'Day', 'Subject', 'Teacher']],
-        body: exceptions.map(e => [e.period, e.day, e.subject, e.teacher]),
-        startY: noteY + 4,
-        margin: { left: 5, right: 5 },
-        theme: 'grid',
-        headStyles: { fillColor: [255, 237, 213], textColor: [154, 52, 18], fontStyle: 'bold', fontSize: 7.5 },
-        styles: { fontSize: 7, cellPadding: { top: 2, bottom: 2, left: 3, right: 3 } },
-        columnStyles: { 0: { cellWidth: 28 }, 1: { cellWidth: 24 } },
-      });
-    }
-
-    doc.save(`Timetable_${cls.name}_${cls.section}.pdf`);
+    doc.save('Class_Timetable_All.pdf');
   };
 
-  /** Timetable PDF — Teacher-wise (one entry per period using Monday as reference; day exceptions below) */
-  const generateTeacherPDF = (teacherId: string) => {
-    const teacher = teachers.find(t => t.id === teacherId);
-    if (!teacher) return;
-    const teacherSlots = allSchoolSlots.filter(s => s.teacher_id === teacherId);
-    const schoolRows = getSchoolRows();
-    // Only include rows that are periods AND appear in teacher's slots (or are breaks in between)
-    const usedPeriodNums = new Set(teacherSlots.map(s => s.period_number));
-    const rows = schoolRows.filter(r => r.slot_type !== 'period' || usedPeriodNums.has(r.sort_order));
+  /** Timetable PDF — All teachers as rows, periods as columns, cell = Subject + Class */
+  const generateTeacherPDF = (_teacherId?: string) => {
+    const schoolRows = getSchoolRows().filter(r => r.slot_type === 'period');
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
+    pdfHeader(doc, 'Teacher-wise Timetable', `${teachers.length} teachers  ·  ${schoolRows.length} periods  ·  Monday schedule`);
 
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    pdfHeader(doc, `Teacher Schedule — ${teacher.full_name}`, `${teacher.role}  ·  ${teacherSlots.length} assigned periods  ·  Mon–Sat (variations below)`);
-
-    type TeacherException = { period: string; day: string; subject: string; classLabel: string };
-    const exceptions: TeacherException[] = [];
-
-    const head = [['Period / Time', 'Class', 'Subject']];
-    const body: any[] = [];
-
-    rows.forEach(row => {
-      if (row.slot_type !== 'period') {
-        body.push([{
-          content: `${row.slot_type === 'break' ? '☕' : '🎒'}  ${row.label}  (${row.start_time} – ${row.end_time})`,
-          colSpan: 3,
-          styles: {
-            fillColor: row.slot_type === 'break' ? [255, 251, 235] : [238, 242, 255],
-            textColor: row.slot_type === 'break' ? [146, 64, 14] : [79, 70, 229],
-            fontStyle: 'bold', halign: 'center' as const, fontSize: 8,
-          },
-        }]);
-        return;
-      }
-      // Monday reference, fallback to any day
-      const refSlot = teacherSlots.find(s => s.day_of_week === 'Monday' && s.period_number === row.sort_order)
-                   ?? teacherSlots.find(s => s.period_number === row.sort_order);
-      const refCls  = refSlot ? classes.find(c => c.id === refSlot.class_id) : null;
-
-      // Collect day exceptions
-      DAYS.forEach(day => {
-        const s = teacherSlots.find(sl => sl.day_of_week === day && sl.period_number === row.sort_order);
-        if (!s) return;
-        if (!refSlot || s.class_id !== refSlot.class_id || s.subject_id !== refSlot.subject_id) {
-          if (refSlot && day !== 'Monday') {
-            const c = classes.find(x => x.id === s.class_id);
-            exceptions.push({ period: row.label, day, subject: s.subjects?.subject_name || '—', classLabel: c ? `${c.name} ${c.section}` : '' });
-          }
-        }
+    // Head: Teacher | Period1 | Period2 | ...
+    const head = [['Teacher', ...schoolRows.map(r => `${r.label}\n${r.start_time}–${r.end_time}`)]];
+    const body: any[] = teachers.map(teacher => {
+      const tSlots = allSchoolSlots.filter(s => s.teacher_id === teacher.id);
+      const cells: any[] = schoolRows.map(row => {
+        const ref = tSlots.find(s => s.day_of_week === 'Monday' && s.period_number === row.sort_order)
+                 ?? tSlots.find(s => s.period_number === row.sort_order);
+        if (!ref) return { content: 'Free', styles: { textColor: [203, 213, 225], halign: 'center' as const, fontSize: 6 } };
+        const cls = classes.find(c => c.id === ref.class_id);
+        return {
+          content: `${ref.subjects?.subject_name || '—'}\n${cls ? `${cls.name} ${cls.section}` : ''}`,
+          styles: { fontSize: 6.5 },
+        };
       });
-
-      if (!refSlot) {
-        body.push([
-          { content: `${row.label}\n${row.start_time} – ${row.end_time}`, styles: { fontStyle: 'bold', fontSize: 8, fillColor: [241, 245, 249] } },
-          { content: 'Free', styles: { textColor: [148, 163, 184], halign: 'center' as const, fontSize: 8 } },
-          { content: '', styles: {} },
-        ]);
-      } else {
-        body.push([
-          { content: `${row.label}\n${row.start_time} – ${row.end_time}`, styles: { fontStyle: 'bold', fontSize: 8, fillColor: [241, 245, 249] } },
-          { content: refCls ? `${refCls.name} ${refCls.section}` : '—', styles: { fontSize: 8 } },
-          { content: refSlot.subjects?.subject_name || '—', styles: { fontSize: 8 } },
-        ]);
-      }
+      return [
+        { content: `${teacher.full_name}\n${teacher.role || ''}`, styles: { fontStyle: 'bold', fillColor: [240, 253, 244], fontSize: 7 } },
+        ...cells,
+      ];
     });
 
     const pageW = doc.internal.pageSize.getWidth();
-    const usable = pageW - 10;
-    const periodColW = 35;
-    const otherColW = (usable - periodColW) / 2;
+    const teacherColW = 32;
+    const periodColW = Math.max(18, (pageW - 10 - teacherColW) / schoolRows.length);
 
     autoTable(doc, {
-      head,
-      body,
-      startY: 26,
-      margin: { left: 5, right: 5, top: 26, bottom: 5 },
+      head, body,
+      startY: 32,
+      margin: { left: 5, right: 5, top: 32, bottom: 5 },
       theme: 'grid',
-      headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold', fontSize: 9, cellPadding: { top: 4, bottom: 4, left: 3, right: 3 } },
+      headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold', fontSize: 7, halign: 'center', cellPadding: { top: 3, bottom: 3, left: 2, right: 2 } },
       alternateRowStyles: { fillColor: [240, 253, 244] },
       columnStyles: {
-        0: { cellWidth: periodColW, fontStyle: 'bold', fillColor: [241, 245, 249] },
-        1: { cellWidth: otherColW },
-        2: { cellWidth: otherColW },
+        0: { cellWidth: teacherColW, fontStyle: 'bold', fillColor: [240, 253, 244] },
+        ...Object.fromEntries(schoolRows.map((_, i) => [i + 1, { cellWidth: periodColW, halign: 'center' as const }])),
       },
-      styles: { fontSize: 8, cellPadding: { top: 4, bottom: 4, left: 4, right: 4 }, overflow: 'linebreak', lineColor: [226, 232, 240] },
+      styles: { fontSize: 6.5, cellPadding: { top: 3, bottom: 3, left: 2, right: 2 }, overflow: 'linebreak', lineColor: [226, 232, 240] },
       rowPageBreak: 'avoid',
     });
 
-    // Day-variation exceptions footnote
-    if (exceptions.length > 0) {
-      const lastY = (doc as any).lastAutoTable?.finalY ?? 26;
-      const noteY = lastY + 8;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7);
-      doc.setTextColor(146, 64, 14);
-      doc.text('⚠  Day Variations  (periods where class/subject differs from Monday)', 5, noteY);
-      autoTable(doc, {
-        head: [['Period', 'Day', 'Class', 'Subject']],
-        body: exceptions.map(e => [e.period, e.day, e.classLabel, e.subject]),
-        startY: noteY + 4,
-        margin: { left: 5, right: 5 },
-        theme: 'grid',
-        headStyles: { fillColor: [255, 237, 213], textColor: [154, 52, 18], fontStyle: 'bold', fontSize: 7.5 },
-        styles: { fontSize: 7, cellPadding: { top: 2, bottom: 2, left: 3, right: 3 } },
-        columnStyles: { 0: { cellWidth: 28 }, 1: { cellWidth: 24 } },
-      });
-    }
-
-    const finalY = (doc as any).lastAutoTable?.finalY ?? 26;
-    doc.setFontSize(7);
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Total assigned: ${teacherSlots.length} periods`, 10, finalY + 6);
-
-    doc.save(`Schedule_${teacher.full_name.replace(/ /g, '_')}.pdf`);
+    doc.save('Teacher_Timetable_All.pdf');
   };
 
   /** Timetable PDF — Whole school, one entry per cell (Mon as reference).
@@ -860,57 +775,39 @@ export default function Timetable() {
       ? (teachers.find(t => t.id === id)?.full_name ?? '')
       : 'School Timetable — All Days';
 
-    // Build table rows for class / teacher modes — single entry (Mon reference) + collect exceptions
-    type HtmlCTException = { period: string; day: string; col1: string; col2: string };
-    const htmlCTExceptions: HtmlCTException[] = [];
-
-    const buildClassTeacherRows = (rows: TemplateRow[], classId?: string, teacherId?: string) =>
-      rows.map(row => {
-        if (row.slot_type !== 'period') {
-          return `<tr class="break-row"><td colspan="3">${row.slot_type === 'break' ? '☕' : '🎒'} ${row.label} &nbsp;(${row.start_time} – ${row.end_time})</td></tr>`;
-        }
-        if (classId) {
-          const ref = findSlot(row, 'Monday', classId) ?? DAYS.map(d => findSlot(row, d, classId)).find(Boolean);
-          DAYS.forEach(day => {
-            const s = findSlot(row, day, classId);
-            if (!s || !ref || day === 'Monday') return;
-            if (s.subject_id !== ref.subject_id || s.teacher_id !== ref.teacher_id) {
-              htmlCTExceptions.push({ period: row.label, day, col1: s.subjects?.subject_name || '—', col2: s.staff?.full_name || '' });
-            }
-          });
-          return `<tr>
-            <td class="period-col"><strong>${row.label}</strong><br/><small>${row.start_time} – ${row.end_time}</small></td>
-            <td>${ref ? `<strong>${ref.subjects?.subject_name || ''}</strong>` : '<span class="empty">—</span>'}</td>
-            <td>${ref ? `<span>${ref.staff?.full_name || ''}</span>` : ''}</td>
-          </tr>`;
-        }
-        if (teacherId) {
-          const tSlots = allSchoolSlots.filter(sl => sl.teacher_id === teacherId);
-          const ref = tSlots.find(sl => sl.day_of_week === 'Monday' && sl.period_number === row.sort_order)
-                   ?? tSlots.find(sl => sl.period_number === row.sort_order);
-          DAYS.forEach(day => {
-            const s = tSlots.find(sl => sl.day_of_week === day && sl.period_number === row.sort_order);
-            if (!s || !ref || day === 'Monday') return;
-            if (s.class_id !== ref.class_id || s.subject_id !== ref.subject_id) {
-              const c = classes.find(x => x.id === s.class_id);
-              htmlCTExceptions.push({ period: row.label, day, col1: c ? `${c.name} ${c.section}` : '', col2: s.subjects?.subject_name || '—' });
-            }
-          });
-          if (!ref) {
-            return `<tr>
-              <td class="period-col"><strong>${row.label}</strong><br/><small>${row.start_time} – ${row.end_time}</small></td>
-              <td colspan="2"><span class="free">Free</span></td>
-            </tr>`;
-          }
-          const refCls = classes.find(c => c.id === ref.class_id);
-          return `<tr>
-            <td class="period-col"><strong>${row.label}</strong><br/><small>${row.start_time} – ${row.end_time}</small></td>
-            <td><strong>${refCls ? `${refCls.name} ${refCls.section}` : '—'}</strong></td>
-            <td><span>${ref.subjects?.subject_name || '—'}</span></td>
-          </tr>`;
-        }
-        return '';
+    // Build class-wise HTML table: rows = classes, cols = periods, cell = Subject + Teacher
+    const buildClassAllRows = (periodRows: TemplateRow[]) => {
+      const periodOnly = periodRows.filter(r => r.slot_type === 'period');
+      const header = `<tr><th style="min-width:70px">Class</th>${periodOnly.map(r => `<th>${r.label}<br/><small>${r.start_time}–${r.end_time}</small></th>`).join('')}</tr>`;
+      const rows = classes.map(cls => {
+        const cells = periodOnly.map(row => {
+          const ref = allSchoolSlots.find(s => s.day_of_week === 'Monday' && s.class_id === cls.id && s.period_number === row.sort_order)
+                   ?? allSchoolSlots.find(s => s.class_id === cls.id && s.period_number === row.sort_order);
+          if (!ref) return `<td><span class="empty">—</span></td>`;
+          return `<td><strong>${ref.subjects?.subject_name || '—'}</strong><br/><span>${ref.staff?.full_name || ''}</span></td>`;
+        }).join('');
+        return `<tr><td class="period-col"><strong>${cls.name} ${cls.section}</strong></td>${cells}</tr>`;
       }).join('');
+      return { header, rows };
+    };
+
+    // Build teacher-wise HTML table: rows = teachers, cols = periods, cell = Subject + Class
+    const buildTeacherAllRows = (periodRows: TemplateRow[]) => {
+      const periodOnly = periodRows.filter(r => r.slot_type === 'period');
+      const header = `<tr><th style="min-width:80px">Teacher</th>${periodOnly.map(r => `<th>${r.label}<br/><small>${r.start_time}–${r.end_time}</small></th>`).join('')}</tr>`;
+      const rows = teachers.map(teacher => {
+        const tSlots = allSchoolSlots.filter(s => s.teacher_id === teacher.id);
+        const cells = periodOnly.map(row => {
+          const ref = tSlots.find(s => s.day_of_week === 'Monday' && s.period_number === row.sort_order)
+                   ?? tSlots.find(s => s.period_number === row.sort_order);
+          if (!ref) return `<td><span class="free">Free</span></td>`;
+          const cls = classes.find(c => c.id === ref.class_id);
+          return `<td><strong>${ref.subjects?.subject_name || '—'}</strong><br/><span>${cls ? `${cls.name} ${cls.section}` : ''}</span></td>`;
+        }).join('');
+        return `<tr><td class="period-col"><strong>${teacher.full_name}</strong><br/><small>${teacher.role || ''}</small></td>${cells}</tr>`;
+      }).join('');
+      return { header, rows };
+    };
 
     // Build school table rows — single clean entry per cell (Mon as reference), collect timing exceptions
     type HtmlTimingException = { period: string; day: string; classLabel: string; time: string };
@@ -945,10 +842,11 @@ export default function Timetable() {
         return `<tr><td class="period-col"><strong>${row.label}</strong><br/><small>${row.start_time} – ${row.end_time}</small></td>${cells}</tr>`;
       }).join('');
 
+    const allSchoolRowsFull = getSchoolRows();
     const classHeaders = classes.map(c => `<th>${c.name} ${c.section}</th>`).join('');
 
-    // School mode rows
-    const schoolTableRows = mode === 'school' ? buildSchoolRows(getSchoolRows()) : '';
+    // School mode
+    const schoolTableRows = mode === 'school' ? buildSchoolRows(allSchoolRowsFull) : '';
     const schoolExceptionsHtml = (mode === 'school' && htmlTimingExceptions.length > 0)
       ? `<div class="exceptions-section">
            <div class="exceptions-header">⚠ Schedule Timing Variations (days with different timing)</div>
@@ -961,24 +859,9 @@ export default function Timetable() {
          </div>`
       : '';
 
-    // Class / teacher mode rows + exceptions
-    const ctRows = mode !== 'school' ? buildClassTeacherRows(
-      mode === 'class' && id ? getClassRows(id) : getSchoolRows(),
-      mode === 'class' ? id : undefined,
-      mode === 'teacher' ? id : undefined,
-    ) : '';
-    const ctHeader2 = mode === 'class' ? '<th>Subject</th><th>Teacher</th>' : '<th>Class</th><th>Subject</th>';
-    const ctExceptionsHtml = (mode !== 'school' && htmlCTExceptions.length > 0)
-      ? `<div class="exceptions-section">
-           <div class="exceptions-header">⚠ Day Variations (periods where subject/teacher differs from Monday)</div>
-           <table class="exceptions-table">
-             <thead><tr><th>Period</th><th>Day</th>${mode === 'class' ? '<th>Subject</th><th>Teacher</th>' : '<th>Class</th><th>Subject</th>'}</tr></thead>
-             <tbody>${htmlCTExceptions.map(e =>
-               `<tr><td>${e.period}</td><td>${e.day}</td><td>${e.col1}</td><td>${e.col2}</td></tr>`
-             ).join('')}</tbody>
-           </table>
-         </div>`
-      : '';
+    // Class / teacher mode — all-in-one tables
+    const classBuilt   = mode === 'class'   ? buildClassAllRows(allSchoolRowsFull)   : null;
+    const teacherBuilt = mode === 'teacher' ? buildTeacherAllRows(allSchoolRowsFull) : null;
 
     const tables = mode === 'school'
       ? `<table>
@@ -986,11 +869,15 @@ export default function Timetable() {
            <tbody>${schoolTableRows}</tbody>
          </table>
          ${schoolExceptionsHtml}`
+      : mode === 'class'
+      ? `<table>
+           <thead>${classBuilt!.header}</thead>
+           <tbody>${classBuilt!.rows}</tbody>
+         </table>`
       : `<table>
-           <thead><tr><th style="width:80px">Period / Time</th>${ctHeader2}</tr></thead>
-           <tbody>${ctRows}</tbody>
-         </table>
-         ${ctExceptionsHtml}`;
+           <thead>${teacherBuilt!.header}</thead>
+           <tbody>${teacherBuilt!.rows}</tbody>
+         </table>`;
 
     const html = `<!DOCTYPE html><html><head><title>${title} — Timetable</title>
     <style>
@@ -1031,7 +918,14 @@ export default function Timetable() {
     <body>
     <button class="print-btn no-print" onclick="window.print()">🖨 Print</button>
     <div class="header">
-      <div><h2>${title}</h2><p>Timetable</p></div>
+      <div>
+        ${schoolInfo?.logo_url ? `<img src="${schoolInfo.logo_url}" style="height:32px;object-fit:contain;vertical-align:middle;margin-right:10px;border-radius:4px;" onerror="this.style.display='none'"/>` : ''}
+        <span style="vertical-align:middle">
+          <h2 style="margin:0;font-size:14px">${schoolInfo?.name || 'School Timetable'}</h2>
+          ${schoolInfo?.address || schoolInfo?.phone ? `<p style="margin:2px 0 0;font-size:8px;opacity:0.7">${[schoolInfo?.address, schoolInfo?.phone].filter(Boolean).join('  •  ')}</p>` : ''}
+          <p style="margin:3px 0 0;font-size:9px;opacity:0.85;font-weight:bold">${title}</p>
+        </span>
+      </div>
       <div class="meta">Generated: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
     </div>
     ${tables}
@@ -1044,8 +938,8 @@ export default function Timetable() {
   const handleGeneratePDF = () => {
     setGenerating(true);
     try {
-      if (printMode === 'class')   generateClassPDF(printClassId);
-      if (printMode === 'teacher') generateTeacherPDF(printTeacherId);
+      if (printMode === 'class')   generateClassPDF();
+      if (printMode === 'teacher') generateTeacherPDF();
       if (printMode === 'school')  generateSchoolPDF();
     } finally {
       setGenerating(false);
@@ -1053,9 +947,9 @@ export default function Timetable() {
   };
 
   const handlePrint = () => {
-    if (printMode === 'class')   openPrintWindow('class',   printClassId,   '');
-    if (printMode === 'teacher') openPrintWindow('teacher', printTeacherId, '');
-    if (printMode === 'school')  openPrintWindow('school',  '',             '');
+    if (printMode === 'class')   openPrintWindow('class',   '', '');
+    if (printMode === 'teacher') openPrintWindow('teacher', '', '');
+    if (printMode === 'school')  openPrintWindow('school',  '', '');
   };
 
   // ─── Computed ─────────────────────────────────────────────────────────────
@@ -1875,40 +1769,31 @@ export default function Timetable() {
                 </div>
               </div>
 
-              {/* Class picker */}
+              {/* Class-wise info */}
               {printMode === 'class' && (
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Select Class</label>
-                  <select value={printClassId} onChange={e => setPrintClassId(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none">
-                    <option value="">— Choose class —</option>
-                    {classes.map(c => <option key={c.id} value={c.id}>{c.name} — {c.section}</option>)}
-                  </select>
-                  {printClassId && (
-                    <p className="text-xs text-slate-400 mt-2">
-                      Generates one A4 landscape page — rows = periods, columns = Mon–Sat
+                <div className="flex items-start gap-3 bg-indigo-50 rounded-xl p-4 border border-indigo-100">
+                  <GraduationCap className="w-5 h-5 text-indigo-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-bold text-indigo-800 mb-1">All classes in one table — A3 landscape</p>
+                    <p className="text-xs text-indigo-600 leading-relaxed">
+                      Rows = all {classes.length} classes  ·  Columns = all {getSchoolRows().filter(r => r.slot_type === 'period').length} periods<br/>
+                      Each cell shows <strong>Subject + Teacher</strong> (Monday reference)
                     </p>
-                  )}
+                  </div>
                 </div>
               )}
 
-              {/* Teacher picker */}
+              {/* Teacher-wise info */}
               {printMode === 'teacher' && (
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Select Teacher</label>
-                  <select value={printTeacherId} onChange={e => setPrintTeacherId(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500 outline-none">
-                    <option value="">— Choose teacher —</option>
-                    {teachers.map(t => {
-                      const count = allSchoolSlots.filter(s => s.teacher_id === t.id).length;
-                      return <option key={t.id} value={t.id}>{t.full_name} ({count} periods)</option>;
-                    })}
-                  </select>
-                  {printTeacherId && (
-                    <p className="text-xs text-slate-400 mt-2">
-                      Generates one A4 landscape page — full weekly schedule for this teacher
+                <div className="flex items-start gap-3 bg-emerald-50 rounded-xl p-4 border border-emerald-100">
+                  <User className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-bold text-emerald-800 mb-1">All teachers in one table — A3 landscape</p>
+                    <p className="text-xs text-emerald-600 leading-relaxed">
+                      Rows = all {teachers.length} teachers  ·  Columns = all {getSchoolRows().filter(r => r.slot_type === 'period').length} periods<br/>
+                      Each cell shows <strong>Subject + Grade/Class</strong> (Monday reference)
                     </p>
-                  )}
+                  </div>
                 </div>
               )}
 
@@ -1917,33 +1802,26 @@ export default function Timetable() {
                 <div className="flex items-start gap-3 bg-violet-50 rounded-xl p-4 border border-violet-100">
                   <School className="w-5 h-5 text-violet-500 shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-xs font-bold text-violet-800 mb-1">Single-page master timetable — all days combined</p>
+                    <p className="text-xs font-bold text-violet-800 mb-1">Master timetable — all {classes.length} classes × all periods</p>
                     <p className="text-xs text-violet-600 leading-relaxed">
-                      Each class column shows all 6 days (Mon–Sat) stacked inside one cell.
-                      If Friday (or any day) uses a different time for a period, that time is printed
-                      in <span className="font-bold text-purple-600">[brackets]</span> next to that day's entry.
+                      Rows = periods  ·  Columns = classes  ·  Cell = Subject + Teacher<br/>
+                      Timing variations (e.g. Friday) noted as a footnote below the table.
                     </p>
                   </div>
                 </div>
               )}
 
-              {/* Preview summary */}
-              <div className="flex items-start gap-3 bg-slate-50 rounded-xl p-4 border border-slate-200">
-                <FileText className="w-5 h-5 text-slate-400 shrink-0 mt-0.5" />
-                <div className="text-xs text-slate-600">
-                  {printMode === 'class' && (printClassId
-                    ? (() => { const c = classes.find(x => x.id === printClassId); return c ? <span><strong>{c.name} {c.section}</strong> — {getClassRows(printClassId).filter(r => r.slot_type === 'period').length} periods, Mon–Sat (day variations as footnote)</span> : null; })()
-                    : <span className="text-slate-400 italic">Select a class above</span>
-                  )}
-                  {printMode === 'teacher' && (printTeacherId
-                    ? (() => { const t = teachers.find(x => x.id === printTeacherId); const cnt = allSchoolSlots.filter(s => s.teacher_id === printTeacherId).length; return t ? <span><strong>{t.full_name}</strong> — {cnt} assigned periods across the week</span> : null; })()
-                    : <span className="text-slate-400 italic">Select a teacher above</span>
-                  )}
-                  {printMode === 'school' && (
-                    <span><strong>Whole School</strong> — {classes.length} classes × all 6 days on one A3 page. Friday timing noted if different.</span>
-                  )}
+              {/* School branding preview */}
+              {schoolInfo?.name && (
+                <div className="flex items-center gap-3 bg-slate-50 rounded-xl px-4 py-3 border border-slate-200">
+                  {schoolInfo.logo_url && <img src={schoolInfo.logo_url} alt="logo" className="h-8 w-8 object-contain rounded" onError={e => (e.currentTarget.style.display = 'none')} />}
+                  <div>
+                    <p className="text-xs font-black text-slate-700">{schoolInfo.name}</p>
+                    {(schoolInfo.address || schoolInfo.phone) && <p className="text-[10px] text-slate-400">{[schoolInfo.address, schoolInfo.phone].filter(Boolean).join('  ·  ')}</p>}
+                  </div>
+                  <span className="ml-auto text-[9px] text-slate-400 italic">printed on PDF</span>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Footer buttons */}
