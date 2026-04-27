@@ -9,6 +9,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';
 import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, type ChallanRecord, type SchoolInfo } from '../../lib/challanUtils';
+import HelpBanner from '../../components/HelpBanner';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -305,7 +306,24 @@ export default function EasyFee() {
     .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
   return (
-    <div className="h-[calc(100vh-140px)] flex flex-col gap-4">
+    <div className="flex flex-col gap-4">
+
+      {/* Onboarding Help */}
+      <HelpBanner
+        storageKey="help_quick_collection"
+        title="How to use Quick Collection"
+        color="emerald"
+        steps={[
+          'Type a student name, roll number, or ID in the search box on the left.',
+          'Select the student — their pending invoices appear automatically.',
+          'Enter the amount to collect and choose a payment method.',
+          'Click Collect — the payment is recorded and a challan receipt is printed.',
+        ]}
+        tip='For bulk invoice generation for a whole class, use Fee Management → Generate Invoices instead.'
+      />
+
+      {/* ── Main panel (fixed height so panels don't overflow) ─────── */}
+      <div className="h-[calc(100vh-180px)] flex flex-col gap-4">
 
       {/* ── Header ───────────────────────────────────────────────── */}
       <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-6 py-3 shadow-sm shrink-0">
@@ -314,8 +332,8 @@ export default function EasyFee() {
             <Zap className="w-5 h-5 fill-current" />
           </div>
           <div>
-            <h1 className="text-sm font-bold text-gray-900">Collect Fee</h1>
-            <p className="text-xs text-gray-400">Fast fee collection</p>
+            <h1 className="text-sm font-bold text-gray-900">Quick Collection</h1>
+            <p className="text-xs text-gray-400">Walk-in fee payment counter</p>
           </div>
         </div>
 
@@ -692,6 +710,7 @@ export default function EasyFee() {
           </div>
         )}
       </AnimatePresence>
+      </div> {/* end main panel */}
     </div>
   );
 }

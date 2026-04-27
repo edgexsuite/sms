@@ -100,7 +100,7 @@ export const NAV_SECTIONS = [
           { name: 'Sessional Report', path: '/attendance/sessional-report', icon: TrendingUp, roles: ALL_ACADEMIC },
           { name: 'Staff Attendance', path: '/attendance/staff', icon: Briefcase, roles: ALL_ADMIN },
           { name: 'Staff Report', path: '/attendance/staff-report', icon: LineChart, roles: ALL_ADMIN },
-          { name: 'Smart Kiosk', path: '/attendance/scanner', icon: Wifi, roles: ALL_STAFF },
+          { name: 'QR Attendance Kiosk', path: '/attendance/scanner', icon: Wifi, roles: ALL_STAFF },
           { name: 'SMS History', path: '/attendance/sms-history', icon: MessageSquare, roles: ALL_STAFF },
         ]
       },
@@ -130,9 +130,9 @@ export const NAV_SECTIONS = [
         roles: ALL_ACADEMIC,
         subItems: [
           { name: 'Exam Types', path: '/result/exam-types', icon: SettingsIcon, roles: ALL_ADMIN },
-          { name: 'Enter Results', path: '/result/add-result', exact: true, icon: Star },
+          { name: 'Admin Results Entry', path: '/result/add-result', exact: true, icon: Star },
           { name: 'Import from Excel', path: '/result/import', icon: Upload },
-          { name: 'Enter Marks', path: '/result/teacher-marks', icon: Star, roles: ['admin','principal','director','teacher','staff'] },
+          { name: 'Teacher Mark Entry', path: '/result/teacher-marks', icon: Star, roles: ['admin','principal','director','teacher','staff'] },
           { name: 'Report Cards', path: '/result/reporting', icon: LineChart },
           { name: 'Grading Policy', path: '/result/grading-policy', icon: SettingsIcon, roles: ALL_ADMIN },
         ]
@@ -150,14 +150,16 @@ export const NAV_SECTIONS = [
         icon: CreditCard,
         roles: ALL_FINANCE,
         subItems: [
-          { name: 'Fee Master', path: '/fees/criteria', icon: SettingsIcon, roles: ALL_ADMIN },
-          { name: 'Monthly Invoices', path: '/fees/invoices', icon: Receipt },
-          { name: 'Fee Collection', path: '/fees/easy-fee', icon: Wallet },
-          { name: 'Student Ledgers', path: '/fees/student-detail', icon: Users },
-          { name: 'Fee History', path: '/fees/fee-history', icon: Clock },
-          { name: 'Discount Manager', path: '/fees/discounts', icon: Award, roles: ALL_ADMIN },
-          { name: 'Fine Policy', path: '/fees/fine-policy', icon: AlertTriangle, roles: ALL_ADMIN },
-          { name: 'Advance Fee', path: '/fees/advance-fee', icon: Banknote, roles: ALL_ADMIN },
+          // ── Daily Operations ──────────────────────────────────────────────
+          { name: 'Quick Collection', path: '/fees/easy-fee', icon: Wallet },
+          { name: 'Generate Invoices', path: '/fees/invoices', icon: Receipt },
+          { name: 'Student Fee Ledger', path: '/fees/student-detail', icon: Users },
+          { name: 'Fee History Search', path: '/fees/fee-history', icon: Clock },
+          { name: 'Advance Payments', path: '/fees/advance-fee', icon: Banknote, roles: ALL_ADMIN },
+          // ── Configuration ─────────────────────────────────────────────────
+          { name: 'Fee Templates', path: '/fees/fee-templates', icon: Layers, roles: ALL_ADMIN },
+          { name: 'Discounts & Scholarships', path: '/fees/discounts', icon: Award, roles: ALL_ADMIN },
+          { name: 'Late Fine Rules', path: '/fees/fine-policy', icon: AlertTriangle, roles: ALL_ADMIN },
           { name: 'Challan Settings', path: '/fees/challan-settings', icon: Palette, roles: ALL_ADMIN },
         ]
       },
@@ -168,7 +170,7 @@ export const NAV_SECTIONS = [
         roles: ALL_FINANCE,
         subItems: [
           { name: 'Daily Expenses', path: '/expenses/add-daily', exact: true, icon: Wallet },
-          { name: 'Expense Ledger', path: '/expenses/ledger', icon: LineChart },
+          { name: 'Day Book / Ledger', path: '/expenses/ledger', icon: LineChart },
           { name: 'Expense Heads', path: '/expenses/heads', icon: SettingsIcon, roles: ALL_ADMIN },
           { name: 'Budget', path: '/expenses/budget', icon: PiggyBank },
           { name: 'Expense Reports', path: '/expenses/reports', icon: BarChart3 },
@@ -231,7 +233,7 @@ export const NAV_SECTIONS = [
         ]
       },
       { name: 'Inventory', path: '/inventory', icon: Package, roles: ALL_STAFF },
-      { name: 'Stationary', path: '/stationary', icon: Box, roles: ALL_STAFF },
+      { name: 'Stationery', path: '/stationary', icon: Box, roles: ALL_STAFF },
       { name: 'Communication', path: '/communication', icon: MessageSquare, roles: ALL_ADMIN },
     ]
   },

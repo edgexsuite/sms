@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Layout, Plus, Trash2, Save, ChevronDown, ChevronUp, Tag, X } from 'lucide-react';
+import HelpBanner from '../../components/HelpBanner';
 
 interface FeeItem { item: string; amount: number; }
 interface FeeMatrix { recurrent: FeeItem[]; first_time: FeeItem[]; }
@@ -181,6 +182,20 @@ export default function FeeTemplates() {
 
   return (
     <div className="space-y-6">
+      {/* Onboarding Help */}
+      <HelpBanner
+        storageKey="help_fee_templates"
+        title="How to set up Fee Templates"
+        color="indigo"
+        steps={[
+          'Click "Add Class Template" to create a fee structure for a class (e.g. Class 5 - A).',
+          'Under Recurring Fees add monthly items: Tuition Fee, Sports Fee, Computer Lab Fee — with their amounts.',
+          'Under One-Time Fees add admission-only charges: Admission Fee, Registration Fee, Security Deposit.',
+          'Click Save. These amounts will auto-load when you create Monthly or One-Time invoices for students in that class.',
+        ]}
+        tip='Tip: Click "Fee Items Library" to add custom item names that appear in the dropdown across all fee modules.'
+      />
+
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>

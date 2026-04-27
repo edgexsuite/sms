@@ -17,6 +17,7 @@ import {
   type SchoolInfo,
 } from '../../lib/challanUtils';
 import FeeBreakdownEditor, { type BreakdownRow } from '../../components/FeeBreakdownEditor';
+import HelpBanner from '../../components/HelpBanner';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -352,14 +353,34 @@ export default function StudentFeeDetail() {
   const totalOutstanding = calculateTotalDue();
 
   return (
-    <div className="h-[calc(100vh-140px)] flex gap-4 overflow-hidden print:block print:h-auto">
+    <div className="flex flex-col gap-3 print:block">
       <style>{`@media print { .no-print { display: none !important; } body { background: white; } }`}</style>
+
+      {/* Onboarding Help */}
+      <div className="no-print">
+        <HelpBanner
+          storageKey="help_student_fee_ledger"
+          title="How to use Student Fee Ledger"
+          color="violet"
+          steps={[
+            'Search for a student by name or roll number in the left panel.',
+            'Click the student — their invoices and payment history load on the right.',
+            'Click "New Invoice" to create a manual invoice, or use the filter to view a specific month.',
+            'Click "Collect" on any invoice to record a payment and print a challan.',
+            'Click "Edit" on any invoice to adjust amounts, breakdown items, or soft-delete it.',
+          ]}
+          tip='Tip: The "Student Fee Ledger" is for individual student management. Use "Generate Invoices" for bulk class-level invoice creation.'
+        />
+      </div>
+
+      {/* ── Content area (fixed height) ─────────────────────────────── */}
+      <div className="h-[calc(100vh-160px)] flex gap-4 overflow-hidden print:block print:h-auto">
 
       {/* ── Left Sidebar ─────────────────────────────────────────────── */}
       <div className="no-print w-72 flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden shrink-0">
         <div className="p-4 border-b border-gray-100">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-bold text-gray-800">Student Ledgers</h2>
+            <h2 className="text-sm font-bold text-gray-800">Student Fee Ledger</h2>
             <Search className="w-4 h-4 text-gray-400" />
           </div>
           <div className="relative">
@@ -902,6 +923,7 @@ export default function StudentFeeDetail() {
         )}
       </AnimatePresence>
 
+      </div> {/* end fixed-height content area */}
     </div>
   );
 }

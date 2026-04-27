@@ -9,6 +9,7 @@ import {
   Clock, Filter, Download, Trash2, Send, Bell
 } from 'lucide-react';
 import FeeBreakdownEditor, { type BreakdownRow } from '../../components/FeeBreakdownEditor';
+import HelpBanner from '../../components/HelpBanner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';
 import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, ChallanConfig, ChallanRecord, SchoolInfo } from '../../lib/challanUtils';
@@ -454,11 +455,26 @@ export default function MonthlyFeeInvoices() {
   return (
     <div className="max-w-7xl mx-auto space-y-4 pb-20">
 
+      {/* Onboarding Help */}
+      <HelpBanner
+        storageKey="help_generate_invoices"
+        title="How to Generate Invoices"
+        color="indigo"
+        steps={[
+          'Select a Class and Month from the filters at the top.',
+          'Click "Generate" to auto-create invoices for all students in that class using their fee template.',
+          'Review the invoice list — each row shows total, paid, balance, and status.',
+          'Print Challan for a single student, or use bulk actions to print the whole class.',
+          'Click "Collect" on any invoice to record a payment directly from this screen.',
+        ]}
+        tip='Tip: Set up fee amounts first under Fee Management → Fee Templates before generating invoices.'
+      />
+
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h1 className="text-xl font-black text-slate-900 tracking-tight uppercase">Billing Terminal</h1>
-          <p className="text-slate-500 text-xs font-medium mt-0.5">Invoicing & revenue control</p>
+          <h1 className="text-xl font-black text-slate-900 tracking-tight uppercase">Generate Invoices</h1>
+          <p className="text-slate-500 text-xs font-medium mt-0.5">Bulk invoice creation & management by class and month</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
