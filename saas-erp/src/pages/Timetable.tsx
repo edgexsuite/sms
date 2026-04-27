@@ -536,19 +536,27 @@ export default function Timetable() {
       }
     });
 
+    // A4 landscape usable width ≈ 287mm with 5mm margins; period col=30mm, remaining/6 for each day
+    const pageW = doc.internal.pageSize.getWidth();
+    const usable = pageW - 10; // 5mm each side
+    const periodColW = 30;
+    const dayColW = (usable - periodColW) / 6;
+
     autoTable(doc, {
       head,
       body,
       startY: 26,
+      margin: { left: 5, right: 5, top: 26, bottom: 5 },
       theme: 'grid',
-      headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+      headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold', fontSize: 8, cellPadding: { top: 4, bottom: 4, left: 3, right: 3 } },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       columnStyles: {
-        0: { cellWidth: 28, fontStyle: 'bold', fillColor: [241, 245, 249] },
-        1: { cellWidth: 36 }, 2: { cellWidth: 36 }, 3: { cellWidth: 36 },
-        4: { cellWidth: 36 }, 5: { cellWidth: 36 }, 6: { cellWidth: 36 },
+        0: { cellWidth: periodColW, fontStyle: 'bold', fillColor: [241, 245, 249] },
+        1: { cellWidth: dayColW }, 2: { cellWidth: dayColW }, 3: { cellWidth: dayColW },
+        4: { cellWidth: dayColW }, 5: { cellWidth: dayColW }, 6: { cellWidth: dayColW },
       },
-      styles: { fontSize: 7.5, cellPadding: 3, overflow: 'linebreak', lineColor: [226, 232, 240] },
+      styles: { fontSize: 7, cellPadding: { top: 3, bottom: 3, left: 3, right: 3 }, overflow: 'linebreak', lineColor: [226, 232, 240] },
+      rowPageBreak: 'avoid',
     });
 
     doc.save(`Timetable_${cls.name}_${cls.section}.pdf`);
@@ -582,19 +590,26 @@ export default function Timetable() {
       ];
     });
 
+    const pageW2 = doc.internal.pageSize.getWidth();
+    const usable2 = pageW2 - 10;
+    const periodColW2 = 30;
+    const dayColW2 = (usable2 - periodColW2) / 6;
+
     autoTable(doc, {
       head,
       body,
       startY: 26,
+      margin: { left: 5, right: 5, top: 26, bottom: 5 },
       theme: 'grid',
-      headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+      headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold', fontSize: 8, cellPadding: { top: 4, bottom: 4, left: 3, right: 3 } },
       alternateRowStyles: { fillColor: [240, 253, 244] },
       columnStyles: {
-        0: { cellWidth: 28, fontStyle: 'bold', fillColor: [241, 245, 249] },
-        1: { cellWidth: 36 }, 2: { cellWidth: 36 }, 3: { cellWidth: 36 },
-        4: { cellWidth: 36 }, 5: { cellWidth: 36 }, 6: { cellWidth: 36 },
+        0: { cellWidth: periodColW2, fontStyle: 'bold', fillColor: [241, 245, 249] },
+        1: { cellWidth: dayColW2 }, 2: { cellWidth: dayColW2 }, 3: { cellWidth: dayColW2 },
+        4: { cellWidth: dayColW2 }, 5: { cellWidth: dayColW2 }, 6: { cellWidth: dayColW2 },
       },
-      styles: { fontSize: 7.5, cellPadding: 3, overflow: 'linebreak', lineColor: [226, 232, 240] },
+      styles: { fontSize: 7, cellPadding: { top: 3, bottom: 3, left: 3, right: 3 }, overflow: 'linebreak', lineColor: [226, 232, 240] },
+      rowPageBreak: 'avoid',
     });
 
     // Summary footer
@@ -640,7 +655,7 @@ export default function Timetable() {
               );
               if (!slot) return { content: '', styles: { textColor: [220, 220, 220] } };
               return {
-                content: `${slot.subjects?.subject_name || '—'}\n${slot.staff?.full_name ? slot.staff.full_name.split(' ').pop() : ''}`,
+                content: `${slot.subjects?.subject_name || '—'}\n${slot.staff?.full_name || ''}`,
                 styles: { fontSize: 6, textColor: slot.is_combined_class ? [146, 64, 14] : [0, 0, 0] },
               };
             }),
@@ -648,18 +663,24 @@ export default function Timetable() {
         }
       });
 
+      const pageW3 = doc.internal.pageSize.getWidth(); // A3 landscape = 420mm
+      const periodCol3 = 28;
+      const dynColW = Math.max(18, (pageW3 - 10 - periodCol3) / classes.length); // at least 18mm per class
+
       autoTable(doc, {
         head,
         body,
         startY: 26,
+        margin: { left: 5, right: 5, top: 26, bottom: 5 },
         theme: 'grid',
-        headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 7, halign: 'center' },
+        headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 6.5, halign: 'center', cellPadding: { top: 3, bottom: 3, left: 2, right: 2 } },
         alternateRowStyles: { fillColor: [248, 250, 252] },
         columnStyles: {
-          0: { cellWidth: 28, fontStyle: 'bold', fillColor: [241, 245, 249] },
-          ...Object.fromEntries(classes.map((_, i) => [i + 1, { cellWidth: colW, halign: 'center' }])),
+          0: { cellWidth: periodCol3, fontStyle: 'bold', fillColor: [241, 245, 249] },
+          ...Object.fromEntries(classes.map((_, i) => [i + 1, { cellWidth: dynColW, halign: 'center' }])),
         },
-        styles: { fontSize: 6.5, cellPadding: 2, overflow: 'linebreak', lineColor: [226, 232, 240] },
+        styles: { fontSize: 6, cellPadding: { top: 2, bottom: 2, left: 2, right: 2 }, overflow: 'linebreak', lineColor: [226, 232, 240] },
+        rowPageBreak: 'avoid',
       });
     });
 
@@ -696,7 +717,7 @@ export default function Timetable() {
           ? classes.map(cls => {
               const s = allSchoolSlots.find(sl => sl.day_of_week === schoolDay && sl.class_id === cls.id && sl.period_number === row.sort_order);
               if (!s) return `<td><span class="empty">—</span></td>`;
-              return `<td><strong>${s.subjects?.subject_name || ''}</strong><br/><span>${s.staff?.full_name ? s.staff.full_name.split(' ').pop() : ''}</span></td>`;
+              return `<td><strong>${s.subjects?.subject_name || ''}</strong><br/><span>${s.staff?.full_name || ''}</span></td>`;
             }).join('')
           : '';
         return `<tr><td class="period-col"><strong>${row.label}</strong><br/><span>${row.start_time} – ${row.end_time}</span></td>${cells}</tr>`;
@@ -727,21 +748,22 @@ export default function Timetable() {
 
     const html = `<!DOCTYPE html><html><head><title>${title} — Timetable</title>
     <style>
-      body { font-family: Arial, sans-serif; padding: 12px; font-size: 11px; color: #1e293b; }
-      .header { background: #1e293b; color: #fff; padding: 12px 16px; border-radius: 6px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
-      .header h2 { margin: 0; font-size: 15px; } .header p { margin: 3px 0 0; font-size: 10px; opacity: 0.7; }
-      .meta { font-size: 9px; opacity: 0.7; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-      th { background: #1e293b; color: #fff; padding: 7px 8px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
-      td { border: 1px solid #e2e8f0; padding: 5px 7px; vertical-align: top; font-size: 9.5px; }
-      td strong { display: block; font-size: 9.5px; }
-      td span { font-size: 8.5px; color: #64748b; }
-      .period-col { background: #f8fafc; font-size: 9px; white-space: nowrap; min-width: 70px; }
-      .break-row td { background: #fefce8; color: #92400e; font-weight: bold; text-align: center; font-size: 9px; padding: 4px; }
+      * { box-sizing: border-box; }
+      body { font-family: Arial, sans-serif; padding: 10px; font-size: 10px; color: #1e293b; }
+      .header { background: #1e293b; color: #fff; padding: 8px 14px; border-radius: 5px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+      .header h2 { margin: 0; font-size: 13px; } .header p { margin: 2px 0 0; font-size: 9px; opacity: 0.7; }
+      .meta { font-size: 8px; opacity: 0.7; text-align: right; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 8px; table-layout: fixed; }
+      th { background: #1e293b; color: #fff; padding: 5px 4px; font-size: 8px; text-transform: uppercase; letter-spacing: 0.3px; word-break: break-word; }
+      td { border: 1px solid #e2e8f0; padding: 4px 5px; vertical-align: top; font-size: 8.5px; word-break: break-word; }
+      td strong { display: block; font-size: 8.5px; font-weight: 700; }
+      td span { font-size: 7.5px; color: #64748b; }
+      .period-col { background: #f8fafc; font-weight: 700; white-space: nowrap; width: 72px; }
+      .break-row td { background: #fefce8; color: #92400e; font-weight: bold; text-align: center; font-size: 8px; padding: 3px; }
       .empty { color: #cbd5e1; }
-      tr:nth-child(even) td:not(.break-row td) { background: #f8fafc; }
-      @media print { body { padding: 5px; } .no-print { display: none; } @page { margin: 8mm; size: A4 landscape; } }
-      .print-btn { margin-bottom: 14px; padding: 8px 18px; background: #4f46e5; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 12px; }
+      tr:nth-child(even) { background: #f8fafc; }
+      @media print { body { padding: 4px; } .no-print { display: none; } @page { margin: 6mm; size: A4 landscape; } }
+      .print-btn { margin-bottom: 10px; padding: 7px 16px; background: #4f46e5; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 11px; }
     </style></head>
     <body>
     <button class="print-btn no-print" onclick="window.print()">🖨 Print</button>
