@@ -119,6 +119,11 @@ export default function Timetable() {
   // ── School branding ──────────────────────────────────────────────────────
   const [schoolInfo, setSchoolInfo] = useState<{ name: string; address: string; phone: string; logo_url: string | null } | null>(null);
 
+  // ── Signature options ────────────────────────────────────────────────────
+  const [sigPrincipal,   setSigPrincipal]   = useState(true);
+  const [sigCoordinator, setSigCoordinator] = useState(true);
+  const [sigDate,        setSigDate]        = useState(true);
+
   // ── Slot editor ──────────────────────────────────────────────────────────
   const [editSlot, setEditSlot]           = useState<{ row: TemplateRow; day: string; classId: string } | null>(null);
   const [slotForm, setSlotForm]           = useState({ subject_id: '', teacher_id: '', start_time: '', end_time: '', is_combined: false });
@@ -507,54 +512,113 @@ export default function Timetable() {
 
   // ─── PDF / Print helpers ──────────────────────────────────────────────────
 
-  const schoolName = () => 'School Timetable'; // replaced below by actual school name if available
-
-  /** Shared PDF header — school branding + doc title + subtitle */
-  const pdfHeader = (doc: jsPDF, title: string, subtitle: string) => {
+  /**
+   * Professional ink-friendly PDF header.
+   * Layout (top-to-bottom):
+   *  - 0.8mm indigo top rule
+   *  - School name (bold) + address/phone  (right side: logo placeholder)
+   *  - thin separator rule
+   *  - "TIME TABLE" title (large, centred) | mode label (right) | date (right)
+   *  - 0.5mm bottom rule
+   * Total height ≈ 38mm  →  table startY = 40
+   */
+  const pdfHeader = (doc: jsPDF, modeLabel: string, _subtitle: string) => {
     const W = doc.internal.pageSize.getWidth();
-    const H = 28; // header band height
-    doc.setFillColor(30, 41, 59);
-    doc.rect(0, 0, W, H, 'F');
-    doc.setTextColor(255, 255, 255);
-    // School name (large, centred-ish)
+    const ACCENT = [63, 81, 181] as [number, number, number]; // indigo-700
+
+    // ── top rule ──────────────────────────────────────────────────────────
+    doc.setFillColor(...ACCENT);
+    doc.rect(0, 0, W, 1.2, 'F');
+
+    // ── school block ──────────────────────────────────────────────────────
+    const schoolY = 7;
     if (schoolInfo?.name) {
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(14);
-      doc.text(schoolInfo.name, W / 2, 9, { align: 'center' });
+      doc.setFontSize(15);
+      doc.setTextColor(30, 41, 59);
+      doc.text(schoolInfo.name, W / 2, schoolY, { align: 'center' });
+
       if (schoolInfo.address || schoolInfo.phone) {
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
-        const detail = [schoolInfo.address, schoolInfo.phone].filter(Boolean).join('  •  ');
-        doc.text(detail, W / 2, 14.5, { align: 'center' });
+        doc.setFontSize(7.5);
+        doc.setTextColor(71, 85, 105);
+        const detail = [schoolInfo.address, schoolInfo.phone].filter(Boolean).join('   •   ');
+        doc.text(detail, W / 2, schoolY + 6, { align: 'center' });
       }
-      // Doc title + subtitle below school name
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.text(title, 10, 21);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.text(subtitle, 10, 26);
-    } else {
-      // No school info — fallback to original style
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.text(title, 10, 10);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.text(subtitle, 10, 18);
     }
-    const d = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    // ── thin separator ────────────────────────────────────────────────────
+    const sepY = 17;
+    doc.setDrawColor(...ACCENT);
+    doc.setLineWidth(0.3);
+    doc.line(8, sepY, W - 8, sepY);
+
+    // ── "TIME TABLE" title row ────────────────────────────────────────────
+    const titleY = 24;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(30, 41, 59);
+    doc.text('TIME TABLE', W / 2, titleY, { align: 'center' });
+
+    // mode label (left)
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
-    doc.text(`Generated: ${d}`, W - 10, 26, { align: 'right' });
+    doc.setFontSize(7.5);
+    doc.setTextColor(63, 81, 181);
+    doc.text(modeLabel, 8, titleY);
+
+    // date (right)
+    const d = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    doc.setTextColor(100, 116, 139);
+    doc.text(d, W - 8, titleY, { align: 'right' });
+
+    // ── bottom rule ───────────────────────────────────────────────────────
+    doc.setDrawColor(...ACCENT);
+    doc.setLineWidth(0.5);
+    doc.line(0, 28, W, 28);
+
     doc.setTextColor(0, 0, 0);
+    doc.setDrawColor(0, 0, 0);
+  };
+
+  /** Draw signature lines at the bottom of the last page */
+  const pdfSignature = (doc: jsPDF, afterY: number) => {
+    const W = doc.internal.pageSize.getWidth();
+    const H = doc.internal.pageSize.getHeight();
+    const sigs: string[] = [
+      ...(sigPrincipal   ? ['Principal']   : []),
+      ...(sigCoordinator ? ['Coordinator'] : []),
+      ...(sigDate        ? ['Date']        : []),
+    ];
+    if (sigs.length === 0) return;
+
+    // Place signatures 18mm from page bottom or 10mm below table, whichever is lower
+    const sigY = Math.max(afterY + 14, H - 22);
+    if (sigY >= H - 8) return; // no room
+
+    const colW = (W - 20) / sigs.length;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setDrawColor(100, 116, 139);
+    doc.setLineWidth(0.4);
+    doc.setTextColor(71, 85, 105);
+
+    sigs.forEach((label, i) => {
+      const cx = 10 + i * colW + colW / 2;
+      const lineLeft  = cx - colW * 0.32;
+      const lineRight = cx + colW * 0.32;
+      doc.line(lineLeft, sigY, lineRight, sigY);
+      doc.text(label, cx, sigY + 5, { align: 'center' });
+    });
+
+    doc.setTextColor(0, 0, 0);
+    doc.setDrawColor(0, 0, 0);
   };
 
   /** Timetable PDF — All classes as rows, periods as columns, cell = Subject + Teacher */
   const generateClassPDF = (_classId?: string) => {
     const schoolRows = getSchoolRows().filter(r => r.slot_type === 'period');
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
-    pdfHeader(doc, 'Class-wise Timetable', `${classes.length} classes  ·  ${schoolRows.length} periods  ·  Monday schedule`);
+    pdfHeader(doc, 'Class-wise', `${classes.length} classes  ·  ${schoolRows.length} periods`);
 
     // Head: Class | Period1 | Period2 | ...
     const head = [['Class', ...schoolRows.map(r => `${r.label}\n${r.start_time}–${r.end_time}`)]];
@@ -581,9 +645,9 @@ export default function Timetable() {
     autoTable(doc, {
       head, body,
       startY: 32,
-      margin: { left: 5, right: 5, top: 32, bottom: 5 },
+      margin: { left: 5, right: 5, top: 32, bottom: 28 },
       theme: 'grid',
-      headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold', fontSize: 7, halign: 'center', cellPadding: { top: 3, bottom: 3, left: 2, right: 2 } },
+      headStyles: { fillColor: [63, 81, 181], textColor: 255, fontStyle: 'bold', fontSize: 7, halign: 'center', cellPadding: { top: 3, bottom: 3, left: 2, right: 2 } },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       columnStyles: {
         0: { cellWidth: classColW, fontStyle: 'bold', fillColor: [241, 245, 249] },
@@ -593,6 +657,7 @@ export default function Timetable() {
       rowPageBreak: 'avoid',
     });
 
+    pdfSignature(doc, (doc as any).lastAutoTable?.finalY ?? 32);
     doc.save('Class_Timetable_All.pdf');
   };
 
@@ -600,7 +665,7 @@ export default function Timetable() {
   const generateTeacherPDF = (_teacherId?: string) => {
     const schoolRows = getSchoolRows().filter(r => r.slot_type === 'period');
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
-    pdfHeader(doc, 'Teacher-wise Timetable', `${teachers.length} teachers  ·  ${schoolRows.length} periods  ·  Monday schedule`);
+    pdfHeader(doc, 'Teacher-wise', `${teachers.length} teachers  ·  ${schoolRows.length} periods`);
 
     // Head: Teacher | Period1 | Period2 | ...
     const head = [['Teacher', ...schoolRows.map(r => `${r.label}\n${r.start_time}–${r.end_time}`)]];
@@ -629,18 +694,19 @@ export default function Timetable() {
     autoTable(doc, {
       head, body,
       startY: 32,
-      margin: { left: 5, right: 5, top: 32, bottom: 5 },
+      margin: { left: 5, right: 5, top: 32, bottom: 28 },
       theme: 'grid',
-      headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold', fontSize: 7, halign: 'center', cellPadding: { top: 3, bottom: 3, left: 2, right: 2 } },
-      alternateRowStyles: { fillColor: [240, 253, 244] },
+      headStyles: { fillColor: [63, 81, 181], textColor: 255, fontStyle: 'bold', fontSize: 7, halign: 'center', cellPadding: { top: 3, bottom: 3, left: 2, right: 2 } },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
       columnStyles: {
-        0: { cellWidth: teacherColW, fontStyle: 'bold', fillColor: [240, 253, 244] },
+        0: { cellWidth: teacherColW, fontStyle: 'bold', fillColor: [241, 245, 249] },
         ...Object.fromEntries(schoolRows.map((_, i) => [i + 1, { cellWidth: periodColW, halign: 'center' as const }])),
       },
       styles: { fontSize: 6.5, cellPadding: { top: 3, bottom: 3, left: 2, right: 2 }, overflow: 'linebreak', lineColor: [226, 232, 240] },
       rowPageBreak: 'avoid',
     });
 
+    pdfSignature(doc, (doc as any).lastAutoTable?.finalY ?? 32);
     doc.save('Teacher_Timetable_All.pdf');
   };
 
@@ -650,11 +716,7 @@ export default function Timetable() {
    */
   const generateSchoolPDF = () => {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
-    pdfHeader(
-      doc,
-      'School Timetable',
-      `${classes.length} classes  ·  Timetable valid Mon – Sat  ·  Timing variations noted below`
-    );
+    pdfHeader(doc, 'School-wise', `${classes.length} classes  ·  Mon–Sat`);
 
     const rows = getSchoolRows();
     const pageW = doc.internal.pageSize.getWidth(); // A3 landscape ≈ 420mm
@@ -720,11 +782,11 @@ export default function Timetable() {
     autoTable(doc, {
       head,
       body,
-      startY: 26,
-      margin: { left: 5, right: 5, top: 26, bottom: 5 },
+      startY: 32,
+      margin: { left: 5, right: 5, top: 32, bottom: 28 },
       theme: 'grid',
       headStyles: {
-        fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold',
+        fillColor: [63, 81, 181], textColor: 255, fontStyle: 'bold',
         fontSize: 7, halign: 'center',
         cellPadding: { top: 3, bottom: 3, left: 2, right: 2 },
       },
@@ -764,6 +826,7 @@ export default function Timetable() {
       });
     }
 
+    pdfSignature(doc, (doc as any).lastAutoTable?.finalY ?? 32);
     doc.save('School_Timetable.pdf');
   };
 
@@ -879,56 +942,89 @@ export default function Timetable() {
            <tbody>${teacherBuilt!.rows}</tbody>
          </table>`;
 
-    const html = `<!DOCTYPE html><html><head><title>${title} — Timetable</title>
+    const modeLabel = mode === 'class' ? 'Class-wise' : mode === 'teacher' ? 'Teacher-wise' : 'School-wise';
+    const dateStr   = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    const sigSections: string[] = [
+      ...(sigPrincipal   ? [`<div class="sig-block"><div class="sig-line"></div><div class="sig-label">Principal</div></div>`]   : []),
+      ...(sigCoordinator ? [`<div class="sig-block"><div class="sig-line"></div><div class="sig-label">Coordinator</div></div>`] : []),
+      ...(sigDate        ? [`<div class="sig-block"><div class="sig-line"></div><div class="sig-label">Date</div></div>`]        : []),
+    ];
+    const signatureHtml = sigSections.length > 0
+      ? `<div class="sig-row">${sigSections.join('')}</div>`
+      : '';
+
+    const html = `<!DOCTYPE html><html><head><title>TIME TABLE — ${modeLabel}</title>
     <style>
-      * { box-sizing: border-box; }
-      body { font-family: Arial, sans-serif; padding: 10px; font-size: 9px; color: #1e293b; }
-      .header { background: #1e293b; color: #fff; padding: 8px 14px; border-radius: 5px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
-      .header h2 { margin: 0; font-size: 12px; } .header p { margin: 2px 0 0; font-size: 8px; opacity: 0.7; }
-      .meta { font-size: 8px; opacity: 0.7; text-align: right; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: Arial, sans-serif; padding: 10px; font-size: 9px; color: #1e293b; background: #fff; }
+
+      /* ── Professional header ── */
+      .doc-header { border-top: 3px solid #3f51b5; padding-top: 6px; margin-bottom: 10px; }
+      .school-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 4px; }
+      .school-logo { height: 38px; width: 38px; object-fit: contain; border-radius: 4px; }
+      .school-name { font-size: 15px; font-weight: 900; color: #1e293b; text-align: center; }
+      .school-detail { font-size: 7.5px; color: #64748b; text-align: center; margin-bottom: 4px; }
+      .sep-line { border: none; border-top: 1px solid #3f51b5; margin: 4px 0; opacity: 0.4; }
+      .title-row { display: flex; align-items: baseline; justify-content: space-between; }
+      .doc-title { font-size: 13px; font-weight: 900; color: #1e293b; letter-spacing: 2px; flex: 1; text-align: center; }
+      .mode-badge { font-size: 7.5px; font-weight: 700; color: #3f51b5; background: #e8eaf6; padding: 2px 7px; border-radius: 20px; white-space: nowrap; }
+      .doc-date { font-size: 7px; color: #94a3b8; white-space: nowrap; min-width: 70px; text-align: right; }
+      .bottom-rule { border: none; border-top: 1.5px solid #3f51b5; margin: 5px 0 8px; }
+
+      /* ── Table ── */
       table { width: 100%; border-collapse: collapse; margin-bottom: 8px; table-layout: fixed; }
-      th { background: #1e293b; color: #fff; padding: 4px 3px; font-size: 7px; text-transform: uppercase; letter-spacing: 0.3px; word-break: break-word; text-align: center; }
+      th { background: #3f51b5; color: #fff; padding: 4px 3px; font-size: 7px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; word-break: break-word; text-align: center; }
       td { border: 1px solid #e2e8f0; padding: 3px 4px; vertical-align: top; font-size: 8px; word-break: break-word; }
-      td strong { display: block; font-size: 8px; font-weight: 700; }
+      td strong { display: block; font-size: 8px; font-weight: 700; color: #1e293b; }
       td span, td small { font-size: 7px; color: #64748b; }
-      .period-col { background: #f8fafc; font-weight: 700; white-space: nowrap; }
+      .period-col { background: #f1f5f9; font-weight: 700; white-space: nowrap; color: #334155; }
       .break-row td { background: #fefce8; color: #92400e; font-weight: bold; text-align: center; font-size: 7.5px; padding: 3px; }
       .empty { color: #cbd5e1; }
       .free { color: #94a3b8; font-style: italic; }
-      .time-note { color: #7c3aed; font-size: 6.5px; font-weight: bold; }
-      .day-line { display: block; font-size: 7px; line-height: 1.5; }
-      .day-line b { color: #475569; }
-      tr:nth-child(even) { background: #f8fafc; }
+      tr:nth-child(even):not(.break-row) td:not(.period-col) { background: #f8fafc; }
+
+      /* ── Exceptions ── */
+      .exceptions-section { margin-top: 10px; }
+      .exceptions-header { background: #fef3c7; color: #92400e; font-weight: bold; font-size: 8px; padding: 3px 8px; border-left: 3px solid #f59e0b; margin-bottom: 3px; }
+      .exceptions-table { width: auto; border-collapse: collapse; font-size: 8px; }
+      .exceptions-table th { background: #fef3c7; color: #92400e; padding: 3px 8px; font-size: 7.5px; text-transform: uppercase; }
+      .exceptions-table td { border: 1px solid #fde68a; padding: 2px 8px; color: #78350f; }
+
+      /* ── Signatures ── */
+      .sig-row { display: flex; justify-content: space-around; margin-top: 28px; padding: 0 20px; }
+      .sig-block { flex: 1; text-align: center; padding: 0 16px; }
+      .sig-line { border-top: 1px solid #64748b; margin-bottom: 5px; }
+      .sig-label { font-size: 8px; color: #475569; font-weight: 600; letter-spacing: 0.5px; }
+
+      /* ── Print ── */
+      .print-btn { margin-bottom: 10px; padding: 7px 18px; background: #3f51b5; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 11px; }
       @media print {
         body { padding: 4px; }
-        .no-print { display: none; }
-        @page { margin: 5mm; }
-        .school-page { page: school; }
-        @page school { size: A3 landscape; }
-        .class-teacher-page { }
-        @page { size: A4 landscape; }
+        .no-print { display: none !important; }
+        @page { margin: 8mm; size: A3 landscape; }
       }
-      .print-btn { margin-bottom: 10px; padding: 7px 16px; background: #4f46e5; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 11px; }
-      .exceptions-section { margin-top: 14px; }
-      .exceptions-header { background: #fef3c7; color: #92400e; font-weight: bold; font-size: 8px; padding: 4px 8px; border-left: 3px solid #f59e0b; border-radius: 3px; margin-bottom: 4px; }
-      .exceptions-table { width: auto; border-collapse: collapse; font-size: 8px; }
-      .exceptions-table th { background: #fef3c7; color: #92400e; padding: 3px 8px; font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.3px; }
-      .exceptions-table td { border: 1px solid #fde68a; padding: 3px 8px; color: #78350f; }
     </style></head>
     <body>
     <button class="print-btn no-print" onclick="window.print()">🖨 Print</button>
-    <div class="header">
-      <div>
-        ${schoolInfo?.logo_url ? `<img src="${schoolInfo.logo_url}" style="height:32px;object-fit:contain;vertical-align:middle;margin-right:10px;border-radius:4px;" onerror="this.style.display='none'"/>` : ''}
-        <span style="vertical-align:middle">
-          <h2 style="margin:0;font-size:14px">${schoolInfo?.name || 'School Timetable'}</h2>
-          ${schoolInfo?.address || schoolInfo?.phone ? `<p style="margin:2px 0 0;font-size:8px;opacity:0.7">${[schoolInfo?.address, schoolInfo?.phone].filter(Boolean).join('  •  ')}</p>` : ''}
-          <p style="margin:3px 0 0;font-size:9px;opacity:0.85;font-weight:bold">${title}</p>
-        </span>
+
+    <div class="doc-header">
+      <div class="school-row">
+        ${schoolInfo?.logo_url ? `<img src="${schoolInfo.logo_url}" class="school-logo" onerror="this.style.display='none'"/>` : ''}
+        <div class="school-name">${schoolInfo?.name || 'School'}</div>
       </div>
-      <div class="meta">Generated: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+      ${(schoolInfo?.address || schoolInfo?.phone) ? `<div class="school-detail">${[schoolInfo?.address, schoolInfo?.phone].filter(Boolean).join('   •   ')}</div>` : ''}
+      <hr class="sep-line"/>
+      <div class="title-row">
+        <span class="mode-badge">${modeLabel}</span>
+        <span class="doc-title">TIME TABLE</span>
+        <span class="doc-date">${dateStr}</span>
+      </div>
+      <hr class="bottom-rule"/>
     </div>
+
     ${tables}
+    ${signatureHtml}
     </body></html>`;
 
     const w = window.open('', '_blank');
@@ -1819,9 +1915,34 @@ export default function Timetable() {
                     <p className="text-xs font-black text-slate-700">{schoolInfo.name}</p>
                     {(schoolInfo.address || schoolInfo.phone) && <p className="text-[10px] text-slate-400">{[schoolInfo.address, schoolInfo.phone].filter(Boolean).join('  ·  ')}</p>}
                   </div>
-                  <span className="ml-auto text-[9px] text-slate-400 italic">printed on PDF</span>
+                  <span className="ml-auto text-[9px] text-slate-400 italic">branding on PDF</span>
                 </div>
               )}
+
+              {/* Signature options */}
+              <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Signature Lines at Bottom</p>
+                <div className="flex gap-4 flex-wrap">
+                  {([
+                    { label: 'Principal',   val: sigPrincipal,   set: setSigPrincipal },
+                    { label: 'Coordinator', val: sigCoordinator, set: setSigCoordinator },
+                    { label: 'Date',        val: sigDate,        set: setSigDate },
+                  ] as const).map(({ label, val, set }) => (
+                    <label key={label} className="flex items-center gap-2 cursor-pointer select-none">
+                      <input type="checkbox" checked={val} onChange={e => set(e.target.checked)}
+                        className="w-4 h-4 rounded accent-indigo-600" />
+                      <span className="text-xs font-semibold text-slate-600">{label}</span>
+                    </label>
+                  ))}
+                </div>
+                {(sigPrincipal || sigCoordinator || sigDate) && (
+                  <div className="mt-3 flex gap-6 border-t border-slate-200 pt-3">
+                    {sigPrincipal   && <div className="flex-1 text-center"><div className="border-t border-slate-400 mb-1 mx-4"/><p className="text-[9px] text-slate-500">Principal</p></div>}
+                    {sigCoordinator && <div className="flex-1 text-center"><div className="border-t border-slate-400 mb-1 mx-4"/><p className="text-[9px] text-slate-500">Coordinator</p></div>}
+                    {sigDate        && <div className="flex-1 text-center"><div className="border-t border-slate-400 mb-1 mx-4"/><p className="text-[9px] text-slate-500">Date</p></div>}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Footer buttons */}
