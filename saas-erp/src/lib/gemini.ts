@@ -132,19 +132,34 @@ export async function* streamGemini(
     })),
   ];
 
-  const response = await fetch('/api/ai-proxy', {
+  const provider = 'groq';
+  const endpoint = 'chat/completions';
+
+  const payload = {
+    model: 'llama-3.1-8b-instant',
+    messages,
+    stream: true,
+    temperature: 0.4,
+  };
+
+  const isDev = import.meta.env.DEV;
+  const apiKey = import.meta.env.VITE_GROQ_API_KEY || (typeof process !== 'undefined' ? process.env.GROQ_API_KEY : null);
+
+  let targetUrl: string;
+  let authHeader: string | null;
+
+  if (isDev && provider === 'groq' && apiKey) {
+    targetUrl = `https://api.groq.com/openai/v1/${endpoint}`;
+    authHeader = `Bearer ${apiKey}`;
+  } else {
+    targetUrl = '/api/ai-proxy';
+    authHeader = null; // Proxy adds the header
+  }
+
+  const response = await fetch(targetUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      provider: 'groq',
-      endpoint: 'chat/completions',
-      payload: {
-        model: 'llama-3.1-8b-instant',
-        messages,
-        stream: true,
-        temperature: 0.4,
-      }
-    }),
+    headers: { 'Content-Type': 'application/json', ...(authHeader ? { 'Authorization': authHeader } : {}) },
+    body: JSON.stringify(isDev && provider === 'groq' ? payload : { provider, endpoint, payload }),
   });
 
   if (!response.ok || !response.body) {
