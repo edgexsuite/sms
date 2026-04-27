@@ -353,11 +353,11 @@ export default function StudentFeeDetail() {
   const totalOutstanding = calculateTotalDue();
 
   return (
-    <div className="flex flex-col gap-3 print:block">
+    <div className="h-[calc(100vh-80px)] flex flex-col gap-3 print:block print:h-auto">
       <style>{`@media print { .no-print { display: none !important; } body { background: white; } }`}</style>
 
-      {/* Onboarding Help */}
-      <div className="no-print">
+      {/* Onboarding Help — shrinks area when visible */}
+      <div className="shrink-0 no-print">
         <HelpBanner
           storageKey="help_student_fee_ledger"
           title="How to use Student Fee Ledger"
@@ -373,8 +373,8 @@ export default function StudentFeeDetail() {
         />
       </div>
 
-      {/* ── Content area (fixed height) ─────────────────────────────── */}
-      <div className="h-[calc(100vh-160px)] flex gap-4 overflow-hidden print:block print:h-auto">
+      {/* ── Content area ─────────────────────────────────────────────── */}
+      <div className="flex-1 min-h-0 flex gap-4 overflow-hidden print:block print:h-auto">
 
       {/* ── Left Sidebar ─────────────────────────────────────────────── */}
       <div className="no-print w-72 flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden shrink-0">
@@ -923,7 +923,7 @@ export default function StudentFeeDetail() {
         )}
       </AnimatePresence>
 
-      </div> {/* end fixed-height content area */}
+      </div> {/* end content area */}
     </div>
   );
 }

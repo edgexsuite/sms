@@ -306,24 +306,23 @@ export default function EasyFee() {
     .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="h-[calc(100vh-80px)] flex flex-col gap-3">
 
-      {/* Onboarding Help */}
-      <HelpBanner
-        storageKey="help_quick_collection"
-        title="How to use Quick Collection"
-        color="emerald"
-        steps={[
-          'Type a student name, roll number, or ID in the search box on the left.',
-          'Select the student — their pending invoices appear automatically.',
-          'Enter the amount to collect and choose a payment method.',
-          'Click Collect — the payment is recorded and a challan receipt is printed.',
-        ]}
-        tip='For bulk invoice generation for a whole class, use Fee Management → Generate Invoices instead.'
-      />
-
-      {/* ── Main panel (fixed height so panels don't overflow) ─────── */}
-      <div className="h-[calc(100vh-180px)] flex flex-col gap-4">
+      {/* Onboarding Help — shrinks when visible, disappears when dismissed */}
+      <div className="shrink-0">
+        <HelpBanner
+          storageKey="help_quick_collection"
+          title="How to use Quick Collection"
+          color="emerald"
+          steps={[
+            'Type a student name, roll number, or ID in the search box on the left.',
+            'Select the student — their pending invoices appear automatically.',
+            'Enter the amount to collect and choose a payment method.',
+            'Click Collect — the payment is recorded and a challan receipt is printed.',
+          ]}
+          tip='For bulk invoice generation for a whole class, use Fee Management → Generate Invoices instead.'
+        />
+      </div>
 
       {/* ── Header ───────────────────────────────────────────────── */}
       <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-6 py-3 shadow-sm shrink-0">
@@ -350,7 +349,7 @@ export default function EasyFee() {
         </div>
       </div>
 
-      <div className="flex-1 flex gap-4 min-h-0">
+      <div className="flex-1 min-h-0 flex gap-4">
 
         {/* ── Left Sidebar ─────────────────────────────────────────── */}
         <div className="w-72 flex flex-col gap-4 shrink-0">
@@ -710,7 +709,6 @@ export default function EasyFee() {
           </div>
         )}
       </AnimatePresence>
-      </div> {/* end main panel */}
     </div>
   );
 }
