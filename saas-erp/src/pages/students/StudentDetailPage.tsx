@@ -63,6 +63,16 @@ export default function StudentDetailPage() {
   const [editForm, setEditForm] = useState({ total_amount: '', paid_amount: '', paid_at: '', month_year: '' });
   const [editBreakdown, setEditBreakdown] = useState<BreakdownRow[]>([]);
 
+  // New Custom Entry State
+  const [showNewEntry, setShowNewEntry] = useState(false);
+  const [newEntryType, setNewEntryType] = useState<'monthly' | 'onetime'>('monthly');
+  const [newEntryMonth, setNewEntryMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [newEntryDueDate, setNewEntryDueDate] = useState('');
+  const [newEntryBreakdown, setNewEntryBreakdown] = useState<BreakdownRow[]>([]);
+  const [newEntryPaid, setNewEntryPaid] = useState('');
+  const [newEntryPayMode, setNewEntryPayMode] = useState('Cash');
+  const [creatingEntry, setCreatingEntry] = useState(false);
+
   useEffect(() => {
     if (userRole?.school_id) {
       supabase.from('schools').select('name,logo_url,address,contact_phone').eq('id', userRole.school_id).maybeSingle().then(({ data }) => setSchool(data));
@@ -264,6 +274,90 @@ export default function StudentDetailPage() {
       alert(err.message || 'Payment failed.');
     } finally {
       setCollectSaving(false);
+    }
+  };
+
+  // Open the new-entry modal, pre-loading fee template for monthly type
+  const openNewEntry = async (type: 'monthly' | 'onetime') => {
+    setNewEntryType(type);
+    setNewEntryMonth(new Date().toISOString().slice(0, 7));
+    setNewEntryDueDate('');
+    setNewEntryPaid('');
+    setNewEntryPayMode('Cash');
+
+    if (type === 'monthly' && student?.class_id) {
+      // Try to preload from fee_structures for this student's class
+      const { data: fs } = await supabase
+        .from('fee_structures')
+        .select('fee_matrix, amount')
+        .eq('school_id', userRole!.school_id)
+        .eq('class_id', student.class_id)
+        .maybeSingle();
+
+      if (fs?.fee_matrix?.recurrent?.length) {
+        setNewEntryBreakdown(
+          fs.fee_matrix.recurrent.map((r: any) => ({ item: r.item, amount: Number(r.amount) || 0 }))
+        );
+      } else {
+        // No template → start with one empty row
+        setNewEntryBreakdown([{ item: 'Tuition Fee', amount: 0 }]);
+      }
+    } else {
+      // One-time: start with one empty row, user picks from onetime suggestions
+      setNewEntryBreakdown([{ item: '', amount: 0 }]);
+    }
+
+    setShowNewEntry(true);
+  };
+
+  // Save a custom fee entry (historical import or new one-time charge)
+  const handleCreateEntry = async () => {
+    if (!student || newEntryBreakdown.length === 0) return;
+    const totalAmt = newEntryBreakdown.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    if (totalAmt <= 0) return alert('Add at least one fee item with an amount.');
+    const paidAmt = parseFloat(newEntryPaid) || 0;
+    const newStatus = paidAmt >= totalAmt ? 'paid' : paidAmt > 0 ? 'partial' : 'pending';
+
+    setCreatingEntry(true);
+    try {
+      const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
+      const { data: rec, error: recErr } = await supabase.from('fee_records').insert({
+        school_id: userRole!.school_id,
+        student_id: student.id,
+        class_id: student.class_id,
+        month_year: newEntryMonth + '-01',
+        due_date: newEntryDueDate || null,
+        total_amount: totalAmt,
+        paid_amount: paidAmt,
+        status: newStatus,
+        payment_mode: paidAmt > 0 ? newEntryPayMode : null,
+        paid_at: paidAmt > 0 ? new Date().toISOString() : null,
+        breakdown: newEntryBreakdown,
+        invoice_number: invoiceNumber,
+      }).select().single();
+      if (recErr) throw recErr;
+
+      // Log to ledger if any amount was paid
+      if (paidAmt > 0 && rec) {
+        await supabase.from('financial_transactions').insert({
+          school_id: userRole!.school_id,
+          type: 'income',
+          category: 'Fee Collection',
+          amount: paidAmt,
+          date: new Date().toISOString().split('T')[0],
+          payment_mode: newEntryPayMode,
+          remarks: `${student.full_name} — ${invoiceNumber}`,
+          fee_record_id: rec.id,
+          fee_items: newEntryBreakdown,
+        });
+      }
+
+      setShowNewEntry(false);
+      handleFeeModalSave();
+    } catch (err: any) {
+      alert(err.message || 'Failed to create entry.');
+    } finally {
+      setCreatingEntry(false);
     }
   };
 
@@ -904,7 +998,7 @@ export default function StudentDetailPage() {
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <h3 className="text-sm font-black text-slate-700">Fee Records</h3>
                 {!isReadOnly && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {/* Custom fee override indicator */}
                     {student.fee_override && (
                       <span className="text-[10px] font-black text-violet-700 bg-violet-100 px-2 py-1 rounded-full uppercase tracking-widest">
@@ -919,11 +1013,29 @@ export default function StudentDetailPage() {
                       <CreditCard className="w-4 h-4" />
                       {student.fee_override ? 'Edit Custom Fees' : 'Customize Fees'}
                     </button>
+                    {/* One-time / historical entry (admission fee, registration, etc.) */}
+                    <button
+                      onClick={() => openNewEntry('onetime')}
+                      className="flex items-center gap-1.5 px-3 py-2 border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-xl text-sm font-bold transition"
+                      title="Add a one-time charge (admission fee, registration, etc.)"
+                    >
+                      <Plus className="w-4 h-4" /> One-Time Entry
+                    </button>
+                    {/* Monthly fee entry — preloads class fee template */}
+                    <button
+                      onClick={() => openNewEntry('monthly')}
+                      className="flex items-center gap-1.5 px-3 py-2 border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl text-sm font-bold transition"
+                      title="Add a monthly fee invoice (pre-fills from class fee template)"
+                    >
+                      <Plus className="w-4 h-4" /> Monthly Entry
+                    </button>
+                    {/* Bulk generate (original modal) */}
                     <button
                       onClick={() => setShowFeeModal(true)}
                       className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition shadow-sm"
+                      title="Bulk-generate monthly invoices for multiple months"
                     >
-                      <Plus className="w-4 h-4" /> Add Invoice
+                      <Plus className="w-4 h-4" /> Generate Monthly
                     </button>
                   </div>
                 )}
@@ -1064,6 +1176,127 @@ export default function StudentDetailPage() {
           )}
         </div>
       </div>
+
+      {/* ── New Custom Fee Entry Modal ── */}
+      {showNewEntry && student && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className={`px-6 py-4 flex items-center justify-between flex-shrink-0 ${newEntryType === 'onetime' ? 'bg-gradient-to-r from-amber-600 to-orange-600' : 'bg-gradient-to-r from-indigo-600 to-violet-600'}`}>
+              <div>
+                <h2 className="text-white font-black text-sm leading-none">
+                  {newEntryType === 'onetime' ? 'One-Time / Admission Fee Entry' : 'Monthly Fee Entry'}
+                </h2>
+                <p className="text-white/70 text-xs mt-1">{student.full_name}</p>
+              </div>
+              <button onClick={() => setShowNewEntry(false)} className="p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition">
+                <XIcon className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              {/* Type toggle */}
+              <div className="flex rounded-xl overflow-hidden border border-gray-200 text-sm font-bold">
+                <button
+                  onClick={() => openNewEntry('monthly')}
+                  className={`flex-1 py-2 transition ${newEntryType === 'monthly' ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+                >Monthly Fee</button>
+                <button
+                  onClick={() => openNewEntry('onetime')}
+                  className={`flex-1 py-2 transition ${newEntryType === 'onetime' ? 'bg-amber-500 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+                >One-Time / Historical</button>
+              </div>
+
+              {/* Helpful hint */}
+              <p className="text-[11px] text-gray-400 bg-gray-50 rounded-xl px-3 py-2">
+                {newEntryType === 'monthly'
+                  ? '📅 Monthly fee auto-loaded from class template. Adjust amounts if needed.'
+                  : '🏫 Use this for admission fee, registration, security deposit, or any historical entry.'}
+              </p>
+
+              {/* Date fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase mb-1">
+                    {newEntryType === 'monthly' ? 'Fee Month' : 'Period / Date'}
+                  </label>
+                  <input
+                    type="month"
+                    value={newEntryMonth}
+                    onChange={e => setNewEntryMonth(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase mb-1">Due Date (optional)</label>
+                  <input
+                    type="date"
+                    value={newEntryDueDate}
+                    onChange={e => setNewEntryDueDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Fee breakdown */}
+              <div>
+                <label className="block text-[10px] font-black text-gray-500 uppercase mb-2">Fee Items</label>
+                <FeeBreakdownEditor
+                  breakdown={newEntryBreakdown}
+                  onChange={setNewEntryBreakdown}
+                  schoolId={userRole?.school_id}
+                  itemType={newEntryType === 'monthly' ? 'recurring' : 'onetime'}
+                />
+              </div>
+
+              {/* Already-paid amount (for historical imports) */}
+              <div className="border-t border-gray-100 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase mb-1">Amount Already Paid (Rs)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newEntryPaid}
+                    onChange={e => setNewEntryPaid(e.target.value)}
+                    placeholder="0 if unpaid"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm font-mono font-bold text-emerald-700"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase mb-1">Payment Mode</label>
+                  <select
+                    value={newEntryPayMode}
+                    onChange={e => setNewEntryPayMode(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm"
+                  >
+                    {PAY_MODES.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+              </div>
+              <p className="text-[10px] text-gray-400 -mt-2">
+                Leave "Amount Already Paid" as 0 to save as pending. For historical records, enter the amount paid.
+              </p>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3 flex-shrink-0">
+              <button
+                onClick={() => setShowNewEntry(false)}
+                className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50 transition"
+              >Cancel</button>
+              <button
+                onClick={handleCreateEntry}
+                disabled={creatingEntry || newEntryBreakdown.length === 0}
+                className={`flex-1 py-2.5 text-white font-black rounded-xl text-sm transition disabled:opacity-50 flex items-center justify-center gap-2 ${newEntryType === 'onetime' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+              >
+                {creatingEntry ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                {creatingEntry ? 'Saving...' : 'Save Entry'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Edit Fee Record Modal ── */}
       {editingFee && (
