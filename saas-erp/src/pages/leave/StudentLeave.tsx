@@ -51,8 +51,8 @@ export default function StudentLeave() {
   }, [userRole]);
 
   const fetchMyInchargeStatus = async () => {
-    // 1. Get staff ID for current user
-    const { data: staffData } = await supabase.from('staff').select('id, role').eq('school_id', userRole?.school_id).eq('email', userRole?.email).single();
+    if (!userRole?.school_id || !userRole?.email) return;
+    const { data: staffData } = await supabase.from('staff').select('id, role').eq('school_id', userRole?.school_id).eq('email', userRole?.email).maybeSingle();
     if (staffData) {
       setStaffId(staffData.id);
       // 2. Check if they are incharge of any class
@@ -122,9 +122,47 @@ export default function StudentLeave() {
       updates.status = 'forwarded';
       updates.pending_with_role = 'coordinator';
     }
-    await supabase.from('leave_applications').update(updates).eq('id', id);
+    
+    const { error } = await supabase.from('leave_applications').update(updates).eq('id', id);
+    if (error) {
+      alert('Error updating leave status: ' + error.message);
+      return;
+    }
+
+    // Sync with attendance if approved
+    if (status === 'approved') {
+      const leave = leaves.find(l => l.id === id);
+      if (leave) {
+        await syncLeaveWithAttendance(leave);
+      }
+    }
+
     setRejectModal(null);
     fetchLeaves();
+  };
+
+  const syncLeaveWithAttendance = async (leave: any) => {
+    const dates = [];
+    let curr = new Date(leave.from_date);
+    const end = new Date(leave.to_date);
+    while (curr <= end) {
+      dates.push(new Date(curr).toISOString().split('T')[0]);
+      curr.setDate(curr.getDate() + 1);
+    }
+
+    const attendanceRecords = dates.map(date => ({
+      school_id: userRole?.school_id,
+      student_id: leave.student_id,
+      date,
+      status: 'leave',
+      marked_by: userRole?.id || null
+    }));
+
+    const { error } = await supabase.from('attendance').upsert(attendanceRecords, {
+      onConflict: 'student_id,date'
+    });
+
+    if (error) console.error('Error syncing leave with attendance:', error);
   };
 
   const handleDelete = async (id: string) => {

@@ -21,7 +21,8 @@ export default function DashboardAlerts() {
   useEffect(() => {
     const sid = userRole?.school_id;
     const role = userRole?.role;
-    if (sid && (role === 'admin' || role === 'staff')) {
+    const canSeeAlerts = ['admin', 'staff', 'principal', 'director'].includes(role || '');
+    if (sid && canSeeAlerts) {
       fetchAlerts(sid);
       fetchAnnouncements(sid);
     }

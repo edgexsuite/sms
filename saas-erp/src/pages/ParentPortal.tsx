@@ -4,9 +4,11 @@ import { supabase } from '../lib/supabase';
 import {
   GraduationCap, LogOut, Download, MessageCircle, ChevronRight, Eye, EyeOff,
   BookOpen, LayoutDashboard, CreditCard, CalendarCheck, BarChart2, Clock, Bell,
-  ChevronLeft, CheckCircle2, XCircle, AlertCircle, TrendingUp, Users, ClipboardList
+  ChevronLeft, CheckCircle2, XCircle, AlertCircle, TrendingUp, Users, ClipboardList,
+  CalendarOff, Plus, X, Save, RefreshCw
 } from 'lucide-react';
 import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, ChallanRecord, SchoolInfo } from '../lib/challanUtils';
+import ChatInterface from '../components/ChatInterface';
 
 interface ParentData {
   id: string;
@@ -21,10 +23,15 @@ interface ChildData {
   roll_number: number | string;
   photograph_url?: string;
   class_id?: string;
-  classes?: { name: string; section?: string } | null;
+  classes?: { 
+    name: string; 
+    section?: string; 
+    class_teacher_id?: string;
+    staff?: { full_name: string; photograph_url?: string } | null;
+  } | null;
 }
 
-type Tab = 'overview' | 'fees' | 'attendance' | 'results' | 'timetable' | 'homework' | 'notices';
+type Tab = 'overview' | 'fees' | 'attendance' | 'leave' | 'results' | 'timetable' | 'homework' | 'notices' | 'chat';
 
 const SESSION_KEY = 'parent_portal_session';
 
@@ -80,7 +87,19 @@ export default function ParentPortal() {
   // Notices
   const [notices, setNotices] = useState<any[]>([]);
   // Homework
+  // Homework
   const [homework, setHomework] = useState<any[]>([]);
+  // Leave
+  const [leaveApplications, setLeaveApplications] = useState<any[]>([]);
+  const [showLeaveForm, setShowLeaveForm] = useState(false);
+  const [submittingLeave, setSubmittingLeave] = useState(false);
+  const [leaveForm, setLeaveForm] = useState({
+    leave_type: 'Sick Leave',
+    from_date: new Date().toISOString().split('T')[0],
+    to_date: new Date().toISOString().split('T')[0],
+    reason: ''
+  });
+
   const [urduMode, setUrduMode] = useState(false);
 
   useEffect(() => {
@@ -100,7 +119,7 @@ export default function ParentPortal() {
 
       const { data: childData } = await supabase
         .from('students')
-        .select('id, full_name, roll_number, photograph_url, class_id, classes(name, section)')
+        .select('id, full_name, roll_number, photograph_url, class_id, classes(name, section, class_teacher_id, staff:class_teacher_id(full_name, photograph_url))')
         .eq('school_id', parentData.school_id)
         .eq('parent_id', parentData.id)
         .eq('status', 'active');
@@ -126,7 +145,7 @@ export default function ParentPortal() {
   };
 
   const fetchChildData = async (child: ChildData) => {
-    const [fees, attendance, results, timetable, notifs, hw] = await Promise.all([
+    const resultsList = await Promise.all([
       // Fees
       supabase.from('fee_records').select('*')
         .eq('school_id', parentData!.school_id)
@@ -168,14 +187,22 @@ export default function ParentPortal() {
             .order('diary_date', { ascending: false })
             .limit(30)
         : Promise.resolve({ data: [] }),
+      // Leaves
+      supabase.from('leave_applications').select('*')
+        .eq('school_id', parentData!.school_id)
+        .eq('student_id', child.id)
+        .order('created_at', { ascending: false }),
     ]);
 
+    const [fees, att, res, tt, not, hwork, leaves] = resultsList;
+
     setFeeRecords(fees.data || []);
-    setAttendanceRecords(attendance.data || []);
-    setExamResults(results.data || []);
-    setTimetableSlots(timetable.data || []);
-    setNotices(notifs.data || []);
-    setHomework(hw.data || []);
+    setAttendanceRecords(att.data || []);
+    setExamResults(res.data || []);
+    setTimetableSlots(tt.data || []);
+    setNotices(not.data || []);
+    setHomework(hwork.data || []);
+    setLeaveApplications(leaves.data || []);
   };
 
   const handleChildSwitch = async (childId: string) => {
@@ -183,6 +210,52 @@ export default function ParentPortal() {
     setActiveTab('overview');
     const child = children.find(c => c.id === childId);
     if (child) await fetchChildData(child);
+  };
+
+  const handleSubmitLeave = async () => {
+    if (!parentData || !activeChildId) return;
+    if (leaveForm.to_date < leaveForm.from_date) {
+      alert('End date cannot be before start date.');
+      return;
+    }
+    if (!leaveForm.reason.trim()) {
+      alert('Please provide a reason for leave.');
+      return;
+    }
+
+    setSubmittingLeave(true);
+    try {
+      const { error } = await supabase.from('leave_applications').insert([{
+        school_id: parentData.school_id,
+        student_id: activeChildId,
+        applicant_type: 'student',
+        leave_type: leaveForm.leave_type,
+        from_date: leaveForm.from_date,
+        to_date: leaveForm.to_date,
+        reason: leaveForm.reason,
+        status: 'pending'
+      }]);
+
+      if (error) throw error;
+
+      setShowLeaveForm(false);
+      setLeaveForm({
+        leave_type: 'Sick Leave',
+        from_date: new Date().toISOString().split('T')[0],
+        to_date: new Date().toISOString().split('T')[0],
+        reason: ''
+      });
+
+      // Refresh leave list
+      const child = children.find(c => c.id === activeChildId);
+      if (child) fetchChildData(child);
+      
+      alert('Leave application submitted successfully.');
+    } catch (err: any) {
+      alert('Error submitting leave: ' + err.message);
+    } finally {
+      setSubmittingLeave(false);
+    }
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -334,10 +407,12 @@ export default function ParentPortal() {
     { id: 'overview', label: 'Overview', icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: 'fees', label: 'Fees', icon: <CreditCard className="w-4 h-4" /> },
     { id: 'attendance', label: 'Attendance', icon: <CalendarCheck className="w-4 h-4" /> },
+    { id: 'leave', label: 'Leave', icon: <CalendarOff className="w-4 h-4" /> },
     { id: 'results', label: 'Results', icon: <BarChart2 className="w-4 h-4" /> },
     { id: 'timetable', label: 'Timetable', icon: <Clock className="w-4 h-4" /> },
     { id: 'homework', label: 'Homework', icon: <BookOpen className="w-4 h-4" /> },
     { id: 'notices', label: 'Notices', icon: <Bell className="w-4 h-4" /> },
+    { id: 'chat', label: 'Chat', icon: <MessageCircle className="w-4 h-4" /> },
   ];
 
   // ─── LOGIN SCREEN ──────────────────────────────────────────────────────────
@@ -638,6 +713,20 @@ export default function ParentPortal() {
               {activeTab === 'timetable' && <TimetableTab slots={timetableSlots} todayName={todayName} />}
               {activeTab === 'notices' && <NoticesTab notices={notices} />}
               {activeTab === 'homework' && <HomeworkTab homework={homework} />}
+              {activeTab === 'leave' && (
+                <LeaveTab 
+                  applications={leaveApplications}
+                  onApplyLeave={() => setShowLeaveForm(true)}
+                  urduMode={urduMode}
+                />
+              )}
+              {activeTab === 'chat' && activeChild && (
+                <ChatTab 
+                  schoolId={parentData.school_id}
+                  parentId={parentData.id}
+                  student={activeChild}
+                />
+              )}
             </div>
           </>
         )}
@@ -669,9 +758,87 @@ export default function ParentPortal() {
       </nav>
 
       {/* Footer (Desktop Only) */}
-      <footer className="hidden sm:block text-center py-10 text-xs font-bold text-gray-400 uppercase tracking-widest">
-        {school.name} <span className="mx-2">·</span> Parent Portal <span className="mx-2">·</span> Powered by School ERP
       </footer>
+      
+      {/* ══════════════════════════════════════════════════════════════════
+          APPLY LEAVE MODAL
+      ══════════════════════════════════════════════════════════════════ */}
+      {showLeaveForm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowLeaveForm(false)} />
+          <div className="bg-white rounded-3xl w-full max-w-lg relative z-10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+              <div>
+                <h2 className="font-black text-lg">{urduMode ? 'درخواستِ رخصت' : 'Apply for Leave'}</h2>
+                <p className="text-blue-100 text-xs mt-0.5">{urduMode ? 'اپنے بچے کی چھٹی کی تفصیلات درج کریں' : 'Provide details for your child\'s absence'}</p>
+              </div>
+              <button onClick={() => setShowLeaveForm(false)} className="p-2 hover:bg-white/20 rounded-xl transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">{urduMode ? 'رخصت کی قسم' : 'Leave Type'}</label>
+                <select
+                  value={leaveForm.leave_type}
+                  onChange={e => setLeaveForm(p => ({ ...p, leave_type: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                >
+                  {['Sick Leave', 'Casual Leave', 'Emergency Leave', 'Family Event', 'Medical Procedure', 'Other'].map(t => <option key={t}>{t}</option>)}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">{urduMode ? 'کب سے' : 'From Date'}</label>
+                  <input
+                    type="date"
+                    value={leaveForm.from_date}
+                    onChange={e => setLeaveForm(p => ({ ...p, from_date: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">{urduMode ? 'کب تک' : 'To Date'}</label>
+                  <input
+                    type="date"
+                    value={leaveForm.to_date}
+                    min={leaveForm.from_date}
+                    onChange={e => setLeaveForm(p => ({ ...p, to_date: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">{urduMode ? 'وجہ' : 'Reason for Leave'}</label>
+                <textarea
+                  rows={3}
+                  value={leaveForm.reason}
+                  onChange={e => setLeaveForm(p => ({ ...p, reason: e.target.value }))}
+                  placeholder={urduMode ? 'چھٹی کی وجہ یہاں لکھیں...' : 'Describe the reason for absence…'}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3 bg-gray-50">
+              <button onClick={() => setShowLeaveForm(false)} className="flex-1 border border-gray-200 bg-white rounded-xl py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50 transition">
+                {urduMode ? 'منسوخ کریں' : 'Cancel'}
+              </button>
+              <button 
+                onClick={handleSubmitLeave}
+                disabled={submittingLeave}
+                className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-2.5 text-sm font-black uppercase tracking-widest transition flex items-center justify-center gap-2 shadow-lg shadow-blue-200 disabled:opacity-50"
+              >
+                {submittingLeave ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {submittingLeave ? (urduMode ? 'محفوظ ہو رہا ہے...' : 'Submitting...') : (urduMode ? 'درخواست بھیجیں' : 'Submit Application')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -693,6 +860,7 @@ function DashboardHub({ child, attPct, attPresent, attAbsent, totalDue, pendingC
     { id: 'results', label: 'Exam Results', icon: BarChart2, color: 'text-indigo-600', bg: 'bg-indigo-50', sub: 'Performance' },
     { id: 'homework', label: 'Homework', icon: BookOpen, color: 'text-amber-600', bg: 'bg-amber-50', sub: 'Teacher Diary' },
     { id: 'timetable', label: 'Timetable', icon: Clock, color: 'text-emerald-600', bg: 'bg-emerald-50', sub: 'Weekly Schedule' },
+    { id: 'leave', label: 'Leave', icon: CalendarOff, color: 'text-rose-600', bg: 'bg-rose-50', sub: 'Applications' },
   ];
 
   return (
@@ -1275,6 +1443,188 @@ function NoticesTab({ notices }: { notices: any[] }) {
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+// ─── LEAVE TAB component ───────────────────────────────────────────────────
+function LeaveTab({ 
+  applications, 
+  onApplyLeave, 
+  urduMode 
+}: { 
+  applications: any[]; 
+  onApplyLeave: () => void;
+  urduMode: boolean;
+}) {
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="bg-white rounded-3xl border border-gray-100 p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm ring-1 ring-gray-200 relative overflow-hidden group">
+        <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:scale-110 transition-transform">
+           <CalendarOff className="w-24 h-24" />
+        </div>
+        <div className="relative z-10 text-center sm:text-left">
+          <h2 className="font-black text-gray-900 text-xl tracking-tight">
+            {urduMode ? 'چھٹی کی درخواست' : 'Leave Management'}
+          </h2>
+          <p className="text-gray-400 text-sm mt-1 max-w-sm">
+            {urduMode ? 'اپنے بچے کی چھٹی کی درخواست یہاں سے بھیجیں اور پہلے سے موجود درخواستوں کا ریکارڈ دیکھیں۔' : 'Submit new leave requests and track the approval status of previous applications.'}
+          </p>
+        </div>
+        <button 
+          onClick={onApplyLeave}
+          className="relative z-10 w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-black px-8 py-3.5 rounded-2xl shadow-xl shadow-blue-200 flex items-center justify-center gap-2 transition-all active:scale-95"
+        >
+          <Plus className="w-5 h-5" /> {urduMode ? 'درخواست دیں' : 'Apply New Leave'}
+        </button>
+      </div>
+
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden ring-1 ring-gray-200">
+        <div className="p-6 border-b border-gray-100 bg-slate-50/50 flex items-center justify-between">
+          <h3 className="font-black text-gray-900 text-xs uppercase tracking-widest flex items-center gap-2">
+            <ClipboardList className="w-4 h-4 text-gray-400" />
+            {urduMode ? 'درخواستوں کی فہرست' : 'Application History'}
+          </h3>
+          <span className="text-[10px] font-black text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+            {applications.length} TOTAL
+          </span>
+        </div>
+        
+        <div className="divide-y divide-gray-100">
+          {applications.length === 0 ? (
+            <div className="p-16 text-center">
+              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CalendarOff className="w-8 h-8 text-gray-200" />
+              </div>
+              <p className="text-gray-900 font-black text-sm">
+                {urduMode ? 'کوئی درخواست نہیں ملی۔' : 'No Applications Yet'}
+              </p>
+              <p className="text-gray-400 text-xs mt-1">
+                {urduMode ? 'آپ کی طرف سے بھیجی گئی تمام درخواستیں یہاں دکھائی دیں گی۔' : 'Your child\'s leave request history will appear here.'}
+              </p>
+            </div>
+          ) : (
+            applications.map(app => (
+              <div key={app.id} className="p-6 hover:bg-gray-50/80 transition-all group">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                      <CalendarOff className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-black text-gray-900 text-lg">{app.leave_type}</p>
+                        <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border uppercase tracking-tighter ${
+                          app.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                          app.status === 'rejected' ? 'bg-red-50 text-red-700 border-red-100' :
+                          'bg-amber-50 text-amber-700 border-amber-100'
+                        }`}>
+                          {app.status}
+                        </span>
+                      </div>
+                      <p className="text-xs font-bold text-gray-400 mt-0.5">
+                        {new Date(app.from_date).toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        <span className="mx-2 text-gray-200">→</span>
+                        {new Date(app.to_date).toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex-1 sm:max-w-xs">
+                     <div className="bg-gray-100/50 rounded-2xl p-4 border border-gray-100 group-hover:bg-white transition-colors">
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                          <AlertCircle className="w-3 h-3" /> Parent's Reason
+                        </p>
+                        <p className="text-xs text-gray-700 font-medium leading-relaxed italic line-clamp-2 group-hover:line-clamp-none transition-all">
+                          "{app.reason || 'No reason specified'}"
+                        </p>
+                     </div>
+                  </div>
+                </div>
+
+                {app.rejection_reason && (
+                  <div className="mt-4 bg-red-50/50 rounded-2xl p-4 border border-red-100 animate-in slide-in-from-top-2 duration-300">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 bg-red-100 rounded-xl flex items-center justify-center shrink-0">
+                         <XCircle className="w-4 h-4 text-red-600" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-red-800 uppercase tracking-widest mb-1">Teacher's Feedback</p>
+                        <p className="text-xs text-red-700 font-medium leading-relaxed">{app.rejection_reason}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {app.status === 'approved' && (
+                  <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-emerald-600 bg-emerald-50 w-fit px-3 py-1.5 rounded-full">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Attendance Record Updated
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- CHAT TAB --------------------------------------------------------------
+function ChatTab({ schoolId, parentId, student }: { 
+  schoolId: string; 
+  parentId: string; 
+  student: ChildData 
+}) {
+  const teacher = student.classes?.staff;
+  const teacherId = student.classes?.class_teacher_id;
+
+  if (!teacherId || !teacher) {
+    return (
+      <div className='bg-white rounded-3xl border border-gray-100 p-16 text-center shadow-sm'>
+        <div className='w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6'>
+          <User className='w-10 h-10 text-gray-200' />
+        </div>
+        <p className='text-gray-900 font-black text-lg'>No Teacher Assigned</p>
+        <p className='text-gray-400 text-sm mt-1 max-w-xs mx-auto'>
+          A class teacher has not been assigned to this class yet. 
+          Please contact the school office to discuss your concerns.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className='max-w-3xl mx-auto'>
+      <div className='mb-6'>
+        <h2 className='text-2xl font-black text-gray-900 tracking-tight'>Teacher Communication</h2>
+        <p className='text-sm text-gray-500 mt-1'>
+          Directly message {teacher.full_name} regarding {student.full_name}'s progress.
+        </p>
+      </div>
+
+      <ChatInterface 
+        schoolId={schoolId}
+        currentUserId={parentId}
+        currentUserType='parent'
+        targetUserId={teacherId}
+        targetUserType='staff'
+        studentId={student.id}
+        targetName={teacher.full_name}
+        targetPhoto={teacher.photograph_url}
+      />
+
+      <div className='mt-4 bg-blue-50 border border-blue-100 rounded-2xl p-4 flex items-start gap-3'>
+        <div className='w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-blue-100'>
+           <MessageCircle className='w-4 h-4 text-white' />
+        </div>
+        <div>
+          <p className='text-xs font-black text-blue-900 uppercase tracking-widest'>Chat Guidelines</p>
+          <p className='text-[11px] text-blue-800/70 font-medium mt-0.5 leading-relaxed'>
+            This chat is for academic and student-related discussions. Please maintain professionalism and allow for 24-48 hours for a response during school hours.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

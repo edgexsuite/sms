@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { MessageSquare, Download } from 'lucide-react';
+import { MessageSquare, Download, MessageCircle } from 'lucide-react';
+import { openWhatsApp } from '../../lib/whatsappTemplates';
 import { exportToCSV } from '../../lib/exportUtils';
 
 interface LogEntry {
@@ -120,6 +121,7 @@ export default function SMSHistory() {
                   <th className="px-6 py-3 text-left font-medium text-gray-500">Parent</th>
                   <th className="px-6 py-3 text-left font-medium text-gray-500 max-w-xs">Message</th>
                   <th className="px-6 py-3 text-center font-medium text-gray-500">Status</th>
+                  <th className="px-6 py-3 text-right font-medium text-gray-500">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -143,6 +145,14 @@ export default function SMSHistory() {
                       <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${statusColors[log.status] || 'bg-gray-100 text-gray-700'}`}>
                         {log.status}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button 
+                        onClick={() => openWhatsApp(log.recipient_number, log.message_content)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-colors border border-green-200 shadow-sm"
+                      >
+                        <MessageCircle className="w-3 h-3" /> Resend
+                      </button>
                     </td>
                   </tr>
                 ))}

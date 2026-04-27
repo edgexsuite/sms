@@ -125,8 +125,8 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
 
     // 1. Find staff record
     let sid: string | null = userRole?.staff_id || null;
-    if (!sid) {
-      const { data } = await supabase.from('staff').select('id').eq('school_id', schoolId).eq('email', userRole?.email || '').maybeSingle();
+    if (!sid && userRole?.email) {
+      const { data } = await supabase.from('staff').select('id').eq('school_id', schoolId).eq('email', userRole.email).maybeSingle();
       sid = data?.id || null;
     }
     setStaffId(sid);

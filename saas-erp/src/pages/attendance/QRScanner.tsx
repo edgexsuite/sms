@@ -418,11 +418,9 @@ export default function QRScanner() {
 
         /* Camera selection priority:
            1. User-picked camera (selectedCameraId)
-           2. Front/user-facing camera (ideal for laptop kiosk facing students)
-           3. First available camera */
+           2. First available camera (index 0) - Most stable for mobile kiosk */
         const currentSelected = selectedCameraIdRef.current;
         const cam = (currentSelected && cams.find((c: any) => c.id === currentSelected))
-          ?? cams.find((c: any) => /front|user|facing/i.test(c.label))
           ?? cams[0];
 
         await instance.start(

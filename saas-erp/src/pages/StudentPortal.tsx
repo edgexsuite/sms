@@ -6,8 +6,9 @@ import {
   Eye, EyeOff, Bell, User, BookOpen, Trophy, LayoutDashboard,
   CreditCard, ClipboardList, Clock, ChevronLeft,
   ChevronRight, AlertCircle, Languages, BarChart3,
-  School
+  School, MessageCircle
 } from 'lucide-react';
+import ChatInterface from '../components/ChatInterface';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface StudentData {
@@ -18,10 +19,15 @@ interface StudentData {
   school_id: string;
   class_id: string;
   photograph_url?: string;
-  classes?: { name: string; section?: string } | null;
+  classes?: { 
+    name: string; 
+    section?: string; 
+    class_teacher_id?: string;
+    staff?: { full_name: string; photograph_url?: string } | null;
+  } | null;
 }
 
-type Tab = 'overview' | 'timetable' | 'attendance' | 'results' | 'fees' | 'homework';
+type Tab = 'overview' | 'timetable' | 'attendance' | 'results' | 'fees' | 'homework' | 'chat';
 
 const SESSION_KEY = 'student_portal_session';
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -150,7 +156,7 @@ export default function StudentPortal() {
     try {
       const { data, error } = await supabase
         .from('students')
-        .select('id, full_name, student_unique_id, school_id, class_id, photograph_url, roll_number, classes(name, section)')
+        .select('id, full_name, student_unique_id, school_id, class_id, photograph_url, roll_number, classes(name, section, class_teacher_id, staff:class_teacher_id(full_name, photograph_url))')
         .eq('student_unique_id', studentIdInput.trim())
         .eq('auth_password', password.trim())
         .maybeSingle();
@@ -374,6 +380,7 @@ export default function StudentPortal() {
               { id: 'results', label: 'Results', icon: Trophy },
               { id: 'fees', label: 'Fees', icon: CreditCard },
               { id: 'homework', label: 'Homework', icon: ClipboardList },
+              { id: 'chat', label: 'Teacher Chat', icon: MessageCircle },
             ] as { id: Tab; label: string; icon: any }[]).map(({ id, label, icon: Icon }) => (
               <button key={id} onClick={() => setActiveTab(id)}
                 className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition ${
@@ -430,6 +437,12 @@ export default function StudentPortal() {
             {activeTab === 'results' && <ResultsTab results={results} />}
             {activeTab === 'fees' && <FeesTab fees={feeRecords} pendingFees={pendingFees} fmt={fmt} />}
             {activeTab === 'homework' && <HomeworkTab homework={homework} />}
+            {activeTab === 'chat' && studentData && (
+              <ChatTab 
+                schoolId={studentData.school_id}
+                student={studentData}
+              />
+            )}
           </div>
         )}
       </main>
@@ -958,6 +971,65 @@ function HomeworkTab({ homework }: { homework: any[] }) {
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+// --- CHAT TAB --------------------------------------------------------------
+function ChatTab({ schoolId, student }: { 
+  schoolId: string; 
+  student: StudentData 
+}) {
+  const teacher = student.classes?.staff;
+  const teacherId = student.classes?.class_teacher_id;
+
+  if (!teacherId || !teacher) {
+    return (
+      <div className='bg-white rounded-3xl border border-gray-100 p-16 text-center shadow-sm'>
+        <div className='w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6'>
+          <User className='w-10 h-10 text-gray-200' />
+        </div>
+        <p className='text-gray-900 font-black text-lg'>No Teacher Assigned</p>
+        <p className='text-gray-400 text-sm mt-1 max-w-xs mx-auto'>
+          Your class teacher has not been assigned yet. 
+          Please ask your school office for assistance.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className='max-w-3xl mx-auto'>
+      <div className='mb-6'>
+        <h2 className='text-2xl font-black text-gray-900 tracking-tight'>Teacher Chat</h2>
+        <p className='text-sm text-gray-500 mt-1'>
+          Message {teacher.full_name} regarding your academic queries.
+        </p>
+      </div>
+
+      <ChatInterface 
+        schoolId={schoolId}
+        currentUserId={student.id}
+        currentUserType='student'
+        targetUserId={teacherId}
+        targetUserType='staff'
+        studentId={student.id}
+        targetName={teacher.full_name}
+        targetPhoto={teacher.photograph_url}
+      />
+
+      <div className='mt-4 bg-amber-50 border border-amber-100 rounded-2xl p-4 flex items-start gap-3'>
+        <div className='w-8 h-8 bg-amber-600 rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-amber-100'>
+           <AlertCircle className='w-4 h-4 text-white' />
+        </div>
+        <div>
+          <p className='text-xs font-black text-amber-900 uppercase tracking-widest'>Student Conduct</p>
+          <p className='text-[11px] text-amber-800/70 font-medium mt-0.5 leading-relaxed'>
+            Please maintain academic integrity and professional language when messaging your teacher. 
+            Abuse of the chat system may lead to disciplinary action.
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -2,13 +2,15 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
+import { cn } from '../lib/utils';
 import {
   BookOpen, Users, ClipboardList, CalendarCheck,
-  ChevronRight, GraduationCap,
-  CheckCircle2, XCircle, Clock, BarChart2,
-  CalendarDays, Award, AlertCircle, Save,
-  RefreshCw, ChevronDown, ChevronUp, UserCheck,
+  ChevronRight, GraduationCap, CheckCircle2, XCircle,
+  Clock, BarChart2, CalendarDays, Award, AlertCircle, Save,
+  RefreshCw, ChevronDown, ChevronUp, UserCheck, CalendarOff,
+  Plus, X, Briefcase, FileText, TrendingUp, MessageCircle, ChevronLeft,
 } from 'lucide-react';
+import ChatInterface from '../components/ChatInterface';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -46,132 +48,237 @@ interface AttStudent {
   photograph_url?: string;
 }
 
-// ── Status config ─────────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const LEAVE_TYPES = [
+  'Casual Leave', 'Sick Leave', 'Annual Leave',
+  'Emergency Leave', 'Hajj Leave', 'Maternity Leave',
+  'Paternity Leave', 'Study Leave', 'Unpaid Leave',
+];
 
 const STATUS_CONFIG: Record<AttStatus, { label: string; short: string; bg: string; text: string; ring: string }> = {
-  present: { label: 'Present', short: 'P', bg: 'bg-emerald-500',  text: 'text-white', ring: 'ring-emerald-400' },
-  absent:  { label: 'Absent',  short: 'A', bg: 'bg-red-500',     text: 'text-white', ring: 'ring-red-400'     },
-  late:    { label: 'Late',    short: 'L', bg: 'bg-amber-500',   text: 'text-white', ring: 'ring-amber-400'   },
-  leave:   { label: 'Leave',   short: 'Lv', bg: 'bg-slate-400',  text: 'text-white', ring: 'ring-slate-300'   },
+  present: { label: 'Present', short: 'P',  bg: 'bg-emerald-500', text: 'text-white', ring: 'ring-emerald-400' },
+  absent:  { label: 'Absent',  short: 'A',  bg: 'bg-red-500',     text: 'text-white', ring: 'ring-red-400'     },
+  late:    { label: 'Late',    short: 'L',  bg: 'bg-amber-500',   text: 'text-white', ring: 'ring-amber-400'   },
+  leave:   { label: 'Leave',   short: 'Lv', bg: 'bg-slate-400',   text: 'text-white', ring: 'ring-slate-300'   },
+};
+
+const LEAVE_STATUS_STYLES: Record<string, string> = {
+  pending:  'bg-amber-100 text-amber-800 border-amber-200',
+  approved: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  rejected: 'bg-red-100 text-red-800 border-red-200',
+};
+
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const calcLeaveDays = (from: string, to: string): number => {
+  if (!from || !to) return 0;
+  const d1 = new Date(from), d2 = new Date(to);
+  return Math.max(1, Math.floor((d2.getTime() - d1.getTime()) / 86400000) + 1);
+};
+
+const formatTime = (t: string) => {
+  if (!t) return '';
+  const [h, m] = t.split(':');
+  const hour = parseInt(h);
+  return `${hour % 12 || 12}:${m} ${hour < 12 ? 'AM' : 'PM'}`;
+};
+
+const isCurrentPeriod = (start: string, end: string): boolean => {
+  if (!start || !end) return false;
+  const now = new Date();
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  const startMin = sh * 60 + sm;
+  const endMin   = eh * 60 + em;
+  const nowMin   = now.getHours() * 60 + now.getMinutes();
+  return nowMin >= startMin && nowMin <= endMin;
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function TeacherDashboard() {
-  const { userRole } = useAuth();
-  const [staffId, setStaffId]       = useState<string | null>(null);
-  const [staffName, setStaffName]   = useState('');
-  const [loading, setLoading]       = useState(true);
+  const { userRole, user } = useAuth();
 
-  const [assignedClasses, setAssignedClasses] = useState<ClassSummary[]>([]);
-  const [diaryStatus,     setDiaryStatus]     = useState<DiaryStatus[]>([]);
-  const [recentResults,   setRecentResults]   = useState<any[]>([]);
+  const [staffId,   setStaffId]   = useState<string | null>(null);
+  const [staffName, setStaffName] = useState('');
+  const [staffInfo, setStaffInfo] = useState<any>(null);   // photo, designation, dept
+  const [schoolInfo,setSchoolInfo]= useState<any>(null);   // logo, name
+  const [loading,   setLoading]   = useState(true);
 
-  // Class-teacher info (a teacher can be class teacher of multiple classes)
-  const [classTeacherClasses, setClassTeacherClasses] = useState<ClassTeacher[]>([]);
+  const [assignedClasses,    setAssignedClasses]    = useState<ClassSummary[]>([]);
+  const [diaryStatus,        setDiaryStatus]        = useState<DiaryStatus[]>([]);
+  const [recentResults,      setRecentResults]      = useState<any[]>([]);
+  const [classTeacherClasses,setClassTeacherClasses]= useState<ClassTeacher[]>([]);
+  const [todaySlots,         setTodaySlots]         = useState<any[]>([]);
+  const [myLeaves,           setMyLeaves]           = useState<any[]>([]);
 
-  // ── Attendance panel state ────────────────────────────────────────────────
-  const [attOpen,       setAttOpen]       = useState(false);
-  const [attClassId,    setAttClassId]    = useState('');
-  const [attDate,       setAttDate]       = useState(new Date().toISOString().split('T')[0]);
-  const [attStudents,   setAttStudents]   = useState<AttStudent[]>([]);
-  const [attMarks,      setAttMarks]      = useState<Record<string, AttStatus>>({});
-  const [attLoading,    setAttLoading]    = useState(false);
-  const [savingAtt,     setSavingAtt]     = useState(false);
-  const [attSaved,      setAttSaved]      = useState(false);
-  const [attError,      setAttError]      = useState('');
+  // Attendance panel
+  const [attOpen,    setAttOpen]    = useState(false);
+  const [attClassId, setAttClassId] = useState('');
+  const [attDate,    setAttDate]    = useState(new Date().toISOString().split('T')[0]);
+  const [attStudents,setAttStudents]= useState<AttStudent[]>([]);
+  const [attMarks,   setAttMarks]   = useState<Record<string, AttStatus>>({});
+  const [attLoading, setAttLoading] = useState(false);
+  const [savingAtt,  setSavingAtt]  = useState(false);
+  const [attSaved,   setAttSaved]   = useState(false);
+  const [attError,   setAttError]   = useState('');
 
-  const today = new Date().toISOString().split('T')[0];
+  // Leave modal
+  const [showLeaveModal,  setShowLeaveModal]  = useState(false);
+  const [submittingLeave, setSubmittingLeave] = useState(false);
+  const [leaveSubmitted,  setLeaveSubmitted]  = useState(false);
+  const [leaveForm, setLeaveForm] = useState({
+    leave_type: 'Casual Leave',
+    from_date:  new Date().toISOString().split('T')[0],
+    to_date:    new Date().toISOString().split('T')[0],
+    reason:     '',
+    is_half_day:false,
+    student_id: '',
+  });
+
+  // Chat Center
+  const [chatOpen,    setChatOpen]    = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Student Leaves (for Class Teachers)
+  const [studentLeaves, setStudentLeaves] = useState<any[]>([]);
+  const [allStudents,   setAllStudents]   = useState<any[]>([]);
+  const [isSelfLeave,   setIsSelfLeave]   = useState(true); // Toggle for leave modal
+
+  const today        = new Date().toISOString().split('T')[0];
+  const todayDayName = DAY_NAMES[new Date().getDay()];
 
   // ── Init ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!userRole?.school_id) return;
+    // Fetch school info
+    supabase.from('schools').select('name, logo_url').eq('id', userRole.school_id).maybeSingle()
+      .then(({ data }) => setSchoolInfo(data));
     resolveStaffId();
-  }, [userRole]);
+  }, [userRole?.school_id]);
 
   const resolveStaffId = async () => {
-    if (userRole?.staff_id) {
-      setStaffId(userRole.staff_id);
-      fetchStaffName(userRole.staff_id);
-      return;
-    }
-    const { data } = await supabase
-      .from('staff')
-      .select('id, full_name')
-      .eq('school_id', userRole?.school_id)
-      .eq('email', userRole?.email || '')
-      .maybeSingle();
-    if (data) {
-      setStaffId(data.id);
-      setStaffName(data.full_name);
-    }
-    setLoading(false);
-  };
+    // Pre-fill name from Supabase Auth metadata immediately (avoids "Teacher" fallback)
+    const metaName = user?.user_metadata?.full_name || user?.user_metadata?.name || '';
+    if (metaName) setStaffName(metaName);
 
-  const fetchStaffName = async (sid: string) => {
-    const { data } = await supabase.from('staff').select('full_name').eq('id', sid).maybeSingle();
-    if (data) setStaffName(data.full_name);
+    let sid = userRole?.staff_id || null;
+    if (!sid) {
+      // Use user.email from Supabase Auth (userRole has no email field)
+      const email = user?.email || '';
+      if (email) {
+        const { data } = await supabase.from('staff').select('id, full_name')
+          .eq('school_id', userRole?.school_id).eq('email', email).maybeSingle();
+        if (data) { sid = data.id; if (data.full_name) setStaffName(data.full_name); }
+      }
+    }
+    if (sid) setStaffId(sid);
+    else setLoading(false);
   };
 
   useEffect(() => {
-    if (staffId) loadDashboardData();
+    if (staffId) loadAll(staffId);
   }, [staffId]);
 
-  const loadDashboardData = async () => {
+  const loadAll = async (sid: string) => {
     setLoading(true);
     await Promise.all([
-      fetchAssignedClasses(),
-      fetchDiaryStatus(),
-      fetchRecentResults(),
-      fetchClassTeacherClasses(),
+      fetchStaffInfo(sid),
+      fetchAssignedClasses(sid),
+      fetchDiaryStatus(sid),
+      fetchRecentResults(sid),
+      fetchClassTeacherClasses(sid),
+      fetchTodayTimetable(sid),
+      fetchMyLeaves(sid),
+      fetchStudentLeaves(sid),
+      fetchAllClassStudents(sid),
     ]);
     setLoading(false);
+    fetchUnreadCount(sid);
   };
 
-  // ── Dashboard data fetchers ───────────────────────────────────────────────
+  const fetchUnreadCount = async (sid: string) => {
+    const { count } = await supabase
+      .from('chat_messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('receiver_id', sid)
+      .eq('is_read', false);
+    setUnreadCount(count || 0);
+  };
 
-  const fetchAssignedClasses = async () => {
+  // ── Data Fetchers ─────────────────────────────────────────────────────────
+
+  const fetchStaffInfo = async (sid: string) => {
+    const { data } = await supabase.from('staff')
+      .select('full_name, photograph_url')
+      .eq('id', sid).maybeSingle();
+    if (data) {
+      setStaffInfo(data);
+      if (data.full_name) setStaffName(data.full_name);
+    }
+  };
+
+  const fetchTodayTimetable = async (sid: string) => {
+    const { data } = await supabase
+      .from('timetable_slots')
+      .select('id, period_number, start_time, end_time, subjects(subject_name), classes(name, section)')
+      .eq('teacher_id', sid)
+      .eq('school_id', userRole?.school_id)
+      .eq('day_of_week', todayDayName)
+      .order('period_number');
+    setTodaySlots(data || []);
+  };
+
+  const fetchMyLeaves = async (sid: string) => {
+    const { data } = await supabase
+      .from('leave_applications')
+      .select('id, leave_type, from_date, to_date, total_days, status, reason, created_at')
+      .eq('staff_id', sid)
+      .eq('school_id', userRole?.school_id)
+      .order('created_at', { ascending: false })
+      .limit(8);
+    setMyLeaves(data || []);
+  };
+
+  const fetchAssignedClasses = async (sid: string) => {
     const { data: slots } = await supabase
       .from('timetable_slots')
       .select('class_id, classes(name, section), subject_id, subjects(subject_name)')
-      .eq('teacher_id', staffId)
-      .eq('school_id', userRole?.school_id);
+      .eq('teacher_id', sid).eq('school_id', userRole?.school_id);
 
     if (!slots || slots.length === 0) return;
 
     const classMap = new Map<string, { name: string; section: string; subjects: Set<string> }>();
     slots.forEach((s: any) => {
-      if (!classMap.has(s.class_id)) {
+      if (!classMap.has(s.class_id))
         classMap.set(s.class_id, { name: s.classes?.name || '?', section: s.classes?.section || '', subjects: new Set() });
-      }
       if (s.subjects?.subject_name) classMap.get(s.class_id)!.subjects.add(s.subjects.subject_name);
     });
 
     const classIds = Array.from(classMap.keys());
+    const { data: students } = await supabase.from('students').select('id, class_id')
+      .eq('school_id', userRole?.school_id).eq('status', 'active').in('class_id', classIds);
 
-    const { data: students } = await supabase
-      .from('students')
-      .select('id, class_id')
-      .eq('school_id', userRole?.school_id)
-      .eq('status', 'active')
-      .in('class_id', classIds);
-
-    const studentCountMap = new Map<string, number>();
-    const stuClassMap     = new Map<string, string>();
+    const countMap  = new Map<string, number>();
+    const stuCidMap = new Map<string, string>();
     (students || []).forEach((s: any) => {
-      studentCountMap.set(s.class_id, (studentCountMap.get(s.class_id) || 0) + 1);
-      stuClassMap.set(s.id, s.class_id);
+      countMap.set(s.class_id, (countMap.get(s.class_id) || 0) + 1);
+      stuCidMap.set(s.id, s.class_id);
     });
 
-    const studentIds = [...stuClassMap.keys()];
-    const { data: attendance } = studentIds.length > 0
-      ? await supabase.from('attendance').select('student_id, status').eq('school_id', userRole?.school_id).eq('date', today).in('student_id', studentIds)
+    const stuIds = [...stuCidMap.keys()];
+    const { data: att } = stuIds.length > 0
+      ? await supabase.from('attendance').select('student_id, status')
+          .eq('school_id', userRole?.school_id).eq('date', today).in('student_id', stuIds)
       : { data: [] };
 
     const attMap = new Map<string, { present: number; absent: number; total: number }>();
-    (attendance || []).forEach((a: any) => {
-      const cid = stuClassMap.get(a.student_id);
+    (att || []).forEach((a: any) => {
+      const cid = stuCidMap.get(a.student_id);
       if (!cid) return;
       if (!attMap.has(cid)) attMap.set(cid, { present: 0, absent: 0, total: 0 });
       const e = attMap.get(cid)!;
@@ -181,27 +288,22 @@ export default function TeacherDashboard() {
     });
 
     const summaries: ClassSummary[] = Array.from(classMap.entries()).map(([cid, info]) => {
-      const att   = attMap.get(cid);
-      const total = studentCountMap.get(cid) || 0;
+      const a = attMap.get(cid);
       return {
         class_id: cid, class_name: info.name, section: info.section,
         subjects: Array.from(info.subjects),
-        student_count: total,
-        today_present: att?.present || 0,
-        today_absent:  att?.absent  || 0,
-        today_marked:  (att?.total  || 0) > 0,
+        student_count: countMap.get(cid) || 0,
+        today_present: a?.present || 0, today_absent: a?.absent || 0, today_marked: (a?.total || 0) > 0,
       };
     });
     summaries.sort((a, b) => `${a.class_name}${a.section}`.localeCompare(`${b.class_name}${b.section}`));
     setAssignedClasses(summaries);
   };
 
-  const fetchDiaryStatus = async () => {
-    const { data: slots } = await supabase
-      .from('timetable_slots')
+  const fetchDiaryStatus = async (sid: string) => {
+    const { data: slots } = await supabase.from('timetable_slots')
       .select('class_id, classes(name, section), subject_id, subjects(subject_name)')
-      .eq('teacher_id', staffId)
-      .eq('school_id', userRole?.school_id);
+      .eq('teacher_id', sid).eq('school_id', userRole?.school_id);
     if (!slots) return;
 
     const seen  = new Set<string>();
@@ -214,106 +316,97 @@ export default function TeacherDashboard() {
       }
     });
 
-    const { data: diaries } = await supabase
-      .from('teacher_diary')
-      .select('class_id, subject_id, diary_date')
-      .eq('teacher_id', staffId)
-      .eq('school_id', userRole?.school_id)
-      .order('diary_date', { ascending: false });
+    const { data: diaries } = await supabase.from('teacher_diary').select('class_id, subject_id, diary_date')
+      .eq('teacher_id', sid).eq('school_id', userRole?.school_id).order('diary_date', { ascending: false });
 
-    const lastEntryMap = new Map<string, string>();
+    const lastMap = new Map<string, string>();
     (diaries || []).forEach((d: any) => {
       const key = `${d.class_id}__${d.subject_id}`;
-      if (!lastEntryMap.has(key)) lastEntryMap.set(key, d.diary_date);
+      if (!lastMap.has(key)) lastMap.set(key, d.diary_date);
     });
 
-    const statuses: DiaryStatus[] = pairs.map(p => ({
+    setDiaryStatus(pairs.map(p => ({
       class_id: p.class_id, class_name: p.class_name, section: p.section,
       subject_name: p.subject_name,
-      last_entry_date: lastEntryMap.get(`${p.class_id}__${p.subject_id}`) || null,
-    }));
-    statuses.sort((a, b) => (a.last_entry_date || '0').localeCompare(b.last_entry_date || '0'));
-    setDiaryStatus(statuses);
+      last_entry_date: lastMap.get(`${p.class_id}__${p.subject_id}`) || null,
+    })).sort((a, b) => (a.last_entry_date || '0').localeCompare(b.last_entry_date || '0')));
   };
 
-  const fetchRecentResults = async () => {
-    const { data: slots } = await supabase
-      .from('timetable_slots').select('class_id').eq('teacher_id', staffId).eq('school_id', userRole?.school_id).limit(20);
-    if (!slots || slots.length === 0) return;
-
-    const classIds       = [...new Set(slots.map((s: any) => s.class_id))];
-    const classStudentIds = (await supabase.from('students').select('id').in('class_id', classIds)).data?.map((s: any) => s.id) ?? [];
-
-    const { data } = classStudentIds.length > 0
-      ? await supabase.from('exam_results')
-          .select('student_id, obtained_marks, total_marks, grade, students(full_name), subjects(subject_name)')
-          .eq('school_id', userRole?.school_id)
-          .in('student_id', classStudentIds)
-          .order('created_at', { ascending: false })
-          .limit(5)
-      : { data: [] };
+  const fetchRecentResults = async (sid: string) => {
+    const { data: slots } = await supabase.from('timetable_slots').select('class_id')
+      .eq('teacher_id', sid).eq('school_id', userRole?.school_id).limit(20);
+    if (!slots?.length) return;
+    const classIds = [...new Set(slots.map((s: any) => s.class_id))];
+    const stuIds   = ((await supabase.from('students').select('id').in('class_id', classIds)).data || []).map((s: any) => s.id);
+    if (!stuIds.length) return;
+    const { data } = await supabase.from('exam_results')
+      .select('student_id, obtained_marks, total_marks, grade, students(full_name), subjects(subject_name)')
+      .eq('school_id', userRole?.school_id).in('student_id', stuIds)
+      .order('created_at', { ascending: false }).limit(5);
     if (data) setRecentResults(data);
   };
 
-  const fetchClassTeacherClasses = async () => {
-    const { data } = await supabase
-      .from('classes')
-      .select('id, name, section')
-      .eq('school_id', userRole?.school_id)
-      .eq('class_teacher_id', staffId);
-
+  const fetchClassTeacherClasses = async (sid: string) => {
+    const { data } = await supabase.from('classes').select('id, name, section')
+      .eq('school_id', userRole?.school_id).eq('class_teacher_id', sid);
     const classes = (data || []) as ClassTeacher[];
     setClassTeacherClasses(classes);
-    // Auto-select first class for attendance panel
-    if (classes.length > 0) setAttClassId(classes[0].id);
+    if (classes.length > 0) {
+      setAttClassId(classes[0].id);
+    }
   };
 
-  // ── Attendance panel logic ─────────────────────────────────────────────────
+  const fetchStudentLeaves = async (sid: string) => {
+    // 1. Find classes where this staff is class teacher
+    const { data: myClasses } = await supabase.from('classes').select('id')
+      .eq('school_id', userRole?.school_id).eq('class_teacher_id', sid);
+    const classIds = (myClasses || []).map(c => c.id);
+    if (classIds.length === 0) return;
+
+    // 2. Fetch student leaves for these classes
+    const { data } = await supabase.from('leave_applications')
+      .select('*, students!inner(full_name, roll_number, class_id, classes(name, section))')
+      .eq('school_id', userRole?.school_id)
+      .eq('applicant_type', 'student')
+      .in('students.class_id', classIds)
+      .order('created_at', { ascending: false });
+    if (data) setStudentLeaves(data);
+  };
+
+  const fetchAllClassStudents = async (sid: string) => {
+    const { data: slots } = await supabase.from('timetable_slots').select('class_id')
+      .eq('teacher_id', sid).eq('school_id', userRole?.school_id);
+    const classIds = [...new Set((slots || []).map(s => s.id))]; // Actually class_id
+    // But better: just fetch students of assignedClasses
+    const { data } = await supabase.from('students').select('id, full_name, roll_number, class_id, classes(name, section)')
+      .eq('school_id', userRole?.school_id)
+      .eq('status', 'active')
+      .order('full_name');
+    if (data) setAllStudents(data);
+  };
+
+  // ── Attendance panel ──────────────────────────────────────────────────────
 
   const loadAttendance = useCallback(async (classId: string, date: string) => {
     if (!classId) return;
-    setAttLoading(true);
-    setAttSaved(false);
-    setAttError('');
-
-    // Fetch students
-    const { data: stuData } = await supabase
-      .from('students')
+    setAttLoading(true); setAttSaved(false); setAttError('');
+    const { data: stuData } = await supabase.from('students')
       .select('id, full_name, roll_number, photograph_url')
-      .eq('class_id', classId)
-      .eq('school_id', userRole?.school_id)
-      .eq('status', 'active')
-      .order('roll_number');
+      .eq('class_id', classId).eq('school_id', userRole?.school_id)
+      .eq('status', 'active').order('roll_number');
     const students = (stuData || []) as AttStudent[];
     setAttStudents(students);
-
-    // Fetch existing attendance for this date
     if (students.length > 0) {
-      const { data: existing } = await supabase
-        .from('attendance')
-        .select('student_id, status')
-        .eq('school_id', userRole?.school_id)
-        .eq('date', date)
-        .in('student_id', students.map(s => s.id));
-
+      const { data: existing } = await supabase.from('attendance').select('student_id, status')
+        .eq('school_id', userRole?.school_id).eq('date', date).in('student_id', students.map(s => s.id));
       const marks: Record<string, AttStatus> = {};
-      // Pre-fill all as present by default only if no records exist yet
-      const hasExisting = (existing || []).length > 0;
-      students.forEach(s => {
-        marks[s.id] = hasExisting ? 'present' : 'present'; // always default present
-      });
-      (existing || []).forEach((r: any) => {
-        marks[r.student_id] = r.status as AttStatus;
-      });
+      students.forEach(s => { marks[s.id] = 'present'; });
+      (existing || []).forEach((r: any) => { marks[r.student_id] = r.status as AttStatus; });
       setAttMarks(marks);
-    } else {
-      setAttMarks({});
-    }
-
+    } else setAttMarks({});
     setAttLoading(false);
   }, [userRole?.school_id]);
 
-  // Load when panel opens or class/date changes
   useEffect(() => {
     if (attOpen && attClassId) loadAttendance(attClassId, attDate);
   }, [attOpen, attClassId, attDate, loadAttendance]);
@@ -321,53 +414,108 @@ export default function TeacherDashboard() {
   const markAll = (status: AttStatus) => {
     const m: Record<string, AttStatus> = {};
     attStudents.forEach(s => { m[s.id] = status; });
-    setAttMarks(m);
-    setAttSaved(false);
+    setAttMarks(m); setAttSaved(false);
   };
 
   const handleSaveAttendance = async () => {
     if (!attClassId || attStudents.length === 0) return;
-    setSavingAtt(true);
-    setAttError('');
-    setAttSaved(false);
-
+    setSavingAtt(true); setAttError(''); setAttSaved(false);
     const rows = attStudents.map(s => ({
-      school_id:  userRole!.school_id,
-      student_id: s.id,
-      date:       attDate,
-      status:     attMarks[s.id] || 'present',
+      school_id: userRole!.school_id, student_id: s.id, date: attDate, status: attMarks[s.id] || 'present',
     }));
-
-    const { error } = await supabase
-      .from('attendance')
-      .upsert(rows, { onConflict: 'student_id,date' });
-
-    if (error) {
-      setAttError(error.message);
-    } else {
-      setAttSaved(true);
-      // Refresh dashboard stats
-      fetchAssignedClasses();
-    }
+    const { error } = await supabase.from('attendance').upsert(rows, { onConflict: 'student_id,date' });
+    if (error) setAttError(error.message);
+    else { setAttSaved(true); fetchAssignedClasses(staffId!); }
     setSavingAtt(false);
+  };
+
+  // ── Leave Application ─────────────────────────────────────────────────────
+
+  const handleSubmitLeave = async () => {
+    if (!staffId) return;
+    if (!isSelfLeave && !leaveForm.student_id) return alert('Please select a student.');
+    if (leaveForm.to_date < leaveForm.from_date) return alert('End date cannot be before start date.');
+    if (!leaveForm.reason.trim()) return alert('Please provide a reason for leave.');
+    setSubmittingLeave(true);
+    
+    const payload: any = {
+      school_id:      userRole!.school_id,
+      applicant_type: isSelfLeave ? 'staff' : 'student',
+      leave_type:     leaveForm.leave_type,
+      from_date:      leaveForm.from_date,
+      to_date:        leaveForm.to_date,
+      is_half_day:    leaveForm.is_half_day,
+      reason:         leaveForm.reason,
+      status:         isSelfLeave ? 'pending' : 'approved', // Student leaves by teacher are auto-approved
+    };
+
+    if (isSelfLeave) payload.staff_id = staffId;
+    else payload.student_id = leaveForm.student_id;
+
+    const { error } = await supabase.from('leave_applications').insert([payload]);
+    if (error) { alert(error.message); setSubmittingLeave(false); return; }
+    
+    // If student leave applied by teacher, sync with attendance
+    if (!isSelfLeave) {
+       await syncLeaveWithAttendance({ ...payload, student_id: leaveForm.student_id });
+    }
+
+    setSubmittingLeave(false);
+    setShowLeaveModal(false);
+    setLeaveSubmitted(true);
+    setLeaveForm({ leave_type: 'Casual Leave', from_date: today, to_date: today, reason: '', is_half_day: false, student_id: '' });
+    fetchMyLeaves(staffId);
+    fetchStudentLeaves(staffId);
+    setTimeout(() => setLeaveSubmitted(false), 4000);
+  };
+
+  const updateStudentLeaveStatus = async (id: string, status: string, leave: any) => {
+    const { error } = await supabase.from('leave_applications')
+      .update({ status, reviewed_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) { alert(error.message); return; }
+    
+    if (status === 'approved') {
+       await syncLeaveWithAttendance(leave);
+    }
+    fetchStudentLeaves(staffId!);
+  };
+
+  const syncLeaveWithAttendance = async (leave: any) => {
+    const dates: string[] = [];
+    let curr = new Date(leave.from_date);
+    const end = new Date(leave.to_date);
+    while (curr <= end) {
+      dates.push(curr.toISOString().split('T')[0]);
+      curr.setDate(curr.getDate() + 1);
+    }
+    const attRows = dates.map(d => ({
+      school_id: userRole!.school_id,
+      student_id: leave.student_id,
+      date: d,
+      status: 'leave' as AttStatus
+    }));
+    await supabase.from('attendance').upsert(attRows, { onConflict: 'student_id,date' });
   };
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
-  const totalStudents   = assignedClasses.reduce((s, c) => s + c.student_count, 0);
-  const totalPresent    = assignedClasses.reduce((s, c) => s + c.today_present, 0);
+  const totalStudents    = assignedClasses.reduce((s, c) => s + c.student_count, 0);
+  const totalPresent     = assignedClasses.reduce((s, c) => s + c.today_present, 0);
   const diaryFilledToday = diaryStatus.filter(d => d.last_entry_date === today).length;
+  const pendingLeaves    = myLeaves.filter(l => l.status === 'pending').length;
 
   const classTeacherLabel = classTeacherClasses.length > 0
-    ? classTeacherClasses.map(c => `${c.name} ${c.section}`).join(', ')
-    : null;
+    ? classTeacherClasses.map(c => `${c.name} ${c.section}`).join(', ') : null;
 
   const attPresentCount = Object.values(attMarks).filter(v => v === 'present').length;
   const attAbsentCount  = Object.values(attMarks).filter(v => v === 'absent').length;
   const attLateCount    = Object.values(attMarks).filter(v => v === 'late').length;
   const attLeaveCount   = Object.values(attMarks).filter(v => v === 'leave').length;
 
-  // ── Loading / error states ─────────────────────────────────────────────────
+  const leaveDays = calcLeaveDays(leaveForm.from_date, leaveForm.to_date);
+
+  // ── Loading / error states ────────────────────────────────────────────────
 
   if (loading) return (
     <div className="flex items-center justify-center p-20">
@@ -382,65 +530,153 @@ export default function TeacherDashboard() {
     <div className="max-w-2xl mx-auto mt-20 text-center p-8 bg-orange-50 border border-orange-200 rounded-2xl">
       <AlertCircle className="w-12 h-12 text-orange-400 mx-auto mb-4" />
       <h2 className="text-xl font-bold text-orange-900">Staff Record Not Linked</h2>
-      <p className="text-orange-700 mt-2 text-sm">
-        Your login account hasn't been linked to a staff record yet.
-        Ask your school administrator to link your account in Staff → User Accounts.
-      </p>
+      <p className="text-orange-700 mt-2 text-sm">Your login account hasn't been linked to a staff record yet. Ask your school administrator to link your account in Staff → User Accounts.</p>
     </div>
   );
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-5">
 
-      {/* ── Welcome banner ── */}
-      <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 rounded-2xl p-6 text-white shadow-xl shadow-indigo-200">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <p className="text-indigo-200 text-sm font-medium">Teacher Dashboard</p>
-            <h1 className="text-2xl font-black mt-1">Welcome, {staffName || 'Teacher'}</h1>
-            {classTeacherLabel && (
-              <p className="text-indigo-200 text-sm mt-1">
-                Class Teacher of <span className="text-white font-bold">{classTeacherLabel}</span>
+      {/* ── Leave submitted toast ── */}
+      {leaveSubmitted && (
+        <div className="fixed top-4 right-4 z-[150] bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 animate-in slide-in-from-top-2">
+          <CheckCircle2 className="w-5 h-5" />
+          <span className="font-bold text-sm">Leave application submitted! Admin will review it shortly.</span>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════
+          PROFILE BANNER
+      ══════════════════════════════════════════════════════════════════ */}
+      <div className="bg-gradient-to-r from-indigo-700 via-indigo-600 to-indigo-500 rounded-2xl p-6 text-white shadow-xl shadow-indigo-200 overflow-hidden relative">
+        {/* Decorative rings */}
+        <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/5" />
+        <div className="absolute -bottom-12 right-20 w-32 h-32 rounded-full bg-white/5" />
+
+        <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
+          {/* Left: Photo + Info */}
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-2xl border-2 border-white/30 shadow-lg shrink-0 overflow-hidden bg-indigo-500 flex items-center justify-center">
+              {staffInfo?.photograph_url
+                ? <img src={staffInfo.photograph_url} alt="" className="w-full h-full object-cover" />
+                : <span className="text-2xl font-black text-white">{staffName.charAt(0)}</span>
+              }
+            </div>
+            <div>
+              <p className="text-indigo-200 text-[10px] font-black uppercase tracking-[0.2em]">Teacher Portal</p>
+              <h1 className="text-2xl font-black leading-tight">{staffName || 'Teacher'}</h1>
+              <div className="flex flex-wrap items-center gap-2 mt-1">
+                {staffInfo?.designation && (
+                  <span className="text-indigo-200 text-xs font-medium">{staffInfo.designation}</span>
+                )}
+                {staffInfo?.department && (
+                  <span className="text-[10px] bg-indigo-500/60 border border-indigo-400/40 px-2 py-0.5 rounded-full font-bold">
+                    {staffInfo.department}
+                  </span>
+                )}
+                {classTeacherLabel && (
+                  <span className="text-[10px] bg-white/15 border border-white/20 px-2 py-0.5 rounded-full font-bold">
+                    Class Teacher: {classTeacherLabel}
+                  </span>
+                )}
+              </div>
+              <p className="text-indigo-300 text-xs mt-1.5">
+                {new Date().toLocaleDateString('en-PK', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
               </p>
-            )}
-            <p className="text-indigo-200 text-xs mt-2">
-              {new Date().toLocaleDateString('en-PK', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-            </p>
+            </div>
           </div>
-          <div className="flex gap-3 flex-wrap">
-            <Link to="/diary"
-              className="flex items-center gap-2 bg-white text-indigo-700 font-bold px-4 py-2 rounded-xl text-sm hover:bg-indigo-50 transition shadow">
-              <ClipboardList className="w-4 h-4" /> Open Diary
-            </Link>
-            {classTeacherClasses.length > 0 ? (
-              <button
-                onClick={() => setAttOpen(o => !o)}
-                className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-white font-bold px-4 py-2 rounded-xl text-sm transition"
-              >
-                <CalendarCheck className="w-4 h-4" /> Mark Attendance
-              </button>
-            ) : (
-              <Link to="/attendance"
-                className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-white font-bold px-4 py-2 rounded-xl text-sm transition">
-                <CalendarCheck className="w-4 h-4" /> Mark Attendance
-              </Link>
+
+          {/* Right: School logo + Action buttons */}
+          <div className="flex flex-col items-start md:items-end gap-3 shrink-0">
+            {schoolInfo?.logo_url && (
+              <img src={schoolInfo.logo_url} alt="School" className="h-10 object-contain opacity-80 hidden md:block" />
             )}
+            <div className="flex flex-wrap gap-2">
+              <Link to="/diary"
+                className="flex items-center gap-2 bg-white text-indigo-700 font-bold px-4 py-2 rounded-xl text-xs hover:bg-indigo-50 transition shadow-md">
+                <ClipboardList className="w-3.5 h-3.5" /> Open Diary
+              </Link>
+              <button
+                onClick={() => setShowLeaveModal(true)}
+                className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 border border-indigo-400 text-white font-bold px-4 py-2 rounded-xl text-xs transition">
+                <CalendarOff className="w-3.5 h-3.5" /> Apply Leave
+                {pendingLeaves > 0 && (
+                  <span className="bg-amber-400 text-amber-900 text-[9px] font-black px-1.5 py-0.5 rounded-full">{pendingLeaves}</span>
+                )}
+              </button>
+              <button
+                onClick={() => setChatOpen(true)}
+                className="flex items-center gap-2 bg-white text-indigo-700 font-bold px-4 py-2 rounded-xl text-xs hover:bg-indigo-50 transition shadow-md relative">
+                <MessageCircle className="w-3.5 h-3.5" /> Messages
+                {unreadCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center ring-2 ring-indigo-600 animate-bounce">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+              {classTeacherClasses.length > 0 ? (
+                <button onClick={() => setAttOpen(o => !o)}
+                  className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-md">
+                  <CalendarCheck className="w-3.5 h-3.5" /> Mark Attendance
+                </button>
+              ) : (
+                <Link to="/attendance"
+                  className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-md">
+                  <CalendarCheck className="w-3.5 h-3.5" /> Mark Attendance
+                </Link>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* ── Quick stats ── */}
+      {/* ══════════════════════════════════════════════════════════════════
+          DIARY ALERT BANNER
+      ══════════════════════════════════════════════════════════════════ */}
+      {diaryStatus.length > 0 && (
+        <div className={cn(
+          'rounded-xl border px-5 py-3 flex items-center justify-between gap-4',
+          diaryFilledToday === diaryStatus.length
+            ? 'bg-emerald-50 border-emerald-200'
+            : diaryFilledToday > 0
+              ? 'bg-amber-50 border-amber-300'
+              : 'bg-red-50 border-red-200'
+        )}>
+          <div className="flex items-center gap-2.5">
+            {diaryFilledToday === diaryStatus.length
+              ? <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              : <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+            }
+            <div>
+              {diaryFilledToday === diaryStatus.length ? (
+                <p className="text-sm font-black text-emerald-800">All diary entries complete for today ✓</p>
+              ) : (
+                <p className="text-sm font-black text-amber-900">
+                  {diaryStatus.length - diaryFilledToday} diary {diaryStatus.length - diaryFilledToday === 1 ? 'entry' : 'entries'} pending for today
+                </p>
+              )}
+              <p className="text-[10px] text-gray-500 mt-0.5">{diaryFilledToday} of {diaryStatus.length} filled</p>
+            </div>
+          </div>
+          <Link to="/diary"
+            className="shrink-0 text-xs font-black px-4 py-2 bg-white border border-gray-200 rounded-xl text-indigo-600 hover:bg-indigo-50 transition shadow-sm">
+            {diaryFilledToday === diaryStatus.length ? 'View Diary' : 'Fill Now →'}
+          </Link>
+        </div>
+      )}
+
+      {/* ── Quick Stats ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Assigned Classes',    value: assignedClasses.length,               icon: BookOpen,     color: 'indigo'  },
-          { label: 'Total Students',      value: totalStudents,                         icon: Users,        color: 'blue'    },
-          { label: 'Present Today',       value: totalPresent,                          icon: CheckCircle2, color: 'emerald' },
-          { label: 'Diary Filled Today',  value: `${diaryFilledToday}/${diaryStatus.length}`, icon: ClipboardList, color: 'amber' },
+          { label: 'Assigned Classes',   value: assignedClasses.length,                        icon: BookOpen,      color: 'indigo'  },
+          { label: 'Total Students',     value: totalStudents,                                  icon: Users,         color: 'blue'    },
+          { label: 'Present Today',      value: totalPresent,                                   icon: CheckCircle2,  color: 'emerald' },
+          { label: 'Diary Today',        value: `${diaryFilledToday}/${diaryStatus.length}`,    icon: ClipboardList, color: 'amber'   },
         ].map(({ label, value, icon: Icon, color }) => (
           <div key={label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-            <div className={`w-9 h-9 rounded-lg bg-${color}-100 flex items-center justify-center mb-3`}>
+            <div className={`w-9 h-9 rounded-xl bg-${color}-100 flex items-center justify-center mb-3`}>
               <Icon className={`w-5 h-5 text-${color}-600`} />
             </div>
             <p className="text-2xl font-black text-gray-900">{value}</p>
@@ -450,11 +686,63 @@ export default function TeacherDashboard() {
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════
-          INLINE ATTENDANCE PANEL — shown when class teacher opens it
+          TODAY'S TIMETABLE STRIP
+      ══════════════════════════════════════════════════════════════════ */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="font-black text-gray-900 text-sm flex items-center gap-2">
+            <Clock className="w-4 h-4 text-indigo-600" />
+            Today's Schedule
+            <span className="text-xs font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full">{todayDayName}</span>
+          </h2>
+          <Link to="/timetable" className="text-xs text-indigo-600 font-bold hover:underline flex items-center gap-1">
+            Full Timetable <ChevronRight className="w-3 h-3" />
+          </Link>
+        </div>
+        {todaySlots.length === 0 ? (
+          <div className="px-5 py-6 text-center text-sm text-gray-400">
+            {todayDayName === 'Sunday' ? '🎉 Sunday — enjoy your day off!' : 'No classes scheduled for today.'}
+          </div>
+        ) : (
+          <div className="flex gap-3 px-5 py-4 overflow-x-auto pb-4">
+            {todaySlots.map(slot => {
+              const active = isCurrentPeriod(slot.start_time, slot.end_time);
+              return (
+                <div key={slot.id} className={cn(
+                  'shrink-0 rounded-xl border p-3 min-w-[130px] text-center transition-all',
+                  active
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-100 scale-105'
+                    : 'bg-gray-50 border-gray-200 hover:border-indigo-200 hover:bg-indigo-50/50'
+                )}>
+                  <p className={cn('text-[9px] font-black uppercase tracking-widest', active ? 'text-indigo-200' : 'text-gray-400')}>
+                    Period {slot.period_number}
+                  </p>
+                  <p className={cn('text-sm font-black mt-1 leading-tight', active ? 'text-white' : 'text-gray-800')}>
+                    {(slot as any).subjects?.subject_name || '—'}
+                  </p>
+                  <p className={cn('text-[10px] mt-0.5', active ? 'text-indigo-200' : 'text-gray-500')}>
+                    {(slot as any).classes?.name} {(slot as any).classes?.section}
+                  </p>
+                  <p className={cn('text-[10px] mt-1.5 font-bold', active ? 'text-indigo-200' : 'text-gray-400')}>
+                    {formatTime(slot.start_time)} – {formatTime(slot.end_time)}
+                  </p>
+                  {active && (
+                    <span className="inline-block mt-1.5 text-[9px] bg-white/20 text-white px-2 py-0.5 rounded-full font-black tracking-widest">
+                      NOW
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════════
+          INLINE ATTENDANCE PANEL
       ══════════════════════════════════════════════════════════════════ */}
       {classTeacherClasses.length > 0 && (
         <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm overflow-hidden">
-          {/* Panel header — always visible, acts as toggle */}
           <button
             onClick={() => setAttOpen(o => !o)}
             className="w-full px-6 py-4 flex items-center justify-between hover:bg-indigo-50/50 transition"
@@ -472,48 +760,30 @@ export default function TeacherDashboard() {
             </div>
             <div className="flex items-center gap-3">
               {!attOpen && (
-                <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
-                  Click to mark
-                </span>
+                <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">Click to mark</span>
               )}
-              {attOpen
-                ? <ChevronUp   className="w-5 h-5 text-gray-400" />
-                : <ChevronDown className="w-5 h-5 text-gray-400" />}
+              {attOpen ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
             </div>
           </button>
 
-          {/* Panel body */}
           {attOpen && (
             <div className="border-t border-indigo-50">
-              {/* Controls: class selector + date */}
               <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex flex-wrap items-center gap-4">
                 {classTeacherClasses.length > 1 && (
                   <div>
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Class</label>
-                    <select
-                      value={attClassId}
-                      onChange={e => { setAttClassId(e.target.value); setAttSaved(false); }}
-                      className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-                    >
-                      {classTeacherClasses.map(c => (
-                        <option key={c.id} value={c.id}>{c.name} {c.section}</option>
-                      ))}
+                    <select value={attClassId} onChange={e => { setAttClassId(e.target.value); setAttSaved(false); }}
+                      className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none">
+                      {classTeacherClasses.map(c => <option key={c.id} value={c.id}>{c.name} {c.section}</option>)}
                     </select>
                   </div>
                 )}
-
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Date</label>
-                  <input
-                    type="date"
-                    value={attDate}
-                    max={today}
+                  <input type="date" value={attDate} max={today}
                     onChange={e => { setAttDate(e.target.value); setAttSaved(false); }}
-                    className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-                  />
+                    className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none" />
                 </div>
-
-                {/* Quick mark buttons */}
                 <div className="ml-auto flex flex-wrap gap-2">
                   {(['present', 'absent', 'late', 'leave'] as AttStatus[]).map(s => (
                     <button key={s} onClick={() => markAll(s)}
@@ -524,58 +794,35 @@ export default function TeacherDashboard() {
                 </div>
               </div>
 
-              {/* Student list */}
               {attLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <RefreshCw className="w-6 h-6 text-indigo-400 animate-spin" />
                 </div>
               ) : attStudents.length === 0 ? (
-                <div className="text-center py-12 text-gray-400 text-sm">
-                  No active students found in this class.
-                </div>
+                <div className="text-center py-12 text-gray-400 text-sm">No active students in this class.</div>
               ) : (
                 <div className="divide-y divide-slate-50 max-h-[480px] overflow-y-auto">
-                  {attStudents.map((student, i) => {
+                  {attStudents.map(student => {
                     const status = attMarks[student.id] || 'present';
                     return (
                       <div key={student.id}
-                        className={`flex items-center gap-3 px-6 py-3 transition-colors ${
-                          status === 'absent' ? 'bg-red-50/40' :
-                          status === 'late'   ? 'bg-amber-50/40' :
-                          status === 'leave'  ? 'bg-slate-50/60' : ''
-                        }`}
-                      >
-                        {/* Roll + photo */}
-                        <span className="text-xs font-black text-indigo-500 w-8 shrink-0 text-center">
-                          {student.roll_number}
-                        </span>
+                        className={`flex items-center gap-3 px-6 py-3 transition-colors ${status === 'absent' ? 'bg-red-50/40' : status === 'late' ? 'bg-amber-50/40' : status === 'leave' ? 'bg-slate-50/60' : ''}`}>
+                        <span className="text-xs font-black text-indigo-500 w-8 shrink-0 text-center">{student.roll_number}</span>
                         <div className="w-8 h-8 rounded-lg bg-slate-100 overflow-hidden shrink-0 flex items-center justify-center">
                           {student.photograph_url
                             ? <img src={student.photograph_url} alt="" className="w-full h-full object-cover" />
                             : <span className="text-slate-500 font-black text-xs">{student.full_name.charAt(0)}</span>}
                         </div>
-
-                        {/* Name */}
-                        <span className="flex-1 text-sm font-bold text-slate-800 min-w-0 truncate">
-                          {student.full_name}
-                        </span>
-
-                        {/* Status buttons */}
+                        <span className="flex-1 text-sm font-bold text-slate-800 min-w-0 truncate">{student.full_name}</span>
                         <div className="flex gap-1 shrink-0">
                           {(['present', 'absent', 'late', 'leave'] as AttStatus[]).map(s => {
-                            const cfg     = STATUS_CONFIG[s];
-                            const active  = status === s;
+                            const cfg = STATUS_CONFIG[s];
+                            const active = status === s;
                             return (
-                              <button
-                                key={s}
+                              <button key={s}
                                 onClick={() => { setAttMarks(p => ({ ...p, [student.id]: s })); setAttSaved(false); }}
-                                className={`w-9 h-8 rounded-lg text-xs font-black transition-all ${
-                                  active
-                                    ? `${cfg.bg} ${cfg.text} ring-2 ${cfg.ring} shadow-sm`
-                                    : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
-                                }`}
-                                title={cfg.label}
-                              >
+                                className={`w-9 h-8 rounded-lg text-xs font-black transition-all ${active ? `${cfg.bg} ${cfg.text} ring-2 ${cfg.ring} shadow-sm` : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
+                                title={cfg.label}>
                                 {cfg.short}
                               </button>
                             );
@@ -587,9 +834,7 @@ export default function TeacherDashboard() {
                 </div>
               )}
 
-              {/* Footer: summary + save */}
               <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                {/* Counts */}
                 <div className="flex gap-4 text-xs font-black flex-wrap">
                   <span className="text-emerald-600">{attPresentCount} present</span>
                   <span className="text-red-500">{attAbsentCount} absent</span>
@@ -597,26 +842,12 @@ export default function TeacherDashboard() {
                   {attLeaveCount > 0 && <span className="text-slate-500">{attLeaveCount} leave</span>}
                   <span className="text-slate-300">/ {attStudents.length} total</span>
                 </div>
-
                 <div className="flex items-center gap-3 flex-wrap">
-                  {attError && (
-                    <p className="text-red-500 text-xs font-bold flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" /> {attError}
-                    </p>
-                  )}
-                  {attSaved && (
-                    <p className="text-emerald-600 text-xs font-bold flex items-center gap-1">
-                      <CheckCircle2 className="w-4 h-4" /> Attendance saved!
-                    </p>
-                  )}
-                  <button
-                    onClick={handleSaveAttendance}
-                    disabled={savingAtt || attStudents.length === 0}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-widest rounded-xl transition disabled:opacity-50 shadow-lg shadow-indigo-100"
-                  >
-                    {savingAtt
-                      ? <><RefreshCw className="w-4 h-4 animate-spin" /> Saving…</>
-                      : <><Save className="w-4 h-4" /> Save Attendance</>}
+                  {attError && <p className="text-red-500 text-xs font-bold flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {attError}</p>}
+                  {attSaved  && <p className="text-emerald-600 text-xs font-bold flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Saved!</p>}
+                  <button onClick={handleSaveAttendance} disabled={savingAtt || attStudents.length === 0}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-widest rounded-xl transition disabled:opacity-50 shadow-lg shadow-indigo-100">
+                    {savingAtt ? <><RefreshCw className="w-4 h-4 animate-spin" /> Saving…</> : <><Save className="w-4 h-4" /> Save Attendance</>}
                   </button>
                 </div>
               </div>
@@ -625,17 +856,18 @@ export default function TeacherDashboard() {
         </div>
       )}
 
-      {/* ── Main content grid ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* ── Main Grid ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-        {/* ── Assigned Classes ── */}
-        <div className="lg:col-span-2">
+        {/* ── My Classes (left 2/3) ── */}
+        <div className="lg:col-span-2 space-y-5">
+
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
               <h2 className="font-black text-gray-900 flex items-center gap-2">
                 <GraduationCap className="w-5 h-5 text-indigo-600" /> My Classes
               </h2>
-              <span className="text-xs text-gray-400 font-bold">{assignedClasses.length} classes</span>
+              <span className="text-xs text-gray-400 font-bold">{assignedClasses.length} class{assignedClasses.length !== 1 ? 'es' : ''}</span>
             </div>
             {assignedClasses.length === 0 ? (
               <div className="p-10 text-center">
@@ -646,7 +878,7 @@ export default function TeacherDashboard() {
             ) : (
               <div className="divide-y divide-gray-100">
                 {assignedClasses.map(cls => (
-                  <div key={cls.class_id} className="px-5 py-4 hover:bg-gray-50 transition">
+                  <div key={cls.class_id} className="px-5 py-4 hover:bg-gray-50/70 transition">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-sm shadow-lg shadow-indigo-100">
@@ -660,16 +892,15 @@ export default function TeacherDashboard() {
                       <div className="text-right">
                         <p className="text-xs font-bold text-gray-700">{cls.student_count} students</p>
                         {cls.today_marked ? (
-                          <p className="text-xs text-emerald-600 font-bold mt-0.5">
-                            {cls.today_present}P / {cls.today_absent}A today
-                          </p>
+                          <p className="text-xs text-emerald-600 font-bold mt-0.5">{cls.today_present}P / {cls.today_absent}A today</p>
                         ) : (
                           <p className="text-xs text-amber-600 font-medium mt-0.5 flex items-center gap-1 justify-end">
-                            <Clock className="w-3 h-3" /> Not marked today
+                            <Clock className="w-3 h-3" /> Not marked
                           </p>
                         )}
                       </div>
                     </div>
+
                     {cls.today_marked && cls.student_count > 0 && (
                       <div className="mt-3">
                         <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -681,17 +912,71 @@ export default function TeacherDashboard() {
                         </p>
                       </div>
                     )}
+
+                    {/* Quick action buttons */}
+                    <div className="flex gap-2 mt-3">
+                      <Link to={`/result/teacher-marks?classId=${cls.class_id}`}
+                        className="flex items-center gap-1.5 text-[10px] font-black text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-lg transition">
+                        <BarChart2 className="w-3 h-3" /> Enter Marks
+                      </Link>
+                      <Link to={`/diary?classId=${cls.class_id}`}
+                        className="flex items-center gap-1.5 text-[10px] font-black text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg transition">
+                        <ClipboardList className="w-3 h-3" /> Open Diary
+                      </Link>
+                      <Link to={`/students?classId=${cls.class_id}`}
+                        className="flex items-center gap-1.5 text-[10px] font-black text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg transition">
+                        <Users className="w-3 h-3" /> Students
+                      </Link>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
+
+          {/* Recent Results */}
+          {recentResults.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="font-black text-gray-900 text-sm flex items-center gap-2">
+                  <Award className="w-4 h-4 text-amber-500" /> Recent Results Entered
+                </h2>
+                <Link to="/result/teacher-marks" className="text-xs text-indigo-600 font-bold hover:underline flex items-center gap-1">
+                  Enter Marks <ChevronRight className="w-3 h-3" />
+                </Link>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {recentResults.map((r, i) => {
+                  const pct = r.total_marks > 0 ? Math.round((r.obtained_marks / r.total_marks) * 100) : 0;
+                  return (
+                    <div key={i} className="px-5 py-3 flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-bold text-gray-800">{r.students?.full_name}</p>
+                        <p className="text-[10px] text-gray-400">{r.subjects?.subject_name}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <p className="text-xs font-black text-indigo-700">{r.obtained_marks}/{r.total_marks}</p>
+                          <p className="text-[10px] text-gray-500">{pct}%</p>
+                        </div>
+                        {r.grade && (
+                          <span className={cn('text-[10px] font-black px-2 py-0.5 rounded-full',
+                            pct >= 50 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                          )}>{r.grade}</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* ── Right column ── */}
+        {/* ── Right Column ── */}
         <div className="space-y-5">
 
-          {/* Diary status */}
+          {/* Diary Status */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
               <h2 className="font-black text-gray-900 text-sm flex items-center gap-2">
@@ -703,81 +988,528 @@ export default function TeacherDashboard() {
             </div>
             <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
               {diaryStatus.length === 0 ? (
-                <div className="p-6 text-center text-gray-400 text-sm">No assignments yet.</div>
-              ) : (
-                diaryStatus.map((d, i) => {
-                  const isToday   = d.last_entry_date === today;
-                  const daysSince = d.last_entry_date
-                    ? Math.floor((new Date(today).getTime() - new Date(d.last_entry_date).getTime()) / 86400000)
-                    : null;
-                  return (
-                    <div key={i} className="px-4 py-3 flex items-center justify-between gap-2">
-                      <div>
-                        <p className="text-xs font-bold text-gray-800">{d.class_name} {d.section}</p>
-                        <p className="text-[10px] text-gray-400">{d.subject_name}</p>
-                      </div>
-                      {isToday ? (
-                        <span className="text-[10px] font-black px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">Today ✓</span>
-                      ) : daysSince !== null ? (
-                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${daysSince <= 1 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600'}`}>
-                          {daysSince}d ago
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-black px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">Never</span>
-                      )}
+                <div className="p-6 text-center text-gray-400 text-sm">No class assignments yet.</div>
+              ) : diaryStatus.map((d, i) => {
+                const isToday   = d.last_entry_date === today;
+                const daysSince = d.last_entry_date
+                  ? Math.floor((new Date(today).getTime() - new Date(d.last_entry_date).getTime()) / 86400000) : null;
+                return (
+                  <div key={i} className="px-4 py-3 flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-bold text-gray-800">{d.class_name} {d.section}</p>
+                      <p className="text-[10px] text-gray-400">{d.subject_name}</p>
                     </div>
-                  );
-                })
-              )}
+                    {isToday ? (
+                      <span className="text-[10px] font-black px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">Today ✓</span>
+                    ) : daysSince !== null ? (
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${daysSince <= 1 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600'}`}>
+                        {daysSince}d ago
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-black px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">Never</span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* Recent results */}
-          {recentResults.length > 0 && (
+          {/* My Leave Applications */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="font-black text-gray-900 text-sm flex items-center gap-2">
+                <CalendarOff className="w-4 h-4 text-indigo-600" /> My Leave Applications
+              </h2>
+              <button onClick={() => setShowLeaveModal(true)}
+                className="text-xs text-indigo-600 font-bold hover:underline flex items-center gap-1">
+                <Plus className="w-3 h-3" /> Apply
+              </button>
+            </div>
+            <div className="divide-y divide-gray-100 max-h-56 overflow-y-auto">
+              {myLeaves.length === 0 ? (
+                <div className="p-6 text-center">
+                  <CalendarOff className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                  <p className="text-sm text-gray-400">No leave applications yet.</p>
+                  <button onClick={() => setShowLeaveModal(true)}
+                    className="mt-2 text-xs text-indigo-600 font-bold hover:underline">Apply for leave →</button>
+                </div>
+              ) : myLeaves.map(l => (
+                <div key={l.id} className="px-4 py-3 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-gray-800 truncate">{l.leave_type}</p>
+                    <p className="text-[10px] text-gray-400">{l.from_date} → {l.to_date} · {l.total_days} day{l.total_days !== 1 ? 's' : ''}</p>
+                  </div>
+                  <span className={cn('text-[10px] font-black px-2 py-0.5 rounded-full border shrink-0', LEAVE_STATUS_STYLES[l.status] || 'bg-gray-100 text-gray-600 border-gray-200')}>
+                    {l.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Student Leave Management (Class Teacher only) */}
+          {classTeacherClasses.length > 0 && (
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
                 <h2 className="font-black text-gray-900 text-sm flex items-center gap-2">
-                  <Award className="w-4 h-4 text-amber-500" /> Recent Results
+                  <Users className="w-4 h-4 text-emerald-600" /> Student Leave Requests
                 </h2>
+                {studentLeaves.filter(l => l.status === 'pending').length > 0 && (
+                  <span className="bg-amber-100 text-amber-700 text-[10px] font-black px-2 py-0.5 rounded-full">
+                    {studentLeaves.filter(l => l.status === 'pending').length} New
+                  </span>
+                )}
               </div>
-              <div className="divide-y divide-gray-100">
-                {recentResults.map((r, i) => (
-                  <div key={i} className="px-4 py-3 flex items-center justify-between gap-2">
-                    <div>
-                      <p className="text-xs font-bold text-gray-800">{r.students?.full_name}</p>
-                      <p className="text-[10px] text-gray-400">{r.subjects?.subject_name}</p>
+              <div className="divide-y divide-gray-100 max-h-72 overflow-y-auto">
+                {studentLeaves.length === 0 ? (
+                  <div className="p-6 text-center">
+                    <UserCheck className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                    <p className="text-sm text-gray-400 font-medium">No student leave requests.</p>
+                  </div>
+                ) : studentLeaves.map(l => (
+                  <div key={l.id} className="px-4 py-4 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-black text-gray-900 truncate">{l.students?.full_name}</p>
+                        <p className="text-[10px] font-bold text-gray-400">Roll #{l.students?.roll_number} · {l.leave_type}</p>
+                      </div>
+                      <span className={cn('text-[10px] font-black px-2 py-0.5 rounded-full border shrink-0', LEAVE_STATUS_STYLES[l.status] || 'bg-gray-100 text-gray-600 border-gray-200')}>
+                        {l.status}
+                      </span>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs font-black text-indigo-700">{r.obtained_marks}/{r.total_marks}</p>
-                      {r.grade && <span className="text-[10px] font-bold text-gray-500">{r.grade}</span>}
+                    <div className="bg-gray-50 rounded-lg p-2.5">
+                       <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-1">Duration & Reason</p>
+                       <p className="text-[10px] font-bold text-gray-700">{l.from_date} → {l.to_date}</p>
+                       <p className="text-[11px] text-gray-600 mt-1 italic">"{l.reason || 'No reason provided'}"</p>
                     </div>
+                    {l.status === 'pending' && (
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => updateStudentLeaveStatus(l.id, 'approved', l)}
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase py-2 rounded-lg shadow-sm transition"
+                        >
+                          Approve
+                        </button>
+                        <button 
+                          onClick={() => updateStudentLeaveStatus(l.id, 'rejected', l)}
+                          className="flex-1 bg-white border border-gray-200 text-red-600 hover:bg-red-50 text-[10px] font-black uppercase py-2 rounded-lg transition"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Quick actions */}
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-5 text-white space-y-3">
-            <h3 className="text-xs font-black uppercase tracking-widest text-slate-300">Quick Actions</h3>
+          {/* Quick Actions */}
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-5 text-white space-y-2">
+            <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Quick Actions</h3>
             {[
-              { to: '/diary',       icon: ClipboardList, label: "Fill Today's Diary"   },
-              { to: '/attendance',  icon: CalendarCheck, label: 'Attendance (Full Page)' },
-              { to: '/result/teacher-marks', icon: BarChart2, label: 'Enter Marks'     },
-              { to: '/timetable',   icon: CalendarDays,  label: 'View Timetable'       },
+              { to: '/diary',                 icon: ClipboardList, label: "Fill Today's Diary"    },
+              { to: '/attendance',            icon: CalendarCheck, label: 'Attendance (Full Page)' },
+              { to: '/result/teacher-marks',  icon: BarChart2,     label: 'Enter Marks'            },
+              { to: '/timetable',             icon: CalendarDays,  label: 'View Timetable'         },
+              { to: '/result/reporting',      icon: FileText,      label: 'Report Cards'           },
             ].map(({ to, icon: Icon, label }) => (
               <Link key={to} to={to}
-                className="flex items-center justify-between px-4 py-3 bg-white/10 hover:bg-white/20 rounded-xl transition">
+                className="flex items-center justify-between px-4 py-2.5 bg-white/8 hover:bg-white/15 rounded-xl transition">
                 <div className="flex items-center gap-3">
                   <Icon className="w-4 h-4 text-slate-300" />
                   <span className="text-sm font-bold">{label}</span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-400" />
+                <ChevronRight className="w-4 h-4 text-slate-500" />
               </Link>
             ))}
+            <button onClick={() => setShowLeaveModal(true)}
+              className="w-full flex items-center justify-between px-4 py-2.5 bg-white/8 hover:bg-white/15 rounded-xl transition mt-1">
+              <div className="flex items-center gap-3">
+                <CalendarOff className="w-4 h-4 text-slate-300" />
+                <span className="text-sm font-bold">Apply for Leave</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-500" />
+            </button>
           </div>
 
         </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════════
+          LEAVE APPLICATION MODAL
+      ══════════════════════════════════════════════════════════════════ */}
+      {showLeaveModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowLeaveModal(false)} />
+          
+          <div className="bg-white rounded-3xl w-full max-w-lg relative z-10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-indigo-600 to-indigo-500 text-white">
+              <div>
+                <h2 className="font-black text-lg">Apply for Leave</h2>
+                <p className="text-indigo-200 text-xs mt-0.5">Application will be sent to admin for approval</p>
+              </div>
+              <button onClick={() => setShowLeaveModal(false)} className="p-2 hover:bg-white/20 rounded-xl transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              {/* Applicant Type Selection */}
+              <div className="flex bg-slate-100 p-1 rounded-xl mb-2">
+                <button 
+                  onClick={() => setIsSelfLeave(true)}
+                  className={cn(
+                    "flex-1 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all",
+                    isSelfLeave ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  My Leave
+                </button>
+                <button 
+                  onClick={() => setIsSelfLeave(false)}
+                  className={cn(
+                    "flex-1 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all",
+                    !isSelfLeave ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  Student Leave
+                </button>
+              </div>
+
+              {!isSelfLeave && (
+                <div className="animate-in slide-in-from-top-2 duration-300">
+                  <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">Select Student</label>
+                  <select
+                    value={leaveForm.student_id}
+                    onChange={e => setLeaveForm(p => ({ ...p, student_id: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                  >
+                    <option value="">— Choose Student —</option>
+                    {allStudents.map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.full_name} (Roll #{s.roll_number})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Leave Type */}
+              <div>
+                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">Leave Type</label>
+                <select
+                  value={leaveForm.leave_type}
+                  onChange={e => setLeaveForm(p => ({ ...p, leave_type: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                >
+                  {LEAVE_TYPES.map(t => <option key={t}>{t}</option>)}
+                </select>
+              </div>
+
+              {/* Date Range */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">From Date</label>
+                  <input
+                    type="date"
+                    value={leaveForm.from_date}
+                    onChange={e => setLeaveForm(p => ({
+                      ...p,
+                      from_date: e.target.value,
+                      to_date: e.target.value > p.to_date ? e.target.value : p.to_date,
+                    }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">To Date</label>
+                  <input
+                    type="date"
+                    value={leaveForm.to_date}
+                    min={leaveForm.from_date}
+                    onChange={e => setLeaveForm(p => ({ ...p, to_date: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Days Calculated */}
+              <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-5 py-3 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-black text-indigo-700 uppercase tracking-widest">Total Days Requested</p>
+                  {leaveForm.is_half_day && (
+                    <p className="text-[10px] text-indigo-400 mt-0.5">Half day — counts as 0.5 days</p>
+                  )}
+                </div>
+                <span className="text-3xl font-black text-indigo-600">
+                  {leaveForm.is_half_day ? '½' : leaveDays}
+                </span>
+              </div>
+
+              {/* Half Day Toggle */}
+              <div
+                className="flex items-center gap-3 cursor-pointer"
+                onClick={() => setLeaveForm(p => ({ ...p, is_half_day: !p.is_half_day }))}
+              >
+                <div className={cn(
+                  'relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0',
+                  leaveForm.is_half_day ? 'bg-indigo-600' : 'bg-gray-200'
+                )}>
+                  <span className={cn(
+                    'inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform',
+                    leaveForm.is_half_day ? 'translate-x-5' : 'translate-x-0.5'
+                  )} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-gray-800">Half Day Leave</p>
+                  <p className="text-[10px] text-gray-400">Select if you need only half a day off</p>
+                </div>
+              </div>
+
+              {/* Reason */}
+              <div>
+                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">
+                  Reason for Leave <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={leaveForm.reason}
+                  onChange={e => setLeaveForm(p => ({ ...p, reason: e.target.value }))}
+                  placeholder="Describe the reason for your leave application…"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                />
+                {leaveForm.reason.length < 10 && leaveForm.reason.length > 0 && (
+                  <p className="text-[10px] text-amber-600 mt-1">Please provide more detail (at least 10 characters)</p>
+                )}
+              </div>
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3 bg-gray-50">
+              <button
+                onClick={() => setShowLeaveModal(false)}
+                className="flex-1 border border-gray-200 bg-white rounded-xl py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmitLeave}
+                disabled={submittingLeave || leaveForm.reason.trim().length < 10}
+                className="flex-1 bg-indigo-600 text-white rounded-xl py-2.5 text-sm font-black hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {submittingLeave
+                  ? <><RefreshCw className="w-4 h-4 animate-spin" /> Submitting…</>
+                  : <><Briefcase className="w-4 h-4" /> Submit Application</>
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Chat Center Drawer ── */}
+      {chatOpen && (
+        <MessageCenter 
+          staffId={staffId!} 
+          schoolId={userRole!.school_id}
+          onClose={() => {
+            setChatOpen(false);
+            fetchUnreadCount(staffId!);
+          }} 
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── MESSAGE CENTER COMPONENT ────────────────────────────────────────────────
+function MessageCenter({ staffId, schoolId, onClose }: { staffId: string; schoolId: string; onClose: () => void }) {
+  const [students, setStudents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedThread, setSelectedThread] = useState<any | null>(null);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    fetchChatContacts();
+  }, []);
+
+  const fetchChatContacts = async () => {
+    setLoading(true);
+    try {
+      // 1. Get classes where this staff is class teacher
+      const { data: ctClasses } = await supabase.from('classes')
+        .select('id')
+        .eq('school_id', schoolId)
+        .eq('class_teacher_id', staffId);
+      const ctIds = (ctClasses || []).map(c => c.id);
+
+      // 2. Get classes where this staff teaches
+      const { data: ttSlots } = await supabase.from('timetable_slots')
+        .select('class_id')
+        .eq('school_id', schoolId)
+        .eq('teacher_id', staffId);
+      const taughtIds = (ttSlots || []).map(s => s.class_id);
+
+      const allClassIds = [...new Set([...ctIds, ...taughtIds])];
+
+      // 3. Fetch students
+      let query = supabase
+        .from('students')
+        .select('id, full_name, roll_number, photograph_url, parent_id')
+        .eq('school_id', schoolId)
+        .eq('status', 'active');
+
+      // If teacher has assigned classes, filter by them. 
+      // Otherwise, show all students (fallback for admins/teachers with pending timetables)
+      if (allClassIds.length > 0) {
+        query = query.in('class_id', allClassIds);
+      }
+
+      const { data: stuData } = await query.order('full_name').limit(150);
+      setStudents(stuData || []);
+    } catch (err) {
+      console.error('Error fetching chat contacts:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredStudents = students.filter(s => 
+    s.full_name.toLowerCase().includes(search.toLowerCase()) || 
+    s.classes?.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 z-[110] flex justify-end">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={onClose} />
+
+      {/* Drawer */}
+      <div className="relative w-full max-w-lg bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-indigo-600 text-white">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <MessageCircle className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h2 className="font-black text-lg">Message Center</h2>
+              <p className="text-[10px] text-indigo-100 font-bold uppercase tracking-widest">Connect with Parents & Students</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition">
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        {!selectedThread ? (
+          <div className="flex-1 flex flex-col min-h-0">
+            {/* Search */}
+            <div className="p-4 border-b border-gray-100">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search student or class..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                />
+                <Users className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+              </div>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
+              {loading ? (
+                <div className="p-10 text-center">
+                  <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin mx-auto mb-2" />
+                  <p className="text-sm text-gray-500 font-medium">Loading contacts...</p>
+                </div>
+              ) : filteredStudents.length === 0 ? (
+                <div className="p-10 text-center">
+                  <p className="text-gray-400 text-sm italic">No students found in your assigned classes.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-50">
+                  {filteredStudents.map(student => (
+                    <div key={student.id} className="p-4 hover:bg-indigo-50/50 transition-colors group">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-gray-100 overflow-hidden flex items-center justify-center border border-gray-200">
+                            {student.photograph_url 
+                              ? <img src={student.photograph_url} className="w-full h-full object-cover" alt="" />
+                              : <span className="text-gray-400 font-black">{student.full_name.charAt(0)}</span>
+                            }
+                          </div>
+                          <div>
+                            <p className="font-bold text-gray-900 text-sm">{student.full_name}</p>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase">{student.classes?.name} {student.classes?.section}</p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <button
+                          onClick={() => setSelectedThread({ 
+                            student, 
+                            targetId: student.parent_id || student.family_number, 
+                            type: 'parent',
+                            name: `Parent of ${student.full_name.split(' ')[0]}`
+                          })}
+                          disabled={!student.parent_id && !student.family_number}
+                          className="flex items-center justify-center gap-2 py-2 bg-white border border-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-50 transition disabled:opacity-30"
+                        >
+                          Chat with Parent
+                        </button>
+                        <button
+                          onClick={() => setSelectedThread({ 
+                            student, 
+                            targetId: student.id, 
+                            type: 'student',
+                            name: student.full_name
+                          })}
+                          className="flex items-center justify-center gap-2 py-2 bg-white border border-indigo-100 text-indigo-700 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-50 transition"
+                        >
+                          Chat with Student
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col min-h-0 bg-white">
+            {/* Thread Header */}
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-3">
+              <button onClick={() => setSelectedThread(null)} className="p-2 hover:bg-gray-100 rounded-full transition">
+                <ChevronLeft className="w-5 h-5 text-gray-500" />
+              </button>
+              <div className="flex-1">
+                <p className="font-black text-sm text-gray-900">{selectedThread.name}</p>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">
+                  {selectedThread.type === 'parent' ? 'Parent Portal' : 'Student Portal'} · {selectedThread.student.full_name}
+                </p>
+              </div>
+            </div>
+
+            {/* Chat Interface Integration */}
+            <div className="flex-1 flex flex-col min-h-0 p-4">
+              <ChatInterface
+                schoolId={schoolId}
+                currentUserId={staffId}
+                currentUserType="staff"
+                targetUserId={selectedThread.targetId}
+                targetUserType={selectedThread.type}
+                studentId={selectedThread.student.id}
+                targetName={selectedThread.name}
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

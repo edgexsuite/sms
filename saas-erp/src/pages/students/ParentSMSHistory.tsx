@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { MessageCircle, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { openWhatsApp } from '../../lib/whatsappTemplates';
 
 export default function ParentSMSHistory() {
   const { userRole } = useAuth();
@@ -106,17 +107,10 @@ export default function ParentSMSHistory() {
                      </td>
                      <td className="p-4 text-right">
                        <button 
-                         onClick={() => {
-                           const cleanNum = (log.recipient_number || '').replace(/\D/g, '');
-                           if (cleanNum) {
-                             window.open(`https://wa.me/${cleanNum}?text=${encodeURIComponent(log.message_content)}`, '_blank');
-                           } else {
-                             alert('No valid phone number found for this recipient.');
-                           }
-                         }}
-                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg font-bold text-xs transition-colors border border-green-200"
+                         onClick={() => openWhatsApp(log.recipient_number, log.message_content)}
+                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg font-bold text-xs transition-colors border border-green-200 shadow-sm"
                        >
-                         <MessageCircle className="w-3.5 h-3.5" /> Send
+                         <MessageCircle className="w-3.5 h-3.5" /> Resend
                        </button>
                      </td>
                    </tr>
