@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Search, Smartphone, Eye, EyeOff, Printer, Key, RefreshCw, Wand2, Copy, CheckCheck } from 'lucide-react';
+import * as templatesLib from '../../lib/whatsappTemplates';
 
 function generatePassword(length = 8): string {
   const chars = 'abcdefghjkmnpqrstuvwxyz23456789'; // no ambiguous chars
@@ -83,9 +84,7 @@ export default function CredentialDispatch() {
 
   const handleWhatsApp = (family: any) => {
     const text = formatCredentials(family);
-    const phone = family.whatsapp_number?.replace(/\D/g, '');
-    if (!phone) return alert('No WhatsApp number for this family.');
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+    templatesLib.openWhatsApp(family.whatsapp_number || '', text);
   };
 
   const handleCopy = async (family: any) => {

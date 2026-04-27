@@ -604,6 +604,11 @@ export default function StudentDetailPage() {
         }
       `}</style>
 
+      {/* Click-away backdrop for discount picker */}
+      {showDiscountPicker && (
+        <div className="fixed inset-0 z-10" onClick={() => setShowDiscountPicker(false)} />
+      )}
+
       <div ref={printRef} className="min-h-screen bg-slate-50">
 
         {/* ── Sticky Back + Print Topbar ── */}
@@ -880,7 +885,7 @@ export default function StudentDetailPage() {
 
 
               {/* Financial & Scholarship Status */}
-              {userRole?.role === 'admin' && (
+              {ADMIN_ROLES.includes((userRole?.role || '').toLowerCase()) && (
                 <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm p-6 relative overflow-hidden group hover:border-indigo-300 transition-colors">
                   <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
                     <CreditCard className="w-12 h-12 text-indigo-600" />
@@ -888,8 +893,82 @@ export default function StudentDetailPage() {
                   <h2 className="text-xs font-black text-indigo-600 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
                     <CreditCard className="w-3.5 h-3.5" /> Financial & Scholarship Status
                   </h2>
-                  
+
                   <div className="space-y-6">
+
+                    {/* ── Active Discount Rules ── */}
+                    <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest flex items-center gap-1.5">
+                          <Tag className="w-3 h-3" /> Active Discount / Scholarship Rules
+                        </p>
+                        <div className="relative">
+                          <button
+                            onClick={() => setShowDiscountPicker(v => !v)}
+                            className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-emerald-700 transition-colors"
+                          >
+                            {addingDiscount ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />} Assign
+                          </button>
+                          {showDiscountPicker && (
+                            <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-slate-200 rounded-xl shadow-xl min-w-[220px] overflow-hidden">
+                              {discountRules.length === 0 ? (
+                                <p className="px-4 py-3 text-xs text-slate-400 italic">No discount rules yet. Create them in Discounts & Scholarships.</p>
+                              ) : discountRules.map(rule => {
+                                const alreadyAssigned = (student.custom_data?.discount_rule_ids || []).includes(rule.id);
+                                return (
+                                  <button
+                                    key={rule.id}
+                                    disabled={alreadyAssigned}
+                                    onClick={() => handleAssignDiscount(rule.id)}
+                                    className={cn(
+                                      "w-full flex items-center justify-between px-4 py-2.5 text-left text-sm hover:bg-emerald-50 transition-colors",
+                                      alreadyAssigned ? "opacity-40 cursor-not-allowed" : ""
+                                    )}
+                                  >
+                                    <span className="font-semibold text-slate-800">{rule.name}</span>
+                                    <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full",
+                                      rule.type === 'percentage' ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                                    )}>
+                                      {rule.type === 'percentage' ? `${rule.value}%` : `Rs. ${rule.value}`}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Active rule badges */}
+                      {(() => {
+                        const activeIds: string[] = student.custom_data?.discount_rule_ids || [];
+                        const activeRules = discountRules.filter(r => activeIds.includes(r.id));
+                        if (activeRules.length === 0) return (
+                          <p className="text-xs text-emerald-600 italic opacity-70">No discount rules assigned yet. Click "Assign" to add one.</p>
+                        );
+                        return (
+                          <div className="flex flex-wrap gap-2">
+                            {activeRules.map(rule => (
+                              <div key={rule.id} className="flex items-center gap-1.5 bg-white border border-emerald-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-emerald-800 shadow-sm">
+                                <Tag className="w-3 h-3 text-emerald-500" />
+                                {rule.name}
+                                <span className="bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full text-[10px] font-black">
+                                  {rule.type === 'percentage' ? `${rule.value}%` : `Rs. ${rule.value}`}
+                                </span>
+                                <button
+                                  onClick={() => handleRemoveDiscount(rule.id)}
+                                  className="ml-0.5 text-emerald-400 hover:text-rose-500 transition-colors"
+                                  title="Remove discount"
+                                >
+                                  <XIcon className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+
                     <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
                       <div className="flex items-center gap-4">
                         <div className={cn(
@@ -903,7 +982,7 @@ export default function StudentDetailPage() {
                           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mt-1">Make Student Free</p>
                         </div>
                       </div>
-                      <button 
+                      <button
                         onClick={async () => {
                           const newVal = student.fee_waiver_percentage >= 100 ? 0 : 100;
                           const { error } = await supabase.from('students').update({ fee_waiver_percentage: newVal }).eq('id', student.id);
@@ -922,9 +1001,9 @@ export default function StudentDetailPage() {
                     </div>
 
                     <div className="pt-2">
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Custom Scholarship Percentage</label>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Override Waiver % (Manual)</label>
                       <div className="flex items-center gap-4">
-                        <input 
+                        <input
                           type="range" min="0" max="100" step="1"
                           value={student.fee_waiver_percentage || 0}
                           onChange={async (e) => {
@@ -941,7 +1020,9 @@ export default function StudentDetailPage() {
                           {student.fee_waiver_percentage || 0}%
                         </div>
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-3 italic leading-relaxed">Adjusting this percentage will automatically recalibrate all future fee invoices for this student.</p>
+                      <p className="text-[10px] text-slate-400 mt-3 italic leading-relaxed">
+                        Assigned discount rules auto-set this %. You can also drag to set it manually. Future invoices will apply this % discount.
+                      </p>
                     </div>
                   </div>
                 </div>

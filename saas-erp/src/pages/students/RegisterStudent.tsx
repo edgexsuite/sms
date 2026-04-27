@@ -6,6 +6,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Save, AlertCircle, Plus, Trash2, Camera, X, CheckCircle, Receipt, ArrowRight, ClipboardCheck, MessageCircle, Send } from 'lucide-react';
 import { processStudentPhoto, uploadFile, PHOTO_WIDTH, PHOTO_HEIGHT, PHOTO_MAX_BYTES } from '../../lib/uploadUtils';
 import StudentFeeModal from '../../components/StudentFeeModal';
+import * as templatesLib from '../../lib/whatsappTemplates';
 
 // Generates an alphanumeric password of length 6
 const generatePassword = () => Math.random().toString(36).slice(-6).toUpperCase();
@@ -769,11 +770,7 @@ export default function RegisterStudent() {
       `*${schoolName || 'School Administration'}*`,
     ].join('\n');
 
-    const phone = parentData.father_mobile?.replace(/\D/g, '') || '';
-    const waUrl = phone
-      ? `https://wa.me/92${phone.replace(/^0/, '')}?text=${encodeURIComponent(msg)}`
-      : `https://wa.me/?text=${encodeURIComponent(msg)}`;
-    window.open(waUrl, '_blank');
+    templatesLib.openWhatsApp(parentData.father_mobile || '', msg);
   };
 
   /* ── Post-admission success screen ─────────────────────────────────── */

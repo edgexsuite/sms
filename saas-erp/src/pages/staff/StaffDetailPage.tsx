@@ -11,6 +11,7 @@ import {
 import JoiningLetter from '../../components/JoiningLetter';
 import ExperienceCertificate from '../../components/ExperienceCertificate';
 import { motion, AnimatePresence } from 'framer-motion';
+import * as templatesLib from '../../lib/whatsappTemplates';
 
 export default function StaffDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -454,7 +455,7 @@ export default function StaffDetailPage() {
                             <p className="text-sm font-black text-slate-800 truncate">{staff.email || 'Not configured'}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-5 group cursor-pointer" onClick={() => window.open(`https://wa.me/${staff.whatsapp_number?.replace(/[^0-9]/g, '')}`, '_blank')}>
+                        <div className="flex items-center gap-5 group cursor-pointer" onClick={() => templatesLib.openWhatsApp(staff.whatsapp_number || '', '')}>
                           <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-all shadow-sm">
                             <MessageSquare className="w-5 h-5" />
                           </div>

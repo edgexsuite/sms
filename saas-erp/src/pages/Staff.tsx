@@ -14,6 +14,7 @@ import DeletePinModal from '../components/DeletePinModal';
 import ImportStaffModal from '../components/ImportStaffModal';
 import JoiningLetter from '../components/JoiningLetter';
 import ExperienceCertificate from '../components/ExperienceCertificate';
+import * as templatesLib from '../lib/whatsappTemplates';
 
 const ROLES = ['Teacher', 'Principal', 'Vice Principal', 'Coordinator', 'Admin', 'Accountant', 'Librarian', 'Security', 'Support Staff', 'Driver', 'Other'];
 const DEPARTMENTS = ['Academic', 'Administration', 'Accounts', 'Library', 'Security', 'Transport', 'Science', 'Arts', 'IT'];
@@ -263,9 +264,7 @@ export default function Staff() {
   };
 
   const sendWhatsApp = (num: string, msg: string) => {
-    const cleanNum = num.replace(/\D/g, '');
-    const url = `https://wa.me/${cleanNum}?text=${encodeURIComponent(msg)}`;
-    window.open(url, '_blank');
+    templatesLib.openWhatsApp(num, msg);
     setWaDropdown(null);
   };
 

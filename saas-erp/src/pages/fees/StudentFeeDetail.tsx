@@ -5,7 +5,7 @@ import {
   Search, Wallet, AlertCircle, Save, CheckCircle,
   ShieldOff, AlertTriangle, FileText, ArrowRight,
   Filter, Plus, Printer, X, CreditCard, Clock,
-  TrendingDown, ChevronDown, ChevronUp, Trash2
+  TrendingDown, ChevronDown, ChevronUp, Trash2, Tag
 } from 'lucide-react';
 import { calculateLateFine, getFineRules, FineRule } from '../../lib/fineUtils';
 import { cn } from '../../lib/utils';
@@ -60,6 +60,10 @@ export default function StudentFeeDetail() {
   const [editBreakdown, setEditBreakdown] = useState<BreakdownRow[]>([]);
   const [school, setSchool] = useState<any>(null);
 
+  // Discount State
+  const [discountRules, setDiscountRules] = useState<any[]>([]);
+  const [showDiscountAdd, setShowDiscountAdd] = useState(false);
+
   // New Invoice State
   const [showNewInvoice, setShowNewInvoice] = useState(false);
   const [newInvoiceMonth, setNewInvoiceMonth] = useState('');
@@ -72,6 +76,8 @@ export default function StudentFeeDetail() {
   useEffect(() => {
     if (userRole?.school_id) {
       supabase.from('schools').select('*').eq('id', userRole.school_id).maybeSingle().then(({ data }) => setSchool(data));
+      supabase.from('form_settings').select('sections_config').eq('school_id', userRole.school_id).eq('form_name', 'discount_rules').maybeSingle()
+        .then(({ data }) => setDiscountRules(data?.sections_config?.rules ?? []));
     }
   }, [userRole?.school_id]);
 
@@ -82,7 +88,7 @@ export default function StudentFeeDetail() {
     setIsLoading(true);
     const { data } = await supabase
       .from('students')
-      .select('id, full_name, roll_number, fee_waiver_percentage, classes(name, section)')
+      .select('id, full_name, roll_number, fee_waiver_percentage, custom_data, classes(name, section)')
       .eq('school_id', userRole!.school_id)
       .eq('status', 'active')
       .or(`full_name.ilike.%${query}%,roll_number.eq.${parseInt(query) || 0}`)
@@ -185,6 +191,51 @@ export default function StudentFeeDetail() {
       alert(err.message);
     } finally {
       setCreatingInvoice(false);
+    }
+  };
+
+  // ── Discount helpers ───────────────────────────────────────────────────────
+  const computeWaiverPct = (ruleIds: string[], rules: any[]): number => {
+    let total = 0;
+    ruleIds.forEach(rid => {
+      const rule = rules.find(r => r.id === rid);
+      if (rule?.type === 'percentage') total += rule.value;
+    });
+    return Math.min(Math.round(total), 100);
+  };
+
+  const handleAssignDiscountLedger = async (ruleId: string) => {
+    if (!selectedStudent) return;
+    const existingIds: string[] = selectedStudent.custom_data?.discount_rule_ids || [];
+    if (existingIds.includes(ruleId)) { setShowDiscountAdd(false); return; }
+    const updatedIds = [...existingIds, ruleId];
+    const newPct = computeWaiverPct(updatedIds, discountRules);
+    const { error } = await supabase.from('students').update({
+      custom_data: { ...selectedStudent.custom_data, discount_rule_ids: updatedIds },
+      fee_waiver_percentage: newPct,
+    }).eq('id', selectedStudent.id);
+    if (!error) {
+      const updated = { ...selectedStudent, custom_data: { ...selectedStudent.custom_data, discount_rule_ids: updatedIds }, fee_waiver_percentage: newPct };
+      setSelectedStudent(updated);
+      setWaiver(newPct);
+      setStudents(prev => prev.map(s => s.id === updated.id ? { ...s, fee_waiver_percentage: newPct } : s));
+    }
+    setShowDiscountAdd(false);
+  };
+
+  const handleRemoveDiscountLedger = async (ruleId: string) => {
+    if (!selectedStudent) return;
+    const updatedIds = (selectedStudent.custom_data?.discount_rule_ids || []).filter((id: string) => id !== ruleId);
+    const newPct = computeWaiverPct(updatedIds, discountRules);
+    const { error } = await supabase.from('students').update({
+      custom_data: { ...selectedStudent.custom_data, discount_rule_ids: updatedIds },
+      fee_waiver_percentage: newPct,
+    }).eq('id', selectedStudent.id);
+    if (!error) {
+      const updated = { ...selectedStudent, custom_data: { ...selectedStudent.custom_data, discount_rule_ids: updatedIds }, fee_waiver_percentage: newPct };
+      setSelectedStudent(updated);
+      setWaiver(newPct);
+      setStudents(prev => prev.map(s => s.id === updated.id ? { ...s, fee_waiver_percentage: newPct } : s));
     }
   };
 
@@ -355,6 +406,8 @@ export default function StudentFeeDetail() {
   return (
     <div className="h-[calc(100vh-80px)] flex flex-col gap-3 print:block print:h-auto">
       <style>{`@media print { .no-print { display: none !important; } body { background: white; } }`}</style>
+      {/* Click-away backdrop for discount add picker */}
+      {showDiscountAdd && <div className="fixed inset-0 z-20" onClick={() => setShowDiscountAdd(false)} />}
 
       {/* Onboarding Help — shrinks area when visible */}
       <div className="shrink-0 no-print">
@@ -452,7 +505,8 @@ export default function StudentFeeDetail() {
         ) : (
           <>
             {/* Student Header Card */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-4 flex items-center justify-between">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-4">
+              <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-xl font-bold shadow-md shadow-indigo-100">
                   {selectedStudent.full_name[0]}
@@ -498,6 +552,61 @@ export default function StudentFeeDetail() {
                   )}>
                     Rs. {totalOutstanding.toLocaleString()}
                   </p>
+                </div>
+              </div>
+              </div>
+
+              {/* Discount Badges Row */}
+              <div className="mt-3 pt-3 border-t border-gray-100 flex items-center flex-wrap gap-2">
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest shrink-0 flex items-center gap-1">
+                  <Tag className="w-3 h-3" /> Discounts:
+                </span>
+                {(() => {
+                  const activeIds: string[] = selectedStudent.custom_data?.discount_rule_ids || [];
+                  const activeRules = discountRules.filter(r => activeIds.includes(r.id));
+                  return activeRules.length === 0
+                    ? <span className="text-xs text-gray-400 italic">None assigned</span>
+                    : activeRules.map(rule => (
+                      <span key={rule.id} className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-bold px-2 py-1 rounded-full">
+                        {rule.name}
+                        <span className="bg-emerald-200 text-emerald-800 rounded-full px-1.5">{rule.type === 'percentage' ? `${rule.value}%` : `Rs.${rule.value}`}</span>
+                        <button onClick={() => handleRemoveDiscountLedger(rule.id)} className="text-emerald-400 hover:text-rose-500 ml-0.5 transition-colors">
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </span>
+                    ));
+                })()}
+                {/* Quick assign button */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowDiscountAdd(v => !v)}
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 border border-indigo-200 rounded-full px-2 py-1 hover:bg-indigo-50 transition-colors"
+                  >
+                    <Plus className="w-2.5 h-2.5" /> Add
+                  </button>
+                  {showDiscountAdd && (
+                    <div className="absolute left-0 top-full mt-1 z-30 bg-white border border-gray-200 rounded-xl shadow-xl min-w-[200px] overflow-hidden">
+                      {discountRules.length === 0
+                        ? <p className="px-4 py-3 text-xs text-gray-400 italic">No rules yet. Go to Discounts & Scholarships to create one.</p>
+                        : discountRules.map(rule => {
+                          const already = (selectedStudent.custom_data?.discount_rule_ids || []).includes(rule.id);
+                          return (
+                            <button
+                              key={rule.id}
+                              disabled={already}
+                              onClick={() => handleAssignDiscountLedger(rule.id)}
+                              className={cn("w-full flex items-center justify-between px-4 py-2.5 text-left text-sm hover:bg-emerald-50 transition-colors", already && "opacity-40 cursor-not-allowed")}
+                            >
+                              <span className="font-semibold text-gray-800">{rule.name}</span>
+                              <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", rule.type === 'percentage' ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
+                                {rule.type === 'percentage' ? `${rule.value}%` : `Rs. ${rule.value}`}
+                              </span>
+                            </button>
+                          );
+                        })
+                      }
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

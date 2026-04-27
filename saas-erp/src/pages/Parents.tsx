@@ -121,9 +121,7 @@ export default function Parents() {
 
   const executeWhatsAppSend = () => {
     if (!waModal) return;
-    const phone = waModal.parent.whatsapp_number || '';
-    const msg = encodeURIComponent(waModal.message);
-    window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${msg}`, '_blank');
+    templatesLib.openWhatsApp(waModal.parent.whatsapp_number || '', waModal.message);
     setWaModal(null);
   };
 

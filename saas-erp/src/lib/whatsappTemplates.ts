@@ -70,14 +70,36 @@ export function customTemplate(vars: TemplateVars): string {
   return `Dear ${vars.parentName || 'Parent'},\n\n${vars.customMessage || ''}\n\n— ${vars.schoolName || 'School Management'}`;
 }
 
+/**
+ * Clean and format phone numbers for WhatsApp.
+ * Handles Pakistan formats: 03..., 3..., 92...
+ * Also strips prefixes like "Chat on WhatsApp with "
+ */
+export function cleanWhatsAppNumber(phone: string): string {
+  // Step 1: Strip all non-digits
+  let cleaned = (phone || '').replace(/\D/g, '');
+  
+  // Step 2: Handle Pakistan specific formatting
+  // Case 1: 03001234567 -> 923001234567
+  if (cleaned.length === 11 && cleaned.startsWith('03')) {
+    cleaned = '92' + cleaned.substring(1);
+  }
+  // Case 2: 3001234567 -> 923001234567
+  else if (cleaned.length === 10 && cleaned.startsWith('3')) {
+    cleaned = '92' + cleaned;
+  }
+  
+  return cleaned;
+}
+
 /** Open WhatsApp for a given phone number with pre-filled message */
 export function openWhatsApp(phone: string, message: string): void {
-  const cleaned = phone.replace(/\D/g, '');
+  const cleaned = cleanWhatsAppNumber(phone);
   window.open(`https://wa.me/${cleaned}?text=${encodeURIComponent(message)}`, '_blank');
 }
 
 /** Build wa.me link without opening it (for generating links) */
 export function buildWhatsAppLink(phone: string, message: string): string {
-  const cleaned = phone.replace(/\D/g, '');
+  const cleaned = cleanWhatsAppNumber(phone);
   return `https://wa.me/${cleaned}?text=${encodeURIComponent(message)}`;
 }

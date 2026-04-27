@@ -242,7 +242,7 @@ export default function MonthlyFeeInvoices() {
       schoolName: school.name
     });
     await supabase.from('communication_logs').insert([{ school_id: userRole?.school_id, recipient_number: parentPhone, message_content: msg, channel: 'whatsapp', status: 'sent' }]);
-    window.open(`https://wa.me/${parentPhone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+    templatesLib.openWhatsApp(parentPhone, msg);
   };
 
   const handleBulkOverdueReminders = async () => {

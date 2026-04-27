@@ -244,7 +244,7 @@ export default function Communication() {
       if (channel === 'whatsapp') {
         if (recipientCount === 1) {
            const num = recipients[0].whatsapp_number || '';
-           if (num) window.open(`https://wa.me/${num.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`, '_blank');
+           if (num) templatesLib.openWhatsApp(num, message);
         } else {
            alert(`Logged ${recipientCount} WhatsApp messages. Use the 'Send Now' buttons in the history table to open WhatsApp for each recipient.`);
         }
@@ -617,7 +617,7 @@ export default function Communication() {
                    <td className="px-6 py-4 text-right">
                       {log.channel === 'whatsapp' && (
                         <button 
-                          onClick={() => window.open(`https://wa.me/${log.recipient_number.replace(/\D/g, '')}?text=${encodeURIComponent(log.message_content)}`, '_blank')}
+                          onClick={() => templatesLib.openWhatsApp(log.recipient_number, log.message_content)}
                           className="p-2 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
                         >
                           <ExternalLink className="w-4 h-4" />
