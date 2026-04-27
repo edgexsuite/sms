@@ -9,8 +9,10 @@ import {
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Cell
+  ResponsiveContainer, Cell, PieChart, Pie
 } from 'recharts';
+
+const FEE_COLORS = ['#6366f1','#10b981','#f59e0b','#ef4444','#3b82f6','#8b5cf6','#ec4899'];
 
 export default function AccountantDashboard() {
   const { userRole } = useAuth();
@@ -18,6 +20,7 @@ export default function AccountantDashboard() {
   const [feeSummary, setFeeSummary] = useState({ collected: 0, pending: 0, todayCollected: 0, totalInvoices: 0 });
   const [expenseSummary, setExpenseSummary] = useState({ thisMonth: 0, topCategories: [] as { category: string; amount: number }[] });
   const [monthlyChart, setMonthlyChart] = useState<{ month: string; income: number; expense: number }[]>([]);
+  const [feeTypeBreakdown, setFeeTypeBreakdown] = useState<{ item: string; amount: number }[]>([]);
 
   const today = new Date().toISOString().split('T')[0];
   const thisMonth = today.slice(0, 7);
@@ -28,7 +31,7 @@ export default function AccountantDashboard() {
 
   const loadData = async () => {
     setLoading(true);
-    await Promise.all([fetchFeeSummary(), fetchExpenseSummary(), fetchMonthlyChart()]);
+    await Promise.all([fetchFeeSummary(), fetchExpenseSummary(), fetchMonthlyChart(), fetchFeeTypeBreakdown()]);
     setLoading(false);
   };
 
@@ -102,6 +105,30 @@ export default function AccountantDashboard() {
       income: Math.round(incomeMap.get(m) || 0),
       expense: Math.round(expenseMap.get(m) || 0),
     })));
+  };
+
+  const fetchFeeTypeBreakdown = async () => {
+    const startDate = `${thisMonth}-01`;
+    const { data } = await supabase
+      .from('financial_transactions')
+      .select('amount, fee_items')
+      .eq('school_id', userRole?.school_id)
+      .eq('type', 'income')
+      .gte('date', startDate);
+    if (!data) return;
+    const totals: Record<string, number> = {};
+    data.forEach(tx => {
+      if (Array.isArray(tx.fee_items) && tx.fee_items.length > 0) {
+        tx.fee_items.forEach((fi: { item: string; amount: number }) => {
+          totals[fi.item] = (totals[fi.item] || 0) + (Number(fi.amount) || 0);
+        });
+      } else {
+        totals['Other'] = (totals['Other'] || 0) + Number(tx.amount);
+      }
+    });
+    setFeeTypeBreakdown(
+      Object.entries(totals).map(([item, amount]) => ({ item, amount })).sort((a, b) => b.amount - a.amount).slice(0, 7)
+    );
   };
 
   const fmt = (n: number) => `Rs. ${n.toLocaleString('en-PK', { maximumFractionDigits: 0 })}`;
@@ -185,6 +212,31 @@ export default function AccountantDashboard() {
 
         {/* Right column */}
         <div className="space-y-5">
+
+          {/* Fee Income by Type — this month */}
+          {feeTypeBreakdown.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <h3 className="font-black text-gray-900 text-sm mb-3 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-indigo-500" /> Fee Income by Type
+              </h3>
+              <div className="flex items-center gap-2 mb-3">
+                <PieChart width={80} height={80}>
+                  <Pie data={feeTypeBreakdown} dataKey="amount" cx="50%" cy="50%" outerRadius={35} innerRadius={18}>
+                    {feeTypeBreakdown.map((_, idx) => <Cell key={idx} fill={FEE_COLORS[idx % FEE_COLORS.length]} />)}
+                  </Pie>
+                </PieChart>
+                <div className="flex-1 space-y-1">
+                  {feeTypeBreakdown.map(({ item, amount }, idx) => (
+                    <div key={item} className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: FEE_COLORS[idx % FEE_COLORS.length] }} />
+                      <span className="text-[10px] text-gray-600 truncate flex-1">{item}</span>
+                      <span className="text-[10px] font-bold text-gray-800">{fmt(amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Top expense categories */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">

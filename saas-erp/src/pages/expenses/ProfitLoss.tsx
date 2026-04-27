@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { TrendingUp, Download, Printer } from 'lucide-react';
 import { exportToCSV } from '../../lib/exportUtils';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
 
 interface MonthRow {
   month: string;
@@ -12,9 +12,12 @@ interface MonthRow {
   net: number;
 }
 
+const PIE_COLORS = ['#6366f1','#10b981','#f59e0b','#ef4444','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f97316','#84cc16'];
+
 export default function ProfitLoss() {
   const { userRole } = useAuth();
   const [rows, setRows] = useState<MonthRow[]>([]);
+  const [incomeTxns, setIncomeTxns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [year, setYear] = useState(new Date().getFullYear());
 
@@ -30,8 +33,10 @@ export default function ProfitLoss() {
 
     const [{ data: expData }, { data: incData }] = await Promise.all([
       supabase.from('financial_transactions').select('date, amount').eq('school_id', sid).eq('type', 'expense').gte('date', startDate).lte('date', endDate),
-      supabase.from('fee_records').select('created_at, paid_amount').eq('school_id', sid).gt('paid_amount', 0).gte('created_at', startDate + 'T00:00:00').lte('created_at', endDate + 'T23:59:59'),
+      supabase.from('financial_transactions').select('date, amount, fee_items').eq('school_id', sid).eq('type', 'income').gte('date', startDate).lte('date', endDate),
     ]);
+
+    setIncomeTxns(incData || []);
 
     const monthlyData: Record<number, MonthRow> = {};
     for (let m = 1; m <= 12; m++) {
@@ -45,14 +50,32 @@ export default function ProfitLoss() {
     });
 
     incData?.forEach(i => {
-      const m = new Date(i.created_at).getMonth() + 1;
-      if (monthlyData[m]) monthlyData[m].income += Number(i.paid_amount);
+      const m = new Date(i.date).getMonth() + 1;
+      if (monthlyData[m]) monthlyData[m].income += Number(i.amount);
     });
 
     const result = Object.values(monthlyData).map(r => ({ ...r, net: r.income - r.expenses }));
     setRows(result);
     setLoading(false);
   };
+
+  // Aggregate fee_items JSONB for income breakdown by type
+  const feeItemTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    incomeTxns.forEach(tx => {
+      if (Array.isArray(tx.fee_items) && tx.fee_items.length > 0) {
+        tx.fee_items.forEach((fi: { item: string; amount: number }) => {
+          totals[fi.item] = (totals[fi.item] || 0) + (Number(fi.amount) || 0);
+        });
+      } else {
+        // Transactions without breakdown → bucket as "Other Income"
+        totals['Other Income'] = (totals['Other Income'] || 0) + Number(tx.amount);
+      }
+    });
+    return Object.entries(totals)
+      .map(([item, amount]) => ({ item, amount }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [incomeTxns]);
 
   const totalIncome = rows.reduce((s, r) => s + r.income, 0);
   const totalExpenses = rows.reduce((s, r) => s + r.expenses, 0);
@@ -132,6 +155,47 @@ export default function ProfitLoss() {
           </ResponsiveContainer>
         )}
       </div>
+
+      {/* Fee Income Breakdown by Type */}
+      {feeItemTotals.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="font-semibold text-gray-800 mb-4">Income Breakdown by Fee Type — {year}</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Pie chart */}
+            <div className="flex items-center justify-center">
+              <ResponsiveContainer width="100%" height={220} minWidth={0}>
+                <PieChart>
+                  <Pie data={feeItemTotals} dataKey="amount" nameKey="item" cx="50%" cy="50%" outerRadius={90} label={({ item, percent }) => `${item} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                    {feeItemTotals.map((_, idx) => <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v: number) => `Rs. ${v.toLocaleString()}`} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            {/* Item list */}
+            <div className="space-y-2">
+              {feeItemTotals.map((fi, idx) => {
+                const pct = totalIncome > 0 ? (fi.amount / totalIncome) * 100 : 0;
+                return (
+                  <div key={fi.item} className="flex items-center gap-3">
+                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="font-medium text-gray-700 truncate">{fi.item}</span>
+                        <span className="text-gray-500 ml-2">Rs. {fi.amount.toLocaleString()}</span>
+                      </div>
+                      <div className="h-1.5 bg-gray-100 rounded-full">
+                        <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }} />
+                      </div>
+                    </div>
+                    <span className="text-xs text-gray-400 w-10 text-right">{pct.toFixed(1)}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* P&L Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden overflow-x-auto">

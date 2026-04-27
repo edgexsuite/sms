@@ -12,6 +12,7 @@ import {
 import StudentFeeModal from '../../components/StudentFeeModal';
 import StudentFeeOverrideModal from '../../components/StudentFeeOverrideModal';
 import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, type ChallanRecord, type SchoolInfo } from '../../lib/challanUtils';
+import FeeBreakdownEditor, { type BreakdownRow } from '../../components/FeeBreakdownEditor';
 
 const PAY_MODES = ['Cash', 'Cheque', 'Bank Transfer', 'JazzCash', 'EasyPaisa', 'Online'];
 
@@ -60,6 +61,7 @@ export default function StudentDetailPage() {
   const [editingFee, setEditingFee] = useState<any | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [editForm, setEditForm] = useState({ total_amount: '', paid_amount: '', paid_at: '', month_year: '' });
+  const [editBreakdown, setEditBreakdown] = useState<BreakdownRow[]>([]);
 
   useEffect(() => {
     if (userRole?.school_id) {
@@ -115,7 +117,7 @@ export default function StudentDetailPage() {
       }
       if (t === 'fees') {
         const { data } = await supabase.from('fee_records').select('*')
-          .eq('student_id', stud.id).order('month_year', { ascending: false });
+          .eq('student_id', stud.id).is('deleted_at', null).order('month_year', { ascending: false });
         setFees(data || []);
         
         const total = data?.reduce((acc, f) => acc + (f.total_amount || 0), 0) || 0;
@@ -225,6 +227,8 @@ export default function StudentDetailPage() {
         date: collectDate,
         payment_mode: collectMode,
         remarks: `Fee — ${student.full_name} (${collectingFee.invoice_number || collectingFee.id.slice(0,8)})`,
+        fee_record_id: collectingFee.id,
+        fee_items: (collectingFee.breakdown || []).map((b: any) => ({ item: b.item, amount: Number(b.amount) })),
       });
 
       // Print challan receipt
@@ -265,6 +269,10 @@ export default function StudentDetailPage() {
 
   const openEditFee = (f: any) => {
     setEditingFee(f);
+    const bd: BreakdownRow[] = Array.isArray(f.breakdown) && f.breakdown.length > 0
+      ? f.breakdown.map((b: any) => ({ item: b.item || '', amount: Number(b.amount) || 0 }))
+      : [{ item: 'Tuition Fee', amount: Number(f.total_amount) || 0 }];
+    setEditBreakdown(bd);
     setEditForm({
       total_amount: String(f.total_amount),
       paid_amount: String(f.paid_amount),
@@ -277,12 +285,15 @@ export default function StudentDetailPage() {
     if (!editingFee) return;
     setEditSaving(true);
     try {
+      const derivedTotal = editBreakdown.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+      const paidAmt = parseFloat(editForm.paid_amount) || 0;
       const { error } = await supabase.from('fee_records').update({
-        total_amount: parseFloat(editForm.total_amount),
-        paid_amount: parseFloat(editForm.paid_amount),
+        total_amount: derivedTotal,
+        breakdown: editBreakdown,
+        paid_amount: paidAmt,
         paid_at: editForm.paid_at ? editForm.paid_at + 'T12:00:00Z' : null,
         month_year: editForm.month_year + '-01',
-        status: parseFloat(editForm.paid_amount) >= parseFloat(editForm.total_amount) ? 'paid' : (parseFloat(editForm.paid_amount) > 0 ? 'partial' : 'pending')
+        status: paidAmt >= derivedTotal ? 'paid' : (paidAmt > 0 ? 'partial' : 'pending')
       }).eq('id', editingFee.id);
 
       if (error) throw error;
@@ -1057,9 +1068,9 @@ export default function StudentDetailPage() {
       {/* ── Edit Fee Record Modal ── */}
       {editingFee && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
             <div className="bg-slate-900 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-white font-black text-sm uppercase tracking-widest">Edit Fee Record</h2>
+              <h2 className="text-white font-black text-sm uppercase tracking-widest">Edit Fee Invoice</h2>
               <button onClick={() => setEditingFee(null)} className="text-white/60 hover:text-white">✕</button>
             </div>
             <div className="p-6 space-y-4">
@@ -1075,21 +1086,23 @@ export default function StudentDetailPage() {
                     className="w-full px-3 py-2 border rounded-xl text-sm" />
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Total Fee (Rs)</label>
-                  <input type="number" value={editForm.total_amount} onChange={e => setEditForm({...editForm, total_amount: e.target.value})}
-                    className="w-full px-3 py-2 border rounded-xl font-mono text-sm font-bold text-slate-800" />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Amount Paid (Rs)</label>
-                  <input type="number" value={editForm.paid_amount} onChange={e => setEditForm({...editForm, paid_amount: e.target.value})}
-                    className="w-full px-3 py-2 border rounded-xl font-mono text-sm font-bold text-emerald-600" />
-                </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase mb-2">Fee Breakdown</label>
+                <FeeBreakdownEditor
+                  breakdown={editBreakdown}
+                  onChange={setEditBreakdown}
+                  schoolId={userRole?.school_id}
+                  itemType="all"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Amount Paid (Rs)</label>
+                <input type="number" value={editForm.paid_amount} onChange={e => setEditForm({...editForm, paid_amount: e.target.value})}
+                  className="w-full px-3 py-2 border rounded-xl font-mono text-sm font-bold text-emerald-600" />
               </div>
               <button onClick={handleUpdateFeeRecord} disabled={editSaving}
                 className="w-full py-3 bg-indigo-600 text-white font-black rounded-xl text-sm hover:bg-indigo-700 transition disabled:opacity-50">
-                {editSaving ? 'Saving Changes...' : 'Update Record'}
+                {editSaving ? 'Saving Changes...' : 'Update Invoice'}
               </button>
             </div>
           </div>
