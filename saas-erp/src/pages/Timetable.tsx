@@ -621,148 +621,198 @@ export default function Timetable() {
     doc.save(`Schedule_${teacher.full_name.replace(/ /g, '_')}.pdf`);
   };
 
-  /** Timetable PDF — Whole school (rows = periods, cols = all classes) per day */
-  const generateSchoolPDF = (day: string) => {
-    const daysToGenerate = day === 'all' ? DAYS : [day];
+  /** Timetable PDF — Whole school, all days in one table.
+   *  Rows = period slots, columns = classes.
+   *  Each cell lists every day: "Mon: Subject / Teacher"
+   *  Timing is only appended when it differs from the template row's standard time (e.g. Friday prayers).
+   */
+  const generateSchoolPDF = () => {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
+    pdfHeader(
+      doc,
+      'School Timetable — All Days',
+      `${classes.length} classes  ·  Mon – Sat  ·  Alternate timing shown where schedule differs`
+    );
 
-    daysToGenerate.forEach((d, pageIndex) => {
-      if (pageIndex > 0) doc.addPage();
-      pdfHeader(doc, `School Timetable — ${d}`, `${classes.length} classes  ·  All subjects & teachers`);
+    const rows = FALLBACK_ROWS;
+    const pageW = doc.internal.pageSize.getWidth(); // A3 landscape = 420mm
+    const periodColW = 26;
+    const dynColW = Math.max(22, (pageW - 10 - periodColW) / classes.length);
 
-      const colW = Math.min(30, (390 - 28) / classes.length);
-      const head = [['Period / Time', ...classes.map(c => `${c.name}\n${c.section}`)]];
-      const body: any[] = [];
+    const head = [['Period / Time', ...classes.map(c => `${c.name} ${c.section}`)]];
+    const body: any[] = [];
 
-      FALLBACK_ROWS.forEach(row => {
-        if (row.slot_type !== 'period') {
-          body.push([{
-            content: `${row.slot_type === 'break' ? '☕' : '🎒'}  ${row.label}  (${row.start_time} – ${row.end_time})`,
-            colSpan: classes.length + 1,
-            styles: {
-              fillColor: row.slot_type === 'break' ? [255, 251, 235] : [238, 242, 255],
-              textColor: row.slot_type === 'break' ? [146, 64, 14] : [79, 70, 229],
-              fontStyle: 'bold', halign: 'center', fontSize: 6.5,
-            },
-          }]);
-        } else {
-          body.push([
-            { content: `${row.label}\n${row.start_time}–${row.end_time}`, styles: { fontStyle: 'bold', fontSize: 6.5, fillColor: [241, 245, 249] } },
-            ...classes.map(cls => {
-              const slot = allSchoolSlots.find(s =>
-                s.day_of_week === d && s.class_id === cls.id &&
-                (s.period_number === row.sort_order || s.template_row_id === row.id)
-              );
-              if (!slot) return { content: '', styles: { textColor: [220, 220, 220] } };
-              return {
-                content: `${slot.subjects?.subject_name || '—'}\n${slot.staff?.full_name || ''}`,
-                styles: { fontSize: 6, textColor: slot.is_combined_class ? [146, 64, 14] : [0, 0, 0] },
-              };
-            }),
-          ]);
-        }
-      });
+    rows.forEach(row => {
+      if (row.slot_type !== 'period') {
+        // Break / assembly — full-width banner
+        body.push([{
+          content: `${row.slot_type === 'break' ? '☕' : '🎒'}  ${row.label}  (${row.start_time} – ${row.end_time})`,
+          colSpan: classes.length + 1,
+          styles: {
+            fillColor: row.slot_type === 'break' ? [255, 251, 235] : [238, 242, 255],
+            textColor: row.slot_type === 'break' ? [146, 64, 14] : [79, 70, 229],
+            fontStyle: 'bold', halign: 'center', fontSize: 6,
+          },
+        }]);
+        return;
+      }
 
-      const pageW3 = doc.internal.pageSize.getWidth(); // A3 landscape = 420mm
-      const periodCol3 = 28;
-      const dynColW = Math.max(18, (pageW3 - 10 - periodCol3) / classes.length); // at least 18mm per class
-
-      autoTable(doc, {
-        head,
-        body,
-        startY: 26,
-        margin: { left: 5, right: 5, top: 26, bottom: 5 },
-        theme: 'grid',
-        headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 6.5, halign: 'center', cellPadding: { top: 3, bottom: 3, left: 2, right: 2 } },
-        alternateRowStyles: { fillColor: [248, 250, 252] },
-        columnStyles: {
-          0: { cellWidth: periodCol3, fontStyle: 'bold', fillColor: [241, 245, 249] },
-          ...Object.fromEntries(classes.map((_, i) => [i + 1, { cellWidth: dynColW, halign: 'center' }])),
+      body.push([
+        {
+          content: `${row.label}\n${row.start_time}–${row.end_time}`,
+          styles: { fontStyle: 'bold', fontSize: 6, fillColor: [241, 245, 249] },
         },
-        styles: { fontSize: 6, cellPadding: { top: 2, bottom: 2, left: 2, right: 2 }, overflow: 'linebreak', lineColor: [226, 232, 240] },
-        rowPageBreak: 'avoid',
-      });
+        ...classes.map(cls => {
+          // Build one line per day
+          const lines = DAYS.map(day => {
+            const slot = allSchoolSlots.find(s =>
+              s.day_of_week === day && s.class_id === cls.id && s.period_number === row.sort_order
+            );
+            if (!slot) return `${day.slice(0, 3)}: —`;
+
+            const subj    = slot.subjects?.subject_name || '—';
+            const teacher = slot.staff?.full_name       || '';
+            // Show actual time only when it differs from the template-row standard time
+            const timeNote = (slot.start_time && slot.start_time !== row.start_time)
+              ? ` [${slot.start_time}–${slot.end_time}]`
+              : '';
+
+            return `${day.slice(0, 3)}: ${subj}${teacher ? ' / ' + teacher : ''}${timeNote}`;
+          });
+
+          return {
+            content: lines.join('\n'),
+            styles: { fontSize: 5.5, cellPadding: { top: 1.5, bottom: 1.5, left: 2, right: 2 } },
+          };
+        }),
+      ]);
     });
 
-    doc.save(`School_Timetable${day === 'all' ? '_AllDays' : `_${day}`}.pdf`);
+    autoTable(doc, {
+      head,
+      body,
+      startY: 26,
+      margin: { left: 5, right: 5, top: 26, bottom: 5 },
+      theme: 'grid',
+      headStyles: {
+        fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold',
+        fontSize: 6.5, halign: 'center',
+        cellPadding: { top: 3, bottom: 3, left: 2, right: 2 },
+      },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: {
+        0: { cellWidth: periodColW, fontStyle: 'bold', fillColor: [241, 245, 249] },
+        ...Object.fromEntries(classes.map((_, i) => [i + 1, { cellWidth: dynColW }])),
+      },
+      styles: {
+        fontSize: 5.5,
+        cellPadding: { top: 1.5, bottom: 1.5, left: 2, right: 2 },
+        overflow: 'linebreak',
+        lineColor: [226, 232, 240],
+      },
+      rowPageBreak: 'avoid',
+    });
+
+    doc.save('School_Timetable_AllDays.pdf');
   };
 
   /** Open a printable HTML page in a new window */
-  const openPrintWindow = (mode: 'class' | 'teacher' | 'school', id: string, day: string) => {
+  const openPrintWindow = (mode: 'class' | 'teacher' | 'school', id: string, _day: string) => {
     const title = mode === 'class'
       ? (() => { const c = classes.find(x => x.id === id); return c ? `${c.name} ${c.section}` : ''; })()
       : mode === 'teacher'
       ? (teachers.find(t => t.id === id)?.full_name ?? '')
-      : `All Classes — ${day === 'all' ? 'All Days' : day}`;
+      : 'School Timetable — All Days';
 
-    const buildRows = (rows: TemplateRow[], classId?: string, teacherId?: string, schoolDay?: string) =>
+    // Build table rows for class / teacher modes (columns = days)
+    const buildClassTeacherRows = (rows: TemplateRow[], classId?: string, teacherId?: string) =>
       rows.map(row => {
         if (row.slot_type !== 'period') {
-          const cols = mode === 'school' ? classes.length : DAYS.length;
-          return `<tr class="break-row"><td colspan="${cols + 1}">${row.slot_type === 'break' ? '☕' : '🎒'} ${row.label} &nbsp;(${row.start_time} – ${row.end_time})</td></tr>`;
+          return `<tr class="break-row"><td colspan="${DAYS.length + 1}">${row.slot_type === 'break' ? '☕' : '🎒'} ${row.label} &nbsp;(${row.start_time} – ${row.end_time})</td></tr>`;
         }
-        const cells = mode === 'class' && classId
+        const cells = classId
           ? DAYS.map(d => {
               const s = findSlot(row, d, classId);
               return `<td>${s ? `<strong>${s.subjects?.subject_name || ''}</strong><br/><span>${s.staff?.full_name || ''}</span>` : '<span class="empty">—</span>'}</td>`;
             }).join('')
-          : mode === 'teacher' && teacherId
+          : teacherId
           ? DAYS.map(d => {
               const s = allSchoolSlots.find(sl => sl.teacher_id === teacherId && sl.day_of_week === d && sl.period_number === row.sort_order);
-              if (!s) return `<td><span class="empty">Free</span></td>`;
+              if (!s) return `<td><span class="free">Free</span></td>`;
               const c = classes.find(x => x.id === s.class_id);
               return `<td><strong>${s.subjects?.subject_name || ''}</strong><br/><span>${c ? `${c.name} ${c.section}` : ''}</span></td>`;
             }).join('')
-          : mode === 'school' && schoolDay
-          ? classes.map(cls => {
-              const s = allSchoolSlots.find(sl => sl.day_of_week === schoolDay && sl.class_id === cls.id && sl.period_number === row.sort_order);
-              if (!s) return `<td><span class="empty">—</span></td>`;
-              return `<td><strong>${s.subjects?.subject_name || ''}</strong><br/><span>${s.staff?.full_name || ''}</span></td>`;
-            }).join('')
           : '';
-        return `<tr><td class="period-col"><strong>${row.label}</strong><br/><span>${row.start_time} – ${row.end_time}</span></td>${cells}</tr>`;
+        return `<tr><td class="period-col"><strong>${row.label}</strong><br/><small>${row.start_time} – ${row.end_time}</small></td>${cells}</tr>`;
       }).join('');
 
-    const colHeaders = mode === 'class' || mode === 'teacher'
-      ? DAYS.map(d => `<th>${d}</th>`).join('')
-      : classes.map(c => `<th>${c.name}<br/><small>${c.section}</small></th>`).join('');
+    // Build school table rows — all days in one cell per class
+    const buildSchoolRows = (rows: TemplateRow[]) =>
+      rows.map(row => {
+        if (row.slot_type !== 'period') {
+          return `<tr class="break-row"><td colspan="${classes.length + 1}">${row.slot_type === 'break' ? '☕' : '🎒'} ${row.label} &nbsp;(${row.start_time} – ${row.end_time})</td></tr>`;
+        }
+        const cells = classes.map(cls => {
+          const dayLines = DAYS.map(day => {
+            const s = allSchoolSlots.find(sl => sl.day_of_week === day && sl.class_id === cls.id && sl.period_number === row.sort_order);
+            if (!s) return `<span class="day-line"><b>${day.slice(0,3)}:</b> <em class="empty">—</em></span>`;
+            const subj    = s.subjects?.subject_name || '—';
+            const teacher = s.staff?.full_name       || '';
+            const timeNote = (s.start_time && s.start_time !== row.start_time)
+              ? ` <span class="time-note">[${s.start_time}–${s.end_time}]</span>` : '';
+            return `<span class="day-line"><b>${day.slice(0,3)}:</b> ${subj}${teacher ? ' / ' + teacher : ''}${timeNote}</span>`;
+          }).join('');
+          return `<td>${dayLines}</td>`;
+        }).join('');
+        return `<tr><td class="period-col"><strong>${row.label}</strong><br/><small>${row.start_time} – ${row.end_time}</small></td>${cells}</tr>`;
+      }).join('');
 
-    const daysToShow = (mode === 'school' && day === 'all') ? DAYS : [mode === 'school' ? day : ''];
+    const dayHeaders = DAYS.map(d => `<th>${d}</th>`).join('');
+    const classHeaders = classes.map(c => `<th>${c.name} ${c.section}</th>`).join('');
 
-    const tables = mode === 'school' && day === 'all'
-      ? DAYS.map(d => `
-          <h3 style="margin:24px 0 8px; padding:6px 10px; background:#1e293b; color:#fff; border-radius:4px; font-size:13px;">📅 ${d}</h3>
-          <table>
-            <thead><tr><th>Period / Time</th>${classes.map(c => `<th>${c.name}<br/><small>${c.section}</small></th>`).join('')}</tr></thead>
-            <tbody>${buildRows(FALLBACK_ROWS, undefined, undefined, d)}</tbody>
-          </table>`).join('')
+    const tables = mode === 'school'
+      ? `<table>
+           <thead><tr><th style="width:72px">Period / Time</th>${classHeaders}</tr></thead>
+           <tbody>${buildSchoolRows(FALLBACK_ROWS)}</tbody>
+         </table>`
       : `<table>
-          <thead><tr><th>Period / Time</th>${colHeaders}</tr></thead>
-          <tbody>${buildRows(
-            mode === 'class' && id ? getClassRows(id) : FALLBACK_ROWS,
-            mode === 'class' ? id : undefined,
-            mode === 'teacher' ? id : undefined,
-            mode === 'school' ? day : undefined,
-          )}</tbody>
-        </table>`;
+           <thead><tr><th style="width:72px">Period / Time</th>${dayHeaders}</tr></thead>
+           <tbody>${buildClassTeacherRows(
+             mode === 'class' && id ? getClassRows(id) : FALLBACK_ROWS,
+             mode === 'class' ? id : undefined,
+             mode === 'teacher' ? id : undefined,
+           )}</tbody>
+         </table>`;
 
     const html = `<!DOCTYPE html><html><head><title>${title} — Timetable</title>
     <style>
       * { box-sizing: border-box; }
-      body { font-family: Arial, sans-serif; padding: 10px; font-size: 10px; color: #1e293b; }
+      body { font-family: Arial, sans-serif; padding: 10px; font-size: 9px; color: #1e293b; }
       .header { background: #1e293b; color: #fff; padding: 8px 14px; border-radius: 5px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
-      .header h2 { margin: 0; font-size: 13px; } .header p { margin: 2px 0 0; font-size: 9px; opacity: 0.7; }
+      .header h2 { margin: 0; font-size: 12px; } .header p { margin: 2px 0 0; font-size: 8px; opacity: 0.7; }
       .meta { font-size: 8px; opacity: 0.7; text-align: right; }
       table { width: 100%; border-collapse: collapse; margin-bottom: 8px; table-layout: fixed; }
-      th { background: #1e293b; color: #fff; padding: 5px 4px; font-size: 8px; text-transform: uppercase; letter-spacing: 0.3px; word-break: break-word; }
-      td { border: 1px solid #e2e8f0; padding: 4px 5px; vertical-align: top; font-size: 8.5px; word-break: break-word; }
-      td strong { display: block; font-size: 8.5px; font-weight: 700; }
-      td span { font-size: 7.5px; color: #64748b; }
-      .period-col { background: #f8fafc; font-weight: 700; white-space: nowrap; width: 72px; }
-      .break-row td { background: #fefce8; color: #92400e; font-weight: bold; text-align: center; font-size: 8px; padding: 3px; }
+      th { background: #1e293b; color: #fff; padding: 4px 3px; font-size: 7px; text-transform: uppercase; letter-spacing: 0.3px; word-break: break-word; text-align: center; }
+      td { border: 1px solid #e2e8f0; padding: 3px 4px; vertical-align: top; font-size: 8px; word-break: break-word; }
+      td strong { display: block; font-size: 8px; font-weight: 700; }
+      td span, td small { font-size: 7px; color: #64748b; }
+      .period-col { background: #f8fafc; font-weight: 700; white-space: nowrap; }
+      .break-row td { background: #fefce8; color: #92400e; font-weight: bold; text-align: center; font-size: 7.5px; padding: 3px; }
       .empty { color: #cbd5e1; }
+      .free { color: #94a3b8; font-style: italic; }
+      .time-note { color: #7c3aed; font-size: 6.5px; font-weight: bold; }
+      .day-line { display: block; font-size: 7px; line-height: 1.5; }
+      .day-line b { color: #475569; }
       tr:nth-child(even) { background: #f8fafc; }
-      @media print { body { padding: 4px; } .no-print { display: none; } @page { margin: 6mm; size: A4 landscape; } }
+      @media print {
+        body { padding: 4px; }
+        .no-print { display: none; }
+        @page { margin: 5mm; }
+        .school-page { page: school; }
+        @page school { size: A3 landscape; }
+        .class-teacher-page { }
+        @page { size: A4 landscape; }
+      }
       .print-btn { margin-bottom: 10px; padding: 7px 16px; background: #4f46e5; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 11px; }
     </style></head>
     <body>
@@ -783,16 +833,16 @@ export default function Timetable() {
     try {
       if (printMode === 'class')   generateClassPDF(printClassId);
       if (printMode === 'teacher') generateTeacherPDF(printTeacherId);
-      if (printMode === 'school')  generateSchoolPDF(printDay);
+      if (printMode === 'school')  generateSchoolPDF();
     } finally {
       setGenerating(false);
     }
   };
 
   const handlePrint = () => {
-    if (printMode === 'class')   openPrintWindow('class',   printClassId,   printDay);
-    if (printMode === 'teacher') openPrintWindow('teacher', printTeacherId, printDay);
-    if (printMode === 'school')  openPrintWindow('school',  '',             printDay);
+    if (printMode === 'class')   openPrintWindow('class',   printClassId,   '');
+    if (printMode === 'teacher') openPrintWindow('teacher', printTeacherId, '');
+    if (printMode === 'school')  openPrintWindow('school',  '',             '');
   };
 
   // ─── Computed ─────────────────────────────────────────────────────────────
@@ -1594,7 +1644,7 @@ export default function Timetable() {
                   {([
                     { id: 'class',   label: 'Class-wise',    icon: GraduationCap, desc: 'One class, all days',  color: 'indigo' },
                     { id: 'teacher', label: 'Teacher-wise',  icon: User,          desc: 'One teacher\'s schedule', color: 'emerald' },
-                    { id: 'school',  label: 'Whole School',  icon: School,        desc: 'All classes by day',  color: 'violet' },
+                    { id: 'school',  label: 'Whole School',  icon: School,        desc: 'All days, all classes',  color: 'violet' },
                   ] as const).map(m => (
                     <button key={m.id} onClick={() => setPrintMode(m.id)}
                       className={`flex flex-col items-center gap-1.5 p-4 rounded-xl border-2 transition ${
@@ -1649,27 +1699,18 @@ export default function Timetable() {
                 </div>
               )}
 
-              {/* School day picker */}
+              {/* School info banner */}
               {printMode === 'school' && (
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Day Filter</label>
-                  <div className="flex flex-wrap gap-2">
-                    <button onClick={() => setPrintDay('all')}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold border transition ${printDay === 'all' ? 'bg-violet-600 text-white border-violet-600' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
-                      All Days (6 pages)
-                    </button>
-                    {DAYS.map(d => (
-                      <button key={d} onClick={() => setPrintDay(d)}
-                        className={`px-3 py-2 rounded-xl text-xs font-bold border transition ${printDay === d ? 'bg-violet-600 text-white border-violet-600' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
-                        {d.slice(0, 3)}
-                      </button>
-                    ))}
+                <div className="flex items-start gap-3 bg-violet-50 rounded-xl p-4 border border-violet-100">
+                  <School className="w-5 h-5 text-violet-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-bold text-violet-800 mb-1">Single-page master timetable — all days combined</p>
+                    <p className="text-xs text-violet-600 leading-relaxed">
+                      Each class column shows all 6 days (Mon–Sat) stacked inside one cell.
+                      If Friday (or any day) uses a different time for a period, that time is printed
+                      in <span className="font-bold text-purple-600">[brackets]</span> next to that day's entry.
+                    </p>
                   </div>
-                  <p className="text-xs text-slate-400 mt-2">
-                    {printDay === 'all'
-                      ? `Generates A3 landscape PDF — one page per day — ${classes.length} classes across`
-                      : `Generates A3 landscape — ${classes.length} classes × periods for ${printDay}`}
-                  </p>
                 </div>
               )}
 
@@ -1686,7 +1727,7 @@ export default function Timetable() {
                     : <span className="text-slate-400 italic">Select a teacher above</span>
                   )}
                   {printMode === 'school' && (
-                    <span><strong>Whole School</strong> — {classes.length} classes, {printDay === 'all' ? '6 pages (one per day)' : printDay}</span>
+                    <span><strong>Whole School</strong> — {classes.length} classes × all 6 days on one A3 page. Friday timing noted if different.</span>
                   )}
                 </div>
               </div>
