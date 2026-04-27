@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { 
-  Receipt, Search, PlusCircle, MessageCircle, Edit, 
-  Calendar, CheckSquare, Square, Save, X, Printer, Users, 
+import {
+  Receipt, Search, PlusCircle, MessageCircle, Edit,
+  Calendar, CheckSquare, Square, Save, X, Printer, Users,
   Layout, TrendingUp, AlertCircle, FileText, CheckCircle2,
   Clock, Filter, Download, Trash2, Send, Bell
 } from 'lucide-react';
+import FeeBreakdownEditor, { type BreakdownRow } from '../../components/FeeBreakdownEditor';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';
 import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, ChallanConfig, ChallanRecord, SchoolInfo } from '../../lib/challanUtils';
@@ -106,6 +107,7 @@ export default function MonthlyFeeInvoices() {
       .from('fee_records')
       .select('*, students(id, full_name, roll_number, class_id, family_group_id, fee_waiver_percentage, classes(name, section), parents(whatsapp_number, father_name, family_number))')
       .eq('school_id', userRole?.school_id)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
     if (data) setInvoices(data);
     setLoading(false);
@@ -379,7 +381,17 @@ export default function MonthlyFeeInvoices() {
 
   const handleSaveInvoiceEdit = async () => {
     try {
-      const { error } = await supabase.from('fee_records').update({ total_amount: editingInvoice.total_amount, due_date: editingInvoice.due_date, breakdown: editingInvoice.breakdown }).eq('id', editingInvoice.id);
+      // Re-derive total_amount from breakdown so it stays in sync
+      const breakdown = editingInvoice.breakdown || [];
+      const derivedTotal = breakdown.length > 0
+        ? breakdown.reduce((s: number, r: any) => s + (Number(r.amount) || 0), 0)
+        : editingInvoice.total_amount;
+
+      const { error } = await supabase.from('fee_records').update({
+        total_amount: derivedTotal,
+        due_date: editingInvoice.due_date,
+        breakdown,
+      }).eq('id', editingInvoice.id);
       if (error) throw error;
       setEditingInvoice(null);
       fetchInvoices();
@@ -792,63 +804,55 @@ export default function MonthlyFeeInvoices() {
       <AnimatePresence>
         {editingInvoice && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="bg-white rounded-[2rem] shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
-                <div className="bg-slate-50 border-b border-slate-100 p-8 flex justify-between items-center">
-                   <div>
-                      <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">Adjust Artifact</h3>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Manual Ledger Override</p>
-                   </div>
-                   <button onClick={() => setEditingInvoice(null)} className="p-2 hover:bg-slate-200 rounded-xl transition-colors"><X className="w-5 h-5 text-slate-400" /></button>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="bg-slate-900 px-6 py-4 flex items-center justify-between text-white">
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest">Edit Invoice</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">{editingInvoice.invoice_number} · {editingInvoice.students?.full_name}</p>
                 </div>
-                <div className="p-8 overflow-y-auto custom-scrollbar space-y-8 flex-1">
-                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Modified Due Date</label>
-                        <input type="date" value={editingInvoice.due_date || ''} onChange={e => setEditingInvoice({ ...editingInvoice, due_date: e.target.value })} className="w-full bg-slate-50 border-none p-4 rounded-xl font-bold text-slate-700 focus:bg-slate-100 transition-all outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Total Valuation</label>
-                        <input type="number" value={editingInvoice.total_amount} onChange={e => setEditingInvoice({ ...editingInvoice, total_amount: parseFloat(e.target.value) })} className="w-full bg-slate-50 border-none p-4 rounded-xl font-black text-indigo-600 text-lg focus:bg-slate-100 transition-all outline-none" />
-                      </div>
-                   </div>
-                   <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                         <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em]">Breakdown Analysis</h4>
-                         <button onClick={() => setEditingInvoice({ ...editingInvoice, breakdown: [...(editingInvoice.breakdown || []), { item: 'New Correction', amount: 0 }] })} className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:underline">+ Append Entry</button>
-                      </div>
-                      <div className="space-y-3">
-                         {(editingInvoice.breakdown || []).map((b: any, idx: number) => {
-                            const listId = `fee-items-list-${idx}`;
-                            return (
-                              <div key={idx} className="flex gap-3 items-center bg-slate-50 p-4 rounded-2xl border border-slate-100/50 group">
-                                <div className="flex-1 relative">
-                                  <input
-                                    type="text"
-                                    value={b.item}
-                                    list={listId}
-                                    onChange={e => { const a = [...editingInvoice.breakdown]; a[idx].item = e.target.value; setEditingInvoice({...editingInvoice, breakdown: a}); }}
-                                    placeholder="Select or type fee name…"
-                                    className="w-full bg-transparent border-none font-bold text-sm text-slate-700 outline-none"
-                                  />
-                                  <datalist id={listId}>
-                                    {feeItemSuggestions.map(s => <option key={s} value={s} />)}
-                                  </datalist>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-black text-slate-400">Rs.</span>
-                                  <input type="number" value={b.amount} onChange={e => { const a = [...editingInvoice.breakdown]; a[idx].amount = parseFloat(e.target.value); setEditingInvoice({...editingInvoice, breakdown: a}); }} className="w-24 bg-white border border-slate-200 px-3 py-1.5 rounded-lg font-black text-sm text-right outline-none focus:border-indigo-500 transition-all" />
-                                </div>
-                                <button onClick={() => setEditingInvoice({ ...editingInvoice, breakdown: editingInvoice.breakdown.filter((_:any, i:number) => i !== idx) })} className="p-1.5 text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>
-                              </div>
-                            );
-                          })}
-                      </div>
-                   </div>
+                <button onClick={() => setEditingInvoice(null)} className="p-2 hover:bg-white/10 rounded-xl"><X className="w-5 h-5 text-slate-400" /></button>
+              </div>
+              <div className="p-6 overflow-y-auto space-y-5 flex-1">
+                {/* Due Date */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Due Date</label>
+                  <input type="date" value={editingInvoice.due_date || ''} onChange={e => setEditingInvoice({ ...editingInvoice, due_date: e.target.value })}
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-indigo-500" />
                 </div>
-                <div className="p-8 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-                   <button onClick={handleSaveInvoiceEdit} className="w-full bg-slate-900 text-white p-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl hover:bg-black transition-all active:scale-95">Commit Adjustments</button>
+                {/* Breakdown Editor */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-2">Fee Breakdown</label>
+                  <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+                    <FeeBreakdownEditor
+                      breakdown={(editingInvoice.breakdown || []).map((b: any) => ({ item: b.item, amount: Number(b.amount) }))}
+                      onChange={rows => setEditingInvoice({
+                        ...editingInvoice,
+                        breakdown: rows,
+                        total_amount: rows.reduce((s, r) => s + (Number(r.amount) || 0), 0)
+                      })}
+                      schoolId={userRole?.school_id}
+                    />
+                  </div>
                 </div>
-             </motion.div>
+              </div>
+              <div className="p-6 bg-gray-50 border-t border-gray-100 flex gap-3">
+                <button
+                  onClick={async () => {
+                    if (!confirm('Soft-delete this invoice? It will be hidden but can be recovered.')) return;
+                    await supabase.from('fee_records').update({ deleted_at: new Date().toISOString() }).eq('id', editingInvoice.id);
+                    setEditingInvoice(null);
+                    fetchInvoices();
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Delete
+                </button>
+                <button onClick={handleSaveInvoiceEdit}
+                  className="flex-1 bg-slate-900 text-white py-2.5 rounded-xl font-black text-sm uppercase tracking-widest hover:bg-black transition active:scale-95">
+                  Save Changes
+                </button>
+              </div>
+            </motion.div>
           </div>
         )}
       </AnimatePresence>

@@ -239,6 +239,22 @@ export default function MasterSummaryReport() {
   const totalExpenses = data.expenses.reduce((sum, item) => sum + Number(item.amount), 0);
   const cashInHand = totalIncome - totalExpenses;
 
+  // ── Fee Income Breakdown by Item Type ─────────────────────────────────────
+  // Sum amounts across fee_items JSONB arrays on income transactions that have fee_record_id
+  const feeItemTotals = React.useMemo(() => {
+    const totals: Record<string, number> = {};
+    data.income.forEach(tx => {
+      if (!tx.fee_items || !Array.isArray(tx.fee_items)) return;
+      tx.fee_items.forEach((fi: { item: string; amount: number }) => {
+        if (!fi.item) return;
+        totals[fi.item] = (totals[fi.item] || 0) + (Number(fi.amount) || 0);
+      });
+    });
+    return Object.entries(totals)
+      .map(([item, amount]) => ({ item, amount }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [data.income]);
+
   const kpis = [
     { 
       label: 'New Admissions', 
@@ -359,6 +375,47 @@ export default function MasterSummaryReport() {
           </div>
         ))}
       </div>
+
+      {/* Fee Income Breakdown by Type */}
+      {feeItemTotals.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-black text-slate-900 uppercase tracking-widest">Fee Income by Type</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Breakdown of collected fees by line-item category</p>
+            </div>
+            <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
+              {feeItemTotals.length} categories
+            </span>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {feeItemTotals.map(({ item, amount }) => {
+                const pct = totalIncome > 0 ? Math.round((amount / totalIncome) * 100) : 0;
+                return (
+                  <div key={item} className="flex flex-col gap-1 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                    <div className="flex justify-between items-start">
+                      <span className="text-xs font-bold text-slate-700">{item}</span>
+                      <span className="text-xs font-black text-indigo-600 ml-2">Rs. {amount.toLocaleString()}</span>
+                    </div>
+                    <div className="w-full bg-slate-200 rounded-full h-1.5 mt-1">
+                      <div
+                        className="bg-indigo-500 h-1.5 rounded-full transition-all"
+                        style={{ width: `${Math.min(pct, 100)}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-medium">{pct}% of total income</span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-slate-400 mt-4">
+              * Only transactions linked to specific invoices (via EasyFee or Student Fee Detail) show item-level breakdown.
+              Older transactions show under general Fee Collection totals.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Tabs & Data Tables */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">

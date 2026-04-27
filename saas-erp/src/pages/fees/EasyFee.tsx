@@ -153,11 +153,12 @@ export default function EasyFee() {
     setSearchResults([]);
     setQuery('');
 
-    // Fetch pending and recent fees
+    // Fetch pending and recent fees (include breakdown for transaction logging)
     const { data: fees } = await supabase
       .from('fee_records')
-      .select('id, invoice_number, month_year, total_amount, paid_amount, status')
+      .select('id, invoice_number, month_year, total_amount, paid_amount, status, breakdown')
       .eq('student_id', student.id)
+      .is('deleted_at', null)
       .order('month_year', { ascending: false })
       .limit(12);
 
@@ -227,16 +228,21 @@ export default function EasyFee() {
         .map(r => new Date(r.month_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }))
         .join(', ');
 
-      // 2. Log Transaction with richer remarks including invoice/month info
-      await supabase.from('financial_transactions').insert({
+      // 2. Log one transaction per invoice covered (with fee_record_id for reliable reporting)
+      const txInserts = paidRecords.map((fee, idx) => ({
         school_id: userRole!.school_id,
         type: 'income',
         category: 'Fee Collection',
-        amount: amount,
+        amount: paymentBreakdown[idx]?.amount ?? 0,
         date: payDate,
         payment_mode: payMode,
-        remarks: `Fee — ${selectedStudent.full_name} [${coveredMonths}]${payRemarks ? ` (${payRemarks})` : ''}`
-      });
+        remarks: `${selectedStudent.full_name} — ${new Date(fee.month_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}${payRemarks ? ` (${payRemarks})` : ''}`,
+        fee_record_id: fee.id,
+        fee_items: (fee as any).breakdown || [],
+      }));
+      if (txInserts.length > 0) {
+        await supabase.from('financial_transactions').insert(txInserts);
+      }
 
       if (amount > 0) {
         setLastPayment({

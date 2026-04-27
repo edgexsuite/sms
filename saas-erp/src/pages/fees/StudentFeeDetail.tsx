@@ -5,7 +5,7 @@ import {
   Search, Wallet, AlertCircle, Save, CheckCircle,
   ShieldOff, AlertTriangle, FileText, ArrowRight,
   Filter, Plus, Printer, X, CreditCard, Clock,
-  TrendingDown, ChevronDown, ChevronUp
+  TrendingDown, ChevronDown, ChevronUp, Trash2
 } from 'lucide-react';
 import { calculateLateFine, getFineRules, FineRule } from '../../lib/fineUtils';
 import { cn } from '../../lib/utils';
@@ -16,6 +16,7 @@ import {
   type ChallanRecord,
   type SchoolInfo,
 } from '../../lib/challanUtils';
+import FeeBreakdownEditor, { type BreakdownRow } from '../../components/FeeBreakdownEditor';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -55,7 +56,15 @@ export default function StudentFeeDetail() {
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [editForm, setEditForm] = useState({ total_amount: '', paid_amount: '', month_year: '', paid_at: '' });
+  const [editBreakdown, setEditBreakdown] = useState<BreakdownRow[]>([]);
   const [school, setSchool] = useState<any>(null);
+
+  // New Invoice State
+  const [showNewInvoice, setShowNewInvoice] = useState(false);
+  const [newInvoiceMonth, setNewInvoiceMonth] = useState('');
+  const [newInvoiceDueDate, setNewInvoiceDueDate] = useState('');
+  const [newInvoiceBreakdown, setNewInvoiceBreakdown] = useState<BreakdownRow[]>([]);
+  const [creatingInvoice, setCreatingInvoice] = useState(false);
 
   // ── Fetch Metadata ─────────────────────────────────────────────────────────
 
@@ -104,8 +113,9 @@ export default function StudentFeeDetail() {
 
     const { data } = await supabase
       .from('fee_records')
-      .select('id, invoice_number, month_year, total_amount, paid_amount, status, breakdown')
+      .select('id, invoice_number, month_year, total_amount, paid_amount, status, breakdown, due_date, paid_at')
       .eq('student_id', stu.id)
+      .is('deleted_at', null)
       .order('month_year', { ascending: false });
 
     if (data) setInvoices(data as Invoice[]);
@@ -113,6 +123,69 @@ export default function StudentFeeDetail() {
   };
 
   // ── Update Waiver ──────────────────────────────────────────────────────────
+
+  // ── Create Manual Invoice ──────────────────────────────────────────────────
+
+  const openNewInvoice = async () => {
+    if (!selectedStudent) return;
+    // Pre-populate breakdown from the student's class fee structure
+    const { data: structure } = await supabase
+      .from('fee_structures')
+      .select('fee_matrix')
+      .eq('school_id', userRole!.school_id)
+      .eq('class_id', selectedStudent.classes_id || selectedStudent.class_id)
+      .maybeSingle();
+    const preRows: BreakdownRow[] = structure?.fee_matrix?.recurrent?.length
+      ? structure.fee_matrix.recurrent.map((r: any) => ({ item: r.item, amount: r.amount }))
+      : [{ item: 'Tuition Fee', amount: 0 }];
+    setNewInvoiceBreakdown(preRows);
+    setNewInvoiceMonth(new Date().toISOString().slice(0, 7));
+    setNewInvoiceDueDate('');
+    setShowNewInvoice(true);
+  };
+
+  const handleCreateInvoice = async () => {
+    if (!selectedStudent || !newInvoiceMonth) return;
+    const total = newInvoiceBreakdown.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    if (total <= 0) return alert('Please add at least one fee item with an amount.');
+    setCreatingInvoice(true);
+    try {
+      const monthYear = newInvoiceMonth + '-01';
+      // Check duplicate
+      const { data: existing } = await supabase
+        .from('fee_records')
+        .select('id')
+        .eq('school_id', userRole!.school_id)
+        .eq('student_id', selectedStudent.id)
+        .eq('month_year', monthYear)
+        .is('deleted_at', null)
+        .maybeSingle();
+      if (existing) throw new Error('An invoice for this month already exists for this student.');
+
+      const rollNum = String(selectedStudent.roll_number || 0).padStart(3, '0');
+      const invNum = `INV-${newInvoiceMonth.replace('-', '').slice(2)}-${rollNum}`;
+
+      const { error } = await supabase.from('fee_records').insert({
+        school_id: userRole!.school_id,
+        student_id: selectedStudent.id,
+        month_year: monthYear,
+        due_date: newInvoiceDueDate || null,
+        total_amount: total,
+        paid_amount: 0,
+        status: 'pending',
+        breakdown: newInvoiceBreakdown,
+        invoice_number: invNum,
+        payment_mode: 'Pending',
+      });
+      if (error) throw error;
+      setShowNewInvoice(false);
+      selectStudent(selectedStudent);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setCreatingInvoice(false);
+    }
+  };
 
   const handleUpdateWaiver = async () => {
     if (!selectedStudent) return;
@@ -172,7 +245,7 @@ export default function StudentFeeDetail() {
 
       if (invErr) throw invErr;
 
-      // Log Transaction
+      // Log Transaction — linked to this specific invoice
       await supabase.from('financial_transactions').insert([{
         school_id: userRole?.school_id,
         type: 'income',
@@ -180,7 +253,9 @@ export default function StudentFeeDetail() {
         payment_mode: paymentMode,
         category: 'Fee Collection',
         date: new Date().toISOString().split('T')[0],
-        remarks: `Fee — ${selectedStudent.full_name} (${payingInvoice.invoice_number})`
+        remarks: `${selectedStudent.full_name} — ${payingInvoice.invoice_number || new Date(payingInvoice.month_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`,
+        fee_record_id: payingInvoice.id,
+        fee_items: finalBreakdown,
       }]);
 
       setPayingInvoice(null);
@@ -197,10 +272,14 @@ export default function StudentFeeDetail() {
     setEditSaving(true);
     try {
       const newPaid = parseFloat(editForm.paid_amount) || 0;
-      const newTotal = parseFloat(editForm.total_amount) || 0;
+      // total_amount is derived from breakdown; fallback to editForm if breakdown is empty
+      const newTotal = editBreakdown.length > 0
+        ? editBreakdown.reduce((s, r) => s + (Number(r.amount) || 0), 0)
+        : parseFloat(editForm.total_amount) || 0;
       const { error } = await supabase.from('fee_records').update({
         total_amount: newTotal,
         paid_amount: newPaid,
+        breakdown: editBreakdown.length > 0 ? editBreakdown : editingInvoice.breakdown,
         month_year: editForm.month_year + '-01',
         paid_at: newPaid > 0 ? editForm.paid_at + 'T12:00:00Z' : null,
         status: newPaid >= newTotal ? 'paid' : (newPaid > 0 ? 'partial' : 'pending')
@@ -213,6 +292,21 @@ export default function StudentFeeDetail() {
       alert(err.message);
     } finally {
       setEditSaving(false);
+    }
+  };
+
+  const handleDeleteInvoice = async (inv: Invoice) => {
+    if (!confirm(`Soft-delete invoice ${inv.invoice_number || ''}? It will be hidden but can be restored.`)) return;
+    try {
+      const { error } = await supabase
+        .from('fee_records')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', inv.id);
+      if (error) throw error;
+      setEditingInvoice(null);
+      selectStudent(selectedStudent);
+    } catch (err: any) {
+      alert(err.message);
     }
   };
 
@@ -412,12 +506,20 @@ export default function StudentFeeDetail() {
             <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col min-h-0">
               <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
                 <h3 className="text-sm font-bold text-gray-800">Fee Invoices</h3>
-                <button
-                  onClick={() => window.print()}
-                  className="no-print flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors"
-                >
-                  <Printer className="w-3.5 h-3.5" /> Print Statement
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={openNewInvoice}
+                    className="no-print flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-white hover:bg-indigo-600 border border-indigo-200 hover:border-indigo-600 rounded-lg px-3 py-1.5 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> New Invoice
+                  </button>
+                  <button
+                    onClick={() => window.print()}
+                    className="no-print flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors"
+                  >
+                    <Printer className="w-3.5 h-3.5" /> Print Statement
+                  </button>
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto">
@@ -500,11 +602,12 @@ export default function StudentFeeDetail() {
                                 <button
                                   onClick={() => {
                                     setEditingInvoice(inv);
+                                    setEditBreakdown(inv.breakdown?.length ? inv.breakdown.map((b: any) => ({ item: b.item, amount: Number(b.amount) })) : []);
                                     setEditForm({
                                       total_amount: String(inv.total_amount),
-                                      paid_amount: String(inv.paid_amount),
+                                      paid_amount: String(inv.paid_amount || 0),
                                       month_year: inv.month_year.slice(0, 7),
-                                      paid_at: (inv as any).paid_at ? (inv as any).paid_at.split('T')[0] : inv.month_year.slice(0, 10)
+                                      paid_at: (inv as any).paid_at ? (inv as any).paid_at.split('T')[0] : new Date().toISOString().split('T')[0]
                                     });
                                   }}
                                   className="text-[10px] font-black uppercase text-slate-400 hover:text-indigo-600 transition"
@@ -677,13 +780,17 @@ export default function StudentFeeDetail() {
           >
             <motion.div
               initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-              className="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden"
+              className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden"
             >
               <div className="bg-slate-900 px-6 py-4 flex items-center justify-between text-white">
-                <h2 className="text-sm font-black uppercase tracking-widest leading-none">Edit Record</h2>
+                <div>
+                  <h2 className="text-sm font-black uppercase tracking-widest leading-none">Edit Invoice</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">{editingInvoice.invoice_number}</p>
+                </div>
                 <button onClick={() => setEditingInvoice(null)} className="text-white/60 hover:text-white">✕</button>
               </div>
-              <div className="p-6 space-y-4">
+              <div className="p-6 space-y-5 overflow-y-auto max-h-[75vh]">
+                {/* Month + Paid At */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Fee Month</label>
@@ -696,22 +803,97 @@ export default function StudentFeeDetail() {
                       className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Billed (Rs)</label>
-                    <input type="number" value={editForm.total_amount} onChange={e => setEditForm({...editForm, total_amount: e.target.value})}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-black text-slate-800 font-mono" />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Paid (Rs)</label>
-                    <input type="number" value={editForm.paid_amount} onChange={e => setEditForm({...editForm, paid_amount: e.target.value})}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-black text-emerald-600 font-mono" />
+
+                {/* Breakdown Editor */}
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase mb-2">Fee Breakdown</label>
+                  <div className="border border-slate-200 rounded-xl p-3 bg-slate-50">
+                    <FeeBreakdownEditor
+                      breakdown={editBreakdown}
+                      onChange={setEditBreakdown}
+                      schoolId={userRole?.school_id}
+                    />
                   </div>
                 </div>
-                <div className="pt-2">
+
+                {/* Paid Amount */}
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Amount Already Paid (Rs)</label>
+                  <input type="number" value={editForm.paid_amount} onChange={e => setEditForm({...editForm, paid_amount: e.target.value})}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-black text-emerald-600 font-mono" />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Total billed (from breakdown): Rs. {editBreakdown.reduce((s, r) => s + (Number(r.amount) || 0), 0).toLocaleString()}
+                  </p>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={() => handleDeleteInvoice(editingInvoice)}
+                    className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                  </button>
                   <button onClick={handleUpdateInvoice} disabled={editSaving}
-                    className="w-full py-3 bg-indigo-600 text-white font-black rounded-xl text-sm hover:bg-indigo-700 transition disabled:opacity-50">
+                    className="flex-1 py-2.5 bg-indigo-600 text-white font-black rounded-xl text-sm hover:bg-indigo-700 transition disabled:opacity-50">
                     {editSaving ? 'Updating...' : 'Save Changes'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* New Invoice Modal */}
+      <AnimatePresence>
+        {showNewInvoice && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+              className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="bg-indigo-600 px-6 py-4 flex items-center justify-between text-white">
+                <div>
+                  <h2 className="text-sm font-black uppercase tracking-widest">New Invoice</h2>
+                  <p className="text-xs text-indigo-200 mt-0.5">{selectedStudent?.full_name}</p>
+                </div>
+                <button onClick={() => setShowNewInvoice(false)} className="text-white/60 hover:text-white"><X className="w-5 h-5" /></button>
+              </div>
+              <div className="p-6 space-y-5 overflow-y-auto max-h-[75vh]">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Fee Month *</label>
+                    <input type="month" value={newInvoiceMonth} onChange={e => setNewInvoiceMonth(e.target.value)}
+                      className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-indigo-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Due Date</label>
+                    <input type="date" value={newInvoiceDueDate} onChange={e => setNewInvoiceDueDate(e.target.value)}
+                      className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-2">Fee Breakdown *</label>
+                  <div className="border border-gray-200 rounded-xl p-3 bg-gray-50">
+                    <FeeBreakdownEditor
+                      breakdown={newInvoiceBreakdown}
+                      onChange={setNewInvoiceBreakdown}
+                      schoolId={userRole?.school_id}
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setShowNewInvoice(false)}
+                    className="px-4 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-xl hover:bg-gray-50 transition">
+                    Cancel
+                  </button>
+                  <button onClick={handleCreateInvoice} disabled={creatingInvoice || !newInvoiceMonth || newInvoiceBreakdown.length === 0}
+                    className="flex-1 py-2.5 bg-indigo-600 text-white font-bold text-sm rounded-xl hover:bg-indigo-700 transition disabled:opacity-50">
+                    {creatingInvoice ? 'Creating...' : 'Create Invoice'}
                   </button>
                 </div>
               </div>

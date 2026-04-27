@@ -17,6 +17,7 @@ import {
   X, CheckCircle, Receipt, Loader2, AlertTriangle,
   ChevronDown, Printer, BadgeCheck, Info,
 } from 'lucide-react';
+import { cn } from '../lib/utils';
 import {
   downloadChallanPDF,
   DEFAULT_CHALLAN_CONFIG,
@@ -139,6 +140,7 @@ export default function StudentFeeModal({ student, onSave, onClose, includeAdmis
   });
   const [rows, setRows] = useState<FeeRow[]>([]);
   const [remarks, setRemarks] = useState('');
+  const [feeItemSuggestions, setFeeItemSuggestions] = useState<string[]>([]);
 
   /* ── Payment ── */
   const [collectNow, setCollectNow] = useState(false);
@@ -151,6 +153,23 @@ export default function StudentFeeModal({ student, onSave, onClose, includeAdmis
   const [saved, setSaved] = useState(false);
 
   /* ── Load fee matrix + already-charged one-time fees ── */
+  useEffect(() => {
+    fetchFeeItems();
+  }, [userRole?.school_id]);
+
+  const fetchFeeItems = async () => {
+    const { data } = await supabase
+      .from('form_settings')
+      .select('sections_config')
+      .eq('school_id', userRole?.school_id)
+      .eq('form_name', 'fee_item_names')
+      .maybeSingle();
+    if (data?.sections_config) {
+      const { recurring = [], onetime = [] } = data.sections_config;
+      setFeeItemSuggestions([...new Set([...recurring, ...onetime])]);
+    }
+  };
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -512,6 +531,7 @@ export default function StudentFeeModal({ student, onSave, onClose, includeAdmis
                 onToggle={toggleRow}
                 onUpdate={updateRow}
                 onRemove={removeRow}
+                suggestions={feeItemSuggestions}
               />
 
               {/* ── One-time Fee Heads ── */}
@@ -523,6 +543,7 @@ export default function StudentFeeModal({ student, onSave, onClose, includeAdmis
                   onToggle={toggleRow}
                   onUpdate={updateRow}
                   onRemove={removeRow}
+                  suggestions={feeItemSuggestions}
                 />
               )}
 
@@ -715,7 +736,7 @@ export default function StudentFeeModal({ student, onSave, onClose, includeAdmis
 
 /* ─── FeeSection sub-component ─────────────────────────────────────────── */
 function FeeSection({
-  title, subtitle, rows, onToggle, onUpdate, onRemove,
+  title, subtitle, rows, onToggle, onUpdate, onRemove, suggestions,
 }: {
   title: string;
   subtitle: string;
@@ -723,6 +744,7 @@ function FeeSection({
   onToggle: (id: string) => void;
   onUpdate: <K extends keyof FeeRow>(id: string, f: K, v: FeeRow[K]) => void;
   onRemove: (id: string) => void;
+  suggestions: string[];
 }) {
   if (!rows.length) return null;
   return (
@@ -767,24 +789,26 @@ function FeeSection({
 
               {/* Label — editable for custom rows */}
               <div className="col-span-3 flex items-center gap-1.5 min-w-0">
-                {isCustom ? (
+                <div className="w-full relative">
                   <input
                     value={row.label}
                     onChange={e => onUpdate(row.id, 'label', e.target.value)}
+                    disabled={disabled}
+                    list={`fee-suggestions-${row.id}`}
                     placeholder="Fee head name"
-                    className="w-full px-2 py-1 border border-indigo-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-indigo-50"
-                  />
-                ) : (
-                  <>
-                    <span className={`text-sm font-medium truncate ${!row.include || disabled ? 'text-slate-400' : 'text-slate-800'}`}>
-                      {row.label}
-                    </span>
-                    {disabled && (
-                      <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">
-                        <Info className="w-2.5 h-2.5" /> Charged
-                      </span>
+                    className={cn(
+                      "w-full px-2 py-1 border rounded-lg text-xs font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500",
+                      isCustom ? "border-indigo-200 bg-indigo-50" : "border-transparent bg-transparent"
                     )}
-                  </>
+                  />
+                  <datalist id={`fee-suggestions-${row.id}`}>
+                    {suggestions.map(s => <option key={s} value={s} />)}
+                  </datalist>
+                </div>
+                {disabled && (
+                  <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">
+                    <Info className="w-2.5 h-2.5" /> Charged
+                  </span>
                 )}
               </div>
 
