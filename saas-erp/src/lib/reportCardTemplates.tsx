@@ -133,7 +133,7 @@ export function ClassicReport(props: ReportCardProps) {
   const activeSigs = (c.signatures || []).filter(s => s.active);
 
   return (
-    <div style={{ width: '210mm', height: '297mm', background: '#fff', fontFamily: font, color: '#000', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', padding: '8mm' }}>
+    <div style={{ width: '210mm', minHeight: '297mm', background: '#fff', fontFamily: font, color: '#000', position: 'relative', boxSizing: 'border-box', padding: '8mm' }}>
 
       {/* Outer decorative frame */}
       <div style={{ position: 'absolute', inset: '6mm', border: `3px double ${c.primaryColor}`, borderRadius: '2px', pointerEvents: 'none', zIndex: 0 }} />
@@ -284,7 +284,7 @@ export function ModernReport(props: ReportCardProps) {
   const activeSigs = (c.signatures || []).filter(s => s.active);
 
   return (
-    <div style={{ width: '210mm', height: '297mm', background: '#f1f5f9', padding: '0', fontFamily: font, color: '#0f172a', position: 'relative', overflow: 'hidden', boxSizing: 'border-box' }}>
+    <div style={{ width: '210mm', minHeight: '297mm', background: '#f1f5f9', padding: '0', fontFamily: font, color: '#0f172a', position: 'relative', boxSizing: 'border-box' }}>
 
       {activeFields.includes('watermark') && props.schoolLogo && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 0, pointerEvents: 'none' }}>
@@ -425,7 +425,7 @@ export function MinimalReport(props: ReportCardProps) {
   const activeSigs = (c.signatures || []).filter(s => s.active);
 
   return (
-    <div style={{ width: '210mm', height: '297mm', background: '#fff', padding: '12mm 14mm', fontFamily: font, color: '#000', position: 'relative', overflow: 'hidden', boxSizing: 'border-box' }}>
+    <div style={{ width: '210mm', minHeight: '297mm', background: '#fff', padding: '12mm 14mm', fontFamily: font, color: '#000', position: 'relative', boxSizing: 'border-box' }}>
 
       {activeFields.includes('watermark') && props.schoolLogo && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 0, pointerEvents: 'none' }}>
@@ -542,7 +542,7 @@ export function ElegantReport(props: ReportCardProps) {
   const activeSigs = (c.signatures || []).filter(s => s.active);
 
   return (
-    <div style={{ width: '210mm', height: '297mm', background: '#fafafa', padding: '0', fontFamily: font, color: '#111827', position: 'relative', overflow: 'hidden', boxSizing: 'border-box' }}>
+    <div style={{ width: '210mm', minHeight: '297mm', background: '#fafafa', padding: '0', fontFamily: font, color: '#111827', position: 'relative', boxSizing: 'border-box' }}>
 
       {/* Corner ornaments */}
       <svg style={{ position: 'absolute', top: 0, left: 0, width: '80px', height: '80px', zIndex: 0 }} viewBox="0 0 80 80">
@@ -717,7 +717,7 @@ export function CompactReport(props: ReportCardProps) {
   }
 
   return (
-    <div style={{ width: '210mm', height: '297mm', background: '#fff', padding: '7mm 9mm', fontFamily: font, color: '#1e293b', position: 'relative', overflow: 'hidden', boxSizing: 'border-box' }}>
+    <div style={{ width: '210mm', minHeight: '297mm', background: '#fff', padding: '7mm 9mm', fontFamily: font, color: '#1e293b', position: 'relative', boxSizing: 'border-box' }}>
 
       {activeFields.includes('watermark') && props.schoolLogo && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 0, pointerEvents: 'none' }}>
@@ -838,7 +838,7 @@ export function RoyalReport(props: ReportCardProps) {
   const activeSigs = (c.signatures || []).filter(s => s.active);
 
   return (
-    <div style={{ width: '210mm', height: '297mm', background: '#ffffff', fontFamily: font, color: '#1a1a1a', position: 'relative', overflow: 'hidden', boxSizing: 'border-box' }}>
+    <div style={{ width: '210mm', minHeight: '297mm', background: '#ffffff', fontFamily: font, color: '#1a1a1a', position: 'relative', boxSizing: 'border-box' }}>
 
       {/* Wave decoration */}
       <svg viewBox="0 0 160 842" xmlns="http://www.w3.org/2000/svg"
@@ -1000,7 +1000,7 @@ export function PrestigeReport(props: ReportCardProps) {
   const activeSigs = (c.signatures || []).filter(s => s.active);
 
   return (
-    <div style={{ width: '210mm', height: '297mm', background: '#fff', fontFamily: font, color: '#111', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', display: 'flex' }}>
+    <div style={{ width: '210mm', minHeight: '297mm', background: '#fff', fontFamily: font, color: '#111', position: 'relative', boxSizing: 'border-box', display: 'flex' }}>
 
       {/* Left green sidebar */}
       <div style={{ width: '56px', background: GREEN, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '14px 0 10px', gap: '10px', position: 'relative' }}>
@@ -1148,7 +1148,7 @@ export function PearlReport(props: ReportCardProps) {
   const activeSigs = (c.signatures || []).filter(s => s.active);
 
   return (
-    <div style={{ width: '210mm', height: '297mm', background: '#f8fafc', fontFamily: font, color: '#0f172a', position: 'relative', overflow: 'hidden', boxSizing: 'border-box' }}>
+    <div style={{ width: '210mm', minHeight: '297mm', background: '#f8fafc', fontFamily: font, color: '#0f172a', position: 'relative', boxSizing: 'border-box' }}>
 
       {/* Gradient header */}
       <div style={{ background: `linear-gradient(135deg, ${TEAL} 0%, ${NAVY} 100%)`, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '14px', position: 'relative', overflow: 'hidden' }}>

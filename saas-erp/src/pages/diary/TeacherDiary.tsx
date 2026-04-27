@@ -319,54 +319,7 @@ export default function TeacherDiary() {
   };
 
   const handlePrint = () => {
-    // Optimized for Single-Page spatial efficiency & Centered text
-    const printContent = reportRef.current?.innerHTML || '';
-    const win = window.open('', '_blank');
-    if (!win) return;
-    win.document.write(`
-      <html>
-      <head>
-        <title>Single-Page Branded Diary Report</title>
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800;900&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap" rel="stylesheet">
-        <style>
-          @page { size: landscape; margin: 8mm; }
-          body { 
-            font-family: 'Inter', sans-serif; 
-            margin: 0; 
-            padding: 0; 
-            background: #fff; 
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-          .diary-print { width: 100%; border: 2.5px solid #1e1b4b; background: #fffdfa; min-height: 96vh; position: relative; }
-          .top-banner { height: 10px; background: linear-gradient(90deg, #1e1b4b, #4f46e5); width: 100%; margin-bottom: 12px; }
-          
-          .print-header { display: flex; align-items: center; justify-content: center; gap: 20px; margin: 0 35px 15px 35px; padding-bottom: 10px; border-bottom: 2.5px solid #1e1b4b; }
-          .header-logo { width: 75px; height: 75px; object-fit: contain; }
-          .header-text { flex-grow: 1; text-align: center; }
-          .header-text h1 { font-size: 26px; font-weight: 900; color: #1e1b4b; margin: 0; text-transform: uppercase; }
-          .header-text p { font-size: 13px; font-weight: 700; color: #475569; margin-top: 3px; }
-          
-          .report-badge { display: inline-block; background: #1e1b4b; color: #fff; padding: 4px 25px; border-radius: 4px; font-weight: 900; font-size: 11px; margin-top: 10px; text-transform: uppercase; letter-spacing: 1.2px; }
-          
-          table { width: calc(100% - 70px); margin: 0 35px 25px 35px; border-collapse: collapse; border: 2.5px solid #1e1b4b; table-layout: fixed; }
-          th { border: 1.5px solid #1e1b4b; background: #1e1b4b; padding: 10px 8px; font-weight: 900; text-align: center; text-transform: uppercase; font-size: 9.5px; color: #fff; }
-          td { border: 1px solid #cbd5e1; padding: 10px 10px; vertical-align: middle; font-size: 10.5px; text-align: center; }
-          
-          .urdu-text { font-family: 'Noto Nastaliq Urdu', serif; direction: rtl; text-align: center; font-size: 16px; line-height: 2.1; color: #000; }
-          
-          .sign-area { display: flex; justify-content: center; margin: 40px 35px 35px 35px; }
-          .sign-box { width: 350px; text-align: center; }
-          .sign-line { border-top: 2.5px solid #1e1b4b; padding-top: 8px; font-weight: 900; font-size: 13px; color: #1e1b4b; text-transform: uppercase; letter-spacing: 1px; }
-          
-          svg { width: 18px !important; height: 18px !important; margin: 0 auto; }
-        </style>
-      </head>
-      <body><div class="diary-print">${printContent}</div></body>
-      </html>
-    `);
-    win.document.close();
-    setTimeout(() => { win.print(); win.close(); }, 700);
+    window.print();
   };
 
 
@@ -378,6 +331,24 @@ export default function TeacherDiary() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-4">
+      <style>{`
+        @media print {
+          body { background: white !important; margin: 0 !important; padding: 0 !important; }
+          .no-print { display: none !important; }
+          .print-only { display: block !important; position: static !important; width: 100% !important; left: auto !important; top: auto !important; }
+          @page { size: landscape; margin: 10mm; }
+          .diary-print-layout { 
+            width: 100%; 
+            border: 2px solid #1e1b4b; 
+            background: #fffdfa !important; 
+            min-height: 98vh; 
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .urdu-text { font-family: 'Noto Nastaliq Urdu', serif; direction: rtl; }
+        }
+        .print-only { display: none; }
+      `}</style>
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
@@ -391,7 +362,7 @@ export default function TeacherDiary() {
               : isTeacher ? 'Fill in your daily lesson plan.' : 'View diary entries by individual teacher.'}
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto no-print">
           {isAdmin && (
             <div className="bg-slate-100 p-1 rounded-xl flex items-center">
               <button onClick={() => setViewMode('teacher')} className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'teacher' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>Teacher</button>
@@ -406,7 +377,7 @@ export default function TeacherDiary() {
       </div>
 
       {/* ── Controls ─────────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 no-print">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
           {isAdmin && viewMode === 'teacher' && (
             <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}>
@@ -486,8 +457,8 @@ export default function TeacherDiary() {
           </div>
 
           {/* ── Hidden Static Report View ─────────────────────────────────── */}
-          <div style={{ position: 'absolute', left: '-9999px', top: '0', width: '1200px' }}>
-            <div ref={reportRef} id="hidden-report-container" style={{ background: '#fffdfa', padding: '0 0 40px 0' }}>
+          <div className="print-only">
+            <div ref={reportRef} id="hidden-report-container" className="diary-print-layout" style={{ padding: '0 0 40px 0' }}>
               <div className="top-banner" style={{ height: '12px', background: 'linear-gradient(90deg, #1e1b4b, #4f46e5)', marginBottom: '20px' }}></div>
               <div style={{ display: 'flex', alignItems: 'center', margin: '0 35px 25px 35px', paddingBottom: '12px', borderBottom: '3px solid #1e1b4b' }}>
                 {schoolInfo?.logo_url && (

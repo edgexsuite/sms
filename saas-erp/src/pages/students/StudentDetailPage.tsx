@@ -7,7 +7,7 @@ import {
   ArrowLeft, Printer, User, BookOpen, Calendar, CreditCard, BarChart3,
   Phone, MapPin, Heart, Shield, CheckCircle, XCircle, Clock, Award,
   TrendingUp, AlertCircle, Download, Plus, ChevronRight, MoreVertical, Users,
-  Wallet, X as XIcon, Loader2,
+  Wallet, X as XIcon, Loader2, Tag,
 } from 'lucide-react';
 import StudentFeeModal from '../../components/StudentFeeModal';
 import StudentFeeOverrideModal from '../../components/StudentFeeOverrideModal';
@@ -63,6 +63,11 @@ export default function StudentDetailPage() {
   const [editForm, setEditForm] = useState({ total_amount: '', paid_amount: '', paid_at: '', month_year: '' });
   const [editBreakdown, setEditBreakdown] = useState<BreakdownRow[]>([]);
 
+  // Discount / Scholarship State
+  const [discountRules, setDiscountRules] = useState<any[]>([]);
+  const [showDiscountPicker, setShowDiscountPicker] = useState(false);
+  const [addingDiscount, setAddingDiscount] = useState(false);
+
   // New Custom Entry State
   const [showNewEntry, setShowNewEntry] = useState(false);
   const [newEntryType, setNewEntryType] = useState<'monthly' | 'onetime'>('monthly');
@@ -76,6 +81,9 @@ export default function StudentDetailPage() {
   useEffect(() => {
     if (userRole?.school_id) {
       supabase.from('schools').select('name,logo_url,address,contact_phone').eq('id', userRole.school_id).maybeSingle().then(({ data }) => setSchool(data));
+      // Fetch discount rules for inline assignment
+      supabase.from('form_settings').select('sections_config').eq('school_id', userRole.school_id).eq('form_name', 'discount_rules').maybeSingle()
+        .then(({ data }) => setDiscountRules(data?.sections_config?.rules ?? []));
     }
   }, [userRole?.school_id]);
 
@@ -143,6 +151,43 @@ export default function StudentDetailPage() {
     } finally {
       setTabLoading(false);
     }
+  };
+
+  // ── Discount helpers ──────────────────────────────────────────────────────
+  const computeWaiverPct = (ruleIds: string[], rules: any[]): number => {
+    let total = 0;
+    ruleIds.forEach(rid => {
+      const rule = rules.find(r => r.id === rid);
+      if (rule?.type === 'percentage') total += rule.value;
+    });
+    return Math.min(Math.round(total), 100);
+  };
+
+  const handleAssignDiscount = async (ruleId: string) => {
+    if (!student) return;
+    const existingIds: string[] = student.custom_data?.discount_rule_ids || [];
+    if (existingIds.includes(ruleId)) { setShowDiscountPicker(false); return; }
+    setAddingDiscount(true);
+    const updatedIds = [...existingIds, ruleId];
+    const newPct = computeWaiverPct(updatedIds, discountRules);
+    const { error } = await supabase.from('students').update({
+      custom_data: { ...student.custom_data, discount_rule_ids: updatedIds },
+      fee_waiver_percentage: newPct,
+    }).eq('id', student.id);
+    if (!error) setStudent({ ...student, custom_data: { ...student.custom_data, discount_rule_ids: updatedIds }, fee_waiver_percentage: newPct });
+    setAddingDiscount(false);
+    setShowDiscountPicker(false);
+  };
+
+  const handleRemoveDiscount = async (ruleId: string) => {
+    if (!student) return;
+    const updatedIds = (student.custom_data?.discount_rule_ids || []).filter((id: string) => id !== ruleId);
+    const newPct = computeWaiverPct(updatedIds, discountRules);
+    const { error } = await supabase.from('students').update({
+      custom_data: { ...student.custom_data, discount_rule_ids: updatedIds },
+      fee_waiver_percentage: newPct,
+    }).eq('id', student.id);
+    if (!error) setStudent({ ...student, custom_data: { ...student.custom_data, discount_rule_ids: updatedIds }, fee_waiver_percentage: newPct });
   };
 
   const handlePrint = () => window.print();

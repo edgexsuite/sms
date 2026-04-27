@@ -172,8 +172,8 @@ export default function ResultReporting() {
           body { background: white; margin: 0; padding: 0; }
           .result-card-wrapper {
             width: 210mm !important;
-            height: 297mm !important;
-            overflow: hidden !important;
+            min-height: 297mm !important;
+            height: auto !important;
             page-break-after: always !important;
             page-break-inside: avoid !important;
             box-shadow: none !important;
