@@ -215,7 +215,7 @@ export default function AddExamSchedule() {
                 <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Exam Date *</label>
                 <input type="date" value={formData.exam_date} onChange={e => setFormData({ ...formData, exam_date: e.target.value })} className="w-full border border-gray-300 px-3 py-2 rounded-lg text-sm font-medium" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Start Time</label>
                   <input type="time" value={formData.start_time} onChange={e => setFormData({ ...formData, start_time: e.target.value })} className="w-full border border-gray-300 px-3 py-2 rounded-lg text-sm" />
@@ -225,7 +225,7 @@ export default function AddExamSchedule() {
                   <input type="time" value={formData.end_time} onChange={e => setFormData({ ...formData, end_time: e.target.value })} className="w-full border border-gray-300 px-3 py-2 rounded-lg text-sm" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Total Marks</label>
                   <input type="number" value={formData.total_marks} onChange={e => setFormData({ ...formData, total_marks: parseInt(e.target.value) })} className="w-full border border-gray-300 px-3 py-2 rounded-lg text-sm font-bold" />

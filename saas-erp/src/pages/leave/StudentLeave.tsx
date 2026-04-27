@@ -163,7 +163,7 @@ export default function StudentLeave() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 no-print">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 no-print">
         {[
           { label: 'Total Applications', value: leaves.length, color: 'text-gray-700 bg-gray-50 border-gray-200' },
           { label: 'Pending Review', value: pendingCount, color: 'text-yellow-700 bg-yellow-50 border-yellow-200' },
@@ -276,7 +276,7 @@ export default function StudentLeave() {
               <button onClick={() => setShowForm(false)} className="text-orange-200 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-6 space-y-4 bg-gray-50">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Class</label>
                   <select value={filterClass} onChange={e => setFilterClass(e.target.value)}
@@ -301,7 +301,7 @@ export default function StudentLeave() {
                   {STUDENT_LEAVE_TYPES.map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase mb-1">From Date *</label>
                   <input type="date" value={formData.from_date} onChange={e => setFormData({ ...formData, from_date: e.target.value })}

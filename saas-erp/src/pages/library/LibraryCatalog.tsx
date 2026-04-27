@@ -98,13 +98,13 @@ export default function LibraryCatalog() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex gap-4">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by title, author, or ISBN..."
             className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500" />
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 sm:grid-cols-3 gap-3 shrink-0">
           <div className="text-center px-4 py-2 bg-amber-50 rounded-lg">
             <p className="text-xs text-gray-500">Total Books</p><p className="font-bold text-amber-700">{books.length}</p>
           </div>
@@ -117,7 +117,7 @@ export default function LibraryCatalog() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden overflow-x-auto">
         {loading ? (
           <div className="p-12 text-center text-gray-400">Loading...</div>
         ) : filtered.length === 0 ? (
@@ -174,7 +174,7 @@ export default function LibraryCatalog() {
               <button onClick={() => setShowModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <div className="p-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="block text-xs font-medium text-gray-500 mb-1">Title *</label>
                   <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}

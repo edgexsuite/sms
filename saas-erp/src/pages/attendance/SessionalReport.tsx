@@ -132,7 +132,7 @@ export default function SessionalReport() {
 
       {stats.length > 0 && (
         <>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Class Average</p>
               <p className={`text-2xl font-black mt-1 ${avgPct >= 80 ? 'text-green-600' : avgPct >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>{avgPct}%</p>

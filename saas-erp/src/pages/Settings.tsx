@@ -773,7 +773,7 @@ export default function Settings() {
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Vacation Name</label>
                     <input type="text" required value={vacationForm.name} onChange={e => setVacationForm({...vacationForm, name: e.target.value})} placeholder="e.g. Summer Break 2025" className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-4 focus:ring-indigo-100 transition-all outline-none" />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Start Date</label>
                       <input type="date" required value={vacationForm.start_date} onChange={e => setVacationForm({...vacationForm, start_date: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-4 focus:ring-indigo-100 transition-all outline-none" />

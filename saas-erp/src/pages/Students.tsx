@@ -500,7 +500,7 @@ export default function Students() {
               )}
               <div>
                 <h4 className="text-md font-semibold text-gray-800 border-b pb-2 mb-3">Personal Information</h4>
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                   <div><span className="text-gray-500">Full Name:</span> <span className="font-medium">{selectedStudent.full_name}</span></div>
                   <div><span className="text-gray-500">Roll No:</span> <span className="font-medium">{selectedStudent.roll_number}</span></div>
                   <div><span className="text-gray-500">Class:</span> <span className="font-medium">{selectedStudent.classes ? `${selectedStudent.classes.name} (${selectedStudent.classes.section})` : '-'}</span></div>
@@ -545,7 +545,7 @@ export default function Students() {
 
               <div>
                 <h4 className="text-md font-semibold text-gray-800 border-b pb-2 mb-3">Parent Information</h4>
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                   <div><span className="text-gray-500">Father's Name:</span> <span className="font-medium">{selectedStudent.father_name || '-'}</span></div>
                   <div><span className="text-gray-500">Father's Contact:</span> <span className="font-medium">{selectedStudent.father_contact || '-'}</span></div>
                   <div><span className="text-gray-500">Mother's Name:</span> <span className="font-medium">{selectedStudent.mother_name || '-'}</span></div>
@@ -555,7 +555,7 @@ export default function Students() {
 
               <div>
                 <h4 className="text-md font-semibold text-gray-800 border-b pb-2 mb-3">Medical & Other</h4>
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                   <div><span className="text-gray-500">Height:</span> <span className="font-medium">{selectedStudent.height || '-'}</span></div>
                   <div><span className="text-gray-500">Weight:</span> <span className="font-medium">{selectedStudent.weight || '-'}</span></div>
                   <div><span className="text-gray-500">Eyesight:</span> <span className="font-medium">{selectedStudent.eyesight || '-'}</span></div>
@@ -675,7 +675,7 @@ export default function Students() {
               <button onClick={() => setIsPromoteModalOpen(false)} className="text-gray-400 hover:text-gray-600">&times;</button>
             </div>
             <div className="overflow-y-auto flex-1 p-6 space-y-6">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Current Class</label>
                   <select 

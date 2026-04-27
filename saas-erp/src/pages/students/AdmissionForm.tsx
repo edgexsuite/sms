@@ -66,7 +66,7 @@ export default function AdmissionForm() {
           {/* BASIC INFO */}
           <div className="mb-6">
              <h3 className="font-bold text-[15px] bg-gray-200 p-1 mb-3 uppercase border border-black">1. Student Details</h3>
-             <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
                <div><span className="font-semibold block mb-0.5">Full Name of Student:</span><div className="field-box"></div></div>
                <div><span className="font-semibold block mb-0.5">Date of Birth:</span><div className="field-box"></div></div>
                <div><span className="font-semibold block mb-0.5">B-Form / CNIC:</span><div className="field-box"></div></div>
@@ -83,7 +83,7 @@ export default function AdmissionForm() {
           {/* PARENT INFO */}
           <div className="mb-6">
              <h3 className="font-bold text-[15px] bg-gray-200 p-1 mb-3 uppercase border border-black">2. Family Information</h3>
-             <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
                <div className="col-span-2"><span className="font-semibold block mb-0.5">Home Address:</span><div className="field-box"></div></div>
                <div><span className="font-semibold block mb-0.5">Father's Name:</span><div className="field-box"></div></div>
                <div><span className="font-semibold block mb-0.5">Mother's Name:</span><div className="field-box"></div></div>
@@ -109,7 +109,7 @@ export default function AdmissionForm() {
           {(!formSettings || formSettings.admission_info) && (
              <div className="mb-6">
                <h3 className="font-bold text-[15px] bg-gray-200 p-1 mb-3 uppercase border border-black">3. Academic History</h3>
-               <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
                  <div><span className="font-semibold block mb-0.5">Name of Last School:</span><div className="field-box"></div></div>
                  <div><span className="font-semibold block mb-0.5">Class Applying For:</span><div className="field-box"></div></div>
                  <div className="col-span-2"><span className="font-semibold block mb-0.5">Reason for choosing our school:</span><div className="field-box"></div></div>

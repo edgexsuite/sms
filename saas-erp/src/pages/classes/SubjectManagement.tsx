@@ -356,7 +356,7 @@ export default function SubjectManagement() {
                   className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-purple-500 text-sm font-medium"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Total Marks</label>
                   <input

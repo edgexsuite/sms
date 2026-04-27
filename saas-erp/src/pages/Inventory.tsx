@@ -357,7 +357,7 @@ export default function Inventory() {
                    <button onClick={() => setIsItemModalOpen(false)} className="absolute top-8 right-8 text-slate-500 hover:text-white transition-colors"><X className="w-6 h-6" /></button>
                 </div>
                 <form onSubmit={handleSaveItem} className="p-8 space-y-6 bg-white overflow-y-auto max-h-[70vh]">
-                   <div className="grid grid-cols-2 gap-4">
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="col-span-2">
                          <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Artifact Nomenclature</label>
                          <input required type="text" value={itemForm.name} onChange={e => setItemForm({...itemForm, name: e.target.value})} className="w-full bg-slate-50 border-none p-4 rounded-2xl font-black text-slate-900 outline-none focus:bg-slate-100 transition-all" placeholder="e.g. Cisco Switch X-500" />
@@ -430,7 +430,7 @@ export default function Inventory() {
                             {issueForm.issued_to_type === 'staff' ? staff.map(s => <option key={s.id} value={s.id}>{s.full_name} ({s.role})</option>) : students.map(s => <option key={s.id} value={s.id}>{s.roll_number} - {s.full_name}</option>)}
                          </select>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                          <div>
                             <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Transfer Qty</label>
                             <input type="number" value={issueForm.quantity} onChange={e => setIssueForm({...issueForm, quantity: Number(e.target.value)})} className="w-full bg-slate-50 border-none p-4 rounded-2xl font-black text-rose-600 outline-none" />

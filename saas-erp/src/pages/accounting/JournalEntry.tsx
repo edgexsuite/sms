@@ -221,7 +221,7 @@ export default function JournalEntry() {
               <button onClick={() => setShowModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <div className="p-5 space-y-4">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Date</label>
                   <input type="date" value={form.entry_date} onChange={e => setForm({ ...form, entry_date: e.target.value })}

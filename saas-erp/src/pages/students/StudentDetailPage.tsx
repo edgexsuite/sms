@@ -30,6 +30,10 @@ export default function StudentDetailPage() {
   const { userRole } = useAuth();
   const printRef = useRef<HTMLDivElement>(null);
 
+  // Roles with full write access — teachers/staff are read-only
+  const ADMIN_ROLES = ['admin', 'principal', 'director', 'accountant', 'staff'];
+  const isReadOnly = !ADMIN_ROLES.includes((userRole?.role || '').toLowerCase());
+
   const [student, setStudent] = useState<any | null>(null);
   const [parent, setParent] = useState<any | null>(null);
   const [attendance, setAttendance] = useState<any[]>([]);
@@ -457,9 +461,16 @@ export default function StudentDetailPage() {
           <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-xs font-black text-slate-500 hover:text-indigo-600 uppercase tracking-widest transition-all">
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
-          <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:border-indigo-300 hover:text-indigo-600 transition shadow-sm">
-            <Printer className="w-3.5 h-3.5" /> Print
-          </button>
+          <div className="flex items-center gap-3">
+            {isReadOnly && (
+              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-black uppercase tracking-widest">
+                <Shield className="w-3 h-3" /> View Only
+              </span>
+            )}
+            <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:border-indigo-300 hover:text-indigo-600 transition shadow-sm">
+              <Printer className="w-3.5 h-3.5" /> Print
+            </button>
+          </div>
         </div>
 
         {/* ── Ledger Summary Bar (SkoolZoom Style) ── */}
@@ -605,7 +616,7 @@ export default function StudentDetailPage() {
                 <h2 className="text-xs font-black text-indigo-600 uppercase tracking-[0.2em] mb-5 flex items-center gap-2">
                   <User className="w-3.5 h-3.5" /> Personal Information
                 </h2>
-                <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
                   {[
                     { label: 'Full Name', val: student.full_name },
                     { label: 'Roll No', val: student.roll_number ? `#${student.roll_number}` : '—' },
@@ -633,7 +644,7 @@ export default function StudentDetailPage() {
                 <h2 className="text-xs font-black text-slate-600 uppercase tracking-[0.2em] mb-5 flex items-center gap-2">
                   <Phone className="w-3.5 h-3.5" /> Parent & Family
                 </h2>
-                <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
                   {[
                     { label: "Father's Name", val: parent?.father_name || student.father_name || '—' },
                     { label: "Mother's Name", val: parent?.mother_name || student.mother_name || '—' },
@@ -701,7 +712,7 @@ export default function StudentDetailPage() {
                   <h2 className="text-xs font-black text-rose-600 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                     <Heart className="w-3.5 h-3.5" /> Medical & Emergency
                   </h2>
-                  <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
                     {[
                       { label: 'Medical Caution', val: student.medical_caution || '—' },
                       { label: 'Emergency Doctor', val: student.emergency_doctor_name || '—' },
@@ -881,32 +892,34 @@ export default function StudentDetailPage() {
               {/* Action bar */}
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <h3 className="text-sm font-black text-slate-700">Fee Records</h3>
-                <div className="flex items-center gap-2">
-                  {/* Custom fee override indicator */}
-                  {student.fee_override && (
-                    <span className="text-[10px] font-black text-violet-700 bg-violet-100 px-2 py-1 rounded-full uppercase tracking-widest">
-                      Custom Fees Active
-                    </span>
-                  )}
-                  <button
-                    onClick={() => setShowFeeOverrideModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-2 border border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100 rounded-xl text-sm font-bold transition"
-                    title="Set custom fee items for this student only"
-                  >
-                    <CreditCard className="w-4 h-4" />
-                    {student.fee_override ? 'Edit Custom Fees' : 'Customize Fees'}
-                  </button>
-                  <button
-                    onClick={() => setShowFeeModal(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition shadow-sm"
-                  >
-                    <Plus className="w-4 h-4" /> Add Invoice
-                  </button>
-                </div>
+                {!isReadOnly && (
+                  <div className="flex items-center gap-2">
+                    {/* Custom fee override indicator */}
+                    {student.fee_override && (
+                      <span className="text-[10px] font-black text-violet-700 bg-violet-100 px-2 py-1 rounded-full uppercase tracking-widest">
+                        Custom Fees Active
+                      </span>
+                    )}
+                    <button
+                      onClick={() => setShowFeeOverrideModal(true)}
+                      className="flex items-center gap-1.5 px-3 py-2 border border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100 rounded-xl text-sm font-bold transition"
+                      title="Set custom fee items for this student only"
+                    >
+                      <CreditCard className="w-4 h-4" />
+                      {student.fee_override ? 'Edit Custom Fees' : 'Customize Fees'}
+                    </button>
+                    <button
+                      onClick={() => setShowFeeModal(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition shadow-sm"
+                    >
+                      <Plus className="w-4 h-4" /> Add Invoice
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Summary banner */}
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {[
                   { label: 'Total Paid', val: 'PKR ' + totalPaid.toLocaleString(), color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200' },
                   { label: 'Outstanding', val: 'PKR ' + totalDue.toLocaleString(), color: totalDue > 0 ? 'text-rose-600' : 'text-slate-400', bg: totalDue > 0 ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200' },
@@ -949,7 +962,7 @@ export default function StudentDetailPage() {
                             </td>
                             <td className="px-5 py-3">
                               <div className="flex items-center gap-2">
-                                {f.status !== 'paid' && bal > 0 && (
+                                {!isReadOnly && f.status !== 'paid' && bal > 0 && (
                                   <button
                                     onClick={() => {
                                       setCollectingFee(f);
@@ -961,12 +974,14 @@ export default function StudentDetailPage() {
                                     <Wallet className="w-3.5 h-3.5" /> Collect
                                   </button>
                                 )}
-                                <button
-                                  onClick={() => openEditFee(f)}
-                                  className="flex items-center gap-1 text-[10px] font-black uppercase text-slate-400 hover:text-indigo-600 transition"
-                                >
-                                  Edit
-                                </button>
+                                {!isReadOnly && (
+                                  <button
+                                    onClick={() => openEditFee(f)}
+                                    className="flex items-center gap-1 text-[10px] font-black uppercase text-slate-400 hover:text-indigo-600 transition"
+                                  >
+                                    Edit
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -1048,7 +1063,7 @@ export default function StudentDetailPage() {
               <button onClick={() => setEditingFee(null)} className="text-white/60 hover:text-white">✕</button>
             </div>
             <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Fee Month</label>
                   <input type="month" value={editForm.month_year} onChange={e => setEditForm({...editForm, month_year: e.target.value})}
@@ -1060,7 +1075,7 @@ export default function StudentDetailPage() {
                     className="w-full px-3 py-2 border rounded-xl text-sm" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Total Fee (Rs)</label>
                   <input type="number" value={editForm.total_amount} onChange={e => setEditForm({...editForm, total_amount: e.target.value})}

@@ -801,7 +801,7 @@ export default function RegisterStudent() {
           <div className="px-8 py-7 space-y-6">
             <div className="bg-slate-50 rounded-2xl border border-slate-100 p-5">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Parent Login Credentials</p>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-[10px] text-slate-400 uppercase tracking-widest">Family Username</p>
                   <p className="text-lg font-black text-slate-800 font-mono mt-0.5">{admissionSuccess.familyNumber}</p>
@@ -833,7 +833,7 @@ export default function RegisterStudent() {
                       </button>
                     </div>
                     {(stu.student_unique_id || stu.auth_password) && (
-                      <div className="grid grid-cols-2 gap-3 pt-2 border-t border-indigo-100">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-indigo-100">
                         <div>
                           <p className="text-[10px] text-indigo-400 uppercase tracking-widest font-bold">Student Login ID</p>
                           <p className="text-sm font-black text-indigo-800 font-mono mt-0.5">{stu.student_unique_id}</p>

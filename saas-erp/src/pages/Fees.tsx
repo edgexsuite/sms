@@ -619,7 +619,7 @@ export default function Fees() {
                 <p className="text-sm text-gray-600">Student: <span className="font-medium text-gray-900">{selectedRecord.student?.full_name}</span></p>
                 <p className="text-sm text-gray-600">Total Due: <span className="font-medium text-gray-900">Rs. {selectedRecord.total_amount - selectedRecord.paid_amount}</span></p>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Add Fine (Rs.)</label>
                   <input
@@ -720,7 +720,7 @@ export default function Fees() {
                   </div>
                 </div>
 
-                <table className="w-full mb-8 text-sm">
+                <div className="overflow-x-auto"><table className="w-full mb-8 text-sm">
                   <thead>
                     <tr className="border-b border-gray-300">
                       <th className="text-left py-2 font-semibold text-gray-700">Description</th>
@@ -741,9 +741,9 @@ export default function Fees() {
                       <td className="py-3 text-right font-bold text-red-600">Rs. {selectedRecord.total_amount - selectedRecord.paid_amount}</td>
                     </tr>
                   </tbody>
-                </table>
+                </table></div>
 
-                <div className="mt-12 flex justify-between items-end">
+                <div className="mt-12 flex justify-between items-end flex-wrap gap-4">
                   <div className="text-xs text-gray-500">
                     <p>This is a computer generated receipt.</p>
                     <p>No signature required.</p>

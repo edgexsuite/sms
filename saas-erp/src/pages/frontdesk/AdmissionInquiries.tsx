@@ -102,7 +102,7 @@ export default function AdmissionInquiries() {
       </div>
 
       {/* Pipeline summary */}
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
         {STATUSES.map(s => (
           <button key={s} onClick={() => setFilter(filter === s ? 'all' : s)}
             className={`p-3 rounded-xl border text-center transition-all ${filter === s ? 'ring-2 ring-cyan-500 border-cyan-300 bg-cyan-50' : 'bg-white border-gray-200 hover:border-cyan-200'}`}>

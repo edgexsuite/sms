@@ -577,7 +577,7 @@ export default function StudentFeeHistory() {
               <button onClick={() => setEditingRecord(null)} className="text-white/60 hover:text-white">✕</button>
             </div>
             <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Fee Month</label>
                   <input type="month" value={editForm.month_year} onChange={e => setEditForm({...editForm, month_year: e.target.value})}
@@ -589,7 +589,7 @@ export default function StudentFeeHistory() {
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Billed (Rs)</label>
                   <input type="number" value={editForm.total_amount} onChange={e => setEditForm({...editForm, total_amount: e.target.value})}

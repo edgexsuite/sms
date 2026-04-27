@@ -146,7 +146,7 @@ export default function NoticeBoard() {
                 <textarea value={form.content} onChange={e => setForm({ ...form, content: e.target.value })} rows={4}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-500" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Audience</label>
                   <select value={form.audience} onChange={e => setForm({ ...form, audience: e.target.value as Audience })}

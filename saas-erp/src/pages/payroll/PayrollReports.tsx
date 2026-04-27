@@ -113,7 +113,7 @@ export default function PayrollReports() {
           )}
 
           {/* Annual total cards */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Annual Payroll</p>
               <p className="text-2xl font-black text-emerald-600 mt-1">

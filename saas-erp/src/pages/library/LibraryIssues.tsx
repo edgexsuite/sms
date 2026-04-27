@@ -202,7 +202,7 @@ export default function LibraryIssues() {
                   {members.map(m => <option key={m.id} value={m.id}>{m.member_name} ({m.member_type})</option>)}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Issue Date</label>
                   <input type="date" value={form.issued_date} onChange={e => setForm({ ...form, issued_date: e.target.value })}

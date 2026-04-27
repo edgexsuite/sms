@@ -24,6 +24,7 @@ export default function MonthlyFeeInvoices() {
   const [monthFilter, setMonthFilter] = useState('');
   const [school, setSchool] = useState<SchoolInfo>({ name: '' });
   const [challanConfig, setChallanConfig] = useState<ChallanConfig>(DEFAULT_CHALLAN_CONFIG);
+  const [feeItemSuggestions, setFeeItemSuggestions] = useState<string[]>([]);
   const [groupByFamily, setGroupByFamily] = useState(false);
 
   const [showGenerateModal, setShowGenerateModal] = useState(false);
@@ -49,8 +50,29 @@ export default function MonthlyFeeInvoices() {
       fetchClasses();
       fetchSchool();
       fetchChallanConfig();
+      fetchFeeItems();
     }
   }, [userRole]);
+
+  const fetchFeeItems = async () => {
+    const { data } = await supabase
+      .from('form_settings')
+      .select('sections_config')
+      .eq('school_id', userRole?.school_id)
+      .eq('form_name', 'fee_item_names')
+      .maybeSingle();
+    if (data?.sections_config) {
+      const { recurring = [], onetime = [] } = data.sections_config;
+      setFeeItemSuggestions([...new Set([...recurring, ...onetime])]);
+    } else {
+      // Default suggestions if library not yet configured
+      setFeeItemSuggestions([
+        'Tuition Fee', 'Computer Lab Fee', 'Sports Fee', 'Library Fee',
+        'Transport Fee', 'Utility Fee', 'Admission Fee', 'Registration Fee',
+        'Security Deposit', 'Examination Fee',
+      ]);
+    }
+  };
 
   const fetchSchool = async () => {
     const { data } = await supabase
@@ -82,7 +104,7 @@ export default function MonthlyFeeInvoices() {
     setLoading(true);
     const { data } = await supabase
       .from('fee_records')
-      .select('*, students(id, full_name, roll_number, class_id, family_group_id, classes(name, section), parents(whatsapp_number, father_name))')
+      .select('*, students(id, full_name, roll_number, class_id, family_group_id, fee_waiver_percentage, classes(name, section), parents(whatsapp_number, father_name, family_number))')
       .eq('school_id', userRole?.school_id)
       .order('created_at', { ascending: false });
     if (data) setInvoices(data);
@@ -238,19 +260,90 @@ export default function MonthlyFeeInvoices() {
   };
 
   const buildRecord = async (inv: any): Promise<ChallanRecord> => {
-    const { data: prevFees } = await supabase.from('fee_records').select('total_amount, paid_amount').eq('school_id', userRole?.school_id).eq('student_id', inv.student_id).in('status', ['pending', 'overdue']).neq('id', inv.id).lt('month_year', inv.month_year);
-    const previousFee = (prevFees || []).reduce((sum: number, r: any) => sum + Math.max(0, (r.total_amount || 0) - (r.paid_amount || 0)), 0);
+    // 1. Previous pending balance
+    const { data: prevFees } = await supabase
+      .from('fee_records')
+      .select('total_amount, paid_amount')
+      .eq('school_id', userRole?.school_id)
+      .eq('student_id', inv.student_id)
+      .in('status', ['pending', 'overdue'])
+      .neq('id', inv.id)
+      .lt('month_year', inv.month_year);
+    const previousFee = (prevFees || []).reduce(
+      (sum: number, r: any) => sum + Math.max(0, (r.total_amount || 0) - (r.paid_amount || 0)), 0
+    );
+
+    // 2. Class fee matrix + compute discount from original vs actual invoice total
+    const classId = inv.students?.class_id;
+    let feeMatrix: { recurrent: any[]; first_time: any[] } | undefined;
+    let discountAmount = inv.discount_amount || 0;
+    if (classId) {
+      const { data: structure } = await supabase
+        .from('fee_structures')
+        .select('fee_matrix')
+        .eq('school_id', userRole?.school_id)
+        .eq('class_id', classId)
+        .maybeSingle();
+      if (structure?.fee_matrix) {
+        feeMatrix = structure.fee_matrix;
+        const originalTotal = (feeMatrix!.recurrent || []).reduce(
+          (s: number, i: any) => s + (i.amount || 0), 0
+        );
+        const invoiceBreakdownTotal = (inv.breakdown || []).reduce(
+          (s: number, b: any) => s + (b.amount || 0), 0
+        );
+        const computed = Math.round(originalTotal - invoiceBreakdownTotal);
+        if (computed > 0) discountAmount = computed;
+      }
+    }
+
+    // 3. Fine rules — calculate actual fine based on today vs due date
+    const { data: fineSetting } = await supabase
+      .from('form_settings')
+      .select('sections_config')
+      .eq('school_id', userRole?.school_id)
+      .eq('form_name', 'fine_policy')
+      .maybeSingle();
+    const fineRules: any[] = fineSetting?.sections_config?.rules ?? [];
+
+    let fineAmount = 0;
+    if (inv.due_date && inv.status !== 'paid' && fineRules.length > 0) {
+      const dueDate = new Date(inv.due_date); dueDate.setHours(0, 0, 0, 0);
+      const today   = new Date();             today.setHours(0, 0, 0, 0);
+
+      // If already overdue → use actual days late
+      // If still within due → project fine for 1 day after due date (so challan shows what will be charged)
+      const daysLate = today > dueDate
+        ? Math.ceil((today.getTime() - dueDate.getTime()) / 86400000)
+        : 1; // projected: 1 day after due
+
+      fineRules.forEach((rule: any) => {
+        const graceDays = rule.grace_days || 0;
+        if (daysLate <= graceDays) return;            // still within grace
+        const eff = daysLate - graceDays;
+        if      (rule.type === 'flat')       fineAmount += rule.amount;
+        else if (rule.type === 'per_day')    fineAmount += rule.amount * eff;
+        else if (rule.type === 'percentage') fineAmount += (inv.total_amount * rule.amount) / 100;
+      });
+      fineAmount = Math.round(fineAmount);
+    }
+
     return {
       ...inv,
       student_name: inv.students?.full_name,
       roll_number: inv.students?.roll_number,
-      class_name: inv.students?.classes ? `${inv.students.classes.name || ''}${inv.students.classes.section ? ' - ' + inv.students.classes.section : ''}` : '',
+      class_name: inv.students?.classes
+        ? `${inv.students.classes.name || ''}${inv.students.classes.section ? ' - ' + inv.students.classes.section : ''}`
+        : '',
       father_name: inv.students?.parents?.father_name || '',
       family_number: inv.students?.parents?.family_number || '',
       issue_date: inv.created_at,
       previous_fee: previousFee,
-      fine_amount: 0,
-      discount_amount: inv.discount_amount || 0,
+      fine_amount: fineAmount,
+      discount_amount: discountAmount,
+      fee_matrix: feeMatrix,
+      fine_rules: fineRules,
+      fee_waiver_percentage: inv.students?.fee_waiver_percentage ?? 0,
     };
   };
 
@@ -708,7 +801,7 @@ export default function MonthlyFeeInvoices() {
                    <button onClick={() => setEditingInvoice(null)} className="p-2 hover:bg-slate-200 rounded-xl transition-colors"><X className="w-5 h-5 text-slate-400" /></button>
                 </div>
                 <div className="p-8 overflow-y-auto custom-scrollbar space-y-8 flex-1">
-                   <div className="grid grid-cols-2 gap-6">
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <div>
                         <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Modified Due Date</label>
                         <input type="date" value={editingInvoice.due_date || ''} onChange={e => setEditingInvoice({ ...editingInvoice, due_date: e.target.value })} className="w-full bg-slate-50 border-none p-4 rounded-xl font-bold text-slate-700 focus:bg-slate-100 transition-all outline-none" />
@@ -724,16 +817,31 @@ export default function MonthlyFeeInvoices() {
                          <button onClick={() => setEditingInvoice({ ...editingInvoice, breakdown: [...(editingInvoice.breakdown || []), { item: 'New Correction', amount: 0 }] })} className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:underline">+ Append Entry</button>
                       </div>
                       <div className="space-y-3">
-                         {(editingInvoice.breakdown || []).map((b, idx) => (
-                           <div key={idx} className="flex gap-3 items-center bg-slate-50 p-4 rounded-2xl border border-slate-100/50 group">
-                              <input type="text" value={b.item} onChange={e => { const a = [...editingInvoice.breakdown]; a[idx].item = e.target.value; setEditingInvoice({...editingInvoice, breakdown: a}); }} className="flex-1 bg-transparent border-none font-bold text-sm text-slate-700 outline-none" />
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-black text-slate-400">Rs.</span>
-                                <input type="number" value={b.amount} onChange={e => { const a = [...editingInvoice.breakdown]; a[idx].amount = parseFloat(e.target.value); setEditingInvoice({...editingInvoice, breakdown: a}); }} className="w-24 bg-white border border-slate-200 px-3 py-1.5 rounded-lg font-black text-sm text-right outline-none focus:border-indigo-500 transition-all" />
+                         {(editingInvoice.breakdown || []).map((b: any, idx: number) => {
+                            const listId = `fee-items-list-${idx}`;
+                            return (
+                              <div key={idx} className="flex gap-3 items-center bg-slate-50 p-4 rounded-2xl border border-slate-100/50 group">
+                                <div className="flex-1 relative">
+                                  <input
+                                    type="text"
+                                    value={b.item}
+                                    list={listId}
+                                    onChange={e => { const a = [...editingInvoice.breakdown]; a[idx].item = e.target.value; setEditingInvoice({...editingInvoice, breakdown: a}); }}
+                                    placeholder="Select or type fee name…"
+                                    className="w-full bg-transparent border-none font-bold text-sm text-slate-700 outline-none"
+                                  />
+                                  <datalist id={listId}>
+                                    {feeItemSuggestions.map(s => <option key={s} value={s} />)}
+                                  </datalist>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-black text-slate-400">Rs.</span>
+                                  <input type="number" value={b.amount} onChange={e => { const a = [...editingInvoice.breakdown]; a[idx].amount = parseFloat(e.target.value); setEditingInvoice({...editingInvoice, breakdown: a}); }} className="w-24 bg-white border border-slate-200 px-3 py-1.5 rounded-lg font-black text-sm text-right outline-none focus:border-indigo-500 transition-all" />
+                                </div>
+                                <button onClick={() => setEditingInvoice({ ...editingInvoice, breakdown: editingInvoice.breakdown.filter((_:any, i:number) => i !== idx) })} className="p-1.5 text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>
                               </div>
-                              <button onClick={() => setEditingInvoice({ ...editingInvoice, breakdown: editingInvoice.breakdown.filter((_:any, i:number) => i !== idx) })} className="p-1.5 text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>
-                           </div>
-                         ))}
+                            );
+                          })}
                       </div>
                    </div>
                 </div>

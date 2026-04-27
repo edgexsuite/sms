@@ -348,7 +348,7 @@ export default function StaffDetailPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 shrink-0 no-print">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 shrink-0 no-print">
               <div className="bg-white/5 border border-white/10 rounded-3xl p-6 text-center backdrop-blur-sm">
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 text-center opacity-60">Base Remuneration</p>
                 <p className="text-xl font-black text-emerald-400">Rs. {staff.salary?.toLocaleString() || '0'}</p>

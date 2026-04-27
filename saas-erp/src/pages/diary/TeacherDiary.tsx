@@ -377,69 +377,89 @@ export default function TeacherDiary() {
   const filledCount = rows.filter(r => r.topic_covered.trim()).length;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-5">
+    <div className="max-w-7xl mx-auto space-y-4">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <ClipboardList className="w-6 h-6 text-indigo-600" /> {viewMode === 'class' ? 'Class Diary' : 'Teacher Diary'}
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <ClipboardList className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" />
+            {viewMode === 'class' ? 'Class Diary' : 'Teacher Diary'}
           </h1>
-          <p className="text-gray-500 text-sm mt-1">
-            {viewMode === 'class' ? `Unified report for Grade ${selectedClassName || 'Selected Class'}.` : (isTeacher ? 'Fill in your daily lesson plan for each assigned class.' : 'View diary entries by individual teacher.')}
+          <p className="text-gray-500 text-xs sm:text-sm mt-1">
+            {viewMode === 'class'
+              ? `Unified report for Grade ${selectedClassName || 'Selected Class'}.`
+              : isTeacher ? 'Fill in your daily lesson plan.' : 'View diary entries by individual teacher.'}
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
           {isAdmin && (
-            <div className="bg-slate-100 p-1 rounded-xl flex items-center mr-2">
-               <button onClick={() => setViewMode('teacher')} className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'teacher' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>By Teacher</button>
-               <button onClick={() => setViewMode('class')} className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'class' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>By Class</button>
+            <div className="bg-slate-100 p-1 rounded-xl flex items-center">
+              <button onClick={() => setViewMode('teacher')} className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'teacher' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>Teacher</button>
+              <button onClick={() => setViewMode('class')} className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'class' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>Class</button>
             </div>
           )}
-          <button onClick={handlePrint} disabled={(viewMode === 'teacher' ? !selectedTeacherId : !selectedClassId) || rows.length === 0} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-200 transition-all hover:-translate-y-0.5 active:translate-y-0"><Printer className="w-4 h-4" /> Print Full-Color Report</button>
+          <button onClick={handlePrint} disabled={(viewMode === 'teacher' ? !selectedTeacherId : !selectedClassId) || rows.length === 0}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-200 transition-all disabled:opacity-40">
+            <Printer className="w-4 h-4" /> Print Report
+          </button>
         </div>
       </div>
 
       {/* ── Controls ─────────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
           {isAdmin && viewMode === 'teacher' && (
             <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}>
-              <label className="block text-xs font-black text-gray-500 uppercase mb-2 flex items-center gap-1"><Users className="w-3 h-3" /> Teacher</label>
-              <select value={selectedTeacherId} onChange={e => { const t = allTeachers.find(x => x.id === e.target.value); setSelectedTeacherId(e.target.value); setSelectedTeacherName(t?.full_name || ''); }} className="w-full border border-gray-300 px-3 py-2.5 rounded-lg bg-gray-50 text-sm font-medium focus:ring-2 focus:ring-indigo-100 outline-none">
+              <label className="block text-xs font-black text-gray-500 uppercase mb-1.5 flex items-center gap-1"><Users className="w-3 h-3" /> Teacher</label>
+              <select value={selectedTeacherId} onChange={e => { const t = allTeachers.find(x => x.id === e.target.value); setSelectedTeacherId(e.target.value); setSelectedTeacherName(t?.full_name || ''); }}
+                className="w-full border border-gray-300 px-3 py-2.5 rounded-lg bg-gray-50 text-sm font-medium focus:ring-2 focus:ring-indigo-100 outline-none">
                 <option value="">— Select Teacher —</option>
-                {allTeachers.map(t => (<option key={t.id} value={t.id}>{t.full_name} ({t.role})</option>))}
+                {allTeachers.map(t => (<option key={t.id} value={t.id}>{t.full_name}</option>))}
               </select>
             </motion.div>
           )}
           {viewMode === 'class' && (
             <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}>
-              <label className="block text-xs font-black text-gray-500 uppercase mb-2 flex items-center gap-1"><BookOpen className="w-3 h-3" /> Class</label>
-              <select value={selectedClassId} onChange={e => { const c = allClasses.find(x => x.id === e.target.value); setSelectedClassId(e.target.value); setSelectedClassName(c ? `${c.name} ${c.section}` : ''); }} className="w-full border border-gray-300 px-3 py-2.5 rounded-lg bg-gray-50 text-sm font-medium focus:ring-2 focus:ring-indigo-100 outline-none">
+              <label className="block text-xs font-black text-gray-500 uppercase mb-1.5 flex items-center gap-1"><BookOpen className="w-3 h-3" /> Class</label>
+              <select value={selectedClassId} onChange={e => { const c = allClasses.find(x => x.id === e.target.value); setSelectedClassId(e.target.value); setSelectedClassName(c ? `${c.name} ${c.section}` : ''); }}
+                className="w-full border border-gray-300 px-3 py-2.5 rounded-lg bg-gray-50 text-sm font-medium focus:ring-2 focus:ring-indigo-100 outline-none">
                 <option value="">— Select Class —</option>
                 {allClasses.map(c => (<option key={c.id} value={c.id}>{c.name} {c.section}</option>))}
               </select>
             </motion.div>
           )}
-          <div className={isAdmin ? '' : 'md:col-span-2'}>
-            <label className="block text-xs font-black text-gray-500 uppercase mb-2 flex items-center gap-1"><Calendar className="w-3 h-3" /> Date</label>
+          <div>
+            <label className="block text-xs font-black text-gray-500 uppercase mb-1.5 flex items-center gap-1"><Calendar className="w-3 h-3" /> Date</label>
             <div className="flex items-center gap-1">
-              <button onClick={() => shiftDate(-1)} className="p-2.5 border border-gray-300 rounded-lg hover:bg-gray-50"><ChevronLeft className="w-4 h-4" /></button>
-              <input type="date" value={viewDate} onChange={e => setViewDate(e.target.value)} className="flex-1 border border-gray-300 px-2 py-2 rounded-lg text-sm text-center font-medium" />
-              <button onClick={() => shiftDate(1)} className="p-2.5 border border-gray-300 rounded-lg hover:bg-gray-50"><ChevronRight className="w-4 h-4" /></button>
+              <button onClick={() => shiftDate(-1)} className="p-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 shrink-0"><ChevronLeft className="w-4 h-4" /></button>
+              <input type="date" value={viewDate} onChange={e => setViewDate(e.target.value)} className="flex-1 border border-gray-300 px-2 py-2 rounded-lg text-sm text-center font-medium min-w-0" />
+              <button onClick={() => shiftDate(1)} className="p-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 shrink-0"><ChevronRight className="w-4 h-4" /></button>
             </div>
           </div>
-          <div className="flex items-end">
-            <button onClick={saveAll} disabled={(viewMode === 'teacher' ? !selectedTeacherId : !selectedClassId) || filledCount === 0} className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-6 rounded-lg shadow disabled:opacity-40 transition"><Save className="w-4 h-4" /> Save All ({filledCount} filled)</button>
+          <div className="sm:col-span-2 md:col-span-1 flex items-end">
+            <button onClick={saveAll} disabled={(viewMode === 'teacher' ? !selectedTeacherId : !selectedClassId) || filledCount === 0}
+              className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-lg shadow disabled:opacity-40 transition text-sm">
+              <Save className="w-4 h-4" /> Save All ({filledCount} filled)
+            </button>
           </div>
         </div>
       </div>
 
-      {/* ── Main diary table ─────────────────────────────────────────────────── */}
+      {/* ── Main diary ─────────────────────────────────────────────────────── */}
       {(viewMode === 'teacher' ? selectedTeacherId : selectedClassId) && (loading ? (
         <div className="bg-white rounded-xl p-10 text-center text-gray-400 border border-gray-200">Loading diary...</div>
       ) : rows.length > 0 ? (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+
+          {/* Mobile: card per subject */}
+          <div className="md:hidden space-y-3">
+            {rows.map((row, idx) => (
+              <DiaryCard key={`card_${row.slot.class_id}_${row.slot.subject_id}`} row={row} index={idx} viewMode={viewMode} onUpdate={updateRow} onSave={saveRow} />
+            ))}
+          </div>
+
+          {/* Desktop: table */}
+          <div className="hidden md:block bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -459,7 +479,8 @@ export default function TeacherDiary() {
               </table>
             </div>
           </div>
-          <div className="flex items-center gap-3 text-sm">
+
+          <div className="flex items-center gap-3 text-sm flex-wrap">
             <span className="flex items-center gap-1 text-emerald-700 font-bold"><CheckCircle2 className="w-4 h-4" />{filledCount} of {rows.length} entries filled</span>
             {filledCount < rows.length && (<span className="flex items-center gap-1 text-amber-600 font-medium"><AlertCircle className="w-3.5 h-3.5" />{rows.length - filledCount} remaining</span>)}
           </div>
@@ -539,6 +560,86 @@ export default function TeacherDiary() {
   );
 }
 
+// ─── Mobile Card Component ────────────────────────────────────────────────────
+function DiaryCard({
+  row, index, onUpdate, onSave, viewMode,
+}: {
+  key?: React.Key;
+  row: DiaryRow;
+  index: number;
+  onUpdate: (i: number, field: keyof DiaryRow, value: string) => void;
+  onSave: (i: number) => void | Promise<void>;
+  viewMode: 'teacher' | 'class';
+}) {
+  const meta = getSubjectMeta(viewMode === 'class' ? row.slot.subject_name : row.slot.class_name);
+  const Icon = meta.icon;
+
+  const cardField = (field: 'topic_covered' | 'homework' | 'activity_notes' | 'next_plan', label: string, placeholder: string, required = false) => (
+    <div>
+      <label className="block text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: meta.color }}>
+        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
+      </label>
+      <textarea
+        rows={3}
+        value={row[field] as string}
+        onChange={e => onUpdate(index, field, e.target.value)}
+        placeholder={placeholder}
+        className="w-full border rounded-xl px-3 py-2 text-sm resize-none outline-none transition focus:ring-2"
+        style={{
+          borderColor: row[field] ? meta.color : '#e2e8f0',
+          // @ts-ignore
+          '--tw-ring-color': meta.color,
+          backgroundColor: row[field] ? `${meta.color}08` : 'transparent',
+        }}
+      />
+    </div>
+  );
+
+  return (
+    <div className={`bg-white rounded-2xl border-2 shadow-sm overflow-hidden transition-all ${row.saved ? 'border-emerald-300 bg-emerald-50/30' : 'border-slate-200'}`}>
+      {/* Card header */}
+      <div className="flex items-center justify-between px-4 py-3" style={{ backgroundColor: meta.bg, borderBottom: `2px solid ${meta.border}` }}>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${meta.color}18` }}>
+            <Icon className="w-5 h-5" style={{ color: meta.color }} />
+          </div>
+          <div>
+            <p className="font-black text-slate-900 text-sm leading-tight">
+              {viewMode === 'class' ? row.slot.subject_name : row.slot.class_name}
+            </p>
+            <p className="text-[10px] font-bold text-slate-500 mt-0.5">
+              {viewMode === 'class' ? row.slot.teacher_name : row.slot.subject_name}
+            </p>
+          </div>
+        </div>
+        {row.saved ? (
+          <span className="flex items-center gap-1 text-emerald-600 font-bold text-[10px] bg-emerald-100 px-2.5 py-1.5 rounded-lg">
+            <CheckCircle2 className="w-3.5 h-3.5" /> Saved
+          </span>
+        ) : (
+          <button
+            onClick={() => onSave(index)}
+            disabled={row.saving || !row.topic_covered.trim()}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-white text-xs font-bold rounded-lg shadow disabled:opacity-40 transition"
+            style={{ backgroundColor: meta.color }}
+          >
+            <Save className="w-3 h-3" />{row.saving ? 'Saving…' : 'Save'}
+          </button>
+        )}
+      </div>
+
+      {/* Card fields */}
+      <div className="p-4 space-y-3">
+        {cardField('topic_covered', 'Topic Covered', 'What was taught today?', true)}
+        {cardField('homework', 'Homework', 'Tasks for home…')}
+        {cardField('activity_notes', 'Activity Notes', 'Class observations…')}
+        {cardField('next_plan', 'Next Plan', "Tomorrow's agenda…")}
+      </div>
+    </div>
+  );
+}
+
+// ─── Desktop Table Row ────────────────────────────────────────────────────────
 function DiaryTableRow({
   row, index, onUpdate, onSave, viewMode,
 }: {

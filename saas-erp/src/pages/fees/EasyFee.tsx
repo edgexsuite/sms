@@ -524,7 +524,7 @@ export default function EasyFee() {
 
                       <div>
                         <label className="block text-xs font-medium text-slate-400 mb-1.5">Payment Method</label>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                           {['Cash', 'JazzCash', 'EasyPaisa', 'Bank'].map(m => (
                             <button
                               key={m}

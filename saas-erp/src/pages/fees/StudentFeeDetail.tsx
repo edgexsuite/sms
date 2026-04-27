@@ -388,7 +388,7 @@ export default function StudentFeeDetail() {
             </div>
 
             {/* 3 Stat Cards */}
-            <div className="grid grid-cols-3 gap-4 shrink-0">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 shrink-0">
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
                 <p className="text-xs text-gray-400 font-medium mb-1">Total Billed</p>
                 <p className="text-xl font-bold text-gray-900">Rs. {totalBilled.toLocaleString()}</p>
@@ -598,7 +598,7 @@ export default function StudentFeeDetail() {
                 {/* Payment Mode Pills */}
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-2">Payment Method</label>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {['Cash', 'Bank Transfer', 'JazzCash', 'EasyPaisa'].map(m => (
                       <button
                         key={m}
@@ -684,7 +684,7 @@ export default function StudentFeeDetail() {
                 <button onClick={() => setEditingInvoice(null)} className="text-white/60 hover:text-white">✕</button>
               </div>
               <div className="p-6 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Fee Month</label>
                     <input type="month" value={editForm.month_year} onChange={e => setEditForm({...editForm, month_year: e.target.value})}
@@ -696,7 +696,7 @@ export default function StudentFeeDetail() {
                       className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Billed (Rs)</label>
                     <input type="number" value={editForm.total_amount} onChange={e => setEditForm({...editForm, total_amount: e.target.value})}
