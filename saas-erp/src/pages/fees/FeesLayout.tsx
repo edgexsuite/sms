@@ -12,6 +12,7 @@ import AverageFee from './AverageFee';
 import FeeTemplates from './FeeTemplates';
 import StudentFeeHistory from './StudentFeeHistory';
 import EasyFee from './EasyFee';
+import BulkDiscountEntry from './BulkDiscountEntry';
 
 export default function FeesLayout() {
   return (
@@ -28,6 +29,7 @@ export default function FeesLayout() {
       <Route path="fee-templates" element={<FeeTemplates />} />
       <Route path="fee-history" element={<StudentFeeHistory />} />
       <Route path="easy-fee" element={<EasyFee />} />
+      <Route path="bulk-discount" element={<BulkDiscountEntry />} />
       <Route path="*" element={<Navigate to="/fees/invoices" replace />} />
     </Routes>
   );

@@ -6,7 +6,7 @@ import {
   Banknote, DollarSign, Scale, BarChart3, BarChart2, ClipboardCheck, UserX,
   LineChart, Library, Home, Bell, Key, Trash2, Box, Package, Clock, Palette,
   Receipt, Layers, BookMarked, Landmark, BarChart, LifeBuoy, Users2, Bus, MapPin, Truck,
-  Radio, Inbox,
+  Radio, Inbox, Tag,
 } from 'lucide-react';
 
 export const ALL_ADMIN    = ['admin', 'principal', 'director'];
@@ -194,6 +194,7 @@ export const NAV_SECTIONS = [
           { name: 'Discounts & Scholarships', path: '/fees/discounts',       icon: Award,       roles: ALL_ADMIN },
           { name: 'Late Fine Rules',          path: '/fees/fine-policy',     icon: AlertTriangle,roles: ALL_ADMIN },
           { name: 'Challan Settings',         path: '/fees/challan-settings',icon: Palette,     roles: ALL_ADMIN },
+          { name: 'Bulk Discount Entry',      path: '/fees/bulk-discount',   icon: Tag,         roles: ALL_ADMIN },
         ],
       },
       {
