@@ -444,7 +444,7 @@ function drawChallanCopy(
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(140, 80, 0); // amber-900
       doc.text('Discount / Scholarship', cx + pad, y + feeRowH - pad - 0.2);
-      doc.text(`− ${discountAmt.toLocaleString()}`, cx + cw - pad, y + feeRowH - pad - 0.2, { align: 'right' });
+      doc.text(`- ${discountAmt.toLocaleString()}`, cx + cw - pad, y + feeRowH - pad - 0.2, { align: 'right' });
       doc.setTextColor(0, 0, 0);
       y += feeRowH;
     }
