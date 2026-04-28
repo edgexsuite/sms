@@ -223,6 +223,29 @@ export default function MonthlyFeeInvoices() {
     } catch (err: any) { alert(err.message); }
   };
 
+  const handleDeleteInvoice = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this invoice? This will remove it from the records.')) return;
+    try {
+      const { error } = await supabase.from('fee_records').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+      if (error) throw error;
+      fetchInvoices();
+    } catch (err: any) { alert(err.message); }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedInvoices.size === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selectedInvoices.size} selected invoices?`)) return;
+    try {
+      const { error } = await supabase.from('fee_records')
+        .update({ deleted_at: new Date().toISOString() })
+        .in('id', Array.from(selectedInvoices));
+      if (error) throw error;
+      alert(`Successfully deleted ${selectedInvoices.size} invoices.`);
+      setSelectedInvoices(new Set());
+      fetchInvoices();
+    } catch (err: any) { alert(err.message); }
+  };
+
   const handleSendWhatsApp = async (invoice: any) => {
     const parentPhone = invoice.students?.parents?.whatsapp_number;
     if (!parentPhone) return alert('No WhatsApp number found for this student\'s parent.');
@@ -280,6 +303,11 @@ export default function MonthlyFeeInvoices() {
     const classId = inv.students?.class_id;
     let feeMatrix: { recurrent: any[]; first_time: any[] } | undefined;
     let discountAmount = inv.discount_amount || 0;
+    // When a discount is detected, we override the challan breakdown with
+    // the ORIGINAL (pre-discount) amounts so the challan prints:
+    //   Total Fee: 5000 · Discount: 2000 · Amount Due: 3000
+    // instead of double-subtracting (3000 - 2000 = 1000).
+    let challanBreakdown: { item: string; amount: number }[] | null = null;
     if (classId) {
       const { data: structure } = await supabase
         .from('fee_structures')
@@ -296,7 +324,13 @@ export default function MonthlyFeeInvoices() {
           (s: number, b: any) => s + (b.amount || 0), 0
         );
         const computed = Math.round(originalTotal - invoiceBreakdownTotal);
-        if (computed > 0) discountAmount = computed;
+        if (computed > 0) {
+          discountAmount = computed;
+          // Use original fee-structure amounts as challan breakdown so grossTotal = 5000
+          challanBreakdown = (feeMatrix!.recurrent || []).map(
+            (r: any) => ({ item: r.item, amount: Number(r.amount) })
+          );
+        }
       }
     }
 
@@ -331,8 +365,16 @@ export default function MonthlyFeeInvoices() {
       fineAmount = Math.round(fineAmount);
     }
 
+    // If we detected a discount and built original-amount breakdown, use it for the challan
+    // so the PDF shows: Original 5000 → Discount 2000 → Due 3000 (not 3000 - 2000 = 1000)
+    const challanTotal = challanBreakdown
+      ? challanBreakdown.reduce((s, b) => s + b.amount, 0)
+      : inv.total_amount;
+
     return {
       ...inv,
+      breakdown: challanBreakdown ?? inv.breakdown,
+      total_amount: challanTotal,
       student_name: inv.students?.full_name,
       roll_number: inv.students?.roll_number,
       class_name: inv.students?.classes
@@ -666,6 +708,7 @@ export default function MonthlyFeeInvoices() {
                             <button onClick={() => handlePrintChallan(inv)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" title="Print Challan"><Printer className="w-4 h-4" /></button>
                             <button onClick={() => handleSendWhatsApp(inv)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all" title="WhatsApp Reminder"><MessageCircle className="w-4 h-4" /></button>
                             <button onClick={() => setEditingInvoice(inv)} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all" title="Edit Invoice"><Edit className="w-4 h-4" /></button>
+                            <button onClick={() => handleDeleteInvoice(inv.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" title="Delete Invoice"><Trash2 className="w-4 h-4" /></button>
                           </>
                         ) : (
                           <button onClick={() => handlePrintFamilyChallan(inv)} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg font-bold text-[10px] uppercase tracking-widest hover:bg-indigo-100 transition-all"><Printer className="w-3.5 h-3.5" /> Family</button>
