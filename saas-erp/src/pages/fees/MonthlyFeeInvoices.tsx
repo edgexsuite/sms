@@ -138,7 +138,7 @@ export default function MonthlyFeeInvoices() {
 
       // Duplicate Check: Fetch existing records for this month
       const monthYear = generateMonth + '-01';
-      const { data: existing } = await supabase.from('fee_records').select('student_id').eq('school_id', userRole?.school_id).eq('month_year', monthYear);
+      const { data: existing } = await supabase.from('fee_records').select('student_id').eq('school_id', userRole?.school_id).eq('month_year', monthYear).is('deleted_at', null);
       const existingIds = new Set(existing?.map(e => e.student_id) || []);
 
       const billableStudents = students.filter(s => !existingIds.has(s.id));
@@ -300,6 +300,7 @@ export default function MonthlyFeeInvoices() {
       .eq('school_id', userRole?.school_id)
       .eq('student_id', inv.student_id)
       .in('status', ['pending', 'overdue'])
+      .is('deleted_at', null)
       .neq('id', inv.id)
       .lt('month_year', inv.month_year);
     const previousFee = (prevFees || []).reduce(
@@ -308,7 +309,6 @@ export default function MonthlyFeeInvoices() {
 
     // 2. Class fee matrix — used for challan display and legacy-invoice fallback
     const classId = inv.students?.class_id;
-    let feeMatrix: { recurrent: any[]; first_time: any[] } | undefined;
     // New invoices: discount_amount is stored explicitly on the record.
     // Old invoices (created before this fix): discount_amount is null — reverse-engineer
     // from the fee structure by comparing original template total vs stored breakdown total.
@@ -323,10 +323,13 @@ export default function MonthlyFeeInvoices() {
         .eq('class_id', classId)
         .maybeSingle();
       if (structure?.fee_matrix) {
-        feeMatrix = structure.fee_matrix;
+        const feeMatrix = structure.fee_matrix;
 
-        // Fallback for old invoices: if discount_amount not stored, compute from structure diff
-        if (inv.discount_amount == null) {
+        // Fallback for old invoices: discount was baked into the breakdown amounts
+        // (discount_amount stored as 0 or null). Detect by comparing fee structure
+        // total vs invoice breakdown total — if there's a gap, that gap IS the discount.
+        // Safe: computed > 0 guard ensures no-discount students (equal totals) are skipped.
+        if (!inv.discount_amount) {
           const originalTotal = (feeMatrix!.recurrent || []).reduce(
             (s: number, i: any) => s + Number(i.amount || 0), 0
           );
@@ -336,7 +339,6 @@ export default function MonthlyFeeInvoices() {
           const computed = Math.round(originalTotal - invoiceTotal);
           if (computed > 0) {
             discountAmount = computed;
-            // Swap breakdown to original gross amounts so challan shows full fee first
             challanBreakdown = (feeMatrix!.recurrent || []).map(
               (r: any) => ({ item: r.item, amount: Number(r.amount) })
             );
@@ -396,7 +398,6 @@ export default function MonthlyFeeInvoices() {
       previous_fee: previousFee,
       fine_amount: fineAmount,
       discount_amount: discountAmount,
-      fee_matrix: feeMatrix,
       fine_rules: fineRules,
       fee_waiver_percentage: inv.students?.fee_waiver_percentage ?? 0,
     };
