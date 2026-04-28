@@ -520,9 +520,11 @@ export default function StudentFeeDetail() {
                     <div>
                       <p className="text-[9px] text-gray-400 font-semibold uppercase tracking-wider leading-none mb-0.5">Waiver</p>
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="decimal"
                         value={waiver}
-                        onChange={e => setWaiver(parseFloat(e.target.value) || 0)}
+                        onFocus={e => e.target.select()}
+                        onChange={e => setWaiver(parseFloat(e.target.value.replace(/[^0-9.]/g, '')) || 0)}
                         className="w-12 bg-transparent border-none p-0 text-sm font-bold text-indigo-600 focus:ring-0 outline-none"
                       />
                     </div>
@@ -888,9 +890,11 @@ export default function StudentFeeDetail() {
                   <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent">
                     <span className="px-3 py-3 text-sm font-medium text-gray-500 bg-gray-50 border-r border-gray-200">Rs.</span>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       value={paymentAmount}
-                      onChange={e => setPaymentAmount(parseFloat(e.target.value) || 0)}
+                      onFocus={e => e.target.select()}
+                      onChange={e => setPaymentAmount(parseFloat(e.target.value.replace(/[^0-9.]/g, '')) || 0)}
                       className="flex-1 px-3 py-3 text-lg font-bold text-indigo-600 outline-none bg-white"
                     />
                   </div>
@@ -1017,7 +1021,7 @@ export default function StudentFeeDetail() {
                 {/* Paid Amount */}
                 <div>
                   <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Amount Already Paid (Rs)</label>
-                  <input type="number" value={editForm.paid_amount} onChange={e => setEditForm({...editForm, paid_amount: e.target.value})}
+                  <input type="text" inputMode="decimal" value={editForm.paid_amount} onFocus={e => e.target.select()} onChange={e => setEditForm({...editForm, paid_amount: e.target.value.replace(/[^0-9.]/g, '')})}
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-black text-emerald-600 font-mono" />
                   <p className="text-[10px] text-slate-400 mt-1">
                     Total billed (from breakdown): Rs. {editBreakdown.reduce((s, r) => s + (Number(r.amount) || 0), 0).toLocaleString()}

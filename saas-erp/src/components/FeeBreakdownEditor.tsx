@@ -128,11 +128,11 @@ export default function FeeBreakdownEditor({
             suggestions={suggestions}
           />
           <input
-            type="number"
-            min="0"
-            step="1"
+            type="text"
+            inputMode="numeric"
             value={row.amount || ''}
-            onChange={e => updateItem(i, 'amount', e.target.value)}
+            onFocus={e => e.target.select()}
+            onChange={e => updateItem(i, 'amount', e.target.value.replace(/[^0-9]/g, ''))}
             placeholder="0"
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-right font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full"
           />

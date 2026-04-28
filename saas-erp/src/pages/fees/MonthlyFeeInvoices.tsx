@@ -1003,10 +1003,12 @@ export default function MonthlyFeeInvoices() {
                                  <p className="text-[9px] text-emerald-600 font-bold opacity-70">Applied to this invoice</p>
                               </div>
                            </div>
-                           <input 
-                             type="number" 
-                             value={singleDiscount} 
-                             onChange={e => setSingleDiscount(Number(e.target.value) || 0)}
+                           <input
+                             type="text"
+                             inputMode="numeric"
+                             value={singleDiscount}
+                             onFocus={e => e.target.select()}
+                             onChange={e => setSingleDiscount(Number(e.target.value.replace(/[^0-9]/g, '')) || 0)}
                              className="w-24 bg-white border border-emerald-200 p-2 rounded-xl text-right font-black text-emerald-600 outline-none focus:ring-2 focus:ring-emerald-500"
                            />
                         </div>

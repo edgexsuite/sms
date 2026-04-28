@@ -193,9 +193,9 @@ export default function EasyFee() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this invoice?')) return;
+    if (!confirm('PERMANENT DELETE: This invoice will be completely removed and cannot be recovered. Continue?')) return;
     try {
-      const { error } = await supabase.from('fee_records').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+      const { error } = await supabase.from('fee_records').delete().eq('id', id);
       if (error) throw error;
       if (selectedStudent) handleSelect(selectedStudent);
     } catch (err: any) { alert(err.message); }
@@ -572,9 +572,11 @@ export default function EasyFee() {
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm font-medium">Rs.</span>
                           <input
                             required
-                            type="number"
+                            type="text"
+                            inputMode="decimal"
                             value={payAmount}
-                            onChange={e => setPayAmount(e.target.value)}
+                            onFocus={e => e.target.select()}
+                            onChange={e => setPayAmount(e.target.value.replace(/[^0-9.]/g, ''))}
                             className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-10 pr-4 py-3 text-xl font-bold text-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 placeholder-slate-600"
                             placeholder="0"
                           />

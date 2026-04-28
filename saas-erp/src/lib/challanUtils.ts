@@ -719,11 +719,20 @@ export async function downloadChallanPDF(
   }
 
   if (shouldAutoPrint) {
-    doc.autoPrint();
+    doc.autoPrint({ variant: 'non-conform' }); // triggers browser print dialog on open
     const blobUrl = doc.output('bloburl');
     const printWindow = window.open(blobUrl, '_blank', 'noopener,noreferrer');
-    if (!printWindow && !shouldDownload) {
-      doc.save(filename);
+    if (!printWindow) {
+      if (shouldDownload) {
+        // download was also requested — already done above, nothing extra to do
+      } else {
+        // Print-only mode but popup was blocked — tell the user rather than silently downloading
+        alert(
+          'Your browser blocked the print window.\n\n' +
+          'Please allow pop-ups for this site, then click the Quick Print button again.\n\n' +
+          'Or use the Download (↓) button to save the PDF and print from your PDF viewer.'
+        );
+      }
     }
   }
 }

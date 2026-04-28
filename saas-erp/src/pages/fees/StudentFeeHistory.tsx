@@ -253,9 +253,9 @@ export default function StudentFeeHistory() {
   };
 
   const handleDeleteRecord = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this fee record? This action cannot be undone.')) return;
+    if (!confirm('PERMANENT DELETE: This fee record will be completely removed and cannot be recovered. Continue?')) return;
     try {
-      const { error } = await supabase.from('fee_records').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+      const { error } = await supabase.from('fee_records').delete().eq('id', id);
       if (error) throw error;
       fetchRecords();
     } catch (err: any) { alert(err.message); }
@@ -619,12 +619,12 @@ export default function StudentFeeHistory() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Billed (Rs)</label>
-                  <input type="number" value={editForm.total_amount} onChange={e => setEditForm({...editForm, total_amount: e.target.value})}
+                  <input type="text" inputMode="decimal" value={editForm.total_amount} onFocus={e => e.target.select()} onChange={e => setEditForm({...editForm, total_amount: e.target.value.replace(/[^0-9.]/g, '')})}
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-black text-slate-800 font-mono" />
                 </div>
                 <div>
                   <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Paid (Rs)</label>
-                  <input type="number" value={editForm.paid_amount} onChange={e => setEditForm({...editForm, paid_amount: e.target.value})}
+                  <input type="text" inputMode="decimal" value={editForm.paid_amount} onFocus={e => e.target.select()} onChange={e => setEditForm({...editForm, paid_amount: e.target.value.replace(/[^0-9.]/g, '')})}
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-black text-emerald-600 font-mono" />
                 </div>
               </div>

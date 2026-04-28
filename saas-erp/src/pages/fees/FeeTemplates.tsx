@@ -325,8 +325,9 @@ export default function FeeTemplates() {
                                   />
                                   <div className="relative">
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">Rs.</span>
-                                    <input type="number" min="0" value={item.amount}
-                                      onChange={e => updateItem(s.id, section, idx, 'amount', e.target.value)}
+                                    <input type="text" inputMode="numeric" value={item.amount}
+                                      onFocus={e => e.target.select()}
+                                      onChange={e => updateItem(s.id, section, idx, 'amount', e.target.value.replace(/[^0-9]/g, ''))}
                                       className="w-32 border border-gray-300 rounded-lg pl-8 pr-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500" />
                                   </div>
                                   <button onClick={() => removeItem(s.id, section, idx)} className="text-red-400 hover:text-red-600 p-1">

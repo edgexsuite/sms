@@ -232,12 +232,12 @@ export default function StudentFeeModal({ student, onSave, onClose, includeAdmis
           built.push({
             id: `rec-${idx++}`,
             label: r.item,
-            baseAmount: +(r.amount * (1 - waiver)).toFixed(2),
+            baseAmount: Number(r.amount) || 0, // Keep Gross
             isOneTime: false,
             isArrears: false,
             include: true,
-            discountType: 'fixed',
-            discountVal: 0,
+            discountType: 'pct',               // Default to percentage waiver
+            discountVal: Math.round(waiver * 100), // The student's waiver
             alreadyCharged: false,
           });
         });
@@ -364,13 +364,18 @@ export default function StudentFeeModal({ student, onSave, onClose, includeAdmis
       const today = new Date().toISOString().split('T')[0];
       const invoiceNo = genInvoiceNo(monthYear, student.roll_number);
 
+      // Store GROSS amounts in breakdown (consistent with MonthlyFeeInvoices bulk-generate).
+      // Discount is stored separately in discount_amount so the challan can display:
+      //   Gross Fee → − Discount → Net Payable
+      // Arrears rows store their net amount directly (no discount applies to them).
       const breakdown = activeRows.map(r => ({
         item: r.label,
-        amount: rowNet(r),
+        amount: r.isArrears ? r.baseAmount : r.baseAmount, // GROSS (same for arrears since no discount)
         ...(rowDiscountAmt(r) > 0 ? { discount: rowDiscountAmt(r), discount_type: r.discountType, discount_val: r.discountVal } : {}),
         is_one_time: r.isOneTime,
         ...(r.isArrears ? { is_arrears: true } : {}),
       }));
+      const discountAmount = Math.round(totalDiscount); // explicit — prevents challan from re-computing
 
       // month_year DB column is DATE — input gives "YYYY-MM", DB needs "YYYY-MM-DD"
       const monthYearDate = monthYear.length === 7 ? `${monthYear}-01` : monthYear;
@@ -379,7 +384,8 @@ export default function StudentFeeModal({ student, onSave, onClose, includeAdmis
         school_id: sid,
         student_id: student.id,
         month_year: monthYearDate,
-        total_amount: total,
+        total_amount: total,            // net payable
+        discount_amount: discountAmount, // explicit — 0 if no discount
         paid_amount: collectNow ? payNum : 0,
         status: collectNow ? payStatus : 'pending',
         due_date: dueDate,
@@ -815,13 +821,22 @@ function FeeSection({
               {/* Base amount — editable */}
               <div className="col-span-2">
                 <input
-                  type="number" min="0" step="1"
-                  value={row.baseAmount || ''}
-                  onChange={e => onUpdate(row.id, 'baseAmount', parseFloat(e.target.value) || 0)}
+                  type="text"
+                  inputMode="numeric"
+                  value={row.baseAmount || 0}
+                  onFocus={e => e.target.select()}
+                  onChange={e => {
+                    const val = e.target.value.replace(/[^0-9]/g, '');
+                    onUpdate(row.id, 'baseAmount', Number(val) || 0);
+                  }}
                   disabled={disabled}
                   placeholder="0"
-                  className={`w-full px-2 py-1 border rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-40
-                    ${row.baseAmount === 0 && row.include && !disabled ? 'border-amber-300 bg-amber-50 text-amber-700 placeholder-amber-400' : 'border-slate-200'}`}
+                  className={cn(
+                    "w-full px-2 py-1 border rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-40 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                    row.baseAmount === 0 && row.include && !disabled 
+                      ? "border-amber-300 bg-amber-50 text-amber-700 placeholder-amber-400" 
+                      : "border-slate-200 bg-white"
+                  )}
                 />
               </div>
 
@@ -838,15 +853,19 @@ function FeeSection({
                 </select>
               </div>
 
-              {/* Discount value */}
               <div className="col-span-2">
                 <input
-                  type="number" min="0" step="0.01"
-                  value={row.discountVal || ''}
-                  onChange={e => onUpdate(row.id, 'discountVal', parseFloat(e.target.value) || 0)}
+                  type="text"
+                  inputMode="numeric"
+                  value={row.discountVal || 0}
+                  onFocus={e => e.target.select()}
+                  onChange={e => {
+                    const val = e.target.value.replace(/[^0-9.]/g, '');
+                    onUpdate(row.id, 'discountVal', Number(val) || 0);
+                  }}
                   disabled={!row.include || disabled}
                   placeholder="0"
-                  className="w-full px-2 py-1 border border-slate-200 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-40"
+                  className="w-full px-2 py-1 border border-slate-200 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-40 bg-white"
                 />
               </div>
 

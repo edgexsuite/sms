@@ -391,8 +391,9 @@ export default function DiscountScholarship() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Value ({ruleForm.type === 'percentage' ? '%' : 'Rs.'})
                   </label>
-                  <input required type="number" min="0" step="0.01" value={ruleForm.value}
-                    onChange={e => setRuleForm({ ...ruleForm, value: e.target.value })}
+                  <input required type="text" inputMode="decimal" value={ruleForm.value}
+                    onFocus={e => e.target.select()}
+                    onChange={e => setRuleForm({ ...ruleForm, value: e.target.value.replace(/[^0-9.]/g, '') })}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500"
                     placeholder={ruleForm.type === 'percentage' ? '10' : '500'} />
                 </div>
