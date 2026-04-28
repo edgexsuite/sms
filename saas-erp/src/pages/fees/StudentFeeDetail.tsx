@@ -67,7 +67,7 @@ export default function StudentFeeDetail() {
   const [showDiscountAdd, setShowDiscountAdd] = useState(false);
   const discountDropdownRef = useRef<HTMLDivElement>(null);
   const addBtnRef = useRef<HTMLButtonElement>(null);
-  const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number } | null>(null);
+  const [dropdownRect, setDropdownRect] = useState<DOMRect | null>(null);
 
   // New Invoice State
   const [showNewInvoice, setShowNewInvoice] = useState(false);
@@ -631,7 +631,7 @@ export default function StudentFeeDetail() {
                     onClick={() => {
                       if (showDiscountAdd) { setShowDiscountAdd(false); return; }
                       const r = addBtnRef.current?.getBoundingClientRect();
-                      if (r) setDropdownRect({ top: r.top, left: r.left });
+                      if (r) setDropdownRect(r);
                       setShowDiscountAdd(true);
                     }}
                     className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 border border-indigo-200 bg-white rounded-full px-2.5 py-1 hover:bg-indigo-50 transition-colors"
@@ -647,8 +647,13 @@ export default function StudentFeeDetail() {
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     style={{
                       position: 'fixed',
-                      left: Math.max(10, Math.min(window.innerWidth - 250, dropdownRect.left)),
-                      top: dropdownRect.top + 30, // anchor to button bottom, dropdown grows downward
+                      left: Math.max(10, Math.min(window.innerWidth - 250, dropdownRect.right - 240)),
+                      top: dropdownRect.bottom + 10 + 320 > window.innerHeight
+                        ? dropdownRect.top - 10
+                        : dropdownRect.bottom + 10,
+                      transform: dropdownRect.bottom + 10 + 320 > window.innerHeight
+                        ? 'translateY(-100%)'
+                        : 'none',
                       zIndex: 9999,
                       minWidth: '240px',
                     }}

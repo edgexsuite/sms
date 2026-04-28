@@ -6,7 +6,7 @@ import {
   Receipt, Search, PlusCircle, MessageCircle, Edit,
   Calendar, CheckSquare, Square, Save, X, Printer, Users,
   Layout, TrendingUp, AlertCircle, FileText, CheckCircle2,
-  Clock, Filter, Download, Trash2, Send, Bell
+  Clock, Filter, Download, Trash2, Send, Bell, Tag, Loader2
 } from 'lucide-react';
 import FeeBreakdownEditor, { type BreakdownRow } from '../../components/FeeBreakdownEditor';
 import HelpBanner from '../../components/HelpBanner';
@@ -45,6 +45,11 @@ export default function MonthlyFeeInvoices() {
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [batchPrinting, setBatchPrinting] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<any>(null);
+  const [singleBreakdown, setSingleBreakdown] = useState<any[]>([]);
+  const [singleDiscount, setSingleDiscount] = useState<number>(0);
+  const [isAutoLoading, setIsAutoLoading] = useState(false);
+
+  const [discountRules, setDiscountRules] = useState<any[]>([]);
 
   useEffect(() => {
     if (userRole?.school_id) {
@@ -53,6 +58,8 @@ export default function MonthlyFeeInvoices() {
       fetchSchool();
       fetchChallanConfig();
       fetchFeeItems();
+      supabase.from('form_settings').select('sections_config').eq('school_id', userRole.school_id).eq('form_name', 'discount_rules').maybeSingle()
+        .then(({ data }) => setDiscountRules(data?.sections_config?.rules ?? []));
     }
   }, [userRole]);
 
@@ -114,6 +121,35 @@ export default function MonthlyFeeInvoices() {
     setLoading(false);
   };
 
+  useEffect(() => {
+    if (genMode === 'student' && targetStudent && userRole?.school_id) {
+      setIsAutoLoading(true);
+      supabase.from('fee_structures')
+        .select('*')
+        .eq('school_id', userRole.school_id)
+        .eq('class_id', targetStudent.class_id)
+        .maybeSingle()
+        .then(({ data: structure }) => {
+          const matrix = structure?.fee_matrix;
+          let breakdown: any[] = [];
+          if (matrix?.recurrent?.length) {
+            breakdown = matrix.recurrent.map((r: any) => ({ item: r.item, amount: Number(r.amount) }));
+          } else if (structure?.amount) {
+            breakdown = [{ item: 'Monthly Tuition Fee', amount: Number(structure.amount) }];
+          }
+          if (includeAdmissionFee && matrix?.first_time?.length) {
+            matrix.first_time.forEach((f: any) => breakdown.push({ item: f.item, amount: f.amount }));
+          }
+          setSingleBreakdown(breakdown);
+          const recurringTotal = matrix?.recurrent?.length
+            ? matrix.recurrent.reduce((s: number, r: any) => s + Number(r.amount), 0)
+            : (structure?.amount ? Number(structure.amount) : 0);
+          setSingleDiscount(Math.round(recurringTotal * ((targetStudent.fee_waiver_percentage || 0) / 100)));
+          setIsAutoLoading(false);
+        });
+    }
+  }, [genMode, targetStudent, includeAdmissionFee, userRole?.school_id]);
+
   const handleMassGenerate = async () => {
     if (!generateMonth || !generateDueDate) return alert('Please select Month and Due Date');
     setGenerating(true);
@@ -148,6 +184,24 @@ export default function MonthlyFeeInvoices() {
       }
 
       const allInserts = billableStudents.map(student => {
+        if (genMode === 'student') {
+          const grossTotal = singleBreakdown.reduce((s, r) => s + Number(r.amount), 0);
+          return {
+            school_id: userRole?.school_id,
+            student_id: student.id,
+            student_name: student.full_name,
+            month_year: generateMonth + '-01',
+            total_amount: grossTotal - singleDiscount,
+            discount_amount: singleDiscount,
+            paid_amount: 0,
+            status: 'pending',
+            due_date: generateDueDate,
+            payment_mode: 'Pending',
+            breakdown: singleBreakdown,
+            invoice_number: `INV-${generateMonth.replace('-', '').slice(2)}-${String(student.roll_number || 0).padStart(3, '0')}`,
+            no_structure: false,
+          };
+        }
         const structure = structures?.find(s => s.class_id === student.class_id);
         const matrix = structure?.fee_matrix;
         // Store ORIGINAL (gross) amounts in breakdown — discount is stored separately
@@ -842,7 +896,7 @@ export default function MonthlyFeeInvoices() {
                                   if (q.length > 1) {
                                     const { data } = await supabase
                                       .from('students')
-                                      .select('id, full_name, roll_number, classes(name, section)')
+                                      .select('id, full_name, roll_number, class_id, fee_waiver_percentage, classes(name, section)')
                                       .eq('school_id', userRole?.school_id)
                                       .eq('status', 'active')
                                       .or(`full_name.ilike.%${q}%,roll_number.eq.${parseInt(q) || 0}`)
@@ -889,6 +943,43 @@ export default function MonthlyFeeInvoices() {
                           </>
                         )}
                      </div>
+                   )}
+
+                   {genMode === 'student' && targetStudent && (
+                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 border-t border-slate-100 pt-4">
+                        <div className="flex items-center justify-between">
+                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Fee Breakdown Preview</p>
+                           {isAutoLoading && <Loader2 className="w-3 h-3 animate-spin text-indigo-500" />}
+                        </div>
+                        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                           <FeeBreakdownEditor 
+                             breakdown={singleBreakdown} 
+                             onChange={setSingleBreakdown} 
+                             schoolId={userRole?.school_id}
+                           />
+                        </div>
+                        <div className="flex items-center justify-between p-4 bg-emerald-50 rounded-2xl border border-emerald-100/50">
+                           <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600">
+                                 <Tag className="w-4 h-4" />
+                              </div>
+                              <div>
+                                 <p className="text-[10px] font-black text-emerald-900 uppercase">Discount Amount</p>
+                                 <p className="text-[9px] text-emerald-600 font-bold opacity-70">Applied to this invoice</p>
+                              </div>
+                           </div>
+                           <input 
+                             type="number" 
+                             value={singleDiscount} 
+                             onChange={e => setSingleDiscount(Number(e.target.value) || 0)}
+                             className="w-24 bg-white border border-emerald-200 p-2 rounded-xl text-right font-black text-emerald-600 outline-none focus:ring-2 focus:ring-emerald-500"
+                           />
+                        </div>
+                        <div className="flex items-center justify-between px-2">
+                           <p className="text-xs font-bold text-slate-500">Net Payable</p>
+                           <p className="text-lg font-black text-slate-900">Rs. {(singleBreakdown.reduce((s, r) => s + (Number(r.amount) || 0), 0) - singleDiscount).toLocaleString()}</p>
+                        </div>
+                     </motion.div>
                    )}
                    <div>
                      <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest text-center">Select Billing Cycle</label>
