@@ -1,12 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { 
-  Users, Search, Save, ArrowLeft, 
-  ChevronDown, ChevronUp, Loader2, 
-  AlertCircle, CheckCircle2, Filter,
-  Tag, CreditCard
-} from 'lucide-react';
+import { Users, Search, Save, ArrowLeft, Loader2, Tag } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 
@@ -33,17 +28,15 @@ export default function BulkDiscountEntry() {
   const [search, setSearch] = useState('');
   const [classFilter, setClassFilter] = useState('all');
   const [classes, setClasses] = useState<any[]>([]);
+  const [saveMsg, setSaveMsg] = useState('');
 
   useEffect(() => {
-    if (userRole?.school_id) {
-      fetchData();
-    }
+    if (userRole?.school_id) fetchData();
   }, [userRole?.school_id]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch Classes
       const { data: clsData } = await supabase
         .from('classes')
         .select('id, name, section')
@@ -51,13 +44,11 @@ export default function BulkDiscountEntry() {
         .order('name');
       setClasses(clsData || []);
 
-      // 2. Fetch Fee Structures (to get tuition fees)
       const { data: fsData } = await supabase
         .from('fee_structures')
         .select('class_id, amount, fee_matrix')
         .eq('school_id', userRole?.school_id);
 
-      // 3. Fetch Students
       const { data: stuData } = await supabase
         .from('students')
         .select('id, full_name, roll_number, class_id, fee_waiver_percentage, classes(name, section)')
@@ -68,21 +59,16 @@ export default function BulkDiscountEntry() {
       if (stuData) {
         const rows: StudentRow[] = stuData.map(s => {
           const structure = fsData?.find(f => f.class_id === s.class_id);
-          
-          // Get Tuition Fee: either from fee_matrix.recurrent or the 'amount' field
           let tuition = 0;
           if (structure) {
             const matrix = structure.fee_matrix;
             if (matrix?.recurrent?.length) {
-              // Sum ALL recurring items — must match what MonthlyFeeInvoices uses as the discount base
               tuition = matrix.recurrent.reduce((sum: number, r: any) => sum + (Number(r.amount) || 0), 0);
             } else {
               tuition = Number(structure.amount) || 0;
             }
           }
-
           const currentDiscount = Math.round(tuition * ((s.fee_waiver_percentage || 0) / 100));
-
           return {
             id: s.id,
             full_name: s.full_name,
@@ -94,17 +80,13 @@ export default function BulkDiscountEntry() {
             tuition_fee: tuition,
             current_discount_amount: currentDiscount,
             new_discount_amount: currentDiscount,
-            is_dirty: false
+            is_dirty: false,
           };
         });
-        
-        // Sort by class name then roll number
         rows.sort((a, b) => {
-          const clsCompare = a.class_name.localeCompare(b.class_name);
-          if (clsCompare !== 0) return clsCompare;
-          return (parseInt(a.roll_number) || 0) - (parseInt(b.roll_number) || 0);
+          const c = a.class_name.localeCompare(b.class_name);
+          return c !== 0 ? c : (parseInt(a.roll_number) || 0) - (parseInt(b.roll_number) || 0);
         });
-
         setStudents(rows);
       }
     } catch (err) {
@@ -116,45 +98,36 @@ export default function BulkDiscountEntry() {
 
   const handleDiscountChange = (id: string, value: string) => {
     const amt = parseInt(value) || 0;
-    setStudents(prev => prev.map(s => {
-      if (s.id === id) {
-        return { 
-          ...s, 
-          new_discount_amount: amt, 
-          is_dirty: amt !== s.current_discount_amount 
-        };
-      }
-      return s;
-    }));
+    setStudents(prev => prev.map(s =>
+      s.id === id ? { ...s, new_discount_amount: amt, is_dirty: amt !== s.current_discount_amount } : s
+    ));
   };
 
   const handleSave = async () => {
     const dirtyRows = students.filter(s => s.is_dirty);
     if (dirtyRows.length === 0) return;
-
     setSaving(true);
     try {
       const updates = dirtyRows.map(s => {
-        // Calculate percentage with 2-decimal precision so MonthlyFeeInvoices reproduces the exact flat amount
-        const pct = s.tuition_fee > 0 ? Math.min(100, Math.round((s.new_discount_amount / s.tuition_fee) * 10000) / 100) : 0;
-        return supabase.from('students').update({
-          fee_waiver_percentage: pct
-        }).eq('id', s.id);
+        const pct = s.tuition_fee > 0
+          ? Math.min(100, Math.round((s.new_discount_amount / s.tuition_fee) * 10000) / 100)
+          : 0;
+        return supabase.from('students').update({ fee_waiver_percentage: pct }).eq('id', s.id);
       });
-
       const results = await Promise.all(updates);
       const errors = results.filter(r => r.error);
-
       if (errors.length > 0) {
         alert(`Failed to save some records: ${errors[0].error?.message}`);
       } else {
-        alert(`Successfully updated ${dirtyRows.length} student records.`);
-        // Refresh local state to reset dirty flags
+        setSaveMsg(`${dirtyRows.length} student${dirtyRows.length > 1 ? 's' : ''} saved`);
+        setTimeout(() => setSaveMsg(''), 3000);
         setStudents(prev => prev.map(s => ({
           ...s,
           current_discount_amount: s.new_discount_amount,
-          fee_waiver_percentage: s.tuition_fee > 0 ? Math.min(100, Math.round((s.new_discount_amount / s.tuition_fee) * 10000) / 100) : s.fee_waiver_percentage,
-          is_dirty: false
+          fee_waiver_percentage: s.tuition_fee > 0
+            ? Math.min(100, Math.round((s.new_discount_amount / s.tuition_fee) * 10000) / 100)
+            : s.fee_waiver_percentage,
+          is_dirty: false,
         })));
       }
     } catch (err: any) {
@@ -165,161 +138,201 @@ export default function BulkDiscountEntry() {
   };
 
   const filteredStudents = students.filter(s => {
-    const matchesSearch = (s.full_name || '').toLowerCase().includes(search.toLowerCase()) || 
-                          (String(s.roll_number || '')).toLowerCase().includes(search.toLowerCase());
-    const matchesClass = classFilter === 'all' || s.class_id === classFilter;
-    return matchesSearch && matchesClass;
+    const q = search.toLowerCase();
+    return (
+      (classFilter === 'all' || s.class_id === classFilter) &&
+      (s.full_name.toLowerCase().includes(q) || String(s.roll_number).includes(q))
+    );
   });
 
   const dirtyCount = students.filter(s => s.is_dirty).length;
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-center">
-          <Loader2 className="w-10 h-10 animate-spin text-indigo-600 mx-auto mb-4" />
-          <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Syncing School Ledger...</p>
-        </div>
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
-      {/* Sticky Header */}
-      <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <button onClick={() => navigate(-1)} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
-              <ArrowLeft className="w-5 h-5 text-slate-500" />
+    <div className="space-y-4">
+      {/* ── Header ── */}
+      <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
+        {/* Row 1: title + save */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => navigate(-1)}
+              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
+            >
+              <ArrowLeft className="w-4 h-4 text-gray-500" />
             </button>
-            <div>
-              <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight">Bulk Discount Manager</h1>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Post-Migration Financial Hardening</p>
+            <div className="min-w-0">
+              <h1 className="text-base font-bold text-gray-900 leading-tight">Bulk Discount Manager</h1>
+              <p className="text-xs text-gray-400 leading-tight hidden sm:block">Set monthly discount per student</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-             <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input 
-                  type="text" 
-                  placeholder="Search students..."
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  className="pl-10 pr-4 py-2 bg-slate-100 border-transparent focus:bg-white focus:border-indigo-200 rounded-xl text-sm font-bold outline-none transition-all w-full md:w-64"
-                />
-             </div>
-             <select 
-               value={classFilter}
-               onChange={e => setClassFilter(e.target.value)}
-               className="bg-slate-100 border-transparent px-4 py-2 rounded-xl text-sm font-bold outline-none cursor-pointer"
-             >
-               <option value="all">All Classes</option>
-               {classes.map(c => (
-                 <option key={c.id} value={c.id}>{c.name} {c.section}</option>
-               ))}
-             </select>
-             <button 
-               onClick={handleSave}
-               disabled={saving || dirtyCount === 0}
-               className={cn(
-                 "flex items-center gap-2 px-6 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all active:scale-95",
-                 dirtyCount > 0 
-                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200 hover:bg-indigo-700" 
-                  : "bg-slate-200 text-slate-400 grayscale opacity-50"
-               )}
-             >
-               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-               Save {dirtyCount > 0 ? `(${dirtyCount})` : ''}
-             </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {saveMsg && (
+              <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg">
+                ✓ {saveMsg}
+              </span>
+            )}
+            {dirtyCount > 0 && (
+              <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5">
+                <Tag className="w-3 h-3" />
+                {dirtyCount} unsaved
+              </span>
+            )}
+            <button
+              onClick={handleSave}
+              disabled={saving || dirtyCount === 0}
+              className={cn(
+                'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all',
+                dirtyCount > 0
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm'
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              )}
+            >
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              Save{dirtyCount > 0 ? ` (${dirtyCount})` : ''}
+            </button>
           </div>
+        </div>
+
+        {/* Row 2: filters */}
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
+          <div className="relative flex-1 min-w-[160px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by name or roll…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400"
+            />
+          </div>
+          <select
+            value={classFilter}
+            onChange={e => setClassFilter(e.target.value)}
+            className="flex-shrink-0 border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          >
+            <option value="all">All Classes</option>
+            {classes.map(c => (
+              <option key={c.id} value={c.id}>{c.name} {c.section}</option>
+            ))}
+          </select>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/60 overflow-hidden border border-slate-100">
-          <table className="w-full text-left border-collapse">
+      {/* ── Info banner ── */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 text-xs text-blue-700">
+        <strong>How it works:</strong> Enter the flat discount amount per student. The system converts it to a
+        percentage of their total monthly fee and stores it. Regenerate invoices after saving for the new
+        discount to take effect.
+      </div>
+
+      {/* ── Table ── */}
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse min-w-[560px]">
             <thead>
-              <tr className="bg-slate-900 text-white">
-                <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] w-24">Roll #</th>
-                <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em]">Student Name</th>
-                <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em]">Class</th>
-                <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-right">Monthly Fee (Total)</th>
-                <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-center w-48">Discount Amount (Rs.)</th>
-                <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-right">Net Fee</th>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 w-12">#</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500">Student</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 hidden sm:table-cell">Class</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500">Monthly Fee</th>
+                <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 w-36">Discount (Rs.)</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500">Net Fee</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-gray-100">
               {filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-20 text-center text-slate-400">
-                    <Users className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                    <p className="font-bold text-sm">No students found for this criteria</p>
+                  <td colSpan={6} className="px-4 py-16 text-center text-gray-400">
+                    <Users className="w-10 h-10 mx-auto mb-3 opacity-20" />
+                    <p className="text-sm font-medium">No students found</p>
                   </td>
                 </tr>
               ) : (
-                filteredStudents.map((s, idx) => {
+                filteredStudents.map(s => {
                   const netFee = s.tuition_fee - s.new_discount_amount;
+                  const waiverPct = s.tuition_fee > 0
+                    ? (Math.min(100, Math.round((s.new_discount_amount / s.tuition_fee) * 10000) / 100))
+                      .toFixed(2).replace(/\.00$/, '')
+                    : '0';
                   return (
-                    <tr 
-                      key={s.id} 
+                    <tr
+                      key={s.id}
                       className={cn(
-                        "group hover:bg-indigo-50/30 transition-colors",
-                        s.is_dirty ? "bg-amber-50/50" : ""
+                        'hover:bg-gray-50 transition-colors',
+                        s.is_dirty ? 'bg-amber-50/60' : ''
                       )}
                     >
-                      <td className="px-6 py-4 text-xs font-black text-slate-400">#{s.roll_number}</td>
-                      <td className="px-6 py-4">
-                        <p className="text-sm font-black text-slate-800">{s.full_name}</p>
+                      {/* Roll # */}
+                      <td className="px-3 py-2.5 text-xs text-gray-400 font-medium">
+                        {s.roll_number}
+                      </td>
+
+                      {/* Name */}
+                      <td className="px-3 py-2.5">
+                        <p className="font-semibold text-gray-800 text-sm leading-tight">{s.full_name}</p>
+                        {/* class shown here on mobile */}
+                        <p className="text-xs text-gray-400 sm:hidden mt-0.5">{s.class_name} {s.class_section}</p>
                         {s.is_dirty && (
-                           <div className="flex items-center gap-1 mt-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                              <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest">Unsaved Changes</span>
-                           </div>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600 mt-0.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse inline-block" />
+                            unsaved
+                          </span>
                         )}
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 text-[10px] font-black text-slate-600 uppercase">
+
+                      {/* Class (desktop only) */}
+                      <td className="px-3 py-2.5 hidden sm:table-cell">
+                        <span className="inline-flex px-2 py-0.5 rounded-md bg-gray-100 text-xs font-medium text-gray-600">
                           {s.class_name} {s.class_section}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <p className="text-sm font-bold text-slate-500">Rs. {s.tuition_fee.toLocaleString()}</p>
+
+                      {/* Monthly Fee */}
+                      <td className="px-3 py-2.5 text-right">
+                        <span className="text-sm font-medium text-gray-600">
+                          {s.tuition_fee > 0 ? `Rs. ${s.tuition_fee.toLocaleString()}` : '—'}
+                        </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="relative max-w-[160px] mx-auto">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-300">Rs.</span>
-                          <input 
-                            type="text" 
+
+                      {/* Discount Input */}
+                      <td className="px-3 py-2.5">
+                        <div className="relative w-full max-w-[130px] mx-auto">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">Rs.</span>
+                          <input
+                            type="text"
                             inputMode="numeric"
-                            value={s.new_discount_amount}
+                            value={s.new_discount_amount || ''}
                             onFocus={e => e.target.select()}
-                            onChange={e => {
-                              const val = e.target.value.replace(/[^0-9]/g, '');
-                              handleDiscountChange(s.id, val);
-                            }}
+                            onChange={e => handleDiscountChange(s.id, e.target.value.replace(/[^0-9]/g, ''))}
+                            placeholder="0"
                             className={cn(
-                              "w-full pl-10 pr-4 py-2.5 rounded-xl text-center text-sm font-black outline-none transition-all",
-                              s.is_dirty 
-                                ? "bg-white border-2 border-amber-300 ring-4 ring-amber-100 shadow-sm" 
-                                : "bg-slate-50 border border-transparent focus:bg-white focus:border-indigo-200"
+                              'w-full pl-8 pr-2 py-1.5 rounded-lg text-sm font-semibold text-center transition-all outline-none',
+                              s.is_dirty
+                                ? 'bg-white border-2 border-amber-400 ring-2 ring-amber-100'
+                                : 'bg-gray-50 border border-gray-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100'
                             )}
                           />
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex flex-col items-end">
-                           <p className={cn(
-                             "text-lg font-black tracking-tighter",
-                             netFee <= 0 ? "text-emerald-600" : "text-slate-900"
-                           )}>
-                             Rs. {netFee.toLocaleString()}
-                           </p>
-                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                             {s.tuition_fee > 0 ? (Math.min(100, Math.round((s.new_discount_amount / s.tuition_fee) * 10000) / 100)).toFixed(2).replace(/\.00$/, '') : 0}% WAIVER
-                           </p>
-                        </div>
+
+                      {/* Net Fee */}
+                      <td className="px-3 py-2.5 text-right">
+                        <p className={cn(
+                          'text-sm font-bold leading-tight',
+                          netFee <= 0 ? 'text-emerald-600' : 'text-gray-900'
+                        )}>
+                          Rs. {netFee.toLocaleString()}
+                        </p>
+                        <p className="text-[10px] text-gray-400">{waiverPct}% off</p>
                       </td>
                     </tr>
                   );
@@ -328,32 +341,17 @@ export default function BulkDiscountEntry() {
             </tbody>
           </table>
         </div>
-      </div>
 
-      {/* Floating Info Panel */}
-      {dirtyCount > 0 && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
-           <div className="bg-slate-900 text-white px-8 py-4 rounded-full shadow-2xl flex items-center gap-6 border border-white/10 backdrop-blur-xl">
-              <div className="flex items-center gap-3 border-r border-white/10 pr-6">
-                 <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center text-white shadow-lg shadow-amber-500/20">
-                    <Tag className="w-5 h-5" />
-                 </div>
-                 <div>
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest leading-none">Modified</p>
-                    <p className="text-xl font-black mt-0.5">{dirtyCount} <span className="text-xs text-white/60">Students</span></p>
-                 </div>
-              </div>
-              <button 
-                onClick={handleSave}
-                disabled={saving}
-                className="bg-white text-slate-900 px-8 py-2.5 rounded-full font-black text-sm uppercase tracking-widest hover:bg-indigo-50 transition-all active:scale-95 flex items-center gap-2"
-              >
-                {saving ? 'Processing...' : 'Apply Changes'}
-                <Save className="w-4 h-4" />
-              </button>
-           </div>
-        </div>
-      )}
+        {/* Footer summary */}
+        {filteredStudents.length > 0 && (
+          <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50 flex items-center justify-between text-xs text-gray-500">
+            <span>{filteredStudents.length} student{filteredStudents.length !== 1 ? 's' : ''} shown</span>
+            {dirtyCount > 0 && (
+              <span className="text-amber-600 font-semibold">{dirtyCount} pending save</span>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
