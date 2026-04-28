@@ -29,6 +29,7 @@ interface Invoice {
   paid_amount: number;
   status: string;
   breakdown: any[];
+  discount_amount?: number;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -120,7 +121,7 @@ export default function StudentFeeDetail() {
 
     const { data } = await supabase
       .from('fee_records')
-      .select('id, invoice_number, month_year, total_amount, paid_amount, status, breakdown, due_date, paid_at')
+      .select('id, invoice_number, month_year, total_amount, paid_amount, status, breakdown, due_date, paid_at, discount_amount')
       .eq('student_id', stu.id)
       .is('deleted_at', null)
       .order('month_year', { ascending: false });
@@ -153,8 +154,13 @@ export default function StudentFeeDetail() {
 
   const handleCreateInvoice = async () => {
     if (!selectedStudent || !newInvoiceMonth) return;
-    const total = newInvoiceBreakdown.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-    if (total <= 0) return alert('Please add at least one fee item with an amount.');
+    // newInvoiceBreakdown always holds ORIGINAL (gross) amounts from the fee template.
+    // The student's fee_waiver_percentage is applied as a separate discount_amount so the
+    // challan can display: Gross → Discount → Net payable.
+    const grossTotal = newInvoiceBreakdown.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    if (grossTotal <= 0) return alert('Please add at least one fee item with an amount.');
+    const discountAmt = Math.round(grossTotal * (waiver / 100));
+    const netTotal    = grossTotal - discountAmt; // what the student actually owes
     setCreatingInvoice(true);
     try {
       const monthYear = newInvoiceMonth + '-01';
@@ -177,10 +183,14 @@ export default function StudentFeeDetail() {
         student_id: selectedStudent.id,
         month_year: monthYear,
         due_date: newInvoiceDueDate || null,
-        total_amount: total,
+        // Store GROSS amounts in breakdown so challan always shows original fee
+        breakdown: newInvoiceBreakdown,
+        // total_amount = net payable (used for payment tracking & balance calculations)
+        total_amount: netTotal,
+        // discount_amount stored explicitly — challan subtracts this from grossTotal
+        discount_amount: discountAmt,
         paid_amount: 0,
         status: 'pending',
-        breakdown: newInvoiceBreakdown,
         invoice_number: invNum,
         payment_mode: 'Pending',
       });
@@ -371,14 +381,21 @@ export default function StudentFeeDetail() {
     const className = selectedStudent.classes
       ? `${selectedStudent.classes.name}${selectedStudent.classes.section ? ' - ' + selectedStudent.classes.section : ''}`
       : '';
+    // Rebuild the gross total from breakdown so the challan shows:
+    // Original Fee (breakdown sum) → Discount → Net Due
+    const breakdownItems = (inv.breakdown || []).map((b: any) => ({ item: b.item, amount: Number(b.amount) }));
+    const grossTotal = breakdownItems.reduce((s, b) => s + b.amount, 0);
+    const discountAmt = (inv as any).discount_amount ?? 0;
     const record: ChallanRecord = {
       id: inv.id,
       invoice_number: inv.invoice_number,
       month_year: inv.month_year,
-      total_amount: inv.total_amount,
+      // Use gross total so challanUtils can correctly subtract discountAmt
+      total_amount: grossTotal || inv.total_amount,
       paid_amount: inv.paid_amount || 0,
       status: inv.status,
-      breakdown: (inv.breakdown || []).map((b: any) => ({ item: b.item, amount: Number(b.amount) })),
+      breakdown: breakdownItems,
+      discount_amount: discountAmt,
       student_name: selectedStudent.full_name,
       roll_number: selectedStudent.roll_number,
       class_name: className,
@@ -1016,6 +1033,30 @@ export default function StudentFeeDetail() {
                     />
                   </div>
                 </div>
+                {/* Discount / totals preview */}
+                {(() => {
+                  const gross = newInvoiceBreakdown.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+                  const disc  = Math.round(gross * (waiver / 100));
+                  const net   = gross - disc;
+                  return gross > 0 ? (
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm space-y-1">
+                      <div className="flex justify-between text-gray-600">
+                        <span>Gross Fee</span>
+                        <span className="font-mono font-semibold">Rs. {gross.toLocaleString()}</span>
+                      </div>
+                      {disc > 0 && (
+                        <div className="flex justify-between text-amber-700">
+                          <span>Discount ({waiver}%)</span>
+                          <span className="font-mono font-semibold">− Rs. {disc.toLocaleString()}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-indigo-700 font-bold border-t border-gray-200 pt-1">
+                        <span>Net Payable</span>
+                        <span className="font-mono">Rs. {net.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
                 <div className="flex gap-2">
                   <button onClick={() => setShowNewInvoice(false)}
                     className="px-4 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-xl hover:bg-gray-50 transition">

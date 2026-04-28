@@ -150,41 +150,48 @@ export default function MonthlyFeeInvoices() {
       const allInserts = billableStudents.map(student => {
         const structure = structures?.find(s => s.class_id === student.class_id);
         const matrix = structure?.fee_matrix;
+        // Store ORIGINAL (gross) amounts in breakdown — discount is stored separately
+        // so the challan prints: Original Fee → Discount → Net Payable
         let breakdown: any[] = [];
-        let total = 0;
+        let grossTotal = 0;
         const waiverDec = (student.fee_waiver_percentage || 0) / 100;
 
         if (matrix?.recurrent?.length) {
           matrix.recurrent.forEach((r: any) => {
-            const discountedAmount = +(r.amount * (1 - waiverDec)).toFixed(2);
-            breakdown.push({ item: r.item, amount: discountedAmount });
-            total += discountedAmount;
+            breakdown.push({ item: r.item, amount: Number(r.amount) }); // gross
+            grossTotal += Number(r.amount);
           });
         } else if (structure?.amount) {
-          // fallback to legacy amount field
-          const discountedAmount = +(structure.amount * (1 - waiverDec)).toFixed(2);
-          breakdown.push({ item: 'Monthly Tuition Fee', amount: discountedAmount });
-          total = discountedAmount;
+          breakdown.push({ item: 'Monthly Tuition Fee', amount: Number(structure.amount) }); // gross
+          grossTotal = Number(structure.amount);
         }
 
         if (includeAdmissionFee && matrix?.first_time?.length) {
           matrix.first_time.forEach((f: any) => {
             breakdown.push({ item: f.item, amount: f.amount });
-            total += f.amount;
+            grossTotal += f.amount;
           });
         }
+
+        // discount_amount is the waiver applied to recurring fees only (not one-time admission fees)
+        const recurringGross = matrix?.recurrent?.length
+          ? matrix.recurrent.reduce((s: number, r: any) => s + Number(r.amount), 0)
+          : (structure?.amount ? Number(structure.amount) : 0);
+        const discountAmount = Math.round(recurringGross * waiverDec);
+        const netTotal = grossTotal - discountAmount; // what student actually owes
 
         return {
           school_id: userRole?.school_id,
           student_id: student.id,
           student_name: student.full_name,
           month_year: generateMonth + '-01',
-          total_amount: total,
+          total_amount: netTotal,       // net payable — used for payment tracking
+          discount_amount: discountAmount, // explicit discount — used by challan for display
           paid_amount: 0,
           status: 'pending',
           due_date: generateDueDate,
           payment_mode: 'Pending',
-          breakdown,
+          breakdown,                    // gross amounts — challan header shows these
           invoice_number: `INV-${generateMonth.replace('-', '').slice(2)}-${String(student.roll_number || 0).padStart(3, '0')}`,
           no_structure: !structure,
         };
@@ -299,15 +306,11 @@ export default function MonthlyFeeInvoices() {
       (sum: number, r: any) => sum + Math.max(0, (r.total_amount || 0) - (r.paid_amount || 0)), 0
     );
 
-    // 2. Class fee matrix + compute discount from original vs actual invoice total
+    // 2. Class fee matrix (for display in challan footer section only)
+    //    discount_amount is now stored directly on the record — no reverse-engineering needed.
     const classId = inv.students?.class_id;
     let feeMatrix: { recurrent: any[]; first_time: any[] } | undefined;
-    let discountAmount = inv.discount_amount || 0;
-    // When a discount is detected, we override the challan breakdown with
-    // the ORIGINAL (pre-discount) amounts so the challan prints:
-    //   Total Fee: 5000 · Discount: 2000 · Amount Due: 3000
-    // instead of double-subtracting (3000 - 2000 = 1000).
-    let challanBreakdown: { item: string; amount: number }[] | null = null;
+    const discountAmount = inv.discount_amount ?? 0;
     if (classId) {
       const { data: structure } = await supabase
         .from('fee_structures')
@@ -315,24 +318,13 @@ export default function MonthlyFeeInvoices() {
         .eq('school_id', userRole?.school_id)
         .eq('class_id', classId)
         .maybeSingle();
-      if (structure?.fee_matrix) {
-        feeMatrix = structure.fee_matrix;
-        const originalTotal = (feeMatrix!.recurrent || []).reduce(
-          (s: number, i: any) => s + (i.amount || 0), 0
-        );
-        const invoiceBreakdownTotal = (inv.breakdown || []).reduce(
-          (s: number, b: any) => s + (b.amount || 0), 0
-        );
-        const computed = Math.round(originalTotal - invoiceBreakdownTotal);
-        if (computed > 0) {
-          discountAmount = computed;
-          // Use original fee-structure amounts as challan breakdown so grossTotal = 5000
-          challanBreakdown = (feeMatrix!.recurrent || []).map(
-            (r: any) => ({ item: r.item, amount: Number(r.amount) })
-          );
-        }
-      }
+      if (structure?.fee_matrix) feeMatrix = structure.fee_matrix;
     }
+
+    // Gross total = sum of breakdown items (always stored at original amounts now).
+    // challanUtils will display: grossTotal → −discountAmount → netDue
+    const grossTotal = (inv.breakdown || []).reduce((s: number, b: any) => s + Number(b.amount || 0), 0)
+      || inv.total_amount;
 
     // 3. Fine rules — calculate actual fine based on today vs due date
     const { data: fineSetting } = await supabase
@@ -365,16 +357,11 @@ export default function MonthlyFeeInvoices() {
       fineAmount = Math.round(fineAmount);
     }
 
-    // If we detected a discount and built original-amount breakdown, use it for the challan
-    // so the PDF shows: Original 5000 → Discount 2000 → Due 3000 (not 3000 - 2000 = 1000)
-    const challanTotal = challanBreakdown
-      ? challanBreakdown.reduce((s, b) => s + b.amount, 0)
-      : inv.total_amount;
-
     return {
       ...inv,
-      breakdown: challanBreakdown ?? inv.breakdown,
-      total_amount: challanTotal,
+      // Override total_amount with grossTotal so challanUtils can apply discountAmount correctly:
+      // grossTotal (5000) − discountAmount (2000) = net due (3000) shown on challan
+      total_amount: grossTotal,
       student_name: inv.students?.full_name,
       roll_number: inv.students?.roll_number,
       class_name: inv.students?.classes
@@ -617,6 +604,9 @@ export default function MonthlyFeeInvoices() {
                    </button>
                    <button onClick={handleBulkOverdueReminders} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-emerald-100/50 border border-emerald-500/20">
                      <Bell className="w-4 h-4" /> Push Overdue Reminders
+                   </button>
+                   <button onClick={handleBulkDelete} className="bg-rose-600 hover:bg-rose-700 text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-rose-100/50 border border-rose-500/20">
+                     <Trash2 className="w-4 h-4" /> Wipe Selection
                    </button>
                  </>
                ) : (
