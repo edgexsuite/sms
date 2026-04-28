@@ -157,9 +157,10 @@ export default function ChatInterface({
         }]);
 
       if (error) throw error;
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error sending message:', err);
-      alert('Failed to send message. Please try again.');
+      const detail = err?.message || err?.details || JSON.stringify(err);
+      alert(`Failed to send message:\n${detail}`);
       setNewMessage(msgContent);
     } finally {
       setSending(false);
