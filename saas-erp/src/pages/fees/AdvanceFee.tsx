@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { CreditCard, Plus, Search, Download } from 'lucide-react';
+import { CreditCard, Plus, Search, Download, Trash2 } from 'lucide-react';
 import { exportToCSV } from '../../lib/exportUtils';
 
 interface AdvanceRecord {
@@ -37,6 +37,7 @@ export default function AdvanceFee() {
       .select('id, student_id, month_year, total_amount, paid_amount, status, student:student_id(full_name, roll_number, class:class_id(name, section))')
       .eq('school_id', userRole!.school_id)
       .eq('status', 'paid')
+      .is('deleted_at', null)
       .gt('month_year', today + '-01')
       .order('month_year', { ascending: true });
     setRecords((data as any) || []);
@@ -74,6 +75,15 @@ export default function AdvanceFee() {
     setIsModalOpen(false);
     setForm({ student_id: '', months: 1, month_start: '', amount: '' });
     fetchRecords();
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this advance fee record?')) return;
+    try {
+      const { error } = await supabase.from('fee_records').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+      if (error) throw error;
+      fetchRecords();
+    } catch (err: any) { alert(err.message); }
   };
 
   const filtered = records.filter(r =>
@@ -137,13 +147,14 @@ export default function AdvanceFee() {
                 <th className="px-6 py-3 text-left font-medium text-gray-500">Month</th>
                 <th className="px-6 py-3 text-right font-medium text-gray-500">Amount Paid</th>
                 <th className="px-6 py-3 text-center font-medium text-gray-500">Status</th>
+                <th className="px-6 py-3 text-right font-medium text-gray-500">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {loading ? (
-                <tr><td colSpan={5} className="p-8 text-center text-gray-400">Loading...</td></tr>
+                <tr><td colSpan={6} className="p-8 text-center text-gray-400">Loading...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={5} className="p-12 text-center text-gray-400">No advance fee records found.</td></tr>
+                <tr><td colSpan={6} className="p-12 text-center text-gray-400">No advance fee records found.</td></tr>
               ) : filtered.map(r => (
                 <tr key={r.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
@@ -157,6 +168,11 @@ export default function AdvanceFee() {
                   <td className="px-6 py-4 text-right font-mono font-medium text-gray-900">Rs. {Number(r.paid_amount).toLocaleString()}</td>
                   <td className="px-6 py-4 text-center">
                     <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">Advance</span>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <button onClick={() => handleDelete(r.id)} className="p-1.5 text-gray-400 hover:text-red-600 transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </td>
                 </tr>
               ))}

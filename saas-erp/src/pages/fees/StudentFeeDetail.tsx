@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -65,6 +66,8 @@ export default function StudentFeeDetail() {
   const [discountRules, setDiscountRules] = useState<any[]>([]);
   const [showDiscountAdd, setShowDiscountAdd] = useState(false);
   const discountDropdownRef = useRef<HTMLDivElement>(null);
+  const addBtnRef = useRef<HTMLButtonElement>(null);
+  const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number } | null>(null);
 
   // New Invoice State
   const [showNewInvoice, setShowNewInvoice] = useState(false);
@@ -101,7 +104,7 @@ export default function StudentFeeDetail() {
     setIsLoading(true);
     const { data } = await supabase
       .from('students')
-      .select('id, full_name, roll_number, fee_waiver_percentage, custom_data, classes(name, section)')
+      .select('id, full_name, roll_number, class_id, fee_waiver_percentage, custom_data, classes(name, section)')
       .eq('school_id', userRole!.school_id)
       .eq('status', 'active')
       .or(`full_name.ilike.%${query}%,roll_number.eq.${parseInt(query) || 0}`)
@@ -621,25 +624,48 @@ export default function StudentFeeDetail() {
                     ));
                 })()}
 
-                {/* + Add discount dropdown */}
-                <div className="relative" ref={discountDropdownRef}>
+                {/* + Add discount dropdown — rendered via portal so it's never clipped */}
+                <div ref={discountDropdownRef}>
                   <button
-                    onClick={() => setShowDiscountAdd(v => !v)}
+                    ref={addBtnRef}
+                    onClick={() => {
+                      if (showDiscountAdd) { setShowDiscountAdd(false); return; }
+                      const r = addBtnRef.current?.getBoundingClientRect();
+                      if (r) setDropdownRect({ top: r.top, left: r.left });
+                      setShowDiscountAdd(true);
+                    }}
                     className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 border border-indigo-200 bg-white rounded-full px-2.5 py-1 hover:bg-indigo-50 transition-colors"
                   >
                     <Plus className="w-3 h-3" /> Add
                   </button>
+                </div>
 
-                  {showDiscountAdd && (
-                    <div className="absolute left-0 bottom-full mb-1.5 z-50 bg-white border border-gray-200 rounded-xl shadow-2xl min-w-[240px] overflow-hidden">
-                      <div className="px-3 py-2 bg-gray-50 border-b border-gray-100">
-                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Assign Discount Rule</p>
-                      </div>
+                {showDiscountAdd && dropdownRect && createPortal(
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    style={{
+                      position: 'fixed',
+                      left: Math.max(10, Math.min(window.innerWidth - 250, dropdownRect.left)),
+                      top: dropdownRect.top + 30, // anchor to button bottom, dropdown grows downward
+                      zIndex: 9999,
+                      minWidth: '240px',
+                    }}
+                    className="bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden ring-4 ring-black/5"
+                  >
+                    <div className="px-4 py-3 bg-slate-50 border-b border-gray-100 flex items-center justify-between">
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Assign Discount Rule</p>
+                      <button onClick={() => setShowDiscountAdd(false)} className="text-slate-400 hover:text-slate-600">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
                       {discountRules.length === 0 ? (
-                        <p className="px-4 py-3 text-xs text-gray-400 italic">No rules yet — create one in Discounts & Scholarships.</p>
+                        <p className="px-4 py-6 text-xs text-slate-400 italic text-center">No rules yet — create one in Discounts & Scholarships.</p>
                       ) : (
                         discountRules.map(rule => {
-                          const already = (selectedStudent.custom_data?.discount_rule_ids || []).includes(rule.id);
+                          const already = (selectedStudent?.custom_data?.discount_rule_ids || []).includes(rule.id);
                           const isFlat = rule.type === 'flat';
                           return (
                             <button
@@ -647,39 +673,41 @@ export default function StudentFeeDetail() {
                               disabled={already}
                               onClick={() => { handleAssignDiscountLedger(rule.id); setShowDiscountAdd(false); }}
                               className={cn(
-                                "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors",
-                                already ? "opacity-40 cursor-not-allowed bg-gray-50" : "hover:bg-indigo-50"
+                                "w-full flex items-center gap-3 px-4 py-3 text-left transition-all border-b border-gray-50 last:border-0",
+                                already ? "opacity-40 cursor-not-allowed bg-slate-50" : "hover:bg-indigo-50 active:scale-[0.98]"
                               )}
                             >
                               <div className={cn(
-                                "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                                "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm",
                                 isFlat ? "bg-amber-100" : "bg-emerald-100"
                               )}>
                                 {isFlat
-                                  ? <BadgeDollarSign className="w-4 h-4 text-amber-600" />
-                                  : <Percent className="w-4 h-4 text-emerald-600" />
-                                }
+                                  ? <BadgeDollarSign className="w-5 h-5 text-amber-600" />
+                                  : <Percent className="w-5 h-5 text-emerald-600" />}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-bold text-gray-800 truncate">{rule.name}</p>
-                                <p className="text-[10px] text-gray-400 font-medium">
+                                <p className="text-sm font-black text-slate-800 truncate leading-tight">{rule.name}</p>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight mt-0.5">
                                   {isFlat ? 'Flat deduction' : 'Percentage waiver'}
                                 </p>
                               </div>
-                              <span className={cn(
-                                "text-xs font-black px-2.5 py-1 rounded-full shrink-0",
-                                isFlat ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
-                              )}>
-                                {isFlat ? `Rs. ${Number(rule.value).toLocaleString()}` : `${rule.value}%`}
-                              </span>
-                              {already && <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />}
+                              <div className="text-right shrink-0">
+                                <span className={cn(
+                                  "text-[11px] font-black px-2.5 py-1 rounded-lg",
+                                  isFlat ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
+                                )}>
+                                  {isFlat ? `Rs. ${Number(rule.value).toLocaleString()}` : `${rule.value}%`}
+                                </span>
+                                {already && <CheckCircle className="w-3 h-3 text-emerald-500 mx-auto mt-1" />}
+                              </div>
                             </button>
                           );
                         })
                       )}
                     </div>
-                  )}
-                </div>
+                  </motion.div>,
+                  document.body
+                )}
 
                 {/* Effective waiver summary */}
                 {waiver > 0 && (

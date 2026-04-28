@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import {
   Zap, Search, CheckCircle, Wallet,
   ArrowRight, Printer, History, Users,
-  Receipt, Landmark, Clock, X as XIcon
+  Receipt, Landmark, Clock, X as XIcon, Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';
@@ -172,6 +172,15 @@ export default function EasyFee() {
 
     setPayAmount(unpaid > 0 ? String(unpaid) : '');
     setLoadingDetails(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this invoice?')) return;
+    try {
+      const { error } = await supabase.from('fee_records').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+      if (error) throw error;
+      if (selectedStudent) handleSelect(selectedStudent);
+    } catch (err: any) { alert(err.message); }
   };
 
   // ── Process Payment ────────────────────────────────────────────────────────
@@ -498,7 +507,7 @@ export default function EasyFee() {
                           ) : feeHistory.filter(f => f.status !== 'paid').map(f => {
                             const balance = Number(f.total_amount) - Number(f.paid_amount);
                             return (
-                              <tr key={f.id} className="hover:bg-gray-50 transition-colors">
+                              <tr key={f.id} className="hover:bg-gray-50 transition-colors group/row">
                                 <td className="px-3 py-3">
                                   <p className="font-medium text-gray-800 text-sm">{new Date(f.month_year).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</p>
                                   <span className={cn(
@@ -509,7 +518,16 @@ export default function EasyFee() {
                                   </span>
                                 </td>
                                 <td className="px-3 py-3 text-right">
-                                  <p className="font-bold text-gray-900 text-sm">Rs {balance.toLocaleString()}</p>
+                                  <div className="flex flex-col items-end">
+                                    <p className="font-bold text-gray-900 text-sm">Rs {balance.toLocaleString()}</p>
+                                    <button 
+                                      onClick={(e) => { e.stopPropagation(); handleDelete(f.id); }}
+                                      className="opacity-0 group-hover/row:opacity-100 p-1 text-red-400 hover:text-red-600 transition-all mt-1"
+                                      title="Delete Invoice"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             );

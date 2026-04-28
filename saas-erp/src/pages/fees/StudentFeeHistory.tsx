@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   History, Search, Download, Printer, FileText,
-  Users, TrendingUp, TrendingDown, BarChart3, X
+  Users, TrendingUp, TrendingDown, BarChart3, X, Trash2
 } from 'lucide-react';
 import { exportToCSV } from '../../lib/exportUtils';
 import {
@@ -125,6 +125,7 @@ export default function StudentFeeHistory() {
       .from('fee_records')
       .select('id, invoice_number, month_year, due_date, total_amount, paid_amount, status, payment_mode, breakdown, remarks, students(full_name, roll_number, class_id, classes(name, section), parents(father_name))')
       .eq('school_id', userRole.school_id)
+      .is('deleted_at', null)
       .order('month_year', { ascending: false });
 
     if (selectedStudentId) {
@@ -246,6 +247,15 @@ export default function StudentFeeHistory() {
     } finally {
       setEditSaving(false);
     }
+  };
+
+  const handleDeleteRecord = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this fee record? This action cannot be undone.')) return;
+    try {
+      const { error } = await supabase.from('fee_records').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+      if (error) throw error;
+      fetchRecords();
+    } catch (err: any) { alert(err.message); }
   };
 
   const handleExport = () => {
@@ -556,6 +566,13 @@ export default function StudentFeeHistory() {
                             className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1.5 rounded transition"
                           >
                             Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteRecord(r.id)}
+                            title="Delete Record"
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-400 hover:border-red-300 hover:text-red-600 hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
