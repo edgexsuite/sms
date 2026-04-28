@@ -166,8 +166,8 @@ export default function BulkDiscountEntry() {
   };
 
   const filteredStudents = students.filter(s => {
-    const matchesSearch = s.full_name.toLowerCase().includes(search.toLowerCase()) || 
-                          s.roll_number.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = (s.full_name || '').toLowerCase().includes(search.toLowerCase()) || 
+                          (String(s.roll_number || '')).toLowerCase().includes(search.toLowerCase());
     const matchesClass = classFilter === 'all' || s.class_id === classFilter;
     return matchesSearch && matchesClass;
   });
