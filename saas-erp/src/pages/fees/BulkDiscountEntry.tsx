@@ -74,9 +74,8 @@ export default function BulkDiscountEntry() {
           if (structure) {
             const matrix = structure.fee_matrix;
             if (matrix?.recurrent?.length) {
-              // Try to find an item called 'Tuition' or just take the first recurring item if only one
-              const tItem = matrix.recurrent.find((r: any) => r.item.toLowerCase().includes('tuition')) || matrix.recurrent[0];
-              tuition = Number(tItem?.amount) || 0;
+              // Sum ALL recurring items — must match what MonthlyFeeInvoices uses as the discount base
+              tuition = matrix.recurrent.reduce((sum: number, r: any) => sum + (Number(r.amount) || 0), 0);
             } else {
               tuition = Number(structure.amount) || 0;
             }
@@ -136,8 +135,8 @@ export default function BulkDiscountEntry() {
     setSaving(true);
     try {
       const updates = dirtyRows.map(s => {
-        // Calculate percentage: (Discount / Tuition) * 100
-        const pct = s.tuition_fee > 0 ? Math.min(100, Math.round((s.new_discount_amount / s.tuition_fee) * 100)) : 0;
+        // Calculate percentage with 2-decimal precision so MonthlyFeeInvoices reproduces the exact flat amount
+        const pct = s.tuition_fee > 0 ? Math.min(100, Math.round((s.new_discount_amount / s.tuition_fee) * 10000) / 100) : 0;
         return supabase.from('students').update({
           fee_waiver_percentage: pct
         }).eq('id', s.id);
@@ -154,7 +153,7 @@ export default function BulkDiscountEntry() {
         setStudents(prev => prev.map(s => ({
           ...s,
           current_discount_amount: s.new_discount_amount,
-          fee_waiver_percentage: s.tuition_fee > 0 ? Math.min(100, Math.round((s.new_discount_amount / s.tuition_fee) * 100)) : s.fee_waiver_percentage,
+          fee_waiver_percentage: s.tuition_fee > 0 ? Math.min(100, Math.round((s.new_discount_amount / s.tuition_fee) * 10000) / 100) : s.fee_waiver_percentage,
           is_dirty: false
         })));
       }
@@ -246,7 +245,7 @@ export default function BulkDiscountEntry() {
                 <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] w-24">Roll #</th>
                 <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em]">Student Name</th>
                 <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em]">Class</th>
-                <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-right">Tuition Fee</th>
+                <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-right">Monthly Fee (Total)</th>
                 <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-center w-48">Discount Amount (Rs.)</th>
                 <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-right">Net Fee</th>
               </tr>
@@ -318,7 +317,7 @@ export default function BulkDiscountEntry() {
                              Rs. {netFee.toLocaleString()}
                            </p>
                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                             {s.tuition_fee > 0 ? Math.min(100, Math.round((s.new_discount_amount / s.tuition_fee) * 100)) : 0}% WAIVER
+                             {s.tuition_fee > 0 ? (Math.min(100, Math.round((s.new_discount_amount / s.tuition_fee) * 10000) / 100)).toFixed(2).replace(/\.00$/, '') : 0}% WAIVER
                            </p>
                         </div>
                       </td>
