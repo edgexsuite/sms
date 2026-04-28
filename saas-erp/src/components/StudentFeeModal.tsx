@@ -203,7 +203,8 @@ export default function StudentFeeModal({ student, onSave, onClose, includeAdmis
           .from('fee_records')
           .select('breakdown, total_amount, paid_amount, status, month_year')
           .eq('student_id', student.id)
-          .eq('school_id', userRole?.school_id);
+          .eq('school_id', userRole?.school_id)
+          .is('deleted_at', null);   // exclude soft-deleted records (e.g. cleared MIG- arrears)
 
         const chargedLabels = new Set<string>();
         let arrearsTotal = 0;
