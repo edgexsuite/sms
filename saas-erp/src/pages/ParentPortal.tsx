@@ -638,7 +638,47 @@ export default function ParentPortal() {
         </div>
       </header>
 
-      <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
+      <div className="flex min-h-[calc(100vh-3.75rem)]">
+        {/* ── Desktop Sidebar ─────────────────────────────────────────── */}
+        <aside className="hidden lg:flex flex-col w-56 shrink-0 bg-white border-r border-gray-200 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto">
+          <div className="px-3 py-4 flex-1 overflow-y-auto">
+            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-3 mb-3">Portal Menu</p>
+            <div className="space-y-0.5">
+              {TABS.map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all text-left ${
+                    activeTab === tab.id
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  }`}
+                >
+                  {tab.icon}
+                  <span className="truncate">{tab.label}</span>
+                  {tab.id === 'fees' && pendingCount > 0 && (
+                    <span className="ml-auto w-5 h-5 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center shrink-0">{pendingCount}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="border-t border-gray-100 px-3 py-3 shrink-0">
+            <div className="px-3 py-1.5 mb-1">
+              <p className="text-xs font-bold text-gray-800 truncate">{parentData.full_name}</p>
+              <p className="text-[10px] text-gray-400">Family #{parentData.family_number}</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold text-red-500 hover:bg-red-50 transition"
+            >
+              <LogOut className="w-4 h-4" /> Sign Out
+            </button>
+          </div>
+        </aside>
+
+        {/* ── Main Content ─────────────────────────────────────────────── */}
+        <div className="flex-1 min-w-0 px-4 py-6 space-y-5 pb-24 lg:pb-6">
         {loadingData ? (
           <div className="text-center py-20">
             <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
@@ -716,9 +756,9 @@ export default function ParentPortal() {
             {/* Tab Content Rendering */}
             <div className="portal-content-padding px-4">
               {activeTab !== 'overview' && (
-                <button 
+                <button
                   onClick={() => setActiveTab('overview')}
-                  className="mb-4 flex items-center gap-2 text-xs font-black text-blue-600 hover:text-blue-800 transition uppercase tracking-widest"
+                  className="lg:hidden mb-4 flex items-center gap-2 text-xs font-black text-blue-600 hover:text-blue-800 transition uppercase tracking-widest"
                 >
                   <ChevronLeft className="w-4 h-4" /> Back to Dashboard
                 </button>
@@ -784,13 +824,19 @@ export default function ParentPortal() {
               {activeTab === 'complaints' && (
                 <ComplaintsTab
                   complaints={myComplaints}
-                  onNewTicket={() => setShowComplaintForm(true)}
+                  showForm={showComplaintForm}
+                  onToggleForm={() => setShowComplaintForm(f => !f)}
+                  complaintForm={complaintForm}
+                  setComplaintForm={setComplaintForm}
+                  onSubmit={handleSubmitComplaint}
+                  submitting={submittingComplaint}
                   submitted={complaintSubmitted}
                 />
               )}
             </div>
           </>
         )}
+        </div>
       </div>
 
       {/* Bottom Navigation for Mobile */}
@@ -898,99 +944,6 @@ export default function ParentPortal() {
         </div>
       )}
 
-      {/* ══════════════════════════════════════════════════════════════════
-          COMPLAINT / FEEDBACK MODAL
-      ══════════════════════════════════════════════════════════════════ */}
-      {showComplaintForm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowComplaintForm(false)} />
-          <div className="bg-white rounded-3xl w-full max-w-lg relative z-10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="px-6 py-5 flex items-center justify-between bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
-              <div>
-                <h2 className="font-black text-lg">New Ticket</h2>
-                <p className="text-indigo-200 text-xs mt-0.5">Submit complaint · feedback · query</p>
-              </div>
-              <button onClick={() => setShowComplaintForm(false)} className="p-2 hover:bg-white/20 rounded-xl transition">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmitComplaint} className="px-6 py-5 bg-gray-50 space-y-4">
-              {/* Type selector */}
-              <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Type</label>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {(['complaint', 'feedback', 'suggestion', 'query'] as const).map(t => (
-                    <button key={t} type="button"
-                      onClick={() => setComplaintForm(f => ({ ...f, type: t }))}
-                      className={`py-2 rounded-xl border-2 text-[10px] font-bold capitalize transition-all ${
-                        complaintForm.type === t
-                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                          : 'border-gray-200 bg-white text-gray-500'
-                      }`}
-                    >{t}</button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Category + Priority */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Category <span className="text-red-500">*</span></label>
-                  <select required value={complaintForm.category}
-                    onChange={e => setComplaintForm(f => ({ ...f, category: e.target.value }))}
-                    className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400"
-                  >
-                    <option value="">Select...</option>
-                    {['Facilities','Transport','Academics','Discipline','Staff Behavior','Fees / Billing','Cleanliness','Security','Curriculum','Other'].map(c =>
-                      <option key={c} value={c}>{c}</option>
-                    )}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Priority</label>
-                  <select value={complaintForm.priority}
-                    onChange={e => setComplaintForm(f => ({ ...f, priority: e.target.value as any }))}
-                    className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400"
-                  >
-                    {['low','normal','high','urgent'].map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase()+p.slice(1)}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {/* Title */}
-              <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Title <span className="text-red-500">*</span></label>
-                <input required value={complaintForm.title}
-                  onChange={e => setComplaintForm(f => ({ ...f, title: e.target.value }))}
-                  placeholder="Brief subject line..."
-                  className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400"
-                />
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Description <span className="text-red-500">*</span></label>
-                <textarea required rows={4} value={complaintForm.description}
-                  onChange={e => setComplaintForm(f => ({ ...f, description: e.target.value }))}
-                  placeholder="Describe your issue or feedback in detail..."
-                  className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded-xl text-sm font-medium resize-none outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400"
-                />
-              </div>
-            </form>
-
-            <div className="px-6 py-4 bg-white border-t border-gray-100 flex gap-3">
-              <button onClick={() => setShowComplaintForm(false)} className="flex-1 py-3 bg-gray-100 text-gray-600 font-bold rounded-2xl text-sm">Cancel</button>
-              <button onClick={handleSubmitComplaint as any} disabled={submittingComplaint}
-                className="flex-[2] py-3 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 disabled:opacity-50"
-              >
-                {submittingComplaint ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                {submittingComplaint ? 'Submitting...' : 'Submit Ticket'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1795,13 +1748,24 @@ const PRIORITY_COLORS_P: Record<string, string> = {
   low: 'text-gray-500', normal: 'text-blue-600', high: 'text-amber-600', urgent: 'text-red-600',
 };
 
+const FORWARD_ROLE_LABELS: Record<string, string> = {
+  principal: 'Principal', director: 'Director', admin: 'Admin', accountant: 'Accountant',
+};
+
 function ComplaintsTab({
-  complaints, onNewTicket, submitted,
+  complaints, showForm, onToggleForm, complaintForm, setComplaintForm, onSubmit, submitting, submitted,
 }: {
   complaints: any[];
-  onNewTicket: () => void;
+  showForm: boolean;
+  onToggleForm: () => void;
+  complaintForm: any;
+  setComplaintForm: (fn: (f: any) => any) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  submitting: boolean;
   submitted: boolean;
 }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   const timeAgo = (dt: string) => {
     const diff = Date.now() - new Date(dt).getTime();
     const mins = Math.floor(diff / 60000);
@@ -1813,73 +1777,225 @@ function ComplaintsTab({
   };
 
   return (
-    <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="bg-white rounded-3xl border border-gray-100 p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm ring-1 ring-gray-200 relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-8 opacity-[0.03]"><Flag className="w-24 h-24" /></div>
-        <div className="relative z-10 text-center sm:text-left">
-          <h2 className="font-black text-gray-900 text-xl tracking-tight">My Tickets</h2>
-          <p className="text-gray-400 text-sm mt-1 max-w-sm">Submit complaints, feedback, or queries. Track status and admin responses here.</p>
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-5 flex items-center justify-between shadow-sm">
+        <div>
+          <h2 className="font-black text-gray-900 text-lg tracking-tight">My Tickets</h2>
+          <p className="text-gray-400 text-xs mt-0.5">Complaints, feedback, queries — tracked here</p>
         </div>
-        <button onClick={onNewTicket}
-          className="relative z-10 flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all shrink-0">
-          <Plus className="w-4 h-4" /> New Ticket
+        <button
+          onClick={onToggleForm}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all ${
+            showForm
+              ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              : 'bg-indigo-600 text-white shadow-lg shadow-indigo-100 hover:bg-indigo-700'
+          }`}
+        >
+          {showForm ? <><X className="w-4 h-4" /> Cancel</> : <><Plus className="w-4 h-4" /> New Ticket</>}
         </button>
       </div>
 
+      {/* Success banner */}
       {submitted && (
         <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl p-4 text-green-800">
           <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
-          <p className="text-sm font-bold">Your ticket has been submitted. We will get back to you soon.</p>
+          <p className="text-sm font-bold">Ticket submitted successfully. We'll get back to you soon.</p>
         </div>
       )}
 
-      {complaints.length === 0 ? (
-        <div className="bg-white rounded-3xl border border-gray-100 p-16 text-center shadow-sm">
-          <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-6">
-            <MessageSquare className="w-10 h-10 text-indigo-200" />
+      {/* Inline Form */}
+      {showForm && (
+        <div className="bg-white rounded-2xl border-2 border-indigo-200 shadow-lg overflow-hidden">
+          <div className="px-5 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
+            <h3 className="font-black text-base">New Ticket</h3>
+            <p className="text-indigo-200 text-xs mt-0.5">Submit complaint · feedback · query · suggestion</p>
           </div>
-          <p className="text-gray-900 font-black text-lg">No tickets yet</p>
-          <p className="text-gray-400 text-sm mt-1">Submit your first complaint or feedback above.</p>
+          <form onSubmit={onSubmit} className="p-5 space-y-4">
+            {/* Type selector */}
+            <div>
+              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Type</label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {(['complaint', 'feedback', 'suggestion', 'query'] as const).map(t => (
+                  <button key={t} type="button"
+                    onClick={() => setComplaintForm(f => ({ ...f, type: t }))}
+                    className={`py-2 rounded-xl border-2 text-[10px] font-bold capitalize transition-all ${
+                      complaintForm.type === t
+                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                        : 'border-gray-200 bg-white text-gray-500 hover:border-indigo-300'
+                    }`}
+                  >{t}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Category <span className="text-red-500">*</span></label>
+                <select required value={complaintForm.category}
+                  onChange={e => setComplaintForm(f => ({ ...f, category: e.target.value }))}
+                  className="w-full bg-gray-50 border border-gray-200 px-3 py-2.5 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400"
+                >
+                  <option value="">Select…</option>
+                  {['Facilities','Transport','Academics','Discipline','Staff Behavior','Fees / Billing','Cleanliness','Security','Curriculum','Other'].map(c =>
+                    <option key={c} value={c}>{c}</option>
+                  )}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Priority</label>
+                <select value={complaintForm.priority}
+                  onChange={e => setComplaintForm(f => ({ ...f, priority: e.target.value as any }))}
+                  className="w-full bg-gray-50 border border-gray-200 px-3 py-2.5 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400"
+                >
+                  {['low','normal','high','urgent'].map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase()+p.slice(1)}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Subject <span className="text-red-500">*</span></label>
+              <input required value={complaintForm.title}
+                onChange={e => setComplaintForm(f => ({ ...f, title: e.target.value }))}
+                placeholder="Brief subject line…"
+                className="w-full bg-gray-50 border border-gray-200 px-3 py-2.5 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Details <span className="text-red-500">*</span></label>
+              <textarea required rows={4} value={complaintForm.description}
+                onChange={e => setComplaintForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Describe your issue or feedback in detail…"
+                className="w-full bg-gray-50 border border-gray-200 px-3 py-2.5 rounded-xl text-sm font-medium resize-none outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400"
+              />
+            </div>
+
+            <button type="submit" disabled={submitting}
+              className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+            >
+              {submitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              {submitting ? 'Submitting…' : 'Submit Ticket'}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* Tickets list */}
+      {complaints.length === 0 && !showForm ? (
+        <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center shadow-sm">
+          <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4">
+            <MessageSquare className="w-8 h-8 text-indigo-200" />
+          </div>
+          <p className="text-gray-900 font-black text-base">No tickets yet</p>
+          <p className="text-gray-400 text-sm mt-1">Click "New Ticket" above to submit a complaint or feedback.</p>
         </div>
       ) : (
         <div className="space-y-3">
           {complaints.map(c => {
             const sCfg = STATUS_CFG_P[c.status] || STATUS_CFG_P.pending;
             const publicReplies = (c.responses || []).filter((r: any) => !r.is_internal);
-            const lastReply = publicReplies.length > 0 ? publicReplies[publicReplies.length - 1] : null;
+            const isExpanded = expandedId === c.id;
             return (
               <div key={c.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="px-5 py-4 flex items-start gap-3">
+                {/* Card header – clickable to expand */}
+                <button
+                  className="w-full text-left px-5 py-4 flex items-start gap-3 hover:bg-gray-50 transition"
+                  onClick={() => setExpandedId(isExpanded ? null : c.id)}
+                >
                   <div className="shrink-0 w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center mt-0.5">
                     <Flag className={`w-4 h-4 ${PRIORITY_COLORS_P[c.priority] || 'text-gray-500'}`} />
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 text-left">
                     <div className="flex flex-wrap items-center gap-2 mb-1">
                       <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${sCfg.bg} ${sCfg.color}`}>{sCfg.label}</span>
                       <span className="text-[10px] font-bold text-gray-400 capitalize bg-gray-100 px-2 py-0.5 rounded-full">{c.type}</span>
+                      {c.forwarded_to_role && (
+                        <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
+                          → {FORWARD_ROLE_LABELS[c.forwarded_to_role] || c.forwarded_to_role}
+                        </span>
+                      )}
                       <span className="text-[10px] text-gray-400">{timeAgo(c.created_at)}</span>
                     </div>
                     <p className="font-bold text-gray-900 text-sm truncate">{c.title}</p>
                     <p className="text-xs text-gray-500 mt-0.5">{c.category}</p>
                   </div>
-                  <span className="shrink-0 text-[10px] font-bold text-gray-400 mt-1">{publicReplies.length} {publicReplies.length === 1 ? 'reply' : 'replies'}</span>
-                </div>
-                <div className="px-5 pb-3">
-                  <p className="text-xs text-gray-600 leading-relaxed">{c.description}</p>
-                </div>
-                {lastReply && (
-                  <div className="mx-5 mb-4 p-3 bg-indigo-50 border border-indigo-100 rounded-xl">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">{lastReply.author_name}</span>
-                      <span className="text-[9px] text-indigo-400 capitalize">{lastReply.author_role}</span>
-                    </div>
-                    <p className="text-xs text-indigo-800">{lastReply.message}</p>
+                  <span className="shrink-0 flex items-center gap-1 text-[10px] font-bold text-gray-400 mt-1 ml-2">
+                    {publicReplies.length} {publicReplies.length === 1 ? 'reply' : 'replies'}
+                    <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
+                  </span>
+                </button>
+
+                {/* Description preview */}
+                {!isExpanded && (
+                  <div className="px-5 pb-4">
+                    <p className="text-xs text-gray-500 leading-relaxed line-clamp-2">{c.description}</p>
                   </div>
                 )}
-                {c.status === 'resolved' && c.resolution_notes && (
-                  <div className="mx-5 mb-4 p-3 bg-green-50 border border-green-200 rounded-xl">
-                    <p className="text-[10px] font-black text-green-700 uppercase tracking-widest mb-1">Resolution</p>
-                    <p className="text-xs text-green-800">{c.resolution_notes}</p>
+
+                {/* Expanded: full thread */}
+                {isExpanded && (
+                  <div className="px-5 pb-5 pt-1 border-t border-gray-100 space-y-3">
+                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest pt-3 mb-2">Conversation Thread</p>
+
+                    {/* Original submission */}
+                    <div className="flex gap-2.5">
+                      <div className="w-7 h-7 bg-blue-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                        <User className="w-3.5 h-3.5 text-blue-600" />
+                      </div>
+                      <div className="flex-1 bg-blue-50 rounded-xl px-3 py-2.5">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-black text-blue-700">You (Parent)</span>
+                          <span className="text-[9px] text-blue-400">{timeAgo(c.created_at)}</span>
+                        </div>
+                        <p className="text-xs text-blue-800 leading-relaxed">{c.description}</p>
+                      </div>
+                    </div>
+
+                    {/* Replies & forwarding events */}
+                    {(c.responses || []).map((r: any, i: number) => {
+                      if (r.is_internal) return null;
+                      const isForward = r.type === 'forward';
+                      return (
+                        <div key={i} className="flex gap-2.5">
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${isForward ? 'bg-purple-100' : 'bg-indigo-100'}`}>
+                            {isForward
+                              ? <ChevronRight className="w-3.5 h-3.5 text-purple-600" />
+                              : <MessageSquare className="w-3.5 h-3.5 text-indigo-600" />
+                            }
+                          </div>
+                          <div className={`flex-1 rounded-xl px-3 py-2.5 ${isForward ? 'bg-purple-50' : 'bg-indigo-50'}`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`text-[10px] font-black ${isForward ? 'text-purple-700' : 'text-indigo-700'}`}>
+                                {r.author_name}
+                                {r.author_role && <span className="font-normal text-[9px] ml-1 capitalize opacity-60">({r.author_role})</span>}
+                              </span>
+                              {r.created_at && <span className="text-[9px] text-gray-400">{timeAgo(r.created_at)}</span>}
+                            </div>
+                            <p className={`text-xs leading-relaxed ${isForward ? 'text-purple-800' : 'text-indigo-800'}`}>{r.message}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Resolution */}
+                    {c.status === 'resolved' && c.resolution_notes && (
+                      <div className="flex gap-2.5">
+                        <div className="w-7 h-7 bg-green-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                          <CheckCircle className="w-3.5 h-3.5 text-green-600" />
+                        </div>
+                        <div className="flex-1 bg-green-50 rounded-xl px-3 py-2.5">
+                          <p className="text-[10px] font-black text-green-700 mb-1">Resolved</p>
+                          <p className="text-xs text-green-800 leading-relaxed">{c.resolution_notes}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {publicReplies.length === 0 && c.status !== 'resolved' && (
+                      <p className="text-[10px] text-gray-400 italic text-center py-3 bg-gray-50 rounded-xl">
+                        Awaiting response from school administration…
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
