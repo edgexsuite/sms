@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   History, Search, Download, Printer, FileText,
-  Users, TrendingUp, TrendingDown, BarChart3, X, Trash2
+  Users, TrendingUp, TrendingDown, BarChart3, X, Trash2, ExternalLink
 } from 'lucide-react';
 import { exportToCSV } from '../../lib/exportUtils';
 import {
@@ -17,6 +18,7 @@ import {
 
 interface FeeRecord {
   id: string;
+  student_id?: string;
   invoice_number?: string;
   month_year: string;
   due_date?: string;
@@ -48,6 +50,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function StudentFeeHistory() {
   const { userRole } = useAuth();
+  const navigate = useNavigate();
 
   // Data
   const [records, setRecords] = useState<FeeRecord[]>([]);
@@ -123,7 +126,7 @@ export default function StudentFeeHistory() {
 
     let query = supabase
       .from('fee_records')
-      .select('id, invoice_number, month_year, due_date, total_amount, paid_amount, status, payment_mode, breakdown, remarks, students(full_name, roll_number, class_id, classes(name, section), parents(father_name))')
+      .select('id, student_id, invoice_number, month_year, due_date, total_amount, paid_amount, status, payment_mode, breakdown, remarks, students(full_name, roll_number, class_id, classes(name, section), parents(father_name))')
       .eq('school_id', userRole.school_id)
       .is('deleted_at', null)
       .order('month_year', { ascending: false });
@@ -560,6 +563,13 @@ export default function StudentFeeHistory() {
                             className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
                           >
                             <Printer className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => r.student_id && navigate(`/fees/student-detail?student=${r.student_id}`)}
+                            title="Open Full Ledger"
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-500 hover:border-teal-300 hover:text-teal-600 hover:bg-teal-50 transition-colors"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => openEditModal(r)}

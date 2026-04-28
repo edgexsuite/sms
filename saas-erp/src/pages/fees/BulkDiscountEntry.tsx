@@ -89,8 +89,8 @@ export default function BulkDiscountEntry() {
             full_name: s.full_name,
             roll_number: s.roll_number,
             class_id: s.class_id,
-            class_name: s.classes?.name || 'No Class',
-            class_section: s.classes?.section || '',
+            class_name: (s.classes as any)?.name || 'No Class',
+            class_section: (s.classes as any)?.section || '',
             fee_waiver_percentage: s.fee_waiver_percentage || 0,
             tuition_fee: tuition,
             current_discount_amount: currentDiscount,
@@ -292,9 +292,14 @@ export default function BulkDiscountEntry() {
                         <div className="relative max-w-[160px] mx-auto">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-300">Rs.</span>
                           <input 
-                            type="number" 
+                            type="text" 
+                            inputMode="numeric"
                             value={s.new_discount_amount}
-                            onChange={e => handleDiscountChange(s.id, e.target.value)}
+                            onFocus={e => e.target.select()}
+                            onChange={e => {
+                              const val = e.target.value.replace(/[^0-9]/g, '');
+                              handleDiscountChange(s.id, val);
+                            }}
                             className={cn(
                               "w-full pl-10 pr-4 py-2.5 rounded-xl text-center text-sm font-black outline-none transition-all",
                               s.is_dirty 

@@ -7,7 +7,7 @@ import {
   ArrowLeft, Printer, User, BookOpen, Calendar, CreditCard, BarChart3,
   Phone, MapPin, Heart, Shield, CheckCircle, XCircle, Clock, Award,
   TrendingUp, AlertCircle, Download, Plus, ChevronRight, MoreVertical, Users,
-  Wallet, X as XIcon, Loader2, Tag,
+  Wallet, X as XIcon, Loader2, Tag, ExternalLink,
 } from 'lucide-react';
 import StudentFeeModal from '../../components/StudentFeeModal';
 import StudentFeeOverrideModal from '../../components/StudentFeeOverrideModal';
@@ -1122,7 +1122,16 @@ export default function StudentDetailPage() {
 
               {/* Action bar */}
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <h3 className="text-sm font-black text-slate-700">Fee Records</h3>
+                <div className="flex items-center gap-3">
+                  <h3 className="text-sm font-black text-slate-700">Fee Records</h3>
+                  <button
+                    onClick={() => navigate(`/fees/student-detail?student=${student?.id}`)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-50 border border-teal-200 text-teal-700 hover:bg-teal-100 rounded-xl text-xs font-bold transition"
+                    title="Open full fee ledger for this student"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" /> Full Ledger
+                  </button>
+                </div>
                 {!isReadOnly && (
                   <div className="flex items-center gap-2 flex-wrap">
                     {/* Custom fee override indicator */}

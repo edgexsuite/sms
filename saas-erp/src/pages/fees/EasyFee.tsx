@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   Zap, Search, CheckCircle, Wallet,
   ArrowRight, Printer, History, Users,
-  Receipt, Landmark, Clock, X as XIcon, Trash2
+  Receipt, Landmark, Clock, X as XIcon, Trash2, ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';
@@ -43,6 +44,8 @@ interface RecentTransaction {
 
 export default function EasyFee() {
   const { userRole } = useAuth();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   // States
   const [query, setQuery] = useState('');
@@ -144,6 +147,21 @@ export default function EasyFee() {
     const timer = setTimeout(search, 300);
     return () => clearTimeout(timer);
   }, [query, userRole?.school_id]);
+
+  // ── Auto-select student from URL param (?student=id) ───────────────────────
+
+  useEffect(() => {
+    const studentIdParam = searchParams.get('student');
+    if (!studentIdParam || !userRole?.school_id) return;
+    supabase
+      .from('students')
+      .select('id, full_name, roll_number, class:class_id(name, section), fee_waiver_percentage')
+      .eq('id', studentIdParam)
+      .eq('school_id', userRole.school_id)
+      .maybeSingle()
+      .then(({ data }) => { if (data) handleSelect(data); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, userRole?.school_id]);
 
   // ── Select Student & Load Ledger ───────────────────────────────────────────
 
@@ -636,6 +654,12 @@ export default function EasyFee() {
                         className="w-full py-3.5 bg-slate-900 text-white font-semibold rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
                       >
                         <Printer className="w-5 h-5" /> Print Receipt
+                      </button>
+                      <button
+                        onClick={() => navigate(`/fees/student-detail?student=${lastPayment?.student_id}`)}
+                        className="w-full py-2.5 text-sm font-medium text-teal-600 hover:text-teal-700 flex items-center justify-center gap-1.5 transition-colors"
+                      >
+                        <ExternalLink className="w-4 h-4" /> View Full Ledger
                       </button>
                       <button
                         onClick={() => setSuccessMsg(null)}

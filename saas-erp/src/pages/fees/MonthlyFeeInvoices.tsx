@@ -6,7 +6,7 @@ import {
   Receipt, Search, PlusCircle, MessageCircle, Edit,
   Calendar, CheckSquare, Square, Save, X, Printer, Users,
   Layout, TrendingUp, AlertCircle, FileText, CheckCircle2,
-  Clock, Filter, Download, Trash2, Send, Bell, Tag, Loader2
+  Clock, Filter, Download, Trash2, Send, Bell, Tag, Loader2, ExternalLink
 } from 'lucide-react';
 import FeeBreakdownEditor, { type BreakdownRow } from '../../components/FeeBreakdownEditor';
 import HelpBanner from '../../components/HelpBanner';
@@ -262,10 +262,12 @@ export default function MonthlyFeeInvoices() {
       const { error } = await supabase.from('fee_records').insert(inserts);
       if (error) throw error;
 
-      const skippedMsg = skippedCount > 0
-        ? `\n⚠️ ${skippedCount} student(s) skipped — no fee structure configured for their class.`
-        : '';
-      alert(`✅ Successfully generated ${inserts.length} invoice(s)!${skippedMsg}`);
+      const dupSkipped = students.length - billableStudents.length;
+      const skippedMsg = [
+        skippedCount > 0 ? `⚠️ ${skippedCount} skipped — no fee structure for their class.` : '',
+        dupSkipped > 0   ? `ℹ️ ${dupSkipped} already had an invoice for this month (skipped).` : '',
+      ].filter(Boolean).join('\n');
+      alert(`✅ Generated ${inserts.length} invoice(s)!${skippedMsg ? '\n\n' + skippedMsg : ''}`);
       setShowGenerateModal(false);
       fetchInvoices();
     } catch (err: any) { alert(err.message || 'Error generating invoices'); } 
@@ -284,27 +286,51 @@ export default function MonthlyFeeInvoices() {
     } catch (err: any) { alert(err.message); }
   };
 
-  const handleDeleteInvoice = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this invoice? This will remove it from the records.')) return;
+  const handleDeleteInvoice = async (id: string, invNum?: string) => {
+    if (!confirm(`PERMANENT DELETE: Are you sure you want to completely eliminate invoice ${invNum || ''}? This action cannot be undone.`)) return;
     try {
-      const { error } = await supabase.from('fee_records').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+      const { error } = await supabase.from('fee_records').delete().eq('id', id);
       if (error) throw error;
+      
+      // Also clean up transactions
+      if (invNum) {
+        await supabase.from('financial_transactions').delete().ilike('remarks', `%${invNum}%`);
+      }
+
       fetchInvoices();
     } catch (err: any) { alert(err.message); }
   };
 
   const handleBulkDelete = async () => {
     if (selectedInvoices.size === 0) return;
-    if (!confirm(`Are you sure you want to delete ${selectedInvoices.size} selected invoices?`)) return;
+    if (!confirm(`PERMANENT DELETE: Are you sure you want to completely eliminate ${selectedInvoices.size} selected invoices? This action cannot be undone.`)) return;
+    setLoading(true);
     try {
-      const { error } = await supabase.from('fee_records')
-        .update({ deleted_at: new Date().toISOString() })
-        .in('id', Array.from(selectedInvoices));
+      const ids = Array.from(selectedInvoices);
+      
+      // Get invoice numbers for transaction cleanup before deleting the main records
+      const { data: records } = await supabase
+        .from('fee_records')
+        .select('invoice_number')
+        .in('id', ids);
+      
+      const { error } = await supabase.from('fee_records').delete().in('id', ids);
       if (error) throw error;
-      alert(`Successfully deleted ${selectedInvoices.size} invoices.`);
+
+      // Clean up transactions for each deleted invoice
+      if (records) {
+        for (const rec of records) {
+          if (rec.invoice_number) {
+            await supabase.from('financial_transactions').delete().ilike('remarks', `%${rec.invoice_number}%`);
+          }
+        }
+      }
+
+      alert(`Successfully eliminated ${selectedInvoices.size} invoices and their transactions.`);
       setSelectedInvoices(new Set());
       fetchInvoices();
     } catch (err: any) { alert(err.message); }
+    finally { setLoading(false); }
   };
 
   const handleSendWhatsApp = async (invoice: any) => {
@@ -457,18 +483,25 @@ export default function MonthlyFeeInvoices() {
     };
   };
 
+  /** Quick print — opens browser print dialog without saving a file */
   const handlePrintChallan = async (invoice: any) => {
     const record = await buildRecord(invoice);
-    await downloadChallanPDF([record], school, challanConfig, { autoPrint: true, download: true });
+    await downloadChallanPDF([record], school, challanConfig, { autoPrint: true, download: false });
+  };
+
+  /** Download — saves the PDF to disk without opening a print dialog */
+  const handleDownloadChallan = async (invoice: any) => {
+    const record = await buildRecord(invoice);
+    await downloadChallanPDF([record], school, challanConfig, { autoPrint: false, download: true });
   };
 
   const handlePrintFamilyChallan = async (famGroup: any) => {
     // Collect all sub-invoices and build their records
     const records = await Promise.all(famGroup.invoices.map(buildRecord));
-    await downloadChallanPDF(records, school, challanConfig, { 
+    await downloadChallanPDF(records, school, challanConfig, {
       filenameOverride: `family-challan-${famGroup.name.replace(/\s+/g, '-')}.pdf`,
       autoPrint: true,
-      download: true 
+      download: false
     });
   };
 
@@ -555,9 +588,9 @@ export default function MonthlyFeeInvoices() {
   const feeTotalPages = Math.ceil(displayList.length / FEE_ITEMS_PER_PAGE);
   const paginatedDisplayList = displayList.slice((feeCurrentPage - 1) * FEE_ITEMS_PER_PAGE, feeCurrentPage * FEE_ITEMS_PER_PAGE);
 
-  const totalRevenue = invoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + (i.paid_amount || 0), 0);
-  const totalPending = invoices.filter(i => i.status !== 'paid').reduce((sum, i) => sum + (i.total_amount - i.paid_amount), 0);
-  const collectionRate = invoices.length > 0 ? (invoices.filter(i => i.status === 'paid').length / invoices.length) * 100 : 0;
+  const totalRevenue = invoices.reduce((sum, i) => sum + (Number(i.paid_amount) || 0), 0);
+  const totalPending = invoices.reduce((sum, i) => sum + Math.max(0, (Number(i.total_amount) || 0) - (Number(i.paid_amount) || 0)), 0);
+  const collectionRate = (totalRevenue + totalPending) > 0 ? (totalRevenue / (totalRevenue + totalPending)) * 100 : 0;
 
   return (
     <div className="max-w-7xl mx-auto space-y-4 pb-20">
@@ -773,7 +806,9 @@ export default function MonthlyFeeInvoices() {
                       <div className="flex items-center justify-end gap-1">
                         {!isFamily ? (
                           <>
-                            <button onClick={() => handlePrintChallan(inv)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" title="Print Challan"><Printer className="w-4 h-4" /></button>
+                            <button onClick={() => handlePrintChallan(inv)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" title="Quick Print (no download)"><Printer className="w-4 h-4" /></button>
+                            <button onClick={() => handleDownloadChallan(inv)} className="p-1.5 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-all" title="Download PDF"><Download className="w-4 h-4" /></button>
+                            <button onClick={() => navigate(`/fees/student-detail?student=${inv.student_id}`)} className="p-1.5 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-all" title="Open Full Ledger"><ExternalLink className="w-4 h-4" /></button>
                             <button onClick={() => handleSendWhatsApp(inv)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all" title="WhatsApp Reminder"><MessageCircle className="w-4 h-4" /></button>
                             <button onClick={() => setEditingInvoice(inv)} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all" title="Edit Invoice"><Edit className="w-4 h-4" /></button>
                             <button onClick={() => handleDeleteInvoice(inv.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" title="Delete Invoice"><Trash2 className="w-4 h-4" /></button>

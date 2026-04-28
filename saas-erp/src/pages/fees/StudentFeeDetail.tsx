@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -19,6 +20,7 @@ import {
 } from '../../lib/challanUtils';
 import FeeBreakdownEditor, { type BreakdownRow } from '../../components/FeeBreakdownEditor';
 import HelpBanner from '../../components/HelpBanner';
+import StudentFeeModal from '../../components/StudentFeeModal';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,6 +39,7 @@ interface Invoice {
 
 export default function StudentFeeDetail() {
   const { userRole } = useAuth();
+  const [searchParams] = useSearchParams();
 
   // Data State
   const [students, setStudents] = useState<any[]>([]);
@@ -69,11 +72,7 @@ export default function StudentFeeDetail() {
   const addBtnRef = useRef<HTMLButtonElement>(null);
   const [dropdownRect, setDropdownRect] = useState<DOMRect | null>(null);
 
-  // New Invoice State
   const [showNewInvoice, setShowNewInvoice] = useState(false);
-  const [newInvoiceMonth, setNewInvoiceMonth] = useState('');
-  const [newInvoiceDueDate, setNewInvoiceDueDate] = useState('');
-  const [newInvoiceBreakdown, setNewInvoiceBreakdown] = useState<BreakdownRow[]>([]);
   const [creatingInvoice, setCreatingInvoice] = useState(false);
 
   // ── Fetch Metadata ─────────────────────────────────────────────────────────
@@ -127,6 +126,21 @@ export default function StudentFeeDetail() {
     }
   }, [userRole?.school_id]);
 
+  // ── Auto-select student from URL param (?student=id) ───────────────────────
+
+  useEffect(() => {
+    const studentIdParam = searchParams.get('student');
+    if (!studentIdParam || !userRole?.school_id) return;
+    supabase
+      .from('students')
+      .select('id, full_name, roll_number, class_id, fee_waiver_percentage, custom_data, classes(name, section)')
+      .eq('id', studentIdParam)
+      .eq('school_id', userRole.school_id)
+      .maybeSingle()
+      .then(({ data }) => { if (data) selectStudent(data); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, userRole?.school_id]);
+
   // ── Select Student ─────────────────────────────────────────────────────────
 
   const selectStudent = async (stu: any) => {
@@ -147,77 +161,12 @@ export default function StudentFeeDetail() {
 
   // ── Update Waiver ──────────────────────────────────────────────────────────
 
-  // ── Create Manual Invoice ──────────────────────────────────────────────────
-
-  const openNewInvoice = async () => {
+  const handleOpenNewInvoice = () => {
     if (!selectedStudent) return;
-    // Pre-populate breakdown from the student's class fee structure
-    const { data: structure } = await supabase
-      .from('fee_structures')
-      .select('fee_matrix')
-      .eq('school_id', userRole!.school_id)
-      .eq('class_id', selectedStudent.classes_id || selectedStudent.class_id)
-      .maybeSingle();
-    const preRows: BreakdownRow[] = structure?.fee_matrix?.recurrent?.length
-      ? structure.fee_matrix.recurrent.map((r: any) => ({ item: r.item, amount: r.amount }))
-      : [{ item: 'Tuition Fee', amount: 0 }];
-    setNewInvoiceBreakdown(preRows);
-    setNewInvoiceMonth(new Date().toISOString().slice(0, 7));
-    setNewInvoiceDueDate('');
     setShowNewInvoice(true);
   };
 
-  const handleCreateInvoice = async () => {
-    if (!selectedStudent || !newInvoiceMonth) return;
-    // newInvoiceBreakdown always holds ORIGINAL (gross) amounts from the fee template.
-    // The student's fee_waiver_percentage is applied as a separate discount_amount so the
-    // challan can display: Gross → Discount → Net payable.
-    const grossTotal = newInvoiceBreakdown.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-    if (grossTotal <= 0) return alert('Please add at least one fee item with an amount.');
-    const discountAmt = Math.round(grossTotal * (waiver / 100));
-    const netTotal    = grossTotal - discountAmt; // what the student actually owes
-    setCreatingInvoice(true);
-    try {
-      const monthYear = newInvoiceMonth + '-01';
-      // Check duplicate
-      const { data: existing } = await supabase
-        .from('fee_records')
-        .select('id')
-        .eq('school_id', userRole!.school_id)
-        .eq('student_id', selectedStudent.id)
-        .eq('month_year', monthYear)
-        .is('deleted_at', null)
-        .maybeSingle();
-      if (existing) throw new Error('An invoice for this month already exists for this student.');
-
-      const rollNum = String(selectedStudent.roll_number || 0).padStart(3, '0');
-      const invNum = `INV-${newInvoiceMonth.replace('-', '').slice(2)}-${rollNum}`;
-
-      const { error } = await supabase.from('fee_records').insert({
-        school_id: userRole!.school_id,
-        student_id: selectedStudent.id,
-        month_year: monthYear,
-        due_date: newInvoiceDueDate || null,
-        // Store GROSS amounts in breakdown so challan always shows original fee
-        breakdown: newInvoiceBreakdown,
-        // total_amount = net payable (used for payment tracking & balance calculations)
-        total_amount: netTotal,
-        // discount_amount stored explicitly — challan subtracts this from grossTotal
-        discount_amount: discountAmt,
-        paid_amount: 0,
-        status: 'pending',
-        invoice_number: invNum,
-        payment_mode: 'Pending',
-      });
-      if (error) throw error;
-      setShowNewInvoice(false);
-      selectStudent(selectedStudent);
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setCreatingInvoice(false);
-    }
-  };
+  // Redundant handleCreateInvoice removed. StudentFeeModal now handles this.
 
   // ── Discount helpers ───────────────────────────────────────────────────────
   const computeWaiverPct = (ruleIds: string[], rules: any[]): number => {
@@ -373,18 +322,25 @@ export default function StudentFeeDetail() {
   };
 
   const handleDeleteInvoice = async (inv: Invoice) => {
-    if (!confirm(`Soft-delete invoice ${inv.invoice_number || ''}? It will be hidden but can be restored.`)) return;
+    if (!window.confirm(`PERMANENT DELETE: Are you sure you want to completely eliminate invoice ${inv.invoice_number}? This action cannot be undone and will also remove all associated financial records and payments.`)) return;
     try {
+      // PERMANENT (HARD) DELETE
       const { error } = await supabase
         .from('fee_records')
-        .update({ deleted_at: new Date().toISOString() })
+        .delete()
         .eq('id', inv.id);
+      
       if (error) throw error;
+
+      // Clean up transactions precisely by remark containing the invoice number
+      await supabase
+        .from('financial_transactions')
+        .delete()
+        .ilike('remarks', `%${inv.invoice_number}%`);
+
       setEditingInvoice(null);
       selectStudent(selectedStudent);
-    } catch (err: any) {
-      alert(err.message);
-    }
+    } catch (err: any) { alert(err.message); }
   };
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -750,7 +706,7 @@ export default function StudentFeeDetail() {
                 <h3 className="text-sm font-bold text-gray-800">Fee Invoices</h3>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={openNewInvoice}
+                    onClick={handleOpenNewInvoice}
                     className="no-print flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-white hover:bg-indigo-600 border border-indigo-200 hover:border-indigo-600 rounded-lg px-3 py-1.5 transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5" /> New Invoice
@@ -1088,83 +1044,17 @@ export default function StudentFeeDetail() {
       </AnimatePresence>
 
       {/* New Invoice Modal */}
+      {/* Unified New Invoice Modal Component */}
       <AnimatePresence>
-        {showNewInvoice && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-              className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden"
-            >
-              <div className="bg-indigo-600 px-6 py-4 flex items-center justify-between text-white">
-                <div>
-                  <h2 className="text-sm font-black uppercase tracking-widest">New Invoice</h2>
-                  <p className="text-xs text-indigo-200 mt-0.5">{selectedStudent?.full_name}</p>
-                </div>
-                <button onClick={() => setShowNewInvoice(false)} className="text-white/60 hover:text-white"><X className="w-5 h-5" /></button>
-              </div>
-              <div className="p-6 space-y-5 overflow-y-auto max-h-[75vh]">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1">Fee Month *</label>
-                    <input type="month" value={newInvoiceMonth} onChange={e => setNewInvoiceMonth(e.target.value)}
-                      className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-indigo-500" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1">Due Date</label>
-                    <input type="date" value={newInvoiceDueDate} onChange={e => setNewInvoiceDueDate(e.target.value)}
-                      className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-2">Fee Breakdown *</label>
-                  <div className="border border-gray-200 rounded-xl p-3 bg-gray-50">
-                    <FeeBreakdownEditor
-                      breakdown={newInvoiceBreakdown}
-                      onChange={setNewInvoiceBreakdown}
-                      schoolId={userRole?.school_id}
-                    />
-                  </div>
-                </div>
-                {/* Discount / totals preview */}
-                {(() => {
-                  const gross = newInvoiceBreakdown.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-                  const disc  = Math.round(gross * (waiver / 100));
-                  const net   = gross - disc;
-                  return gross > 0 ? (
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm space-y-1">
-                      <div className="flex justify-between text-gray-600">
-                        <span>Gross Fee</span>
-                        <span className="font-mono font-semibold">Rs. {gross.toLocaleString()}</span>
-                      </div>
-                      {disc > 0 && (
-                        <div className="flex justify-between text-amber-700">
-                          <span>Discount ({waiver}%)</span>
-                          <span className="font-mono font-semibold">− Rs. {disc.toLocaleString()}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between text-indigo-700 font-bold border-t border-gray-200 pt-1">
-                        <span>Net Payable</span>
-                        <span className="font-mono">Rs. {net.toLocaleString()}</span>
-                      </div>
-                    </div>
-                  ) : null;
-                })()}
-                <div className="flex gap-2">
-                  <button onClick={() => setShowNewInvoice(false)}
-                    className="px-4 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-xl hover:bg-gray-50 transition">
-                    Cancel
-                  </button>
-                  <button onClick={handleCreateInvoice} disabled={creatingInvoice || !newInvoiceMonth || newInvoiceBreakdown.length === 0}
-                    className="flex-1 py-2.5 bg-indigo-600 text-white font-bold text-sm rounded-xl hover:bg-indigo-700 transition disabled:opacity-50">
-                    {creatingInvoice ? 'Creating...' : 'Create Invoice'}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
+        {showNewInvoice && selectedStudent && (
+          <StudentFeeModal
+            student={selectedStudent}
+            onClose={() => setShowNewInvoice(false)}
+            onSave={() => {
+              setShowNewInvoice(false);
+              selectStudent(selectedStudent);
+            }}
+          />
         )}
       </AnimatePresence>
 
