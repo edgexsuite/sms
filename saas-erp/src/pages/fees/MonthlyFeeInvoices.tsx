@@ -809,40 +809,83 @@ export default function MonthlyFeeInvoices() {
                    {genMode === 'student' && (
                      <div className="animate-in fade-in slide-in-from-top-2 space-y-3">
                         <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Search Student</label>
-                        <div className="relative">
-                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                          <input 
-                            type="text"
-                            placeholder="Type student name or roll #..."
-                            value={stuQuery}
-                            onChange={async (e) => {
-                              setStuQuery(e.target.value);
-                              if (e.target.value.length > 1) {
-                                const { data } = await supabase.from('students').select('id, full_name, roll_number').eq('school_id', userRole?.school_id).ilike('full_name', `%${e.target.value}%`).limit(5);
-                                setStuResults(data || []);
-                              } else {
-                                setStuResults([]);
-                              }
-                            }}
-                            className="w-full bg-slate-50 border border-transparent p-4 pl-12 rounded-2xl font-bold text-slate-700 outline-none focus:bg-white focus:border-indigo-100"
-                          />
-                        </div>
-                        {stuResults.length > 0 && (
-                          <div className="bg-slate-50 rounded-2xl border border-slate-100 p-2 space-y-1">
-                            {stuResults.map(s => (
-                              <button 
-                                key={s.id}
-                                onClick={() => { setTargetStudent(s); setStuQuery(s.full_name); setStuResults([]); }}
-                                className={cn(
-                                  "w-full text-left p-3 rounded-xl transition-all",
-                                  targetStudent?.id === s.id ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100" : "hover:bg-white text-slate-700"
-                                )}
-                              >
-                                <p className="text-xs font-black uppercase">{s.full_name}</p>
-                                <p className="text-[10px] font-bold opacity-70">Roll #{s.roll_number}</p>
-                              </button>
-                            ))}
+
+                        {/* Selected student chip */}
+                        {targetStudent ? (
+                          <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-2xl px-4 py-3">
+                            <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center shrink-0">
+                              <span className="text-white text-xs font-black">{targetStudent.full_name[0]}</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-black text-indigo-900 truncate">{targetStudent.full_name}</p>
+                              <p className="text-[10px] font-bold text-indigo-500">Roll # {targetStudent.roll_number}{targetStudent.class_name ? ` · ${targetStudent.class_name}` : ''}</p>
+                            </div>
+                            <button
+                              onClick={() => { setTargetStudent(null); setStuQuery(''); setStuResults([]); }}
+                              className="p-1 rounded-full hover:bg-indigo-200 transition-colors text-indigo-400 hover:text-indigo-700"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
                           </div>
+                        ) : (
+                          <>
+                            <div className="relative">
+                              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                              <input
+                                type="text"
+                                placeholder="Type student name or roll #..."
+                                value={stuQuery}
+                                onChange={async (e) => {
+                                  const q = e.target.value;
+                                  setStuQuery(q);
+                                  if (q.length > 1) {
+                                    const { data } = await supabase
+                                      .from('students')
+                                      .select('id, full_name, roll_number, classes(name, section)')
+                                      .eq('school_id', userRole?.school_id)
+                                      .eq('status', 'active')
+                                      .or(`full_name.ilike.%${q}%,roll_number.eq.${parseInt(q) || 0}`)
+                                      .limit(8);
+                                    setStuResults(data || []);
+                                  } else {
+                                    setStuResults([]);
+                                  }
+                                }}
+                                className="w-full bg-slate-50 border border-transparent p-4 pl-12 rounded-2xl font-bold text-slate-700 outline-none focus:bg-white focus:border-indigo-100"
+                                autoFocus
+                              />
+                            </div>
+                            {/* Dropdown results */}
+                            {stuQuery.length > 1 && stuResults.length === 0 && (
+                              <p className="text-center text-xs text-slate-400 py-2">No students found for "{stuQuery}"</p>
+                            )}
+                            {stuResults.length > 0 && (
+                              <div className="bg-slate-50 rounded-2xl border border-slate-100 p-2 space-y-1 max-h-48 overflow-y-auto">
+                                {stuResults.map(s => {
+                                  const cls = s.classes ? `${s.classes.name}${s.classes.section ? ' ' + s.classes.section : ''}` : '';
+                                  return (
+                                    <button
+                                      key={s.id}
+                                      onClick={() => {
+                                        setTargetStudent({ ...s, class_name: cls });
+                                        setStuQuery(s.full_name);
+                                        setStuResults([]);
+                                      }}
+                                      className="w-full text-left p-3 rounded-xl hover:bg-white transition-all text-slate-700 flex items-center gap-3"
+                                    >
+                                      <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
+                                        <span className="text-indigo-600 text-[10px] font-black">{s.full_name[0]}</span>
+                                      </div>
+                                      <div>
+                                        <p className="text-xs font-black uppercase">{s.full_name}</p>
+                                        <p className="text-[10px] font-bold opacity-60">Roll #{s.roll_number}{cls ? ` · ${cls}` : ''}</p>
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </>
                         )}
                      </div>
                    )}
