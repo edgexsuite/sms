@@ -306,11 +306,15 @@ export default function MonthlyFeeInvoices() {
       (sum: number, r: any) => sum + Math.max(0, (r.total_amount || 0) - (r.paid_amount || 0)), 0
     );
 
-    // 2. Class fee matrix (for display in challan footer section only)
-    //    discount_amount is now stored directly on the record — no reverse-engineering needed.
+    // 2. Class fee matrix — used for challan display and legacy-invoice fallback
     const classId = inv.students?.class_id;
     let feeMatrix: { recurrent: any[]; first_time: any[] } | undefined;
-    const discountAmount = inv.discount_amount ?? 0;
+    // New invoices: discount_amount is stored explicitly on the record.
+    // Old invoices (created before this fix): discount_amount is null — reverse-engineer
+    // from the fee structure by comparing original template total vs stored breakdown total.
+    let discountAmount = inv.discount_amount ?? 0;
+    let challanBreakdown: { item: string; amount: number }[] | null = null; // override for old invoices
+
     if (classId) {
       const { data: structure } = await supabase
         .from('fee_structures')
@@ -318,12 +322,32 @@ export default function MonthlyFeeInvoices() {
         .eq('school_id', userRole?.school_id)
         .eq('class_id', classId)
         .maybeSingle();
-      if (structure?.fee_matrix) feeMatrix = structure.fee_matrix;
+      if (structure?.fee_matrix) {
+        feeMatrix = structure.fee_matrix;
+
+        // Fallback for old invoices: if discount_amount not stored, compute from structure diff
+        if (inv.discount_amount == null) {
+          const originalTotal = (feeMatrix!.recurrent || []).reduce(
+            (s: number, i: any) => s + Number(i.amount || 0), 0
+          );
+          const invoiceTotal = (inv.breakdown || []).reduce(
+            (s: number, b: any) => s + Number(b.amount || 0), 0
+          );
+          const computed = Math.round(originalTotal - invoiceTotal);
+          if (computed > 0) {
+            discountAmount = computed;
+            // Swap breakdown to original gross amounts so challan shows full fee first
+            challanBreakdown = (feeMatrix!.recurrent || []).map(
+              (r: any) => ({ item: r.item, amount: Number(r.amount) })
+            );
+          }
+        }
+      }
     }
 
-    // Gross total = sum of breakdown items (always stored at original amounts now).
-    // challanUtils will display: grossTotal → −discountAmount → netDue
-    const grossTotal = (inv.breakdown || []).reduce((s: number, b: any) => s + Number(b.amount || 0), 0)
+    // Gross total for challan display — either overridden (old invoice) or from stored breakdown
+    const effectiveBreakdown = challanBreakdown ?? (inv.breakdown || []);
+    const grossTotal = effectiveBreakdown.reduce((s: number, b: any) => s + Number(b.amount || 0), 0)
       || inv.total_amount;
 
     // 3. Fine rules — calculate actual fine based on today vs due date
@@ -359,9 +383,8 @@ export default function MonthlyFeeInvoices() {
 
     return {
       ...inv,
-      // Override total_amount with grossTotal so challanUtils can apply discountAmount correctly:
-      // grossTotal (5000) − discountAmount (2000) = net due (3000) shown on challan
-      total_amount: grossTotal,
+      breakdown: effectiveBreakdown,  // gross amounts (original or overridden for old invoices)
+      total_amount: grossTotal,       // gross — challanUtils subtracts discountAmount from this
       student_name: inv.students?.full_name,
       roll_number: inv.students?.roll_number,
       class_name: inv.students?.classes

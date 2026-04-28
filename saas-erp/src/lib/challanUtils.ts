@@ -397,7 +397,7 @@ function drawChallanCopy(
     y += feeRowH;
   };
 
-  // Breakdown items
+  // Breakdown items — always gross (original) amounts from fee template
   const breakdown = config.show_breakdown !== false && record.breakdown?.length
     ? record.breakdown
     : [{ item: 'Tuition Fee', amount: record.total_amount }];
@@ -406,34 +406,55 @@ function drawChallanCopy(
 
   // Previous pending fee
   const prevFee = record.previous_fee ?? 0;
-  if (config.show_previous_fee !== false) {
+  if (config.show_previous_fee !== false && prevFee > 0) {
     drawFeeRow('Previous Fee', prevFee);
   }
 
-  // Totals
-  const grossTotal = breakdown.reduce((s, b) => s + Number(b.amount), 0)
-    + (config.show_previous_fee !== false ? prevFee : 0);
+  // ── Totals calculation ───────────────────────────────────────────────────
+  const breakdownGross = breakdown.reduce((s, b) => s + Number(b.amount), 0);
+  const grossTotal = breakdownGross + (config.show_previous_fee !== false ? prevFee : 0);
   const discountAmt = record.discount_amount ?? 0;
   const feeWithinDue = Math.max(0, grossTotal - discountAmt);
   const fineAmt = record.fine_amount ?? 0;
   const feeAfterDue = feeWithinDue + fineAmt;
 
-  // Bold divider above totals
+  // Bold divider above summary rows
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.5);
   doc.line(cx, y, cx + cw, y);
 
-  drawFeeRow('Total Fee', grossTotal, true, [245, 245, 245]);
+  // "Total Fee" row — show only if there are multiple breakdown items or a previous fee
+  // (when there's a single item, the item row already shows the total — no need to repeat)
+  const showTotalRow = breakdown.length > 1 || prevFee > 0;
+  if (showTotalRow) {
+    drawFeeRow('Total Fee', grossTotal, true, [245, 245, 245]);
+  }
 
-  if (config.show_discount_column !== false) {
-    drawFeeRow('Discount/Scholarship', discountAmt, true, [245, 245, 245]);
+  // Discount row — amber background, shows "− Amount" to make deduction clear
+  if (config.show_discount_column !== false && discountAmt > 0) {
+    // Draw amber background for discount row
+    if (y + feeRowH <= cy + ch - 14) {
+      doc.setFillColor(255, 243, 205); // amber-50
+      doc.rect(cx, y, cw, feeRowH, 'F');
+      doc.setDrawColor(220, 180, 40);
+      doc.setLineWidth(0.2);
+      doc.line(cx, y + feeRowH, cx + cw, y + feeRowH);
+      const fsize = (compact ? 6.5 : 8) * scale;
+      doc.setFontSize(fsize);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(140, 80, 0); // amber-900
+      doc.text('Discount / Scholarship', cx + pad, y + feeRowH - pad - 0.2);
+      doc.text(`− ${discountAmt.toLocaleString()}`, cx + cw - pad, y + feeRowH - pad - 0.2, { align: 'right' });
+      doc.setTextColor(0, 0, 0);
+      y += feeRowH;
+    }
   }
 
   // Fee within due date — green row
   const withinLabel = `Fee Within Due Date ( Till ${fmtDate(record.due_date)} )`;
   drawFeeRow(withinLabel, feeWithinDue, true, [228, 248, 228], [0, 110, 0], [0, 110, 0]);
 
-  // Fee after due date — red row (only if fine > 0 or fine column enabled)
+  // Fee after due date — red row
   if (config.show_fine_column !== false) {
     const afterLabel = `Fee After Due Date ( From ${nextDayStr(record.due_date)} )`;
     drawFeeRow(afterLabel, feeAfterDue, true, [255, 236, 236], [170, 0, 0], [170, 0, 0]);
