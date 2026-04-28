@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { Send, Check, CheckCheck, User, MessageCircle } from 'lucide-react';
+import { Send, Check, CheckCheck, User, MessageCircle, AlertCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface Message {
@@ -38,6 +38,7 @@ export default function ChatInterface({
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [fetchError, setFetchError] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -81,31 +82,41 @@ export default function ChatInterface({
 
   const fetchMessages = async () => {
     setLoading(true);
+    setFetchError('');
     try {
+      // Use .in() on both sender/receiver instead of nested and() inside or()
+      // which can fail silently in some Supabase versions.
+      // Combined with student_id filter this correctly scopes to this 1:1 conversation.
       const { data, error } = await supabase
         .from('chat_messages')
         .select('*')
         .eq('school_id', schoolId)
         .eq('student_id', studentId)
-        .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${targetUserId}),and(sender_id.eq.${targetUserId},receiver_id.eq.${currentUserId})`)
+        .in('sender_id', [currentUserId, targetUserId])
+        .in('receiver_id', [currentUserId, targetUserId])
         .order('created_at', { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        // Surface the real error so RLS / permission issues are visible
+        setFetchError(error.message || 'Failed to load messages');
+        return;
+      }
       setMessages(data || []);
-      
+
       // Mark unread messages as read
       const unreadIds = (data || [])
         .filter(m => m.receiver_id === currentUserId && !m.is_read)
         .map(m => m.id);
-      
+
       if (unreadIds.length > 0) {
         await supabase
           .from('chat_messages')
           .update({ is_read: true })
           .in('id', unreadIds);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching messages:', err);
+      setFetchError(err?.message || 'Unexpected error loading messages');
     } finally {
       setLoading(false);
     }
@@ -183,6 +194,18 @@ export default function ChatInterface({
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : fetchError ? (
+          <div className="flex flex-col items-center justify-center h-full text-gray-600 bg-white/70 backdrop-blur-sm rounded-3xl p-8 m-4 text-center">
+            <AlertCircle className="w-10 h-10 text-red-400 mb-3" />
+            <p className="font-bold text-sm text-red-600">Could not load messages</p>
+            <p className="text-xs mt-1 text-gray-500 max-w-xs">{fetchError}</p>
+            <p className="text-[10px] mt-3 text-gray-400 max-w-xs leading-relaxed">
+              If this says "permission denied", run the SQL fix in Supabase → SQL Editor (see setup guide).
+            </p>
+            <button onClick={fetchMessages} className="mt-4 text-xs font-bold text-emerald-600 hover:underline">
+              Try again
+            </button>
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500 bg-white/50 backdrop-blur-sm rounded-3xl p-8 m-4 text-center">
