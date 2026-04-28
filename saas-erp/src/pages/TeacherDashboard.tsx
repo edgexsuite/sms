@@ -1525,7 +1525,7 @@ function MessageCenter({ staffId, schoolId, onClose }: { staffId: string; school
       // 3. Fetch students
       let query = supabase
         .from('students')
-        .select('id, full_name, roll_number, photograph_url, parent_id')
+        .select('id, full_name, roll_number, photograph_url, parent_id, class_id, classes(name, section)')
         .eq('school_id', schoolId)
         .eq('status', 'active');
 
@@ -1544,10 +1544,14 @@ function MessageCenter({ staffId, schoolId, onClose }: { staffId: string; school
     }
   };
 
-  const filteredStudents = students.filter(s => 
-    s.full_name.toLowerCase().includes(search.toLowerCase()) || 
-    s.classes?.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredStudents = students.filter(s => {
+    const q = search.toLowerCase();
+    return (
+      s.full_name.toLowerCase().includes(q) ||
+      (s.classes?.name || '').toLowerCase().includes(q) ||
+      String(s.roll_number || '').includes(q)
+    );
+  });
 
   return (
     <div className="fixed inset-0 z-[110] flex justify-end">
@@ -1563,7 +1567,7 @@ function MessageCenter({ staffId, schoolId, onClose }: { staffId: string; school
             </div>
             <div>
               <h2 className="font-black text-lg">Message Center</h2>
-              <p className="text-[10px] text-indigo-100 font-bold uppercase tracking-widest">Connect with Parents & Students</p>
+              <p className="text-[10px] text-indigo-100 font-bold uppercase tracking-widest">Students & Parents in your classes</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition">
@@ -1612,20 +1616,23 @@ function MessageCenter({ staffId, schoolId, onClose }: { staffId: string; school
                           </div>
                           <div>
                             <p className="font-bold text-gray-900 text-sm">{student.full_name}</p>
-                            <p className="text-[10px] text-gray-400 font-bold uppercase">{student.classes?.name} {student.classes?.section}</p>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase">
+                              {student.classes ? `${student.classes.name}${student.classes.section ? ' ' + student.classes.section : ''}` : 'No Class'}
+                              {student.roll_number ? ` · #${student.roll_number}` : ''}
+                            </p>
                           </div>
                         </div>
                       </div>
                       
                       <div className="grid grid-cols-2 gap-2 mt-2">
                         <button
-                          onClick={() => setSelectedThread({ 
-                            student, 
-                            targetId: student.parent_id || student.family_number, 
+                          onClick={() => setSelectedThread({
+                            student,
+                            targetId: student.parent_id,
                             type: 'parent',
                             name: `Parent of ${student.full_name.split(' ')[0]}`
                           })}
-                          disabled={!student.parent_id && !student.family_number}
+                          disabled={!student.parent_id}
                           className="flex items-center justify-center gap-2 py-2 bg-white border border-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-50 transition disabled:opacity-30"
                         >
                           Chat with Parent

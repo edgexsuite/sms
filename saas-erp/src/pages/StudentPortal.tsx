@@ -977,59 +977,140 @@ function HomeworkTab({ homework }: { homework: any[] }) {
 }
 
 // --- CHAT TAB --------------------------------------------------------------
-function ChatTab({ schoolId, student }: { 
-  schoolId: string; 
-  student: StudentData 
+function ChatTab({ schoolId, student }: {
+  schoolId: string;
+  student: StudentData;
 }) {
-  const teacher = student.classes?.staff;
-  const teacherId = student.classes?.class_teacher_id;
+  const [teachers, setTeachers]         = useState<any[]>([]);
+  const [selectedTeacher, setSelected]  = useState<any | null>(null);
+  const [loading, setLoading]           = useState(true);
 
-  if (!teacherId || !teacher) {
+  useEffect(() => {
+    loadTeachers();
+  }, [student.class_id]);
+
+  const loadTeachers = async () => {
+    setLoading(true);
+    try {
+      const map = new Map<string, { id: string; full_name: string; photograph_url?: string; subjects: string[] }>();
+
+      // Always include class teacher first (if set)
+      if (student.classes?.class_teacher_id && student.classes?.staff) {
+        const ctId = student.classes.class_teacher_id;
+        map.set(ctId, {
+          id: ctId,
+          full_name: student.classes.staff.full_name,
+          photograph_url: student.classes.staff.photograph_url,
+          subjects: ['Class Teacher'],
+        });
+      }
+
+      if (student.class_id) {
+        const { data } = await supabase
+          .from('timetable_slots')
+          .select('teacher_id, subjects(subject_name), staff:teacher_id(id, full_name, photograph_url)')
+          .eq('school_id', schoolId)
+          .eq('class_id', student.class_id);
+
+        (data || []).forEach((slot: any) => {
+          if (!slot.teacher_id || !slot.staff?.id) return;
+          const existing = map.get(slot.teacher_id);
+          const subj = slot.subjects?.subject_name;
+          if (existing) {
+            if (subj && !existing.subjects.includes(subj) && existing.subjects[0] !== 'Class Teacher')
+              existing.subjects.push(subj);
+          } else {
+            map.set(slot.teacher_id, {
+              id: slot.staff.id,
+              full_name: slot.staff.full_name,
+              photograph_url: slot.staff.photograph_url,
+              subjects: subj ? [subj] : [],
+            });
+          }
+        });
+      }
+
+      setTeachers(Array.from(map.values()));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
     return (
-      <div className='bg-white rounded-3xl border border-gray-100 p-16 text-center shadow-sm'>
-        <div className='w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6'>
-          <User className='w-10 h-10 text-gray-200' />
+      <div className="flex items-center justify-center py-20">
+        <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!selectedTeacher) {
+    if (teachers.length === 0) {
+      return (
+        <div className="bg-white rounded-2xl border border-gray-100 p-14 text-center shadow-sm">
+          <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+            <User className="w-8 h-8 text-gray-200" />
+          </div>
+          <p className="text-gray-900 font-black text-base">No teachers assigned yet</p>
+          <p className="text-gray-400 text-sm mt-1">Contact your school office for assistance.</p>
         </div>
-        <p className='text-gray-900 font-black text-lg'>No Teacher Assigned</p>
-        <p className='text-gray-400 text-sm mt-1 max-w-xs mx-auto'>
-          Your class teacher has not been assigned yet. 
-          Please ask your school office for assistance.
-        </p>
+      );
+    }
+    return (
+      <div className="space-y-4 max-w-2xl mx-auto">
+        <div>
+          <h2 className="text-xl font-black text-gray-900 tracking-tight">Teacher Chat</h2>
+          <p className="text-sm text-gray-500 mt-1">Select a teacher to start a conversation.</p>
+        </div>
+        <div className="space-y-2">
+          {teachers.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setSelected(t)}
+              className="w-full bg-white border border-gray-200 rounded-2xl p-4 flex items-center gap-4 hover:border-blue-300 hover:bg-blue-50/30 transition-all text-left group"
+            >
+              {t.photograph_url ? (
+                <img src={t.photograph_url} className="w-12 h-12 rounded-xl object-cover shrink-0" alt="" />
+              ) : (
+                <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-blue-700 font-black text-lg shrink-0">
+                  {t.full_name.charAt(0)}
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-gray-900 leading-tight">{t.full_name}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{t.subjects.join(' · ')}</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-blue-500 transition shrink-0" />
+            </button>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className='max-w-3xl mx-auto'>
-      <div className='mb-6'>
-        <h2 className='text-2xl font-black text-gray-900 tracking-tight'>Teacher Chat</h2>
-        <p className='text-sm text-gray-500 mt-1'>
-          Message {teacher.full_name} regarding your academic queries.
-        </p>
-      </div>
-
-      <ChatInterface 
+    <div className="space-y-4 max-w-2xl mx-auto">
+      <button
+        onClick={() => setSelected(null)}
+        className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 uppercase tracking-widest"
+      >
+        <ChevronLeft className="w-4 h-4" /> All Teachers
+      </button>
+      <ChatInterface
         schoolId={schoolId}
         currentUserId={student.id}
-        currentUserType='student'
-        targetUserId={teacherId}
-        targetUserType='staff'
+        currentUserType="student"
+        targetUserId={selectedTeacher.id}
+        targetUserType="staff"
         studentId={student.id}
-        targetName={teacher.full_name}
-        targetPhoto={teacher.photograph_url}
+        targetName={selectedTeacher.full_name}
+        targetPhoto={selectedTeacher.photograph_url}
       />
-
-      <div className='mt-4 bg-amber-50 border border-amber-100 rounded-2xl p-4 flex items-start gap-3'>
-        <div className='w-8 h-8 bg-amber-600 rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-amber-100'>
-           <AlertCircle className='w-4 h-4 text-white' />
-        </div>
-        <div>
-          <p className='text-xs font-black text-amber-900 uppercase tracking-widest'>Student Conduct</p>
-          <p className='text-[11px] text-amber-800/70 font-medium mt-0.5 leading-relaxed'>
-            Please maintain academic integrity and professional language when messaging your teacher. 
-            Abuse of the chat system may lead to disciplinary action.
-          </p>
-        </div>
+      <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 flex items-start gap-3">
+        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+        <p className="text-[11px] text-amber-800/80 leading-relaxed">
+          Please maintain academic integrity and professional language. Abuse of the chat system may lead to disciplinary action.
+        </p>
       </div>
     </div>
   );
