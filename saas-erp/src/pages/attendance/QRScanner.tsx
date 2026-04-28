@@ -417,14 +417,18 @@ export default function QRScanner() {
         if (!cancelled) setAvailableCameras(cams.map((c: any) => ({ id: c.id, label: c.label || c.id })));
 
         /* Camera selection priority:
-           1. User-picked camera (selectedCameraId)
-           2. First available camera (index 0) - Most stable for mobile kiosk */
+           1. User-picked camera (selectedCameraId) → pass its ID directly
+           2. No selection → use { facingMode: 'environment' } (back camera) so the
+              browser picks the correct lens without needing an explicit camera ID.
+              This avoids the "cameraIdOrConfig is required" error on Android where
+              getCameras() can return objects with undefined ids. */
         const currentSelected = selectedCameraIdRef.current;
-        const cam = (currentSelected && cams.find((c: any) => c.id === currentSelected))
-          ?? cams[0];
+        const cameraConfig: string | { facingMode: { ideal: string } } = currentSelected
+          ? currentSelected
+          : { facingMode: { ideal: 'environment' } };
 
         await instance.start(
-          cam.id,
+          cameraConfig,
           { fps: 12, qrbox: { width: 260, height: 260 }, aspectRatio: 1.0 },
           (text: string) => processQR(text),
           () => { /* per-frame misses – normal */ },
@@ -848,7 +852,7 @@ export default function QRScanner() {
                       onChange={e => { setSelectedCameraId(e.target.value); setScannerKey(k => k + 1); }}
                       className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 transition"
                     >
-                      <option value="">Auto (front-facing preferred)</option>
+                      <option value="">Default (back / environment camera)</option>
                       {availableCameras.map(c => (
                         <option key={c.id} value={c.id}>{c.label}</option>
                       ))}

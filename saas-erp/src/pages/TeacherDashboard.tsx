@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
@@ -8,7 +9,7 @@ import {
   ChevronRight, GraduationCap, CheckCircle2, XCircle,
   Clock, BarChart2, CalendarDays, Award, AlertCircle, Save,
   RefreshCw, ChevronDown, ChevronUp, UserCheck, CalendarOff,
-  Plus, X, Briefcase, FileText, TrendingUp, MessageCircle, ChevronLeft,
+  Plus, X, Briefcase, FileText, TrendingUp, MessageCircle, ChevronLeft, Flag, Send,
 } from 'lucide-react';
 import ChatInterface from '../components/ChatInterface';
 
@@ -125,6 +126,18 @@ export default function TeacherDashboard() {
   const [savingAtt,  setSavingAtt]  = useState(false);
   const [attSaved,   setAttSaved]   = useState(false);
   const [attError,   setAttError]   = useState('');
+
+  // Complaint modal
+  const [showComplaintModal,  setShowComplaintModal]  = useState(false);
+  const [submittingComplaint, setSubmittingComplaint] = useState(false);
+  const [complaintSubmitted,  setComplaintSubmitted]  = useState(false);
+  const [complaintForm, setComplaintForm] = useState({
+    type:     'complaint' as 'complaint' | 'feedback' | 'suggestion' | 'query',
+    category: '',
+    title:    '',
+    description: '',
+    priority: 'normal' as 'low' | 'normal' | 'high' | 'urgent',
+  });
 
   // Leave modal
   const [showLeaveModal,  setShowLeaveModal]  = useState(false);
@@ -376,7 +389,7 @@ export default function TeacherDashboard() {
   const fetchAllClassStudents = async (sid: string) => {
     const { data: slots } = await supabase.from('timetable_slots').select('class_id')
       .eq('teacher_id', sid).eq('school_id', userRole?.school_id);
-    const classIds = [...new Set((slots || []).map(s => s.id))]; // Actually class_id
+    const classIds = [...new Set((slots || []).map(s => s.class_id))]; // unique class IDs
     // But better: just fetch students of assignedClasses
     const { data } = await supabase.from('students').select('id, full_name, roll_number, class_id, classes(name, section)')
       .eq('school_id', userRole?.school_id)
@@ -427,6 +440,35 @@ export default function TeacherDashboard() {
     if (error) setAttError(error.message);
     else { setAttSaved(true); fetchAssignedClasses(staffId!); }
     setSavingAtt(false);
+  };
+
+  // ── Complaint Submission ──────────────────────────────────────────────────
+
+  const handleSubmitComplaint = async () => {
+    if (!complaintForm.category || !complaintForm.title.trim() || !complaintForm.description.trim()) {
+      alert('Please fill in all required fields.'); return;
+    }
+    setSubmittingComplaint(true);
+    const authorName = staffInfo?.full_name || staffName || user?.user_metadata?.full_name || user?.email || 'Teacher';
+    const { error } = await supabase.from('complaints').insert([{
+      school_id:         userRole!.school_id,
+      user_id:           userRole?.user_id || null,
+      type:              complaintForm.type,
+      category:          complaintForm.category,
+      title:             complaintForm.title.trim(),
+      description:       complaintForm.description.trim(),
+      priority:          complaintForm.priority,
+      status:            'pending',
+      submitted_by_type: 'teacher',
+      submitted_by_name: authorName,
+      responses:         [],
+    }]);
+    setSubmittingComplaint(false);
+    if (error) { alert('Failed: ' + error.message); return; }
+    setShowComplaintModal(false);
+    setComplaintForm({ type: 'complaint', category: '', title: '', description: '', priority: 'normal' });
+    setComplaintSubmitted(true);
+    setTimeout(() => setComplaintSubmitted(false), 4000);
   };
 
   // ── Leave Application ─────────────────────────────────────────────────────
@@ -537,15 +579,8 @@ export default function TeacherDashboard() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
+    <>
     <div className="max-w-7xl mx-auto space-y-5">
-
-      {/* ── Leave submitted toast ── */}
-      {leaveSubmitted && (
-        <div className="fixed top-4 right-4 z-[150] bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 animate-in slide-in-from-top-2">
-          <CheckCircle2 className="w-5 h-5" />
-          <span className="font-bold text-sm">Leave application submitted! Admin will review it shortly.</span>
-        </div>
-      )}
 
       {/* ══════════════════════════════════════════════════════════════════
           PROFILE BANNER
@@ -1131,10 +1166,140 @@ export default function TeacherDashboard() {
               </div>
               <ChevronRight className="w-4 h-4 text-slate-500" />
             </button>
+            <button onClick={() => setShowComplaintModal(true)}
+              className="w-full flex items-center justify-between px-4 py-2.5 bg-white/8 hover:bg-white/15 rounded-xl transition">
+              <div className="flex items-center gap-3">
+                <Flag className="w-4 h-4 text-slate-300" />
+                <span className="text-sm font-bold">Report an Issue</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-500" />
+            </button>
           </div>
 
         </div>
       </div>
+
+    </div>{/* end max-w-7xl wrapper */}
+
+    {/* ── All modals & toasts rendered via portal so fixed positioning is always viewport-relative ── */}
+    {createPortal(
+      <>
+      {/* Toasts */}
+      {leaveSubmitted && (
+        <div className="fixed top-4 right-4 z-[9999] bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 animate-in slide-in-from-top-2">
+          <CheckCircle2 className="w-5 h-5" />
+          <span className="font-bold text-sm">Leave application submitted! Admin will review it shortly.</span>
+        </div>
+      )}
+      {complaintSubmitted && (
+        <div className="fixed top-16 right-4 z-[9999] bg-indigo-600 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 animate-in slide-in-from-top-2">
+          <Flag className="w-5 h-5" />
+          <span className="font-bold text-sm">Issue reported! Admin will review it shortly.</span>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════
+          COMPLAINT / FEEDBACK MODAL
+      ══════════════════════════════════════════════════════════════════ */}
+      {showComplaintModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowComplaintModal(false)} />
+          <div className="bg-white rounded-3xl w-full max-w-lg relative z-10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-5 flex items-center justify-between bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
+              <div>
+                <h2 className="font-black text-lg">Report an Issue</h2>
+                <p className="text-indigo-200 text-xs mt-0.5">Complaint · Feedback · Suggestion · Query</p>
+              </div>
+              <button onClick={() => setShowComplaintModal(false)} className="p-2 hover:bg-white/20 rounded-xl transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4 bg-gray-50">
+              {/* Type */}
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Type</label>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {(['complaint', 'feedback', 'suggestion', 'query'] as const).map(t => (
+                    <button key={t} type="button"
+                      onClick={() => setComplaintForm(f => ({ ...f, type: t }))}
+                      className={`py-2 rounded-xl border-2 text-[10px] font-bold capitalize transition-all ${
+                        complaintForm.type === t
+                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                          : 'border-gray-200 bg-white text-gray-500'
+                      }`}
+                    >{t}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Category + Priority */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Category <span className="text-red-500">*</span></label>
+                  <select
+                    value={complaintForm.category}
+                    onChange={e => setComplaintForm(f => ({ ...f, category: e.target.value }))}
+                    className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400"
+                  >
+                    <option value="">Select...</option>
+                    {['Facilities','Transport','Academics','Discipline','Staff Behavior','Fees / Billing','Cleanliness','Security','Curriculum','IT / Technology','Other'].map(c =>
+                      <option key={c} value={c}>{c}</option>
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Priority</label>
+                  <select
+                    value={complaintForm.priority}
+                    onChange={e => setComplaintForm(f => ({ ...f, priority: e.target.value as any }))}
+                    className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400"
+                  >
+                    {['low','normal','high','urgent'].map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase()+p.slice(1)}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Title */}
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Subject / Title <span className="text-red-500">*</span></label>
+                <input
+                  value={complaintForm.title}
+                  onChange={e => setComplaintForm(f => ({ ...f, title: e.target.value }))}
+                  placeholder="Brief subject line..."
+                  className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Description <span className="text-red-500">*</span></label>
+                <textarea
+                  rows={4} value={complaintForm.description}
+                  onChange={e => setComplaintForm(f => ({ ...f, description: e.target.value }))}
+                  placeholder="Describe the issue in detail..."
+                  className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded-xl text-sm font-medium resize-none outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400"
+                />
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-white border-t border-gray-100 flex gap-3">
+              <button onClick={() => setShowComplaintModal(false)} className="flex-1 py-3 bg-gray-100 text-gray-600 font-bold rounded-2xl hover:bg-gray-200 transition-all text-sm">Cancel</button>
+              <button
+                onClick={handleSubmitComplaint}
+                disabled={submittingComplaint}
+                className="flex-[2] py-3 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-100"
+              >
+                {submittingComplaint
+                  ? <RefreshCw className="w-4 h-4 animate-spin" />
+                  : <Send className="w-4 h-4" />
+                }
+                {submittingComplaint ? 'Submitting...' : 'Submit Report'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ══════════════════════════════════════════════════════════════════
           LEAVE APPLICATION MODAL
@@ -1312,16 +1477,18 @@ export default function TeacherDashboard() {
 
       {/* ── Chat Center Drawer ── */}
       {chatOpen && (
-        <MessageCenter 
-          staffId={staffId!} 
+        <MessageCenter
+          staffId={staffId!}
           schoolId={userRole!.school_id}
           onClose={() => {
             setChatOpen(false);
             fetchUnreadCount(staffId!);
-          }} 
+          }}
         />
       )}
-    </div>
+      </>, document.body
+    )}
+    </>
   );
 }
 

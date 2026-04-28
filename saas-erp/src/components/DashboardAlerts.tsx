@@ -126,7 +126,7 @@ export default function DashboardAlerts() {
               className="flex items-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-100 hover:bg-blue-200 px-2.5 py-1 rounded-full transition-colors"
             >
               <MessageSquare className="w-3 h-3 shrink-0" />
-              {counts.unreadComplaints} Complaints
+              {counts.unreadComplaints} Tickets
             </button>
           )}
 
