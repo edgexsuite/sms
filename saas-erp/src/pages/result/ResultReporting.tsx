@@ -174,12 +174,14 @@ export default function ResultReporting() {
             width: 210mm !important;
             min-height: 297mm !important;
             height: auto !important;
-            page-break-after: always !important;
             page-break-inside: avoid !important;
             box-shadow: none !important;
             border-radius: 0 !important;
             border: none !important;
             margin: 0 !important;
+          }
+          .result-card-wrapper:not(:last-child) {
+            page-break-after: always !important;
           }
           @page { size: A4 portrait; margin: 0; }
         }

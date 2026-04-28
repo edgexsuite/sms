@@ -6,7 +6,7 @@ import {
   Banknote, DollarSign, Scale, BarChart3, BarChart2, ClipboardCheck, UserX,
   LineChart, Library, Home, Bell, Key, Trash2, Box, Package, Clock, Palette,
   Receipt, Layers, BookMarked, Landmark, BarChart, LifeBuoy, Users2, Bus, MapPin, Truck,
-  Radio, Inbox, Tag,
+  Radio, Inbox, Tag, History, Printer
 } from 'lucide-react';
 
 export const ALL_ADMIN    = ['admin', 'principal', 'director'];
@@ -164,6 +164,7 @@ export const NAV_SECTIONS = [
           { name: 'Admin Results Entry', path: '/result/add-result',     icon: Star,         roles: ALL_ADMIN },
           { name: 'Import from Excel',   path: '/result/import',         icon: Upload,       roles: ALL_STAFF },
           { name: 'Teacher Mark Entry',  path: '/result/teacher-marks',  icon: Star,         roles: ['admin', 'principal', 'director', 'teacher', 'staff'] },
+          { name: 'Award List Generator', path: '/result/award-list',     icon: Printer,      roles: ALL_ACADEMIC },
           { name: 'Report Cards',        path: '/result/reporting',      icon: LineChart,    roles: ALL_ACADEMIC },
           { name: 'Grading Policy',      path: '/result/grading-policy', icon: SettingsIcon, roles: ALL_ADMIN },
         ],
@@ -195,6 +196,7 @@ export const NAV_SECTIONS = [
           { name: 'Late Fine Rules',          path: '/fees/fine-policy',     icon: AlertTriangle,roles: ALL_ADMIN },
           { name: 'Challan Settings',         path: '/fees/challan-settings',icon: Palette,     roles: ALL_ADMIN },
           { name: 'Bulk Discount Entry',      path: '/fees/bulk-discount',   icon: Tag,         roles: ALL_ADMIN },
+          { name: 'Bulk Arrears Entry',       path: '/fees/bulk-arrears',    icon: History,     roles: ALL_ADMIN },
         ],
       },
       {

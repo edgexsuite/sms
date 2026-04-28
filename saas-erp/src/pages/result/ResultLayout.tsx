@@ -11,6 +11,7 @@ import RollNumberSlips from './RollNumberSlips';
 import ImportResult from './ImportResult';
 import TeacherMarks from './TeacherMarks';
 import GradingPolicy from './GradingPolicy';
+import AwardListGenerator from './AwardListGenerator';
 
 export default function ResultLayout() {
   return (
@@ -26,6 +27,7 @@ export default function ResultLayout() {
       <Route path="import" element={<ImportResult />} />
       <Route path="grading-policy" element={<GradingPolicy />} />
       <Route path="teacher-marks" element={<TeacherMarks />} />
+      <Route path="award-list" element={<AwardListGenerator />} />
       <Route path="*" element={<Navigate to="/result/exam-types" replace />} />
     </Routes>
   );
