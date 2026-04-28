@@ -1020,7 +1020,11 @@ export default function MonthlyFeeInvoices() {
                    )}
                    <div>
                      <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest text-center">Select Billing Cycle</label>
-                     <input type="month" value={generateMonth} onChange={e => setGenerateMonth(e.target.value)} className="w-full bg-slate-50 border border-transparent focus:bg-white focus:border-slate-100 p-4 rounded-2xl text-center text-xl font-black text-slate-900 transition-all outline-none" />
+                     <input type="month" value={generateMonth} onChange={e => {
+                       setGenerateMonth(e.target.value);
+                       // Auto-set due date to 5th of selected month (user can still override)
+                       if (e.target.value) setGenerateDueDate(e.target.value + '-05');
+                     }} className="w-full bg-slate-50 border border-transparent focus:bg-white focus:border-slate-100 p-4 rounded-2xl text-center text-xl font-black text-slate-900 transition-all outline-none" />
                    </div>
                    <div>
                      <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest text-center">Due Date</label>
