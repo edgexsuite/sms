@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   Search, Wallet, AlertCircle, Save, CheckCircle,
   ShieldOff, AlertTriangle, FileText, ArrowRight,
   Filter, Plus, Printer, X, CreditCard, Clock,
-  TrendingDown, ChevronDown, ChevronUp, Trash2, Tag
+  TrendingDown, ChevronDown, ChevronUp, Trash2, Tag, Percent, BadgeDollarSign
 } from 'lucide-react';
 import { calculateLateFine, getFineRules, FineRule } from '../../lib/fineUtils';
 import { cn } from '../../lib/utils';
@@ -64,6 +64,7 @@ export default function StudentFeeDetail() {
   // Discount State
   const [discountRules, setDiscountRules] = useState<any[]>([]);
   const [showDiscountAdd, setShowDiscountAdd] = useState(false);
+  const discountDropdownRef = useRef<HTMLDivElement>(null);
 
   // New Invoice State
   const [showNewInvoice, setShowNewInvoice] = useState(false);
@@ -81,6 +82,17 @@ export default function StudentFeeDetail() {
         .then(({ data }) => setDiscountRules(data?.sections_config?.rules ?? []));
     }
   }, [userRole?.school_id]);
+
+  // Close discount dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (discountDropdownRef.current && !discountDropdownRef.current.contains(e.target as Node)) {
+        setShowDiscountAdd(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   // ── Fetch Initial ──────────────────────────────────────────────────────────
 
@@ -522,109 +534,159 @@ export default function StudentFeeDetail() {
         ) : (
           <>
             {/* Student Header Card */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-4">
-              <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-xl font-bold shadow-md shadow-indigo-100">
-                  {selectedStudent.full_name[0]}
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">{selectedStudent.full_name}</h2>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">
-                      {selectedStudent.classes?.name}-{selectedStudent.classes?.section}
-                    </span>
-                    <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-medium">
-                      Roll #{selectedStudent.roll_number}
-                    </span>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-visible">
+              {/* Top row: avatar + name + balance */}
+              <div className="flex items-center justify-between px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-lg font-bold shadow-md shadow-indigo-100 shrink-0">
+                    {selectedStudent.full_name[0]}
                   </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-6">
-                {/* Waiver Control */}
-                <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
                   <div>
-                    <p className="text-[10px] text-gray-400 font-medium mb-0.5">Fee Waiver %</p>
-                    <input
-                      type="number"
-                      value={waiver}
-                      onChange={e => setWaiver(parseFloat(e.target.value) || 0)}
-                      className="w-16 bg-transparent border-none p-0 text-sm font-bold text-indigo-600 focus:ring-0 outline-none"
-                    />
+                    <h2 className="text-base font-bold text-gray-900 leading-tight">{selectedStudent.full_name}</h2>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-semibold">
+                        {selectedStudent.classes?.name}{selectedStudent.classes?.section ? ` - ${selectedStudent.classes.section}` : ''}
+                      </span>
+                      <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-semibold">
+                        Roll #{selectedStudent.roll_number}
+                      </span>
+                    </div>
                   </div>
-                  <button
-                    onClick={handleUpdateWaiver}
-                    className="p-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                  </button>
                 </div>
 
-                <div className="text-right border-l border-gray-100 pl-6">
-                  <p className="text-xs text-gray-400 mb-1">Outstanding Balance</p>
-                  <p className={cn(
-                    "text-2xl font-bold leading-none",
-                    totalOutstanding > 0 ? "text-red-600" : "text-emerald-600"
-                  )}>
-                    Rs. {totalOutstanding.toLocaleString()}
-                  </p>
+                <div className="flex items-center gap-4">
+                  {/* Waiver % inline editor */}
+                  <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                    <Percent className="w-3.5 h-3.5 text-gray-400" />
+                    <div>
+                      <p className="text-[9px] text-gray-400 font-semibold uppercase tracking-wider leading-none mb-0.5">Waiver</p>
+                      <input
+                        type="number"
+                        value={waiver}
+                        onChange={e => setWaiver(parseFloat(e.target.value) || 0)}
+                        className="w-12 bg-transparent border-none p-0 text-sm font-bold text-indigo-600 focus:ring-0 outline-none"
+                      />
+                    </div>
+                    <button
+                      onClick={handleUpdateWaiver}
+                      className="p-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                      title="Save waiver %"
+                    >
+                      <Save className="w-3 h-3" />
+                    </button>
+                  </div>
+
+                  <div className="text-right border-l border-gray-100 pl-4">
+                    <p className="text-[10px] text-gray-400 font-medium mb-0.5">Outstanding</p>
+                    <p className={cn(
+                      "text-xl font-bold leading-none",
+                      totalOutstanding > 0 ? "text-red-600" : "text-emerald-600"
+                    )}>
+                      Rs. {totalOutstanding.toLocaleString()}
+                    </p>
+                  </div>
                 </div>
               </div>
-              </div>
 
-              {/* Discount Badges Row */}
-              <div className="mt-3 pt-3 border-t border-gray-100 flex items-center flex-wrap gap-2">
+              {/* Discount strip */}
+              <div className="border-t border-gray-100 px-5 py-2.5 flex items-center flex-wrap gap-2 bg-gray-50/60 rounded-b-xl">
                 <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest shrink-0 flex items-center gap-1">
-                  <Tag className="w-3 h-3" /> Discounts:
+                  <Tag className="w-3 h-3" /> Discounts
                 </span>
+
+                {/* Active discount pills */}
                 {(() => {
                   const activeIds: string[] = selectedStudent.custom_data?.discount_rule_ids || [];
                   const activeRules = discountRules.filter(r => activeIds.includes(r.id));
                   return activeRules.length === 0
-                    ? <span className="text-xs text-gray-400 italic">None assigned</span>
+                    ? <span className="text-[10px] text-gray-400 italic">None assigned</span>
                     : activeRules.map(rule => (
-                      <span key={rule.id} className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-bold px-2 py-1 rounded-full">
-                        {rule.name}
-                        <span className="bg-emerald-200 text-emerald-800 rounded-full px-1.5">{rule.type === 'percentage' ? `${rule.value}%` : `Rs.${rule.value}`}</span>
-                        <button onClick={() => handleRemoveDiscountLedger(rule.id)} className="text-emerald-400 hover:text-rose-500 ml-0.5 transition-colors">
+                      <span key={rule.id} className="inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold px-2.5 py-1 rounded-full">
+                        {rule.type === 'flat'
+                          ? <BadgeDollarSign className="w-3 h-3 text-emerald-500" />
+                          : <Percent className="w-3 h-3 text-emerald-500" />
+                        }
+                        <span className="text-emerald-900">{rule.name}</span>
+                        <span className="bg-emerald-600 text-white text-[9px] font-black rounded-full px-1.5 py-0.5">
+                          {rule.type === 'percentage' ? `${rule.value}%` : `Rs.${Number(rule.value).toLocaleString()}`}
+                        </span>
+                        <button
+                          onClick={() => handleRemoveDiscountLedger(rule.id)}
+                          className="text-emerald-300 hover:text-rose-500 transition-colors ml-0.5"
+                          title="Remove discount"
+                        >
                           <X className="w-2.5 h-2.5" />
                         </button>
                       </span>
                     ));
                 })()}
-                {/* Quick assign button */}
-                <div className="relative">
+
+                {/* + Add discount dropdown */}
+                <div className="relative" ref={discountDropdownRef}>
                   <button
                     onClick={() => setShowDiscountAdd(v => !v)}
-                    className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 border border-indigo-200 rounded-full px-2 py-1 hover:bg-indigo-50 transition-colors"
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 border border-indigo-200 bg-white rounded-full px-2.5 py-1 hover:bg-indigo-50 transition-colors"
                   >
-                    <Plus className="w-2.5 h-2.5" /> Add
+                    <Plus className="w-3 h-3" /> Add
                   </button>
+
                   {showDiscountAdd && (
-                    <div className="absolute left-0 top-full mt-1 z-30 bg-white border border-gray-200 rounded-xl shadow-xl min-w-[200px] overflow-hidden">
-                      {discountRules.length === 0
-                        ? <p className="px-4 py-3 text-xs text-gray-400 italic">No rules yet. Go to Discounts & Scholarships to create one.</p>
-                        : discountRules.map(rule => {
+                    <div className="absolute left-0 top-full mt-1.5 z-50 bg-white border border-gray-200 rounded-xl shadow-2xl min-w-[240px] overflow-hidden">
+                      <div className="px-3 py-2 bg-gray-50 border-b border-gray-100">
+                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Assign Discount Rule</p>
+                      </div>
+                      {discountRules.length === 0 ? (
+                        <p className="px-4 py-3 text-xs text-gray-400 italic">No rules yet — create one in Discounts & Scholarships.</p>
+                      ) : (
+                        discountRules.map(rule => {
                           const already = (selectedStudent.custom_data?.discount_rule_ids || []).includes(rule.id);
+                          const isFlat = rule.type === 'flat';
                           return (
                             <button
                               key={rule.id}
                               disabled={already}
-                              onClick={() => handleAssignDiscountLedger(rule.id)}
-                              className={cn("w-full flex items-center justify-between px-4 py-2.5 text-left text-sm hover:bg-emerald-50 transition-colors", already && "opacity-40 cursor-not-allowed")}
+                              onClick={() => { handleAssignDiscountLedger(rule.id); setShowDiscountAdd(false); }}
+                              className={cn(
+                                "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors",
+                                already ? "opacity-40 cursor-not-allowed bg-gray-50" : "hover:bg-indigo-50"
+                              )}
                             >
-                              <span className="font-semibold text-gray-800">{rule.name}</span>
-                              <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", rule.type === 'percentage' ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
-                                {rule.type === 'percentage' ? `${rule.value}%` : `Rs. ${rule.value}`}
+                              <div className={cn(
+                                "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                                isFlat ? "bg-amber-100" : "bg-emerald-100"
+                              )}>
+                                {isFlat
+                                  ? <BadgeDollarSign className="w-4 h-4 text-amber-600" />
+                                  : <Percent className="w-4 h-4 text-emerald-600" />
+                                }
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold text-gray-800 truncate">{rule.name}</p>
+                                <p className="text-[10px] text-gray-400 font-medium">
+                                  {isFlat ? 'Flat deduction' : 'Percentage waiver'}
+                                </p>
+                              </div>
+                              <span className={cn(
+                                "text-xs font-black px-2.5 py-1 rounded-full shrink-0",
+                                isFlat ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
+                              )}>
+                                {isFlat ? `Rs. ${Number(rule.value).toLocaleString()}` : `${rule.value}%`}
                               </span>
+                              {already && <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />}
                             </button>
                           );
                         })
-                      }
+                      )}
                     </div>
                   )}
                 </div>
+
+                {/* Effective waiver summary */}
+                {waiver > 0 && (
+                  <span className="ml-auto text-[10px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-1 rounded-full">
+                    Effective waiver: {waiver}%
+                  </span>
+                )}
               </div>
             </div>
 
