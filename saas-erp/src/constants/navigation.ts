@@ -224,6 +224,8 @@ export const NAV_SECTIONS = [
           { name: 'Process Payroll',  path: '/payroll',            exact: true, icon: DollarSign },
           { name: 'Allowances',       path: '/payroll/allowances',              icon: Award      },
           { name: 'Salary Slips',     path: '/payroll/slips',                   icon: FileText   },
+          { name: 'Staff Advance',    path: '/payroll/advance',                 icon: Wallet     },
+          { name: 'Staff Ledger',     path: '/payroll/ledger',                  icon: History    },
           { name: 'Payroll Reports',  path: '/payroll/reports',                 icon: BarChart3  },
         ],
       },

@@ -13,7 +13,7 @@ interface StaffPayroll {
   base_salary: number; // This acts as base, per-day, or per-lecture rate
   allowances: number;
   deductions: number;
-  
+
   // Dynamic Attendance Counters
   absent_days: number;
   half_leaves: number;
@@ -21,6 +21,7 @@ interface StaffPayroll {
   delivered_lectures: number;
 
   absent_deduction: number;
+  advance_deduction: number;
   net_salary: number;
   status: 'pending' | 'paid';
   payroll_id?: string;
@@ -59,20 +60,32 @@ export default function Payroll() {
   const fetchPayroll = useCallback(async () => {
     setLoading(true);
     const sid = userRole!.school_id;
-    
+
     // Core Data Fetch
-    const [{ data: staffData }, { data: payrollData }, { data: attData }, { data: timeTableData }] = await Promise.all([
+    const [{ data: staffData }, { data: payrollData }, { data: attData }, { data: timeTableData }, { data: advanceData }] = await Promise.all([
       supabase.from('staff').select('id, full_name, role, department, salary, employment_type, payment_basis').eq('school_id', sid).eq('is_active', true).order('full_name'),
       supabase.from('payroll_records').select('*').eq('school_id', sid).eq('month_year', selectedMonth + '-01'),
       // Master Attendance Matrix for this month
       supabase.from('attendance').select('staff_id, status, date').eq('school_id', sid).like('date', `${selectedMonth}-%`).not('staff_id', 'is', null),
       // Master Timetable Matrix
-      supabase.from('timetable_slots').select('teacher_id, day_of_week').eq('school_id', sid).not('teacher_id', 'is', null)
+      supabase.from('timetable_slots').select('teacher_id, day_of_week').eq('school_id', sid).not('teacher_id', 'is', null),
+      // Active advances — to auto-suggest deduction amounts
+      supabase.from('staff_advances').select('staff_id, remaining_balance, monthly_deduction').eq('school_id', sid).eq('status', 'active')
     ]);
 
     const payrollMap = new Map((payrollData || []).map((p: any) => [p.staff_id, p]));
     const allowComps = components.filter(c => c.component_type === 'allowance');
-    const dedComps = components.filter(c => c.component_type === 'deduction');
+    const dedComps   = components.filter(c => c.component_type === 'deduction');
+
+    // Build advance-deduction map: staff_id → amount to deduct this month
+    const advanceMap = new Map<string, number>();
+    (advanceData || []).forEach((adv: any) => {
+      const monthly = Number(adv.monthly_deduction) || 0;
+      const remaining = Number(adv.remaining_balance) || 0;
+      if (remaining <= 0) return;
+      const deduct = monthly > 0 ? Math.min(monthly, remaining) : 0;
+      advanceMap.set(adv.staff_id, (advanceMap.get(adv.staff_id) || 0) + deduct);
+    });
 
     // Build TimeTable Maps (count of periods per day_of_week per teacher)
     const slotCounts: Record<string, Record<string, number>> = {};
@@ -122,6 +135,7 @@ export default function Payroll() {
           absent_days: existing.absent_days || 0,
           half_leaves: halfCount, present_days: presentCount, delivered_lectures: automatedLecturesCount,
           absent_deduction: existing.absent_deduction || 0,
+          advance_deduction: existing.advance_deduction || 0,
           net_salary: existing.net_salary || 0,
           status: existing.status,
           payroll_id: existing.id,
@@ -149,13 +163,15 @@ export default function Payroll() {
       const allowTotal = allowComps.reduce((sum, c) => sum + (c.calculation_type === 'percentage' ? Math.round(base * c.percentage / 100) : (c.amount || 0)), 0);
       const dedTotal = dedComps.reduce((sum, c) => sum + (c.calculation_type === 'percentage' ? Math.round(base * c.percentage / 100) : (c.amount || 0)), 0);
 
+      const advDed = advanceMap.get(s.id) || 0;
       return {
         staff_id: s.id, full_name: s.full_name, designation: designation,
         employment_type: s.employment_type || 'full-time', payment_basis: s.payment_basis || 'monthly',
         base_salary: base, allowances: allowTotal, deductions: dedTotal,
         absent_days: calculatedAbsentDays, half_leaves: halfCount, present_days: presentCount, delivered_lectures: automatedLecturesCount,
-        absent_deduction: absentDed, 
-        net_salary: Math.max(0, gross + allowTotal - dedTotal - absentDed),
+        absent_deduction: absentDed,
+        advance_deduction: advDed,
+        net_salary: Math.max(0, gross + allowTotal - dedTotal - absentDed - advDed),
         status: 'pending',
       };
     });
@@ -177,7 +193,7 @@ export default function Payroll() {
       } else {
          const perDay = Math.round(s.base_salary / 26);
          const absDed = perDay * Math.max(0, days);
-         return { ...s, absent_days: days, absent_deduction: absDed, net_salary: Math.max(0, s.base_salary + s.allowances - s.deductions - absDed) };
+         return { ...s, absent_days: days, absent_deduction: absDed, net_salary: Math.max(0, s.base_salary + s.allowances - s.deductions - absDed - s.advance_deduction) };
       }
     }));
   };
@@ -202,7 +218,9 @@ export default function Payroll() {
         deductions: dedComps.map(c => ({ name: c.name, amount: c.calculation_type === 'percentage' ? Math.round(s.base_salary * c.percentage / 100) : c.amount })),
         gross_salary: gross + s.allowances,
         absent_days: s.absent_days, per_day_salary: Math.round(s.base_salary / 26),
-        absent_deduction: s.absent_deduction, net_salary: s.net_salary, status: 'pending',
+        absent_deduction: s.absent_deduction,
+        advance_deduction: s.advance_deduction || 0,
+        net_salary: s.net_salary, status: 'pending',
       }
     });
 
@@ -213,36 +231,99 @@ export default function Payroll() {
 
   const markPaid = async (payrollId: string) => {
     const member = staff.find(s => s.payroll_id === payrollId);
+    const sid    = userRole!.school_id;
+    const today  = new Date().toISOString().split('T')[0];
+
     await supabase.from('payroll_records').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', payrollId);
+
     if (member) {
-      await supabase.from('financial_transactions').insert({
-        school_id: userRole!.school_id,
-        type: 'expense',
-        category: 'Salary',
-        amount: member.net_salary,
-        date: new Date().toISOString().split('T')[0],
-        payment_mode: 'Bank Transfer',
-        remarks: `Salary — ${member.full_name} (${selectedMonth})`,
-      });
+      const txns: any[] = [
+        {
+          school_id: sid, type: 'expense', category: 'Payroll',
+          amount: member.net_salary,
+          date: today, payment_mode: 'Bank Transfer', staff_id: member.staff_id,
+          remarks: `Salary — ${member.full_name} (${selectedMonth})`,
+        },
+      ];
+      // Advance Recovery: record as income so P&L shows the recovery offsetting the original advance expense
+      if ((member.advance_deduction || 0) > 0) {
+        txns.push({
+          school_id: sid, type: 'income', category: 'Advance Recovery',
+          amount: member.advance_deduction,
+          date: today, payment_mode: 'Payroll Deduction', staff_id: member.staff_id,
+          remarks: `Advance recovery — ${member.full_name} (${selectedMonth})`,
+        });
+        // Reduce remaining balance on active advances for this staff
+        await supabase.rpc('reduce_advance_balance', {
+          p_school_id: sid,
+          p_staff_id: member.staff_id,
+          p_amount: member.advance_deduction,
+        }).then(({ error }) => {
+          // If RPC doesn't exist, do a manual update instead
+          if (error) {
+            return updateAdvanceBalancesManual(sid, member.staff_id, member.advance_deduction);
+          }
+        });
+      }
+      await supabase.from('financial_transactions').insert(txns);
     }
     setStaff(prev => prev.map(s => s.payroll_id === payrollId ? { ...s, status: 'paid' } : s));
+  };
+
+  /** Fallback: manually reduce advance balances oldest-first */
+  const updateAdvanceBalancesManual = async (schoolId: string, staffId: string, totalToReduce: number) => {
+    const { data: advances } = await supabase
+      .from('staff_advances')
+      .select('id, remaining_balance')
+      .eq('school_id', schoolId)
+      .eq('staff_id', staffId)
+      .eq('status', 'active')
+      .order('given_date', { ascending: true });
+
+    if (!advances) return;
+    let left = totalToReduce;
+    for (const adv of advances) {
+      if (left <= 0) break;
+      const reduce = Math.min(left, adv.remaining_balance);
+      const newBal = adv.remaining_balance - reduce;
+      await supabase.from('staff_advances').update({
+        remaining_balance: newBal,
+        status: newBal <= 0 ? 'cleared' : 'active',
+      }).eq('id', adv.id);
+      left -= reduce;
+    }
   };
 
   const markAllPaid = async () => {
     const pending = staff.filter(s => s.status === 'pending' && s.payroll_id);
     const ids = pending.map(s => s.payroll_id!);
     if (!ids.length) return;
+
+    const sid   = userRole!.school_id;
+    const today = new Date().toISOString().split('T')[0];
+
     await supabase.from('payroll_records').update({ status: 'paid', paid_at: new Date().toISOString() }).in('id', ids);
-    // Post all salary payments to financial_transactions
-    const txns = pending.map(s => ({
-      school_id: userRole!.school_id,
-      type: 'expense',
-      category: 'Salary',
-      amount: s.net_salary,
-      date: new Date().toISOString().split('T')[0],
-      payment_mode: 'Bank Transfer',
-      remarks: `Salary — ${s.full_name} (${selectedMonth})`,
-    }));
+
+    const txns: any[] = [];
+    for (const s of pending) {
+      // Payroll expense
+      txns.push({
+        school_id: sid, type: 'expense', category: 'Payroll',
+        amount: s.net_salary,
+        date: today, payment_mode: 'Bank Transfer', staff_id: s.staff_id,
+        remarks: `Salary — ${s.full_name} (${selectedMonth})`,
+      });
+      // Advance Recovery income (if any)
+      if ((s.advance_deduction || 0) > 0) {
+        txns.push({
+          school_id: sid, type: 'income', category: 'Advance Recovery',
+          amount: s.advance_deduction,
+          date: today, payment_mode: 'Payroll Deduction', staff_id: s.staff_id,
+          remarks: `Advance recovery — ${s.full_name} (${selectedMonth})`,
+        });
+        await updateAdvanceBalancesManual(sid, s.staff_id, s.advance_deduction);
+      }
+    }
     if (txns.length) await supabase.from('financial_transactions').insert(txns);
     setStaff(prev => prev.map(s => ids.includes(s.payroll_id!) ? { ...s, status: 'paid' } : s));
   };
@@ -336,9 +417,10 @@ export default function Payroll() {
                 <tr>
                   <th className="px-4 py-2 text-left font-medium text-gray-500">Staff Member</th>
                   <th className="px-4 py-2 text-right font-medium text-gray-500">Base</th>
-                  <th className="px-4 py-2 text-right font-medium text-gray-500 text-green-600">+Allow.</th>
+                  <th className="px-4 py-2 text-right font-medium text-green-600">+Allow.</th>
                   <th className="px-4 py-2 text-right font-medium text-red-500">−Deduct.</th>
                   <th className="px-4 py-2 text-center font-medium text-gray-500">Absent</th>
+                  <th className="px-4 py-2 text-right font-medium text-amber-600">−Advance</th>
                   <th className="px-4 py-2 text-right font-medium text-gray-500">Net Salary</th>
                   <th className="px-4 py-2 text-center font-medium text-gray-500">Status</th>
                   {isProcessed && <th className="px-4 py-2 w-24" />}
@@ -382,6 +464,9 @@ export default function Payroll() {
                         <span className={s.absent_days > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}>{s.absent_days}</span>
                       )}
                     </td>
+                    <td className="px-4 py-2 text-right text-amber-600 font-medium">
+                      {(s.advance_deduction || 0) > 0 ? `−${s.advance_deduction.toLocaleString()}` : <span className="text-gray-300">—</span>}
+                    </td>
                     <td className="px-4 py-2 text-right font-bold text-gray-900">{s.net_salary.toLocaleString()}</td>
                     <td className="px-4 py-2 text-center">
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${s.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
@@ -403,7 +488,7 @@ export default function Payroll() {
               </tbody>
               <tfoot className="bg-gray-50 border-t-2 border-gray-300">
                 <tr>
-                  <td className="px-4 py-2 font-bold text-gray-800" colSpan={5}>Total</td>
+                  <td className="px-4 py-2 font-bold text-gray-800" colSpan={6}>Total</td>
                   <td className="px-4 py-2 text-right font-bold text-gray-900 text-base">{totalNet.toLocaleString()}</td>
                   <td colSpan={isProcessed ? 2 : 1} />
                 </tr>
