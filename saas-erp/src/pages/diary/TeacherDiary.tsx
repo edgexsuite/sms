@@ -8,7 +8,7 @@ import {
   Book, Globe, Cpu, Palette
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '../../lib/utils';
+import { cn, formatDate } from '../../lib/utils';
 import html2canvas from 'html2canvas';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -341,9 +341,7 @@ export default function TeacherDiary() {
   };
 
 
-  const formattedDate = new Date(viewDate + 'T00:00:00').toLocaleDateString('en-PK', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-  });
+  const formattedDate = formatDate(viewDate);
 
   const filledCount = rows.filter(r => r.topic_covered.trim()).length;
 
