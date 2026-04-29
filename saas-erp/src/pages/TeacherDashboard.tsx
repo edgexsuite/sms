@@ -443,13 +443,19 @@ export default function TeacherDashboard() {
 
   const fetchStationery = async (sid: string) => {
     const { data } = await supabase.from('complaints')
-      .select('id, title, description, status, priority, created_at')
+      .select('*')
       .eq('school_id', userRole?.school_id)
       .eq('category', 'Stationery Request')
       .eq('user_id', userRole?.user_id || '')
       .order('created_at', { ascending: false })
       .limit(8);
-    if (data) setStationeryRequests(data);
+    if (data) {
+      const rows = data.map(r => ({
+        ...r,
+        priority: r.priority || 'normal'
+      }));
+      setStationeryRequests(rows);
+    }
   };
 
   // ── Attendance panel ──────────────────────────────────────────────────────

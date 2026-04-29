@@ -72,7 +72,11 @@ h1, h2, h3, h4, .font-display {
 
 /* Tab Bar / Bottom Nav Offset */
 .portal-content-padding {
-  padding-bottom: 80px; /* Space for mobile bottom nav */
+  padding-bottom: calc(96px + env(safe-area-inset-bottom)); /* Increased space for mobile bottom nav + safe area */
+}
+
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 @layer utilities {

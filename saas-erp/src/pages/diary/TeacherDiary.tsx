@@ -117,6 +117,7 @@ export default function TeacherDiary() {
         .from('staff')
         .select('id, full_name')
         .eq('id', userRole.staff_id)
+        .eq('is_deleted', false)
         .maybeSingle();
       if (data) {
         setMyStaffId(data.id);
@@ -130,6 +131,7 @@ export default function TeacherDiary() {
       .select('id, full_name')
       .eq('school_id', userRole?.school_id)
       .eq('email', userRole?.email || '')
+      .eq('is_deleted', false)
       .maybeSingle();
     if (byEmail) {
       setMyStaffId(byEmail.id);
@@ -144,6 +146,7 @@ export default function TeacherDiary() {
       .select('id, full_name, role')
       .eq('school_id', userRole?.school_id)
       .eq('is_active', true)
+      .eq('is_deleted', false)
       .order('full_name');
     if (data) setAllTeachers(data);
   };
@@ -153,6 +156,7 @@ export default function TeacherDiary() {
       .from('classes')
       .select('id, name, section')
       .eq('school_id', userRole?.school_id)
+      .eq('is_deleted', false)
       .order('name');
     if (data) setAllClasses(data);
   };

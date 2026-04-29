@@ -91,7 +91,7 @@ export const NAV_SECTIONS = [
           { name: 'Class Students',        path: '/classes/students',              icon: Users2     },
         ],
       },
-      { name: 'Timetable',     path: '/timetable',  icon: Calendar,     roles: ALL_STAFF    },
+      { name: 'Timetable',     path: '/timetable',  icon: Calendar,     roles: ALL_ACADEMIC },
       { name: 'Teacher Diary', path: '/diary',       icon: ClipboardList,roles: ['admin', 'teacher', 'principal', 'director'] },
       { name: 'Evaluation',    path: '/evaluation',  icon: Star,         roles: ['admin', 'teacher', 'principal', 'director'] },
     ],

@@ -9,8 +9,8 @@ import ur from './locales/ur.json';
 const silentLogger = {
   type: 'logger' as const,
   log:   (...args: any[]) => {
-    const msg = String(args[0] ?? '');
-    if (msg.includes('i18next') || msg.includes('locize') || msg.includes('Locize')) return;
+    const fullMsg = args.map(a => String(a ?? '')).join(' ');
+    if (fullMsg.includes('i18next') || fullMsg.includes('locize') || fullMsg.includes('Locize')) return;
     // eslint-disable-next-line no-console
     console.log(...args);
   },

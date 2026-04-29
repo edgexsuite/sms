@@ -489,7 +489,7 @@ export default function DashboardLayout() {
         )}
 
         {/* Page Content */}
-        <main className="theme-shell flex-1 relative p-6 print:p-0 overflow-auto print:overflow-visible print:block pb-20 md:pb-6" data-density={densityCompact ? 'compact' : 'comfortable'}>
+        <main className="theme-shell flex-1 relative p-6 print:p-0 overflow-auto print:overflow-visible print:block portal-content-padding md:pb-6" data-density={densityCompact ? 'compact' : 'comfortable'}>
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
