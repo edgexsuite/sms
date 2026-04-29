@@ -305,13 +305,13 @@ export default function DailyReport() {
               <thead>
                 <tr className="border-b border-gray-200">
                   <th className="w-10 pl-4" />
-                  <th className="px-4 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Class</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider w-44">Class</th>
                   <th className="px-4 py-3 text-center text-[11px] font-bold text-gray-500 uppercase tracking-wider w-20">Total</th>
                   <th className="px-4 py-3 text-center text-[11px] font-bold text-emerald-600 uppercase tracking-wider w-28">✓ Present</th>
                   <th className="px-4 py-3 text-center text-[11px] font-bold text-rose-500 uppercase tracking-wider w-28">✕ Absent</th>
                   <th className="px-4 py-3 text-center text-[11px] font-bold text-blue-500 uppercase tracking-wider w-20">Leave</th>
                   <th className="px-4 py-3 text-center text-[11px] font-bold text-amber-500 uppercase tracking-wider w-20">Late</th>
-                  <th className="px-4 py-3 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider w-28">Unmarked</th>
+                  <th className="px-4 py-3 text-center text-[11px] font-bold text-orange-500 uppercase tracking-wider w-28">Unmarked</th>
                   <th className="px-4 py-3 text-center text-[11px] font-bold text-gray-500 uppercase tracking-wider w-36">Attendance %</th>
                 </tr>
               </thead>
@@ -352,7 +352,7 @@ export default function DailyReport() {
                         </td>
 
                         {/* Class name */}
-                        <td className="px-4 py-3.5">
+                        <td className="px-4 py-3.5 w-44">
                           <span className="font-bold text-gray-900 text-sm">{cls.class_name}</span>
                         </td>
 
@@ -399,8 +399,8 @@ export default function DailyReport() {
                         {/* Unmarked */}
                         <td className="px-4 py-3.5 text-center">
                           {hasUnmarked ? (
-                            <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 text-xs font-bold px-2 py-1 rounded-lg">
-                              <AlertTriangle className="w-3 h-3 text-amber-400" />
+                            <span className="inline-flex items-center gap-1.5 bg-orange-100 text-orange-700 text-sm font-black px-2.5 py-1 rounded-lg border border-orange-200">
+                              <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />
                               {cls.not_marked}
                             </span>
                           ) : (
@@ -496,7 +496,9 @@ export default function DailyReport() {
                   <td className="px-4 py-4 text-center font-bold text-amber-300">{T.late}</td>
                   <td className="px-4 py-4 text-center">
                     {T.not_marked > 0
-                      ? <span className="text-amber-300 font-bold text-sm">{T.not_marked}</span>
+                      ? <span className="inline-flex items-center gap-1.5 bg-orange-400 text-white text-sm font-black px-2.5 py-1 rounded-lg">
+                          <AlertTriangle className="w-3.5 h-3.5" />{T.not_marked}
+                        </span>
                       : <CheckCircle2 className="w-4 h-4 text-emerald-400 mx-auto" />}
                   </td>
                   <td className="px-4 py-4">
