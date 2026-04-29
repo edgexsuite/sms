@@ -17,6 +17,7 @@ export default function Evaluation() {
   const [students, setStudents] = useState<any[]>([]);
   const [staff, setStaff] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
+  const [examTypes, setExamTypes] = useState<any[]>([]);
 
   // Modal / Form State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -25,6 +26,8 @@ export default function Evaluation() {
     target_type: 'student' as 'student' | 'staff',
     student_id: '',
     staff_id: '',
+    exam_type_id: '',
+    class_id: '',
     feedback: '',
     evaluation_date: new Date().toISOString().split('T')[0],
     ratings: {} as any
@@ -42,11 +45,11 @@ export default function Evaluation() {
   const fetchInitialData = async () => {
     setLoading(true);
     const sid = userRole?.school_id;
-    
+
     // Fetch Evaluations
     const { data: evals } = await supabase
       .from('evaluations')
-      .select('*, student:students(full_name, roll_number), staff:staff(full_name, role), evaluator:staff!evaluator_id(full_name)')
+      .select('*, student:students(full_name, roll_number), staff:staff(full_name, role), evaluator:staff!evaluator_id(full_name), exam_type:exam_types(name)')
       .eq('school_id', sid)
       .eq('target_type', activeTab === 'students' ? 'student' : 'staff')
       .order('evaluation_date', { ascending: false });
@@ -55,13 +58,19 @@ export default function Evaluation() {
 
     // Fetch Targets for Modal
     if (activeTab === 'students') {
-      const { data: stus } = await supabase.from('students').select('id, full_name, roll_number').eq('school_id', sid).eq('status', 'active');
+      const [{ data: stus }, { data: cls }, { data: exams }] = await Promise.all([
+        supabase.from('students').select('id, full_name, roll_number, class_id').eq('school_id', sid).eq('status', 'active'),
+        supabase.from('classes').select('id, name, section').eq('school_id', sid).order('name'),
+        supabase.from('exam_types').select('id, name, session').eq('school_id', sid).order('created_at'),
+      ]);
       if (stus) setStudents(stus);
+      if (cls) setClasses(cls);
+      if (exams) setExamTypes(exams);
     } else {
       const { data: tchrs } = await supabase.from('staff').select('id, full_name, role').eq('school_id', sid).eq('is_active', true);
       if (tchrs) setStaff(tchrs);
     }
-    
+
     setLoading(false);
   };
 
@@ -71,12 +80,20 @@ export default function Evaluation() {
     
     setSaving(true);
     try {
-      const { error } = await supabase.from('evaluations').insert([{
-        ...evalForm,
+      const payload: any = {
+        target_type: evalForm.target_type,
+        feedback: evalForm.feedback,
+        evaluation_date: evalForm.evaluation_date,
+        ratings: evalForm.ratings,
         school_id: userRole.school_id,
-        // evaluator_id would usually come from the linked staff record of the current user
-        // for now we set null or mock if no link
-      }]);
+      };
+      if (evalForm.target_type === 'student') {
+        payload.student_id = evalForm.student_id || null;
+        if (evalForm.exam_type_id) payload.exam_type_id = evalForm.exam_type_id;
+      } else {
+        payload.staff_id = evalForm.staff_id || null;
+      }
+      const { error } = await supabase.from('evaluations').insert([payload]);
 
       if (error) throw error;
       setIsModalOpen(false);
@@ -84,6 +101,8 @@ export default function Evaluation() {
         target_type: activeTab === 'students' ? 'student' : 'staff',
         student_id: '',
         staff_id: '',
+        exam_type_id: '',
+        class_id: '',
         feedback: '',
         evaluation_date: new Date().toISOString().split('T')[0],
         ratings: {}
@@ -211,7 +230,10 @@ export default function Evaluation() {
                   
                   <div className="mt-auto pt-4 border-t border-gray-50 flex justify-between items-center text-[9px] font-bold text-gray-400">
                      <span className="flex items-center gap-1 uppercase tracking-tighter"><Calendar className="w-3 h-3" /> {formatDate(ev.evaluation_date)}</span>
-                     <span className="bg-gray-100 px-2 py-0.5 rounded uppercase">By: {ev.evaluator?.full_name || 'Admin'}</span>
+                     <div className="flex flex-col items-end gap-0.5">
+                       {ev.exam_type?.name && <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded uppercase">{ev.exam_type.name}</span>}
+                       <span className="bg-gray-100 px-2 py-0.5 rounded uppercase">By: {ev.evaluator?.full_name || 'Admin'}</span>
+                     </div>
                   </div>
                 </div>
               );
@@ -234,17 +256,52 @@ export default function Evaluation() {
              
              <form onSubmit={handleSaveEval} className="p-8 space-y-6 bg-gray-50 overflow-y-auto max-h-[70vh]">
                 
+                {/* Exam + Class (students only) */}
+                {activeTab === 'students' && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest pl-1">Exam (for Report Card)</label>
+                      <select
+                        value={evalForm.exam_type_id}
+                        onChange={e => setEvalForm({...evalForm, exam_type_id: e.target.value})}
+                        className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded-xl text-sm font-bold focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none"
+                      >
+                        <option value="">-- No Exam Link --</option>
+                        {examTypes.map(et => (
+                          <option key={et.id} value={et.id}>{et.name} {et.session ? `(${et.session})` : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest pl-1">Filter by Class</label>
+                      <select
+                        value={evalForm.class_id}
+                        onChange={e => setEvalForm({...evalForm, class_id: e.target.value, student_id: ''})}
+                        className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded-xl text-sm font-bold focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none"
+                      >
+                        <option value="">-- All Classes --</option>
+                        {classes.map(cls => (
+                          <option key={cls.id} value={cls.id}>{cls.name} {cls.section}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+
                 {/* Target Selection */}
                 <div>
                   <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest pl-1">Select {activeTab} to Review</label>
-                  <select 
+                  <select
                     required
                     value={activeTab === 'students' ? evalForm.student_id : evalForm.staff_id}
                     onChange={e => setEvalForm({...evalForm, [activeTab === 'students' ? 'student_id' : 'staff_id']: e.target.value})}
                     className="w-full bg-white border border-gray-200 px-4 py-3 rounded-xl text-sm font-bold focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none"
                   >
                     <option value="">-- Choose {activeTab} --</option>
-                    {(activeTab === 'students' ? students : staff).map(item => (
+                    {(activeTab === 'students'
+                      ? (evalForm.class_id ? students.filter(s => s.class_id === evalForm.class_id) : students)
+                      : staff
+                    ).map(item => (
                       <option key={item.id} value={item.id}>
                         {activeTab === 'students' ? `${item.roll_number} - ${item.full_name}` : `${item.full_name} (${item.role})`}
                       </option>

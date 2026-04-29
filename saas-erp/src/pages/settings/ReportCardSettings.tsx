@@ -20,6 +20,7 @@ const REPORT_FIELDS = [
   { id: 'gpa_summary', label: 'GPA & Percentage Summary' },
   { id: 'teacher_remarks', label: 'Teacher Remarks' },
   { id: 'position_in_class', label: 'Position in Class (Rank)' },
+  { id: 'evaluation', label: 'Character Assessment (Star Ratings)' },
 ];
 
 /* ── Sample dummy data for preview ───────────────────────────────────────── */
@@ -42,6 +43,10 @@ const SAMPLE_PREVIEW: ReportCardProps = {
   percentage: 88.25,
   grade: 'A',
   attendance: '95% (40/42 Days)',
+  evaluation: {
+    ratings: { Behavior: 4, Punctuality: 5, Participation: 4, 'Academic Interest': 5 },
+    feedback: 'An outstanding student with excellent discipline and enthusiasm.',
+  },
 };
 
 /* ── Slider component ───────────────────────────────────────────────────── */

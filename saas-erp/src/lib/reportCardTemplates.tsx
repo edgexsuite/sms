@@ -54,6 +54,7 @@ export interface ReportCardProps {
   percentage: number;
   grade: string;
   attendance: string;
+  evaluation?: { ratings: Record<string, number>; feedback?: string };
 }
 
 export const REPORT_TEMPLATES: { id: ReportTemplateId; name: string; description: string; preview: string }[] = [
@@ -124,6 +125,41 @@ const GRADING_SCALE = [
   { grade: 'D',  range: '40–49',  label: 'Needs Improvement' },
   { grade: 'F',  range: 'Below 40', label: 'Unsatisfactory' },
 ];
+
+// ─── Character Assessment (shared across all templates) ──────────────────────
+
+function CharacterAssessment({ evaluation, c }: {
+  evaluation: { ratings: Record<string, number>; feedback?: string };
+  c: ReportCardCustomization;
+}) {
+  const keys = Object.keys(evaluation.ratings);
+  if (!keys.length) return null;
+  return (
+    <div style={{ border: `1px solid ${c.borderColor}`, borderRadius: '6px', padding: '8px 12px', marginBottom: '10px', background: '#fffbeb' }}>
+      <div style={{ fontSize: c.tableFontSize * 0.82, fontWeight: '800', color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+        ★ Character Assessment
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px 20px' }}>
+        {keys.map(key => (
+          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ minWidth: '110px', fontSize: c.tableFontSize * 0.85, color: '#374151' }}>{key}</span>
+            <div style={{ display: 'flex', gap: '1px' }}>
+              {[1,2,3,4,5].map(i => (
+                <span key={i} style={{ color: i <= (evaluation.ratings[key] || 0) ? '#f59e0b' : '#d1d5db', fontSize: c.tableFontSize * 1.05, lineHeight: 1 }}>★</span>
+              ))}
+            </div>
+            <span style={{ fontSize: c.tableFontSize * 0.78, color: '#6b7280', fontWeight: '700' }}>{evaluation.ratings[key] || 0}/5</span>
+          </div>
+        ))}
+      </div>
+      {evaluation.feedback && (
+        <div style={{ marginTop: '5px', fontSize: c.tableFontSize * 0.85, color: '#555', borderTop: `1px dashed ${c.borderColor}`, paddingTop: '4px', fontStyle: 'italic' }}>
+          {evaluation.feedback}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── CLASSIC ─────────────────────────────────────────────────────────────────
 
@@ -257,6 +293,10 @@ export function ClassicReport(props: ReportCardProps) {
             <div style={{ borderBottom: '1px dashed #d1d5db', height: '18px' }} />
             <div style={{ borderBottom: '1px dashed #d1d5db', height: '18px' }} />
           </div>
+        )}
+
+        {activeFields.includes('evaluation') && props.evaluation && (
+          <CharacterAssessment evaluation={props.evaluation} c={c} />
         )}
 
         {/* Signatures */}
@@ -401,6 +441,10 @@ export function ModernReport(props: ReportCardProps) {
           )}
         </div>
 
+        {activeFields.includes('evaluation') && props.evaluation && (
+          <CharacterAssessment evaluation={props.evaluation} c={c} />
+        )}
+
         {/* Signatures */}
         {activeSigs.length > 0 && (
           <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: `2px solid ${c.primaryColor}40`, paddingTop: '10px' }}>
@@ -516,6 +560,10 @@ export function MinimalReport(props: ReportCardProps) {
             <div style={{ textTransform: 'uppercase', letterSpacing: '1px', fontSize: c.tableFontSize * 0.85, marginBottom: '6px', fontWeight: '700' }}>Remarks:</div>
             {[1, 2].map(n => <div key={n} style={{ borderBottom: '1px dashed #ccc', height: '20px', marginBottom: '4px' }} />)}
           </div>
+        )}
+
+        {activeFields.includes('evaluation') && props.evaluation && (
+          <CharacterAssessment evaluation={props.evaluation} c={c} />
         )}
 
         {activeSigs.length > 0 && (
@@ -685,6 +733,10 @@ export function ElegantReport(props: ReportCardProps) {
           )}
         </div>
 
+        {activeFields.includes('evaluation') && props.evaluation && (
+          <CharacterAssessment evaluation={props.evaluation} c={c} />
+        )}
+
         {activeSigs.length > 0 && (
           <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${c.borderColor}`, paddingTop: '12px' }}>
             {activeSigs.map((sig, idx) => (
@@ -804,6 +856,10 @@ export function CompactReport(props: ReportCardProps) {
             )}
           </table>
         </div>
+
+        {activeFields.includes('evaluation') && props.evaluation && (
+          <CharacterAssessment evaluation={props.evaluation} c={c} />
+        )}
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
           {activeFields.includes('teacher_remarks') && (
@@ -966,6 +1022,10 @@ export function RoyalReport(props: ReportCardProps) {
           </div>
         </div>
 
+        {activeFields.includes('evaluation') && props.evaluation && (
+          <CharacterAssessment evaluation={props.evaluation} c={c} />
+        )}
+
         {/* Signatures */}
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', paddingTop: '6px', borderTop: `1px solid ${GOLD}` }}>
           {activeSigs.map((sig, idx) => (
@@ -1124,6 +1184,10 @@ export function PrestigeReport(props: ReportCardProps) {
           </div>
         </div>
 
+        {activeFields.includes('evaluation') && props.evaluation && (
+          <CharacterAssessment evaluation={props.evaluation} c={c} />
+        )}
+
         {/* Signatures */}
         <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: `2px solid ${GREEN}`, paddingTop: '8px', marginTop: 'auto' }}>
           {activeSigs.map((sig, i) => (
@@ -1277,6 +1341,10 @@ export function PearlReport(props: ReportCardProps) {
         </div>
 
         {/* Signatures */}
+        {activeFields.includes('evaluation') && props.evaluation && (
+          <CharacterAssessment evaluation={props.evaluation} c={c} />
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: `2px solid ${TEAL}`, paddingTop: '8px' }}>
           {activeSigs.map((sig, i) => (
             <div key={i} style={{ textAlign: 'center', minWidth: '90px' }}>

@@ -31,6 +31,7 @@ export default function ResultReporting() {
   // Batch print: array of { student, results } for all students in class
   const [batchCards, setBatchCards] = useState<any[]>([]);
   const [printMode, setPrintMode] = useState<'single' | 'batch'>('single');
+  const [evaluationMap, setEvaluationMap] = useState<Record<string, { ratings: Record<string, number>; feedback?: string }>>({});
 
   useEffect(() => {
     if (userRole?.school_id) {
@@ -71,8 +72,15 @@ export default function ResultReporting() {
 
   const fetchStudentResults = async () => {
     setLoading(true);
-    const { data } = await supabase.from('exam_results').select('*').eq('exam_type_id', selectedExamType).eq('student_id', selectedStudent);
+    const [{ data }, { data: evalData }] = await Promise.all([
+      supabase.from('exam_results').select('*').eq('exam_type_id', selectedExamType).eq('student_id', selectedStudent),
+      supabase.from('evaluations').select('student_id, ratings, feedback')
+        .eq('exam_type_id', selectedExamType).eq('student_id', selectedStudent).maybeSingle(),
+    ]);
     if (data) setResults(data);
+    if (evalData) {
+      setEvaluationMap(prev => ({ ...prev, [selectedStudent]: { ratings: evalData.ratings || {}, feedback: evalData.feedback } }));
+    }
     setLoading(false);
   };
 
@@ -98,9 +106,16 @@ export default function ResultReporting() {
     setBatchLoading(true);
     setBatchCards([]);
 
-    // Fetch ALL results for ALL students in one query
+    // Fetch ALL results + evaluations for ALL students in one query
     const ids = students.map(s => s.id);
-    const { data: allRes } = await supabase.from('exam_results').select('*').eq('exam_type_id', selectedExamType).in('student_id', ids);
+    const [{ data: allRes }, { data: allEvals }] = await Promise.all([
+      supabase.from('exam_results').select('*').eq('exam_type_id', selectedExamType).in('student_id', ids),
+      supabase.from('evaluations').select('student_id, ratings, feedback').eq('exam_type_id', selectedExamType).in('student_id', ids),
+    ]);
+    // Build evaluation map
+    const evalMap: Record<string, { ratings: Record<string, number>; feedback?: string }> = {};
+    (allEvals || []).forEach((e: any) => { evalMap[e.student_id] = { ratings: e.ratings || {}, feedback: e.feedback }; });
+    setEvaluationMap(evalMap);
 
     // Build position map
     const totals: Record<string, number> = {};
@@ -121,7 +136,7 @@ export default function ResultReporting() {
       const pct = grand > 0 ? Math.round((obtained / grand) * 100) : 0;
       const overallGrade = pct >= 90 ? 'A+' : pct >= 80 ? 'A' : pct >= 70 ? 'B' : pct >= 60 ? 'C' : pct >= 50 ? 'D' : 'F';
       const pos = sorted.findIndex(([id]) => id === stu.id) + 1;
-      return { student: stu, subjects: subjectRows, obtained, grand, pct, grade: overallGrade, fails, position: pos };
+      return { student: stu, subjects: subjectRows, obtained, grand, pct, grade: overallGrade, fails, position: pos, evaluation: evalMap[stu.id] || null };
     });
 
     setBatchCards(cards);
@@ -266,6 +281,7 @@ export default function ResultReporting() {
               positionInClass={position > 0 ? position : undefined}
               totalStudents={outOf > 0 ? outOf : undefined}
               finalStatus={failSubjects === 0 ? 'PROMOTED' : 'NOT PROMOTED'}
+              evaluation={evaluationMap[selectedStudent] || undefined}
             />
           </div>
         </div>
@@ -290,6 +306,7 @@ export default function ResultReporting() {
                 positionInClass={card.position > 0 ? card.position : undefined}
                 totalStudents={batchCards.length}
                 finalStatus={card.fails === 0 ? 'PROMOTED' : 'NOT PROMOTED'}
+                evaluation={card.evaluation || undefined}
               />
             </div>
           ))}
