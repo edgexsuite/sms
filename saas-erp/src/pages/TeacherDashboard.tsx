@@ -104,6 +104,7 @@ const isCurrentPeriod = (start: string, end: string): boolean => {
 
 export default function TeacherDashboard() {
   const { userRole, user } = useAuth();
+  const attSectionRef = React.useRef<HTMLDivElement>(null);
 
   const [staffId,   setStaffId]   = useState<string | null>(null);
   const [staffName, setStaffName] = useState('');
@@ -301,7 +302,7 @@ export default function TeacherDashboard() {
 
     const classIds = Array.from(classMap.keys());
     const { data: students } = await supabase.from('students').select('id, class_id')
-      .eq('school_id', userRole?.school_id).eq('status', 'active').in('class_id', classIds);
+      .eq('school_id', userRole?.school_id).eq('status', 'active').eq('is_deleted', false).in('class_id', classIds);
 
     const countMap  = new Map<string, number>();
     const stuCidMap = new Map<string, string>();
@@ -391,9 +392,7 @@ export default function TeacherDashboard() {
       .eq('school_id', userRole?.school_id).eq('class_teacher_id', sid);
     const classes = (data || []) as ClassTeacher[];
     setClassTeacherClasses(classes);
-    if (classes.length > 0) {
-      setAttClassId(classes[0].id);
-    }
+    if (classes.length > 0) setAttClassId(classes[0].id);
   };
 
   const fetchStudentLeaves = async (sid: string) => {
@@ -421,6 +420,7 @@ export default function TeacherDashboard() {
     const { data } = await supabase.from('students').select('id, full_name, roll_number, class_id, classes(name, section)')
       .eq('school_id', userRole?.school_id)
       .eq('status', 'active')
+      .eq('is_deleted', false)
       .order('full_name');
     if (data) setAllStudents(data);
   };
@@ -460,7 +460,9 @@ export default function TeacherDashboard() {
     const { data: stuData } = await supabase.from('students')
       .select('id, full_name, roll_number, photograph_url')
       .eq('class_id', classId).eq('school_id', userRole?.school_id)
-      .eq('status', 'active').order('roll_number');
+      .eq('status', 'active')
+      .eq('is_deleted', false)
+      .order('roll_number');
     const students = (stuData || []) as AttStudent[];
     setAttStudents(students);
     if (students.length > 0) {
@@ -625,7 +627,7 @@ export default function TeacherDashboard() {
     if (!classId) { setEvalStudentList([]); return; }
     const { data } = await supabase.from('students')
       .select('id, full_name, roll_number').eq('class_id', classId)
-      .eq('school_id', userRole?.school_id).eq('status', 'active').order('roll_number');
+      .eq('school_id', userRole?.school_id).eq('status', 'active').eq('is_deleted', false).order('roll_number');
     setEvalStudentList(data || []);
   };
 
@@ -676,6 +678,11 @@ export default function TeacherDashboard() {
   const attLeaveCount   = Object.values(attMarks).filter(v => v === 'leave').length;
 
   const leaveDays = calcLeaveDays(leaveForm.from_date, leaveForm.to_date);
+
+  // All classes this teacher can mark attendance for
+  const attendanceClasses = classTeacherClasses.length > 0
+    ? classTeacherClasses.map(c => ({ id: c.id, name: c.name, section: c.section }))
+    : assignedClasses.map(c => ({ id: c.class_id, name: c.class_name, section: c.section }));
 
   // ── Loading / error states ────────────────────────────────────────────────
 
@@ -774,17 +781,16 @@ export default function TeacherDashboard() {
                   </span>
                 )}
               </button>
-              {classTeacherClasses.length > 0 ? (
-                <button onClick={() => setAttOpen(o => !o)}
-                  className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-md">
-                  <CalendarCheck className="w-3.5 h-3.5" /> Mark Attendance
-                </button>
-              ) : (
-                <Link to="/attendance"
-                  className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-md">
-                  <CalendarCheck className="w-3.5 h-3.5" /> Mark Attendance
-                </Link>
-              )}
+              <button
+                onClick={() => {
+                  setAttOpen(true);
+                  setTimeout(() => {
+                    attSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }, 100);
+                }}
+                className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-md">
+                <CalendarCheck className="w-3.5 h-3.5" /> Mark Attendance
+              </button>
             </div>
           </div>
         </div>
@@ -899,8 +905,8 @@ export default function TeacherDashboard() {
       {/* ══════════════════════════════════════════════════════════════════
           INLINE ATTENDANCE PANEL
       ══════════════════════════════════════════════════════════════════ */}
-      {classTeacherClasses.length > 0 && (
-        <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm overflow-hidden">
+      {attendanceClasses.length > 0 && (
+        <div ref={attSectionRef} className="bg-white rounded-2xl border border-indigo-100 shadow-sm overflow-hidden">
           <button
             onClick={() => setAttOpen(o => !o)}
             className="w-full px-6 py-4 flex items-center justify-between hover:bg-indigo-50/50 transition"
@@ -912,7 +918,7 @@ export default function TeacherDashboard() {
               <div className="text-left">
                 <p className="font-black text-gray-900 text-sm">Mark Attendance</p>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {classTeacherClasses.map(c => `${c.name} ${c.section}`).join(' · ')}
+                  {attendanceClasses.map(c => `${c.name} ${c.section}`).join(' · ')}
                 </p>
               </div>
             </div>
@@ -925,87 +931,101 @@ export default function TeacherDashboard() {
           </button>
 
           {attOpen && (
-            <div className="border-t border-indigo-50">
-              <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex flex-wrap items-center gap-4">
-                {classTeacherClasses.length > 1 && (
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Class</label>
-                    <select value={attClassId} onChange={e => { setAttClassId(e.target.value); setAttSaved(false); }}
-                      className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none">
-                      {classTeacherClasses.map(c => <option key={c.id} value={c.id}>{c.name} {c.section}</option>)}
-                    </select>
+            <div className="border-t border-indigo-50 animate-in slide-in-from-top-2 duration-300">
+              <div className="px-4 py-4 bg-slate-50 border-b border-slate-100 flex flex-col md:flex-row md:items-center gap-4">
+                <div className="flex flex-1 gap-3 flex-wrap">
+                  {attendanceClasses.length > 1 && (
+                    <div className="flex-1 min-w-[140px]">
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Target Class</label>
+                      <select value={attClassId} onChange={e => { setAttClassId(e.target.value); setAttSaved(false); }}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none">
+                        {attendanceClasses.map(c => <option key={c.id} value={c.id}>{c.name} {c.section}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-[140px]">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Roll Call Date</label>
+                    <input type="date" value={attDate} max={today}
+                      onChange={e => { setAttDate(e.target.value); setAttSaved(false); }}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none" />
                   </div>
-                )}
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Date</label>
-                  <input type="date" value={attDate} max={today}
-                    onChange={e => { setAttDate(e.target.value); setAttSaved(false); }}
-                    className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none" />
                 </div>
-                <div className="ml-auto flex flex-wrap gap-2">
-                  {(['present', 'absent', 'late', 'leave'] as AttStatus[]).map(s => (
-                    <button key={s} onClick={() => markAll(s)}
-                      className={`px-3 py-2 rounded-xl text-xs font-black transition ${STATUS_CONFIG[s].bg} ${STATUS_CONFIG[s].text} hover:opacity-80`}>
-                      All {STATUS_CONFIG[s].label}
-                    </button>
-                  ))}
+                <div className="flex gap-2 shrink-0">
+                   <button onClick={() => markAll('present')} className="flex-1 md:flex-none text-[10px] font-black uppercase whitespace-nowrap bg-green-100 text-green-700 px-4 py-2 rounded-lg hover:bg-green-200 transition">All Present</button>
+                   <button onClick={() => markAll('absent')} className="flex-1 md:flex-none text-[10px] font-black uppercase whitespace-nowrap bg-red-100 text-red-700 px-4 py-2 rounded-lg hover:bg-red-200 transition">All Absent</button>
                 </div>
               </div>
 
-              {attLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <RefreshCw className="w-6 h-6 text-indigo-400 animate-spin" />
-                </div>
-              ) : attStudents.length === 0 ? (
-                <div className="text-center py-12 text-gray-400 text-sm">No active students in this class.</div>
-              ) : (
-                <div className="divide-y divide-slate-50 max-h-[480px] overflow-y-auto">
-                  {attStudents.map(student => {
-                    const status = attMarks[student.id] || 'present';
-                    return (
-                      <div key={student.id}
-                        className={`flex items-center gap-2 px-3 sm:px-6 py-2.5 transition-colors ${status === 'absent' ? 'bg-red-50/40' : status === 'late' ? 'bg-amber-50/40' : status === 'leave' ? 'bg-slate-50/60' : ''}`}>
-                        <span className="text-xs font-black text-indigo-500 w-6 shrink-0 text-center">{student.roll_number}</span>
-                        <div className="w-7 h-7 rounded-lg bg-slate-100 overflow-hidden shrink-0 flex items-center justify-center">
-                          {student.photograph_url
-                            ? <img src={student.photograph_url} alt="" className="w-full h-full object-cover" />
-                            : <span className="text-slate-500 font-black text-xs">{student.full_name.charAt(0)}</span>}
+              <div className="p-4 md:p-6 bg-white overflow-y-auto max-h-[600px]">
+                {attLoading ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-3">
+                    <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Loading Roster...</p>
+                  </div>
+                ) : attStudents.length === 0 ? (
+                  <div className="text-center py-12">
+                    <AlertCircle className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                    <p className="text-slate-400 text-sm font-medium">No active students found for this class.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {attStudents.map(student => {
+                      const st = attMarks[student.id] || 'present';
+                      return (
+                        <div key={student.id} className={`flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 rounded-xl border transition-all duration-200 ${
+                          st === 'present' ? 'bg-green-50 border-green-200' : 
+                          st === 'absent' ? 'bg-red-50 border-red-200' : 
+                          st === 'late' ? 'bg-yellow-50 border-yellow-200' : 
+                          'bg-gray-50 border-gray-200'
+                        }`}>
+                          <div className="flex items-center gap-3">
+                            <span className="w-8 h-8 rounded-lg bg-white border border-indigo-100 flex items-center justify-center text-[10px] font-black text-indigo-600 shadow-sm shrink-0">
+                              {student.roll_number}
+                            </span>
+                            <div>
+                              <p className="font-bold text-xs sm:text-sm text-gray-900">{student.full_name}</p>
+                              {st === 'absent' && <p className="text-[10px] text-red-600 font-bold flex items-center gap-1 mt-0.5"><AlertCircle className="w-3 h-3"/> Marked Absent</p>}
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-4 md:flex md:flex-wrap gap-1.5 w-full md:w-auto shrink-0">
+                            {(['present', 'absent', 'late', 'leave'] as AttStatus[]).map(s => {
+                              const cfg = STATUS_CONFIG[s];
+                              const active = st === s;
+                              return (
+                                <button key={s}
+                                  onClick={() => { setAttMarks(p => ({ ...p, [student.id]: s })); setAttSaved(false); }}
+                                  className={`flex justify-center items-center py-2 md:px-4 md:py-1.5 rounded-lg text-[10px] md:text-xs font-bold transition-all ${
+                                    active 
+                                      ? `${cfg.bg} text-white shadow-md scale-105` 
+                                      : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-100 shadow-sm'
+                                  }`}
+                                >
+                                  <span className="md:hidden">{cfg.short}</span>
+                                  <span className="hidden md:inline whitespace-nowrap">{cfg.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
-                        <span className="flex-1 text-xs sm:text-sm font-bold text-slate-800 min-w-0 truncate">{student.full_name}</span>
-                        <div className="flex gap-1 shrink-0">
-                          {(['present', 'absent', 'late', 'leave'] as AttStatus[]).map(s => {
-                            const cfg = STATUS_CONFIG[s];
-                            const active = status === s;
-                            return (
-                              <button key={s}
-                                onClick={() => { setAttMarks(p => ({ ...p, [student.id]: s })); setAttSaved(false); }}
-                                className={`w-8 h-7 sm:w-9 sm:h-8 rounded-lg text-[10px] sm:text-xs font-black transition-all ${active ? `${cfg.bg} ${cfg.text} ring-2 ${cfg.ring} shadow-sm` : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
-                                title={cfg.label}>
-                                {cfg.short}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
-              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex gap-4 text-xs font-black flex-wrap">
-                  <span className="text-emerald-600">{attPresentCount} present</span>
-                  <span className="text-red-500">{attAbsentCount} absent</span>
-                  {attLateCount  > 0 && <span className="text-amber-600">{attLateCount} late</span>}
-                  {attLeaveCount > 0 && <span className="text-slate-500">{attLeaveCount} leave</span>}
-                  <span className="text-slate-300">/ {attStudents.length} total</span>
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex gap-4 text-[10px] font-black uppercase tracking-wider flex-wrap">
+                  <span className="text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">{attPresentCount} present</span>
+                  <span className="text-red-600 bg-red-50 px-2 py-1 rounded-md border border-red-100">{attAbsentCount} absent</span>
+                  {attLateCount > 0 && <span className="text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-100">{attLateCount} late</span>}
+                  <span className="text-slate-400 bg-white px-2 py-1 rounded-md border border-slate-200">Total: {attStudents.length}</span>
                 </div>
-                <div className="flex items-center gap-3 flex-wrap">
-                  {attError && <p className="text-red-500 text-xs font-bold flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {attError}</p>}
-                  {attSaved  && <p className="text-emerald-600 text-xs font-bold flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Saved!</p>}
+                <div className="flex items-center gap-3 justify-end">
+                  {attSaved && <p className="text-emerald-600 text-xs font-bold animate-bounce flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Attendance Logged!</p>}
                   <button onClick={handleSaveAttendance} disabled={savingAtt || attStudents.length === 0}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-widest rounded-xl transition disabled:opacity-50 shadow-lg shadow-indigo-100">
-                    {savingAtt ? <><RefreshCw className="w-4 h-4 animate-spin" /> Saving…</> : <><Save className="w-4 h-4" /> Save Attendance</>}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-indigo-100 active:scale-95 disabled:opacity-50">
+                    {savingAtt ? <><RefreshCw className="w-4 h-4 animate-spin" /> Syncing...</> : <><Save className="w-4 h-4" /> Save & Lock Register</>}
                   </button>
                 </div>
               </div>
@@ -1129,6 +1149,55 @@ export default function TeacherDashboard() {
               </div>
             </div>
           )}
+          {/* ── Evaluation Section ── */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="font-black text-gray-900 text-sm flex items-center gap-2">
+                <Star className="w-4 h-4 text-amber-500" /> Student Evaluations
+              </h2>
+              <button onClick={() => setShowEvalModal(true)}
+                className="flex items-center gap-1 text-xs font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3 py-1.5 rounded-lg transition">
+                <Plus className="w-3 h-3" /> Evaluate
+              </button>
+            </div>
+            <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
+              {recentEvals.length === 0 ? (
+                <div className="p-6 text-center">
+                  <Star className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                  <p className="text-sm text-gray-400">No evaluations yet.</p>
+                  <button onClick={() => setShowEvalModal(true)}
+                    className="mt-2 text-xs text-amber-600 font-bold hover:underline">Evaluate a student →</button>
+                </div>
+              ) : recentEvals.map(ev => {
+                const rVals = Object.values(ev.ratings || {}) as number[];
+                const avg = rVals.length ? (rVals.reduce((a,b) => a + b, 0) / rVals.length).toFixed(1) : '—';
+                return (
+                  <div key={ev.id} className="px-4 py-3 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-gray-800 truncate">{ev.student?.full_name}</p>
+                      <p className="text-[10px] text-gray-400">Roll #{ev.student?.roll_number}
+                        {ev.exam_type?.name ? ` · ${ev.exam_type.name}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {[1,2,3,4,5].map(i => (
+                        <Star key={i} className={`w-3 h-3 ${i <= Math.round(Number(avg)) ? 'text-amber-400 fill-current' : 'text-gray-200'}`} />
+                      ))}
+                      <span className="text-[10px] font-black text-amber-600 ml-1">{avg}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {recentEvals.length > 0 && (
+              <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 text-center">
+                <Link to="/evaluation" className="text-[10px] font-black text-indigo-600 hover:underline">
+                  View All in Evaluation Module →
+                </Link>
+              </div>
+            )}
+          </div>
+
         </div>
 
         {/* ── Right Column ── */}
@@ -1262,6 +1331,46 @@ export default function TeacherDashboard() {
             </div>
           )}
 
+          {/* ── Stationery Requests ── */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="font-black text-gray-900 text-sm flex items-center gap-2">
+                <Package className="w-4 h-4 text-violet-600" /> Stationery Requests
+              </h2>
+              <button onClick={() => setShowStationeryModal(true)}
+                className="flex items-center gap-1 text-xs font-bold text-violet-600 bg-violet-50 hover:bg-violet-100 border border-violet-200 px-3 py-1.5 rounded-lg transition">
+                <Plus className="w-3 h-3" /> Request
+              </button>
+            </div>
+            <div className="divide-y divide-gray-100 max-h-56 overflow-y-auto">
+              {stationeryRequests.length === 0 ? (
+                <div className="p-6 text-center">
+                  <ShoppingCart className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                  <p className="text-sm text-gray-400">No stationery requests yet.</p>
+                  <button onClick={() => setShowStationeryModal(true)}
+                    className="mt-2 text-xs text-violet-600 font-bold hover:underline">Request items →</button>
+                </div>
+              ) : stationeryRequests.map(r => {
+                const statusStyle = r.status === 'resolved'
+                  ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                  : r.status === 'rejected'
+                    ? 'bg-red-100 text-red-700 border-red-200'
+                    : 'bg-amber-100 text-amber-700 border-amber-200';
+                return (
+                  <div key={r.id} className="px-4 py-3 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-gray-800 truncate">{r.title}</p>
+                      <p className="text-[10px] text-gray-400">{new Date(r.created_at).toLocaleDateString()}</p>
+                    </div>
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border shrink-0 capitalize ${statusStyle}`}>
+                      {r.status}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Quick Actions */}
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-5 text-white space-y-2">
             <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Quick Actions</h3>
@@ -1318,6 +1427,212 @@ export default function TeacherDashboard() {
         <div className="fixed top-16 right-4 z-[9999] bg-indigo-600 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 animate-in slide-in-from-top-2">
           <Flag className="w-5 h-5" />
           <span className="font-bold text-sm">Issue reported! Admin will review it shortly.</span>
+        </div>
+      )}
+
+      {/* Eval + Stationery toasts */}
+      {evalSubmitted && (
+        <div className="fixed top-28 right-4 z-[9999] bg-amber-500 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 animate-in slide-in-from-top-2">
+          <Star className="w-5 h-5 fill-current" />
+          <span className="font-bold text-sm">Evaluation saved successfully!</span>
+        </div>
+      )}
+      {stationerySubmitted && (
+        <div className="fixed top-28 right-4 z-[9999] bg-violet-600 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 animate-in slide-in-from-top-2">
+          <Package className="w-5 h-5" />
+          <span className="font-bold text-sm">Stationery request submitted!</span>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════
+          EVALUATION MODAL
+      ══════════════════════════════════════════════════════════════════ */}
+      {showEvalModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowEvalModal(false)} />
+          <div className="bg-white rounded-3xl w-full max-w-lg relative z-10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+            <div className="px-6 py-5 flex items-center justify-between bg-gradient-to-r from-amber-500 to-orange-500 text-white shrink-0">
+              <div>
+                <h2 className="font-black text-lg">Evaluate Student</h2>
+                <p className="text-amber-100 text-xs mt-0.5">Rate behavior, punctuality & participation</p>
+              </div>
+              <button onClick={() => setShowEvalModal(false)} className="p-2 hover:bg-white/20 rounded-xl transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4 overflow-y-auto bg-gray-50">
+              {/* Class + Exam */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Class</label>
+                  <select
+                    value={evalFormState.class_id}
+                    onChange={e => { setEvalFormState(f => ({ ...f, class_id: e.target.value, student_id: '' })); loadEvalStudents(e.target.value); }}
+                    className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-amber-400/30">
+                    <option value="">-- Select Class --</option>
+                    {assignedClasses.map(c => <option key={c.class_id} value={c.class_id}>{c.class_name} {c.section}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Link to Exam</label>
+                  <select
+                    value={evalFormState.exam_type_id}
+                    onChange={e => setEvalFormState(f => ({ ...f, exam_type_id: e.target.value }))}
+                    className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-amber-400/30">
+                    <option value="">-- No Exam --</option>
+                    {examTypes.map(et => <option key={et.id} value={et.id}>{et.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Student */}
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Student <span className="text-red-500">*</span></label>
+                <select
+                  value={evalFormState.student_id}
+                  onChange={e => setEvalFormState(f => ({ ...f, student_id: e.target.value }))}
+                  className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-amber-400/30">
+                  <option value="">-- Select Student --</option>
+                  {evalStudentList.map(s => <option key={s.id} value={s.id}>{s.roll_number} — {s.full_name}</option>)}
+                </select>
+              </div>
+
+              {/* Star Ratings */}
+              <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-3">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Rating Matrix (tap stars)</p>
+                {STUDENT_RATING_KEYS.map(key => (
+                  <div key={key} className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-gray-700 w-36 shrink-0">{key}</span>
+                    <div className="flex gap-1">
+                      {[1,2,3,4,5].map(star => (
+                        <button key={star} type="button"
+                          onClick={() => setEvalFormState(f => ({ ...f, ratings: { ...f.ratings, [key]: star } }))}
+                          className={`w-8 h-8 rounded-lg transition-all ${star <= (evalFormState.ratings[key] || 0) ? 'text-amber-400 bg-amber-50' : 'text-gray-200 hover:text-amber-200 bg-gray-50'}`}>
+                          <Star className={`w-5 h-5 mx-auto ${star <= (evalFormState.ratings[key] || 0) ? 'fill-current' : ''}`} />
+                        </button>
+                      ))}
+                    </div>
+                    <span className="text-xs font-black text-gray-400 w-8 text-right">{evalFormState.ratings[key] || 0}/5</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Feedback */}
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Teacher Remarks</label>
+                <textarea rows={2}
+                  value={evalFormState.feedback}
+                  onChange={e => setEvalFormState(f => ({ ...f, feedback: e.target.value }))}
+                  placeholder="Optional written remarks..."
+                  className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded-xl text-sm font-medium resize-none outline-none focus:ring-2 focus:ring-amber-400/30" />
+              </div>
+
+              {/* Date */}
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Evaluation Date</label>
+                <input type="date" value={evalFormState.evaluation_date}
+                  onChange={e => setEvalFormState(f => ({ ...f, evaluation_date: e.target.value }))}
+                  className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded-xl text-sm font-bold" />
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-white border-t border-gray-100 flex gap-3 shrink-0">
+              <button onClick={() => setShowEvalModal(false)} className="flex-1 py-3 bg-gray-100 text-gray-600 font-bold rounded-2xl hover:bg-gray-200 transition text-sm">Cancel</button>
+              <button onClick={handleSaveEval} disabled={savingEval}
+                className="flex-[2] py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-2xl shadow-lg shadow-amber-100 transition flex items-center justify-center gap-2 text-sm">
+                {savingEval ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4" />}
+                {savingEval ? 'Saving...' : 'Save Evaluation'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════
+          STATIONERY REQUEST MODAL
+      ══════════════════════════════════════════════════════════════════ */}
+      {showStationeryModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowStationeryModal(false)} />
+          <div className="bg-white rounded-3xl w-full max-w-lg relative z-10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+            <div className="px-6 py-5 flex items-center justify-between bg-gradient-to-r from-violet-600 to-purple-600 text-white shrink-0">
+              <div>
+                <h2 className="font-black text-lg">Request Stationery</h2>
+                <p className="text-violet-100 text-xs mt-0.5">Admin will review and approve your request</p>
+              </div>
+              <button onClick={() => setShowStationeryModal(false)} className="p-2 hover:bg-white/20 rounded-xl transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4 overflow-y-auto bg-gray-50">
+              {/* Items list */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Items Needed</label>
+                  <button type="button" onClick={() => setStationeryItems(items => [...items, { name: '', qty: 1 }])}
+                    className="text-[10px] font-black text-violet-600 bg-violet-50 hover:bg-violet-100 px-2 py-1 rounded-lg transition flex items-center gap-1">
+                    <Plus className="w-3 h-3" /> Add Item
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {stationeryItems.map((item, idx) => (
+                    <div key={idx} className="flex gap-2 items-center">
+                      <input
+                        type="text" placeholder={`Item ${idx + 1} (e.g. Chalk, Marker)`}
+                        value={item.name}
+                        onChange={e => setStationeryItems(items => items.map((it, i) => i === idx ? { ...it, name: e.target.value } : it))}
+                        className="flex-1 bg-white border border-gray-200 px-3 py-2 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-violet-400/30" />
+                      <input
+                        type="number" min={1} max={999} placeholder="Qty"
+                        value={item.qty}
+                        onChange={e => setStationeryItems(items => items.map((it, i) => i === idx ? { ...it, qty: Number(e.target.value) } : it))}
+                        className="w-20 bg-white border border-gray-200 px-3 py-2 rounded-xl text-sm font-bold text-center outline-none focus:ring-2 focus:ring-violet-400/30" />
+                      {stationeryItems.length > 1 && (
+                        <button type="button" onClick={() => setStationeryItems(items => items.filter((_, i) => i !== idx))}
+                          className="w-8 h-8 shrink-0 bg-red-50 hover:bg-red-100 rounded-lg flex items-center justify-center text-red-500 transition">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Purpose */}
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Purpose / Class Use <span className="text-red-500">*</span></label>
+                <textarea rows={2}
+                  value={stationeryPurpose}
+                  onChange={e => setStationeryPurpose(e.target.value)}
+                  placeholder="e.g. Classroom teaching, Science lab, Grade 5 exams..."
+                  className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded-xl text-sm font-medium resize-none outline-none focus:ring-2 focus:ring-violet-400/30" />
+              </div>
+
+              {/* Urgency */}
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Urgency</label>
+                <div className="flex gap-2">
+                  {(['normal', 'urgent'] as const).map(u => (
+                    <button key={u} type="button" onClick={() => setStationeryUrgency(u)}
+                      className={`flex-1 py-2 rounded-xl border-2 text-xs font-bold capitalize transition-all ${
+                        stationeryUrgency === u ? 'border-violet-500 bg-violet-50 text-violet-700' : 'border-gray-200 bg-white text-gray-500'
+                      }`}>{u}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-white border-t border-gray-100 flex gap-3 shrink-0">
+              <button onClick={() => setShowStationeryModal(false)} className="flex-1 py-3 bg-gray-100 text-gray-600 font-bold rounded-2xl hover:bg-gray-200 transition text-sm">Cancel</button>
+              <button onClick={handleSaveStationery} disabled={savingStationery}
+                className="flex-[2] py-3 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-2xl shadow-lg shadow-violet-100 transition flex items-center justify-center gap-2 text-sm">
+                {savingStationery ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Package className="w-4 h-4" />}
+                {savingStationery ? 'Submitting...' : 'Submit Request'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
