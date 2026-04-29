@@ -113,12 +113,14 @@ export default function BulkArrearsEntry() {
     try {
       for (const s of dirtyRows) {
         if (s.new_arrears === 0 && s.already_has_migration) {
-          // BUG FIX #4: Hard delete (not soft) so StudentFeeModal can't see it
+          // Soft-delete (not hard) to preserve audit trail.
+          // All queries filter by is('deleted_at', null) so this disappears from all views.
           await supabase
             .from('fee_records')
-            .delete()
+            .update({ deleted_at: new Date().toISOString() })
             .eq('student_id', s.id)
-            .ilike('invoice_number', 'MIG-%');
+            .ilike('invoice_number', 'MIG-%')
+            .is('deleted_at', null);
         } else if (s.new_arrears > 0) {
           if (s.already_has_migration) {
             // BUG FIX #3: Update month_year too (not just amount/breakdown)
@@ -271,9 +273,7 @@ export default function BulkArrearsEntry() {
       {/* ── Info banner ── */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 text-xs text-blue-700 space-y-1">
         <p>
-          <strong>How it works:</strong> Each entry creates a <code className="bg-blue-100 px-1 rounded">MIG-</code> pending invoice
-          for the selected month. It appears as <strong>"Previous Fee"</strong> on monthly challans and as
-          an <strong>arrears row</strong> in the payment modal. Set to 0 and save to remove a migration record.
+          <strong>How it works:</strong> Each entry creates a <code className="bg-blue-100 px-1 rounded">MIG-</code> pending invoice for the selected month. It appears as <strong>"Previous Fee"</strong> on monthly challans and as an <strong>arrears row</strong> in the payment modal. Set to 0 and save to soft-delete a migration record (recoverable from Settings → Trash Bin).
         </p>
         {migratedCount > 0 && (
           <p className="text-emerald-700">

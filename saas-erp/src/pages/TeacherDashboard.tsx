@@ -9,8 +9,9 @@ import {
   ChevronRight, GraduationCap, CheckCircle2, XCircle,
   Clock, BarChart2, CalendarDays, Award, AlertCircle, Save,
   RefreshCw, ChevronDown, ChevronUp, UserCheck, CalendarOff,
-  Plus, X, Briefcase, FileText, TrendingUp, MessageCircle, ChevronLeft, Flag, Send,
+  Plus, X, Briefcase, FileText, TrendingUp, MessageCircle, ChevronLeft, Flag, Send, Search,
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import ChatInterface from '../components/ChatInterface';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -646,8 +647,11 @@ export default function TeacherDashboard() {
                 className="flex items-center gap-2 bg-white text-indigo-700 font-bold px-4 py-2 rounded-xl text-xs hover:bg-indigo-50 transition shadow-md relative">
                 <MessageCircle className="w-3.5 h-3.5" /> Messages
                 {unreadCount > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center ring-2 ring-indigo-600 animate-bounce">
-                    {unreadCount}
+                  <span className="absolute -top-2 -right-2 flex h-5 w-5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                    <span className="relative inline-flex items-center justify-center rounded-full h-5 w-5 bg-gradient-to-tr from-indigo-600 to-violet-600 text-white text-[10px] font-black shadow-lg ring-2 ring-white">
+                      {unreadCount}
+                    </span>
                   </span>
                 )}
               </button>
@@ -1495,178 +1499,473 @@ export default function TeacherDashboard() {
 // ─── MESSAGE CENTER COMPONENT ────────────────────────────────────────────────
 function MessageCenter({ staffId, schoolId, onClose }: { staffId: string; schoolId: string; onClose: () => void }) {
   const [students, setStudents] = useState<any[]>([]);
+  const [contactsLoaded, setContactsLoaded] = useState(false);
+  const [contactsLoading, setContactsLoading] = useState(false);
+  const [recentChats, setRecentChats] = useState<any[]>([]);
+  const [view, setView] = useState<'recent' | 'all'>('recent');
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
   const [selectedThread, setSelectedThread] = useState<any | null>(null);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    fetchChatContacts();
+    fetchInbox();
   }, []);
 
-  const fetchChatContacts = async () => {
+  // Switch to "All Students" tab — lazy-load contacts on first open
+  const handleViewAll = () => {
+    setView('all');
+    setSearch('');
+    if (!contactsLoaded && !contactsLoading) {
+      loadContacts();
+    }
+  };
+
+  const fetchInbox = async () => {
     setLoading(true);
+    setFetchError('');
+    await fetchRecentChats();
+    setLoading(false);
+  };
+
+  const fetchData = async () => {
+    setLoading(true);
+    setFetchError('');
+    await fetchRecentChats();
+    setLoading(false);
+  };
+
+  const loadContacts = async () => {
+    setContactsLoading(true);
+    await fetchChatContacts();
+    setContactsLoaded(true);
+    setContactsLoading(false);
+  };
+
+  const fetchRecentChats = async () => {
     try {
-      // 1. Get classes where this staff is class teacher
-      const { data: ctClasses } = await supabase.from('classes')
-        .select('id')
+      // 1. Fetch messages first (avoiding join due to potential schema cache issues)
+      const { data: messages, error } = await supabase
+        .from('chat_messages')
+        .select('id, student_id, sender_id, receiver_id, sender_type, receiver_type, message, created_at, is_read')
         .eq('school_id', schoolId)
-        .eq('class_teacher_id', staffId);
-      const ctIds = (ctClasses || []).map(c => c.id);
+        .or(`sender_id.eq.${staffId},receiver_id.eq.${staffId}`)
+        .order('created_at', { ascending: false });
 
-      // 2. Get classes where this staff teaches
-      const { data: ttSlots } = await supabase.from('timetable_slots')
-        .select('class_id')
-        .eq('school_id', schoolId)
-        .eq('teacher_id', staffId);
-      const taughtIds = (ttSlots || []).map(s => s.class_id);
-
-      const allClassIds = [...new Set([...ctIds, ...taughtIds])];
-
-      // 3. Fetch students
-      let query = supabase
-        .from('students')
-        .select('id, full_name, roll_number, photograph_url, parent_id, class_id, classes(name, section)')
-        .eq('school_id', schoolId)
-        .eq('status', 'active');
-
-      // If teacher has assigned classes, filter by them. 
-      // Otherwise, show all students (fallback for admins/teachers with pending timetables)
-      if (allClassIds.length > 0) {
-        query = query.in('class_id', allClassIds);
+      if (error) {
+        setFetchError(error.message);
+        console.error('Error fetching recent chats:', error);
+        return;
+      }
+      if (!messages || messages.length === 0) {
+        setRecentChats([]);
+        return;
       }
 
-      const { data: stuData } = await query.order('full_name').limit(150);
+      // 2. Extract unique student IDs to fetch their details
+      const studentIds = [...new Set(messages.map((m: any) => m.student_id).filter(Boolean))];
+      let studentMap: Record<string, any> = {};
+
+      if (studentIds.length > 0) {
+        const { data: stuData, error: stuError } = await supabase
+          .from('students')
+          .select('id, full_name, roll_number, photograph_url, parent_id, classes(name, section)')
+          .in('id', studentIds);
+        
+        if (stuError) {
+          console.error('Error fetching students for chats:', stuError);
+        }
+        if (stuData) {
+          stuData.forEach(s => { studentMap[s.id] = s; });
+        }
+      }
+
+      // 3. Process conversations — group and count unread per thread
+      const convMap = new Map<string, any>();
+
+      messages.forEach((m: any) => {
+        const targetId = m.sender_id === staffId ? m.receiver_id : m.sender_id;
+        const targetType = m.sender_id === staffId ? m.receiver_type : m.sender_type;
+        const key = `${m.student_id}_${targetId}`;
+
+        if (!convMap.has(key)) {
+          // First (most recent) message sets the preview
+          convMap.set(key, {
+            ...m,
+            targetId,
+            targetType,
+            lastMessage: m.message,
+            lastDate: m.created_at,
+            unreadCount: 0,
+            student: studentMap[m.student_id] || null
+          });
+        }
+        // Accumulate unread count across all messages in thread
+        if (!m.is_read && m.receiver_id === staffId) {
+          convMap.get(key).unreadCount += 1;
+        }
+      });
+      setRecentChats(Array.from(convMap.values()));
+    } catch (err: any) {
+      setFetchError(err?.message || 'Unexpected error');
+      console.error('Unexpected error in fetchRecentChats:', err);
+    }
+  };
+
+  const fetchChatContacts = async () => {
+    try {
+      const { data: ctClasses, error: err1 } = await supabase.from('classes')
+        .select('id').eq('school_id', schoolId).eq('class_teacher_id', staffId);
+      
+      if (err1) { setFetchError(err1.message); return; }
+
+      const { data: ttSlots, error: err2 } = await supabase.from('timetable_slots')
+        .select('class_id').eq('school_id', schoolId).eq('teacher_id', staffId);
+      
+      if (err2) { setFetchError(err2.message); return; }
+
+      const ctIds = (ctClasses || []).map(c => c.id);
+      const taughtIds = (ttSlots || []).map(s => s.class_id);
+      const allClassIds = [...new Set([...ctIds, ...taughtIds])];
+
+      let query = supabase.from('students')
+        .select('id, full_name, roll_number, photograph_url, parent_id, class_id, classes(name, section)')
+        .eq('school_id', schoolId).eq('status', 'active');
+
+      if (allClassIds.length > 0) query = query.in('class_id', allClassIds);
+
+      const { data: stuData, error: err3 } = await query.order('full_name').limit(150);
+      
+      if (err3) { setFetchError(err3.message); return; }
+      
       setStudents(stuData || []);
-    } catch (err) {
+    } catch (err: any) {
+      setFetchError(err?.message || 'Unexpected error');
       console.error('Error fetching chat contacts:', err);
-    } finally {
-      setLoading(false);
     }
   };
 
   const filteredStudents = students.filter(s => {
     const q = search.toLowerCase();
-    return (
-      s.full_name.toLowerCase().includes(q) ||
-      (s.classes?.name || '').toLowerCase().includes(q) ||
-      String(s.roll_number || '').includes(q)
-    );
+    return s.full_name.toLowerCase().includes(q) || (s.classes?.name || '').toLowerCase().includes(q);
+  });
+
+  const filteredRecent = recentChats.filter(c => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (c.student?.full_name || '').toLowerCase().includes(q) ||
+           (c.lastMessage || '').toLowerCase().includes(q);
   });
 
   return (
-    <div className="fixed inset-0 z-[110] flex justify-end">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={onClose} />
-
-      {/* Drawer */}
-      <div className="relative w-full max-w-lg bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
-        <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-indigo-600 text-white">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+    <div className="fixed inset-0 z-[110] flex justify-end overflow-hidden">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" 
+        onClick={onClose} 
+      />
+      
+      <motion.div 
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        className="relative w-full max-w-lg bg-white h-full shadow-2xl flex flex-col"
+      >
+        {/* Premium Header */}
+        <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-500 text-white relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full -ml-12 -mb-12 blur-xl" />
+          
+          <div className="flex items-center gap-4 relative z-10">
+            <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shadow-inner">
               <MessageCircle className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h2 className="font-black text-lg">Message Center</h2>
-              <p className="text-[10px] text-indigo-100 font-bold uppercase tracking-widest">Students & Parents in your classes</p>
+              <h2 className="font-black text-xl tracking-tight">Message Center</h2>
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+                <p className="text-[10px] text-indigo-100 font-bold uppercase tracking-widest">Teacher-Parent Connect</p>
+              </div>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition">
-            <X className="w-6 h-6" />
-          </button>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition relative z-10"><X className="w-6 h-6" /></button>
         </div>
 
         {!selectedThread ? (
           <div className="flex-1 flex flex-col min-h-0">
-            {/* Search */}
-            <div className="p-4 border-b border-gray-100">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search student or class..."
-                  value={search}
+            {/* Tab Navigation with Animated Indicator */}
+            <div className="flex px-4 pt-4 border-b border-gray-50 relative">
+              {(() => {
+                const totalUnread = recentChats.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+                return [
+                  { id: 'recent', label: 'Inbox', icon: Clock, badge: totalUnread },
+                  { id: 'all', label: 'New Chat', icon: Users, badge: 0 }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => tab.id === 'all' ? handleViewAll() : (setView('recent'), setSearch(''))}
+                    className={cn(
+                      "flex-1 pb-3 text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 relative",
+                      view === tab.id ? "text-indigo-600" : "text-gray-400 hover:text-gray-600"
+                    )}
+                  >
+                    <tab.icon className="w-3.5 h-3.5" />
+                    {tab.label}
+                    {tab.badge > 0 && (
+                      <span className="bg-indigo-600 text-white text-[8px] font-black rounded-full w-4 h-4 flex items-center justify-center">
+                        {tab.badge > 9 ? '9+' : tab.badge}
+                      </span>
+                    )}
+                    {view === tab.id && (
+                      <motion.div
+                        layoutId="tab-indicator"
+                        className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600"
+                      />
+                    )}
+                  </button>
+                ));
+              })()}
+            </div>
+
+            {/* Premium Search Bar */}
+            <div className="p-4 bg-slate-50/50">
+              <div className="relative group">
+                <input 
+                  type="text" 
+                  placeholder={view === 'recent' ? "Search inbox..." : "Search students..."}
+                  value={search} 
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                  className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition shadow-sm" 
                 />
-                <Users className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                <Search className="absolute left-4 top-3.5 w-4 h-4 text-gray-400 group-focus-within:text-indigo-500 transition-colors" />
               </div>
             </div>
 
-            {/* List */}
             <div className="flex-1 overflow-y-auto custom-scrollbar">
-              {loading ? (
-                <div className="p-10 text-center">
-                  <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin mx-auto mb-2" />
-                  <p className="text-sm text-gray-500 font-medium">Loading contacts...</p>
-                </div>
-              ) : filteredStudents.length === 0 ? (
-                <div className="p-10 text-center">
-                  <p className="text-gray-400 text-sm italic">No students found in your assigned classes.</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-50">
-                  {filteredStudents.map(student => (
-                    <div key={student.id} className="p-4 hover:bg-indigo-50/50 transition-colors group">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-gray-100 overflow-hidden flex items-center justify-center border border-gray-200">
-                            {student.photograph_url 
-                              ? <img src={student.photograph_url} className="w-full h-full object-cover" alt="" />
-                              : <span className="text-gray-400 font-black">{student.full_name.charAt(0)}</span>
-                            }
-                          </div>
-                          <div>
-                            <p className="font-bold text-gray-900 text-sm">{student.full_name}</p>
-                            <p className="text-[10px] text-gray-400 font-bold uppercase">
-                              {student.classes ? `${student.classes.name}${student.classes.section ? ' ' + student.classes.section : ''}` : 'No Class'}
-                              {student.roll_number ? ` · #${student.roll_number}` : ''}
-                            </p>
-                          </div>
+              <AnimatePresence mode="wait">
+                {fetchError ? (
+                  <motion.div 
+                    key="error"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="p-10 text-center"
+                  >
+                    <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+                    <p className="text-sm text-red-600 font-bold mb-2">Failed to load data</p>
+                    <p className="text-xs text-gray-500 mb-6">{fetchError}</p>
+                    <button 
+                      onClick={fetchData}
+                      className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-200 transition"
+                    >
+                      Try Again
+                    </button>
+                  </motion.div>
+                ) : loading ? (
+                  <motion.div 
+                    key="loading"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="p-10 text-center"
+                  >
+                    <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                    <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">Syncing Inbox...</p>
+                  </motion.div>
+                ) : view === 'recent' ? (
+                  <motion.div 
+                    key="recent"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    className="divide-y divide-gray-50"
+                  >
+                    {filteredRecent.length === 0 ? (
+                      <div className="p-16 text-center">
+                        <div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner">
+                          <MessageCircle className="w-10 h-10 text-slate-300" />
                         </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <p className="text-gray-900 font-black text-sm mb-1">No Conversations Yet</p>
+                        <p className="text-gray-400 text-xs font-medium italic mb-6">Select a student from the directory to start a chat.</p>
                         <button
+                          onClick={handleViewAll}
+                          className="px-6 py-2.5 bg-indigo-50 text-indigo-700 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition shadow-sm"
+                        >
+                          Start a New Chat
+                        </button>
+                      </div>
+                    ) : (
+                      filteredRecent.map((chat, idx) => (
+                        <motion.button 
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.03 }}
+                          key={`${chat.student_id}_${chat.targetId}`}
                           onClick={() => setSelectedThread({
-                            student,
-                            targetId: student.parent_id,
-                            type: 'parent',
-                            name: `Parent of ${student.full_name.split(' ')[0]}`
+                            student: chat.student,
+                            studentId: chat.student_id,
+                            targetId: chat.targetId,
+                            type: chat.targetType,
+                            name: chat.targetType === 'parent' 
+                              ? `Parent of ${chat.student?.full_name?.split(' ')[0] || 'Student'}` 
+                              : (chat.student?.full_name || `Student (${chat.student_id?.slice(0, 4)})`)
                           })}
-                          disabled={!student.parent_id}
-                          className="flex items-center justify-center gap-2 py-2 bg-white border border-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-50 transition disabled:opacity-30"
+                          className="w-full text-left p-4 hover:bg-indigo-50/50 transition-all flex items-center gap-4 relative group"
                         >
-                          Chat with Parent
-                        </button>
-                        <button
-                          onClick={() => setSelectedThread({ 
-                            student, 
-                            targetId: student.id, 
-                            type: 'student',
-                            name: student.full_name
-                          })}
-                          className="flex items-center justify-center gap-2 py-2 bg-white border border-indigo-100 text-indigo-700 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-50 transition"
-                        >
-                          Chat with Student
-                        </button>
+                          <div className="relative">
+                            <div className="w-14 h-14 rounded-[22px] bg-slate-100 flex items-center justify-center overflow-hidden border border-gray-100 shrink-0 group-hover:scale-105 transition-transform duration-300 shadow-sm">
+                              {chat.student?.photograph_url 
+                                ? <img src={chat.student.photograph_url} className="w-full h-full object-cover" alt="" />
+                                : <span className="text-gray-400 font-black text-xl">{chat.student?.full_name.charAt(0)}</span>
+                              }
+                            </div>
+                            <div className={cn(
+                              "absolute -bottom-1 -right-1 w-5 h-5 rounded-lg border-2 border-white flex items-center justify-center shadow-sm",
+                              chat.targetType === 'parent' ? "bg-emerald-500" : "bg-indigo-500"
+                            )}>
+                              {chat.targetType === 'parent' ? <Users className="w-3 h-3 text-white" /> : <GraduationCap className="w-3 h-3 text-white" />}
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-start">
+                              <p className="font-black text-gray-900 text-sm truncate pr-2">
+                                {chat.targetType === 'parent' ? 'Parent of ' : ''}{chat.student?.full_name}
+                              </p>
+                              <span className="text-[9px] font-black text-gray-400 uppercase tracking-tighter shrink-0 mt-0.5">
+                                {new Date(chat.lastDate).toLocaleDateString([], { day: 'numeric', month: 'short' })}
+                              </span>
+                            </div>
+                            <p className={`text-xs truncate mt-1 leading-relaxed ${chat.unreadCount > 0 ? 'text-indigo-600 font-black' : 'text-gray-500 font-medium'}`}>
+                              {chat.sender_id === staffId ? <span className="text-gray-400 font-bold">You: </span> : ''}{chat.lastMessage}
+                            </p>
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-500 font-black rounded uppercase">
+                                {chat.student?.classes?.name}
+                              </span>
+                              <span className={cn(
+                                "text-[9px] px-1.5 py-0.5 font-black rounded uppercase",
+                                chat.targetType === 'parent' ? "bg-emerald-50 text-emerald-600" : "bg-indigo-50 text-indigo-600"
+                              )}>
+                                {chat.targetType === 'parent' ? 'Parent Portal' : 'Student Portal'}
+                              </span>
+                            </div>
+                          </div>
+                          {chat.unreadCount > 0 && (
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2 min-w-[20px] h-5 px-1.5 bg-indigo-600 rounded-full ring-4 ring-indigo-50 shadow-sm flex items-center justify-center">
+                              <span className="text-[9px] font-black text-white">{chat.unreadCount > 9 ? '9+' : chat.unreadCount}</span>
+                            </div>
+                          )}
+                        </motion.button>
+                      ))
+                    )}
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="all"
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    className="divide-y divide-gray-50"
+                  >
+                    {contactsLoading ? (
+                      <div className="p-16 text-center">
+                        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                        <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">Loading contacts...</p>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ) : filteredStudents.length === 0 ? (
+                      <div className="p-16 text-center">
+                        <p className="text-gray-400 text-sm font-black italic">No matching students found.</p>
+                      </div>
+                    ) : (
+                      filteredStudents.map((student, idx) => (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.02 }}
+                          key={student.id} 
+                          className="p-5 hover:bg-slate-50 transition-all group"
+                        >
+                          <div className="flex items-center gap-4 mb-4">
+                            <div className="w-14 h-14 rounded-[20px] bg-slate-100 overflow-hidden flex items-center justify-center border border-gray-100 shadow-sm">
+                              {student.photograph_url 
+                                ? <img src={student.photograph_url} className="w-full h-full object-cover" alt="" />
+                                : <span className="text-gray-400 font-black text-xl">{student.full_name.charAt(0)}</span>
+                              }
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-black text-gray-900 text-sm truncate">{student.full_name}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded">
+                                  {student.classes ? `${student.classes.name} ${student.classes.section}` : 'Unassigned'}
+                                </span>
+                                {student.roll_number && (
+                                  <span className="text-[10px] font-bold text-gray-400 bg-gray-50 px-2 py-0.5 rounded">
+                                    #{student.roll_number}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-3">
+                            <button
+                              onClick={() => setSelectedThread({
+                                student,
+                                studentId: student.id,
+                                targetId: student.parent_id,
+                                type: 'parent',
+                                name: `Parent of ${student.full_name?.split(' ')[0] || 'Student'}`
+                              })}
+                              disabled={!student.parent_id}
+                              className="flex items-center justify-center gap-2 py-3 bg-white border border-emerald-200 text-emerald-700 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-50 transition-all shadow-sm disabled:opacity-30 disabled:grayscale active:scale-95"
+                            >
+                              <Users className="w-3.5 h-3.5" /> Parent
+                            </button>
+                            <button
+                              onClick={() => setSelectedThread({ 
+                                student, 
+                                studentId: student.id,
+                                targetId: student.id, 
+                                type: 'student',
+                                name: student.full_name
+                              })}
+                              className="flex items-center justify-center gap-2 py-3 bg-white border border-indigo-200 text-indigo-700 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-50 transition-all shadow-sm active:scale-95"
+                            >
+                              <GraduationCap className="w-3.5 h-3.5" /> Student
+                            </button>
+                          </div>
+                        </motion.div>
+                      ))
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         ) : (
           <div className="flex-1 flex flex-col min-h-0 bg-white">
             {/* Thread Header */}
-            <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-3">
-              <button onClick={() => setSelectedThread(null)} className="p-2 hover:bg-gray-100 rounded-full transition">
-                <ChevronLeft className="w-5 h-5 text-gray-500" />
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-4 bg-slate-50/50">
+              <button 
+                onClick={() => setSelectedThread(null)} 
+                className="w-10 h-10 flex items-center justify-center hover:bg-white rounded-2xl border border-transparent hover:border-gray-100 transition shadow-sm"
+              >
+                <ChevronLeft className="w-6 h-6 text-gray-600" />
               </button>
               <div className="flex-1">
-                <p className="font-black text-sm text-gray-900">{selectedThread.name}</p>
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">
-                  {selectedThread.type === 'parent' ? 'Parent Portal' : 'Student Portal'} · {selectedThread.student.full_name}
-                </p>
+                <p className="font-black text-gray-900 leading-tight">{selectedThread.name}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className={cn(
+                    "text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded",
+                    selectedThread.type === 'parent' ? "bg-emerald-100 text-emerald-700" : "bg-indigo-100 text-indigo-700"
+                  )}>
+                    {selectedThread.type === 'parent' ? 'Parent Access' : 'Student Access'}
+                  </span>
+                  <span className="text-[9px] text-gray-400 font-bold uppercase">Student: {selectedThread.student?.full_name || 'N/A'}</span>
+                </div>
               </div>
             </div>
 
@@ -1678,13 +1977,13 @@ function MessageCenter({ staffId, schoolId, onClose }: { staffId: string; school
                 currentUserType="staff"
                 targetUserId={selectedThread.targetId}
                 targetUserType={selectedThread.type}
-                studentId={selectedThread.student.id}
+                studentId={selectedThread.student?.id || selectedThread.studentId}
                 targetName={selectedThread.name}
               />
             </div>
           </div>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 }

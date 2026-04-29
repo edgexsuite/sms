@@ -46,7 +46,21 @@ export default function FinePolicy() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    const updated = [...rules, { id: crypto.randomUUID(), name: form.name.trim(), type: form.type, amount: parseFloat(form.amount) || 0, grace_days: parseInt(form.grace_days) || 0 }];
+    const amount = parseFloat(form.amount);
+    const grace = parseInt(form.grace_days) || 0;
+
+    if (!form.name.trim()) { alert('Rule name is required.'); return; }
+    if (!amount || amount <= 0) { alert('Amount must be greater than 0.'); return; }
+    if (form.type === 'percentage' && amount > 100) { alert('Percentage cannot exceed 100%.'); return; }
+    if (grace < 0) { alert('Grace days cannot be negative.'); return; }
+
+    const updated = [...rules, {
+      id: crypto.randomUUID(),
+      name: form.name.trim(),
+      type: form.type,
+      amount,
+      grace_days: grace,
+    }];
     setRules(updated);
     await persist(updated);
     setIsModalOpen(false);

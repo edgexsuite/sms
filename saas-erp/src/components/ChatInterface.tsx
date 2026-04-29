@@ -181,7 +181,7 @@ export default function ChatInterface({
         <div className="flex-1 min-w-0">
           <p className="font-bold truncate">{targetName}</p>
           <p className="text-[10px] text-emerald-100 uppercase tracking-widest font-black">
-            {targetUserType === 'staff' ? 'Class Teacher' : 'Parent'}
+            {targetUserType === 'staff' ? 'Class Teacher' : targetUserType === 'student' ? 'Student' : 'Parent'}
           </p>
         </div>
       </div>

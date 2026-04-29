@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { Settings, PlusCircle, Trash2, Save, X, Network, BookOpen, AlertCircle } from 'lucide-react';
+import { Settings, PlusCircle, Trash2, Save, X, Network, BookOpen, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export default function FeeCriteria() {
   const { userRole } = useAuth();
@@ -11,6 +11,8 @@ export default function FeeCriteria() {
   
   const [editingClassId, setEditingClassId] = useState('');
   const [matrix, setMatrix] = useState<any>({ recurrent: [], first_time: [] });
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
     if (userRole?.school_id) fetchConfig();
@@ -48,12 +50,39 @@ export default function FeeCriteria() {
   };
 
   const handleSaveMatrix = async () => {
+    setSaveError('');
+
+    // Validate: recurrent rows are required
+    if (matrix.recurrent.length === 0) {
+      setSaveError('At least one recurrent (monthly) fee item is required.');
+      return;
+    }
+
+    // Validate: no empty names or zero amounts in recurrent
+    for (const row of matrix.recurrent) {
+      if (!row.item?.trim()) {
+        setSaveError('All recurrent fee items must have a name.');
+        return;
+      }
+      if (!row.amount || Number(row.amount) <= 0) {
+        setSaveError(`"${row.item}" has a zero or invalid amount. Monthly fee items must have an amount greater than 0.`);
+        return;
+      }
+    }
+
+    // Validate: no empty names in first-time (amount can be 0 for optional items, but name must exist)
+    for (const row of matrix.first_time) {
+      if (!row.item?.trim()) {
+        setSaveError('All first-time fee items must have a name.');
+        return;
+      }
+    }
+
     try {
       const existing = getActiveStructure(editingClassId);
-      
-      // Calculate total amount for legacy fallback column
-      let legacyTotal = 0;
-      matrix.recurrent.forEach((i:any) => legacyTotal += i.amount);
+
+      // Calculate total amount for legacy fallback column (sum of recurrent items only)
+      const legacyTotal = matrix.recurrent.reduce((sum: number, i: any) => sum + Number(i.amount || 0), 0);
 
       if (existing) {
          const { error } = await supabase.from('fee_structures').update({
@@ -71,10 +100,11 @@ export default function FeeCriteria() {
          if (error) throw error;
       }
 
-      alert('Class Fee Matrix successfully locked in!');
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
       setEditingClassId('');
       fetchConfig();
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) { setSaveError(err.message || 'Save failed'); }
   };
 
   return (
@@ -130,6 +160,16 @@ export default function FeeCriteria() {
                       <Save className="w-5 h-5"/> Deploy Matrix
                     </button>
                  </div>
+                 {saveError && (
+                   <div className="mx-4 mb-0 mt-2 flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold px-3 py-2 rounded-lg">
+                     <AlertCircle className="w-4 h-4 shrink-0" /> {saveError}
+                   </div>
+                 )}
+                 {saveSuccess && (
+                   <div className="mx-4 mb-0 mt-2 flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold px-3 py-2 rounded-lg">
+                     <CheckCircle2 className="w-4 h-4 shrink-0" /> Fee matrix saved successfully!
+                   </div>
+                 )}
 
                  <div className="flex-1 overflow-y-auto p-6 space-y-8">
                     

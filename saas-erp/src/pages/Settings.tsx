@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme, ThemeName } from '../contexts/ThemeContext';
-import { Building2, CreditCard, Database, ShieldCheck, Save, Download, Upload, Play, Palette, Briefcase, Plus, Clock, Calendar, Trash2, X } from 'lucide-react';
+import { Building2, CreditCard, Database, ShieldCheck, Save, Download, Upload, Play, Palette, Briefcase, Plus, Clock, Calendar, Trash2, X, ClipboardList } from 'lucide-react';
 import { seedDemoData } from '../lib/seedData';
 import { uploadFile } from '../lib/uploadUtils';
 
 export default function Settings() {
   const { userRole } = useAuth();
   const { theme, setTheme } = useTheme();
-  const [activeTab, setActiveTab] = useState<'school' | 'fees' | 'data' | 'plan' | 'recruitment' | 'attendance' | 'appearance'>('school');
+  const [activeTab, setActiveTab] = useState<'school' | 'fees' | 'data' | 'plan' | 'recruitment' | 'attendance' | 'appearance' | 'diary'>('school');
   
   // School Details State
   const [schoolData, setSchoolData] = useState({
@@ -27,6 +27,12 @@ export default function Settings() {
     job_descriptions: {} as Record<string, string>,
     monthly_leave_limit: 0,
     yearly_leave_limit: 0,
+    diary_settings: {
+      show_topic_covered: true,
+      show_homework: true,
+      show_activity_notes: true,
+      show_next_plan: true,
+    }
   });
   const [savingSchool, setSavingSchool] = useState(false);
   const [seeding, setSeeding] = useState(false);
@@ -127,6 +133,12 @@ export default function Settings() {
           job_descriptions: data.job_descriptions || {},
           monthly_leave_limit: data.monthly_leave_limit || 0,
           yearly_leave_limit: data.yearly_leave_limit || 0,
+          diary_settings: data.diary_settings || {
+            show_topic_covered: true,
+            show_homework: true,
+            show_activity_notes: true,
+            show_next_plan: true,
+          },
         });
       }
     } catch (error) {
@@ -238,6 +250,7 @@ export default function Settings() {
           job_descriptions: schoolData.job_descriptions,
           monthly_leave_limit: schoolData.monthly_leave_limit,
           yearly_leave_limit: schoolData.yearly_leave_limit,
+          diary_settings: schoolData.diary_settings,
         })
         .eq('id', userRole.school_id);
 
@@ -431,6 +444,15 @@ export default function Settings() {
               >
                 <Clock className="w-5 h-5" />
                 Attendance Systems
+              </button>
+              <button
+                onClick={() => setActiveTab('diary')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'diary' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <ClipboardList className="w-5 h-5" />
+                Diary Configuration
               </button>
               <button
                 onClick={() => setActiveTab('plan')}
@@ -791,6 +813,66 @@ export default function Settings() {
                     {savingVacation ? 'Saving...' : 'Authorize Break'}
                   </button>
                 </form>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'diary' && (
+            <div className="max-w-2xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="mb-8">
+                <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Diary Configuration</h2>
+                <p className="text-sm text-slate-500 font-medium">Customize which columns are visible in the Teacher Diary. Note: At least one column (Homework) must remain active.</p>
+              </div>
+
+              <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200 shadow-inner space-y-6">
+                <div className="space-y-4">
+                  {[
+                    { key: 'show_topic_covered', label: 'Topic / Lesson Covered', desc: 'Main field for daily lesson tracking', mandatory: false },
+                    { key: 'show_homework', label: 'Home Assignments (Homework)', desc: 'Required field for student tracking', mandatory: true },
+                    { key: 'show_activity_notes', label: 'Activity Notes', desc: 'Extra observations or class activities', mandatory: false },
+                    { key: 'show_next_plan', label: 'Next Plan', desc: "Tomorrow's agenda and planning", mandatory: false },
+                  ].map((field) => (
+                    <div key={field.key} className="flex items-center justify-between p-4 bg-white rounded-xl border border-slate-100">
+                      <div>
+                        <p className="text-sm font-black text-slate-800 uppercase tracking-widest">{field.label}</p>
+                        <p className="text-[11px] text-slate-500 font-bold uppercase tracking-tighter">{field.desc}</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={schoolData.diary_settings[field.key as keyof typeof schoolData.diary_settings]}
+                          disabled={field.mandatory}
+                          onChange={(e) => {
+                            setSchoolData({
+                              ...schoolData,
+                              diary_settings: {
+                                ...schoolData.diary_settings,
+                                [field.key]: e.target.checked
+                              }
+                            });
+                          }}
+                        />
+                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-6 border-t border-slate-200">
+                  <button
+                    onClick={handleSaveSchool}
+                    disabled={savingSchool}
+                    className="flex items-center gap-3 bg-slate-900 text-white px-8 py-3 rounded-xl font-black text-xs uppercase tracking-[0.2em] hover:bg-indigo-600 transition-all shadow-xl shadow-slate-200 active:scale-95 disabled:opacity-50"
+                  >
+                    {savingSchool ? 'Processing...' : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        Save Diary Configuration
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           )}

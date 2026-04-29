@@ -192,10 +192,20 @@ export default function EasyFee() {
     setLoadingDetails(false);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('PERMANENT DELETE: This invoice will be completely removed and cannot be recovered. Continue?')) return;
+  const handleDelete = async (inv: any) => {
+    if (inv.status === 'paid') {
+      alert('Paid invoices cannot be deleted — they have payment records in the ledger.');
+      return;
+    }
+    const hasPartialPayment = Number(inv.paid_amount) > 0;
+    const msg = hasPartialPayment
+      ? `Invoice has a partial payment of Rs. ${Number(inv.paid_amount).toLocaleString()}. Soft-delete it (recoverable from Trash Bin)?`
+      : 'Soft-delete this invoice? It can be recovered from Settings → Trash Bin.';
+    if (!confirm(msg)) return;
     try {
-      const { error } = await supabase.from('fee_records').delete().eq('id', id);
+      const { error } = await supabase.from('fee_records')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', inv.id);
       if (error) throw error;
       if (selectedStudent) handleSelect(selectedStudent);
     } catch (err: any) { alert(err.message); }
@@ -222,6 +232,9 @@ export default function EasyFee() {
     setIsProcessing(true);
     let remaining = amount;
 
+    // Track which fee_records we updated so we can roll back if ledger insert fails
+    const updatedRecords: { id: string; originalPaid: number; originalStatus: string }[] = [];
+
     try {
       // 1. Distribute across pending months (Oldest First)
       const pendingOldest = [...feeHistory]
@@ -242,13 +255,17 @@ export default function EasyFee() {
           amount: paying,
         });
 
-        await supabase.from('fee_records').update({
+        // Remember original values for rollback
+        updatedRecords.push({ id: fee.id, originalPaid: Number(fee.paid_amount), originalStatus: fee.status });
+
+        const { error: updateErr } = await supabase.from('fee_records').update({
           paid_amount: Number(fee.paid_amount) + paying,
           status: (Number(fee.paid_amount) + paying) >= Number(fee.total_amount) ? 'paid' : 'partial',
-          paid_at: payDate + 'T12:00:00Z', // Use the selected date
+          paid_at: payDate + 'T12:00:00Z',
           payment_mode: payMode
         }).eq('id', fee.id);
 
+        if (updateErr) throw updateErr;
         remaining -= paying;
       }
 
@@ -256,20 +273,47 @@ export default function EasyFee() {
         .map(r => new Date(r.month_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }))
         .join(', ');
 
-      // 2. Log one transaction per invoice covered (with fee_record_id for reliable reporting)
-      const txInserts = paidRecords.map((fee, idx) => ({
-        school_id: userRole!.school_id,
-        type: 'income',
-        category: 'Fee Collection',
-        amount: paymentBreakdown[idx]?.amount ?? 0,
-        date: payDate,
-        payment_mode: payMode,
-        remarks: `${selectedStudent.full_name} — ${new Date(fee.month_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}${payRemarks ? ` (${payRemarks})` : ''}`,
-        fee_record_id: fee.id,
-        fee_items: (fee as any).breakdown || [],
-      }));
+      // 2. Log one P&L transaction per invoice covered (fee_record_id links to invoice for reporting)
+      const txInserts = paidRecords.map((fee, idx) => {
+        const paidAmt = paymentBreakdown[idx]?.amount ?? 0;
+        const rawBreakdown: { item: string; amount: number }[] = (fee as any).breakdown || [];
+        const grossTotal = rawBreakdown.reduce((s, b) => s + Number(b.amount || 0), 0);
+
+        // Scale breakdown items proportionally to the actual net amount paid.
+        // This ensures P&L fee-type breakdown (e.g. "Tuition Fee: Rs. X") always
+        // sums to the real collected amount, even when discounts or partial payments apply.
+        const scaledItems = grossTotal > 0 && rawBreakdown.length > 0
+          ? rawBreakdown.map(b => ({
+              item: b.item,
+              amount: Math.round((Number(b.amount) / grossTotal) * paidAmt),
+            }))
+          : [{ item: 'Fee Collection', amount: paidAmt }];
+
+        return {
+          school_id: userRole!.school_id,
+          type: 'income',
+          category: 'Fee Collection',
+          amount: paidAmt,
+          date: payDate,
+          payment_mode: payMode,
+          remarks: `${selectedStudent.full_name} — ${new Date(fee.month_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}${payRemarks ? ` (${payRemarks})` : ''}`,
+          fee_record_id: fee.id,
+          fee_items: scaledItems,  // proportional net amounts — sum equals paidAmt
+        };
+      });
+
       if (txInserts.length > 0) {
-        await supabase.from('financial_transactions').insert(txInserts);
+        const { error: txErr } = await supabase.from('financial_transactions').insert(txInserts);
+        if (txErr) {
+          // Ledger insert failed — roll back fee_records to their original state
+          for (const rec of updatedRecords) {
+            await supabase.from('fee_records').update({
+              paid_amount: rec.originalPaid,
+              status: rec.originalStatus,
+            }).eq('id', rec.id);
+          }
+          throw new Error(`Ledger entry failed (fee records rolled back): ${txErr.message}`);
+        }
       }
 
       if (amount > 0) {
@@ -291,11 +335,11 @@ export default function EasyFee() {
       setSelectedStudent(null);
       setPayAmount('');
       setPayRemarks('');
-      setPayDate(new Date().toISOString().split('T')[0]); // Reset to today
+      setPayDate(new Date().toISOString().split('T')[0]);
       await fetchRecentActivity();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Payment Error:', error);
-      alert('Failed to process payment. Please check your connection.');
+      alert(`Payment failed: ${error?.message || 'Please check your connection and try again.'}`);
     } finally {
       setIsProcessing(false);
     }
@@ -539,7 +583,7 @@ export default function EasyFee() {
                                   <div className="flex flex-col items-end">
                                     <p className="font-bold text-gray-900 text-sm">Rs {balance.toLocaleString()}</p>
                                     <button 
-                                      onClick={(e) => { e.stopPropagation(); handleDelete(f.id); }}
+                                      onClick={(e) => { e.stopPropagation(); handleDelete(f); }}
                                       className="opacity-0 group-hover/row:opacity-100 p-1 text-red-400 hover:text-red-600 transition-all mt-1"
                                       title="Delete Invoice"
                                     >

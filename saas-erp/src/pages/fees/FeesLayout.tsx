@@ -18,7 +18,7 @@ import BulkArrearsEntry from './BulkArrearsEntry';
 export default function FeesLayout() {
   return (
     <Routes>
-      <Route path="/" element={<MonthlyFeeInvoices />} />
+      <Route path="/" element={<Navigate to="/fees/invoices" replace />} />
       <Route path="criteria" element={<FeeCriteria />} />
       <Route path="invoices" element={<MonthlyFeeInvoices />} />
       <Route path="student-detail" element={<StudentFeeDetail />} />

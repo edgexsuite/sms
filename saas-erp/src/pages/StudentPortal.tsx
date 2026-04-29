@@ -52,7 +52,16 @@ export default function StudentPortal() {
   const [urduMode, setUrduMode] = useState(false);
 
   // Data
-  const [schoolInfo, setSchoolInfo] = useState<{ name: string; logo_url: string | null } | null>(null);
+  const [schoolInfo, setSchoolInfo] = useState<{ 
+    name: string; 
+    logo_url: string | null;
+    diary_settings?: {
+      show_topic_covered: boolean;
+      show_homework: boolean;
+      show_activity_notes: boolean;
+      show_next_plan: boolean;
+    }
+  } | null>(null);
   const [attendance, setAttendance] = useState<any[]>([]);
   const [results, setResults] = useState<any[]>([]);
   const [notices, setNotices] = useState<any[]>([]);
@@ -83,7 +92,7 @@ export default function StudentPortal() {
 
   const fetchSchoolInfo = async () => {
     const { data } = await supabase
-      .from('schools').select('name, logo_url')
+      .from('schools').select('name, logo_url, diary_settings')
       .eq('id', studentData!.school_id).maybeSingle();
     if (data) setSchoolInfo(data);
   };
@@ -136,11 +145,11 @@ export default function StudentPortal() {
   const fetchHomework = async () => {
     const { data } = await supabase
       .from('teacher_diary')
-      .select('diary_date, topic_covered, homework, next_plan, subjects(subject_name)')
+      .select('diary_date, topic_covered, homework, activity_notes, next_plan, subjects(subject_name)')
       .eq('class_id', studentData!.class_id)
       .not('homework', 'is', null)
       .order('diary_date', { ascending: false })
-      .limit(20);
+      .limit(30);
     setHomework(data || []);
   };
 
@@ -931,7 +940,8 @@ function HomeworkTab({ homework }: { homework: any[] }) {
           <thead>
             <tr className="bg-slate-900 text-white">
               <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Subject</th>
-              <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Topic & Task</th>
+              <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Topic &amp; Task</th>
+              <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Activity Notes</th>
               <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Next Plan</th>
               <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-right">Date</th>
             </tr>
@@ -949,8 +959,17 @@ function HomeworkTab({ homework }: { homework: any[] }) {
                         {h.topic_covered}
                       </span>
                     )}
-                    <p className="text-sm text-gray-800 font-medium leading-relaxed max-w-sm">{h.homework}</p>
+                    {h.homework && (
+                      <p className="text-sm text-gray-800 font-medium leading-relaxed max-w-sm">{h.homework}</p>
+                    )}
                   </div>
+                </td>
+                <td className="px-6 py-5 align-top">
+                  {h.activity_notes ? (
+                    <p className="text-xs text-slate-600 font-medium italic">{h.activity_notes}</p>
+                  ) : (
+                    <span className="text-[10px] text-slate-300">None</span>
+                  )}
                 </td>
                 <td className="px-6 py-5 align-top">
                   {h.next_plan ? (

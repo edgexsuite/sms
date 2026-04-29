@@ -473,7 +473,7 @@ export default function DashboardLayout() {
         </div>
 
         {/* ── Global Print Header — hidden on screen, shown at top of every print ── */}
-        {!location.pathname.startsWith('/result') && (
+        {!location.pathname.startsWith('/result') && !location.pathname.startsWith('/diary') && (
           <div className="hidden print:flex flex-col items-center py-5 border-b-2 border-slate-300 mb-4 gap-1">
             {schoolLogo
               ? <img src={schoolLogo} alt={schoolName} className="w-14 h-14 object-contain mb-1" />

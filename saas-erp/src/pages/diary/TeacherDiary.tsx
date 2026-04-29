@@ -3,10 +3,9 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   ClipboardList, Save, Calendar, Users, Printer,
-  Image as ImageIcon, ChevronLeft, ChevronRight, Languages,
-  BookOpen, CheckCircle2, AlertCircle, LayoutGrid,
-  Calculator, FlaskConical, PenTool, Book, Globe, Cpu, 
-  Palette, Atom, Activity, Rocket, Microscope, Music
+  ChevronLeft, ChevronRight, BookOpen, CheckCircle2, 
+  AlertCircle, Calculator, FlaskConical, PenTool, 
+  Book, Globe, Cpu, Palette
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';
@@ -71,7 +70,17 @@ export default function TeacherDiary() {
   const [viewDate, setViewDate] = useState(new Date().toISOString().split('T')[0]);
   const [rows, setRows] = useState<DiaryRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [schoolInfo, setSchoolInfo] = useState<{ name: string; address: string; logo_url?: string } | null>(null);
+  const [schoolInfo, setSchoolInfo] = useState<{ 
+    name: string; 
+    address: string; 
+    logo_url?: string;
+    diary_settings?: {
+      show_topic_covered: boolean;
+      show_homework: boolean;
+      show_activity_notes: boolean;
+      show_next_plan: boolean;
+    }
+  } | null>(null);
   const reportRef = useRef<HTMLDivElement>(null);
 
   // ─── Init ─────────────────────────────────────────────────────────────────
@@ -89,7 +98,7 @@ export default function TeacherDiary() {
   const fetchSchoolInfo = async () => {
     const { data } = await supabase
       .from('schools')
-      .select('name, address, logo_url')
+      .select('name, address, logo_url, diary_settings')
       .eq('id', userRole?.school_id)
       .maybeSingle();
 
@@ -273,8 +282,14 @@ export default function TeacherDiary() {
 
   const saveRow = async (index: number) => {
     const row = rows[index];
-    if (!row.topic_covered.trim()) {
+    const showTopic = schoolInfo?.diary_settings?.show_topic_covered !== false;
+    if (showTopic && !row.topic_covered.trim()) {
       alert('Topic / Lesson Covered is required before saving.');
+      return;
+    }
+    // If topic is hidden, ensure at least homework is provided (homework is always enabled)
+    if (!showTopic && !row.homework.trim()) {
+      alert('Homework / Task is required before saving.');
       return;
     }
     setRows(prev => prev.map((r, i) => i === index ? { ...r, saving: true } : r));
@@ -306,7 +321,10 @@ export default function TeacherDiary() {
   };
 
   const saveAll = async () => {
-    const toSave = rows.map((r, i) => ({ r, i })).filter(({ r }) => r.topic_covered.trim());
+    const showTopic = schoolInfo?.diary_settings?.show_topic_covered !== false;
+    const toSave = rows.map((r, i) => ({ r, i })).filter(({ r }) => 
+      showTopic ? r.topic_covered.trim() : r.homework.trim()
+    );
     for (const { i } of toSave) {
       await saveRow(i);
     }
@@ -336,19 +354,25 @@ export default function TeacherDiary() {
           body { background: white !important; margin: 0 !important; padding: 0 !important; }
           .no-print { display: none !important; }
           .print-only { display: block !important; position: static !important; width: 100% !important; left: auto !important; top: auto !important; }
-          @page { size: landscape; margin: 10mm; }
+          @page { size: landscape; margin: 5mm; }
           .diary-print-layout { 
             width: 100%; 
-            border: 2px solid #1e1b4b; 
             background: #fffdfa !important; 
-            min-height: 98vh; 
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
+            transform: scale(0.88);
+            transform-origin: top center;
+            margin: 0 !important;
           }
-          .urdu-text { font-family: 'Noto Nastaliq Urdu', serif; direction: rtl; }
+          table { page-break-after: avoid !important; width: 100% !important; }
+          tr { page-break-inside: avoid !important; }
+          .sign-area { page-break-inside: avoid !important; }
+          .urdu-text { font-family: 'Inter', 'Noto Nastaliq Urdu', serif; unicode-bidi: plaintext; text-align: start; font-size: 13px; line-height: 1.5; }
+          thead { display: table-row-group !important; }
         }
         .print-only { display: none; }
       `}</style>
+      <div className="no-print space-y-4">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
@@ -425,7 +449,16 @@ export default function TeacherDiary() {
           {/* Mobile: card per subject */}
           <div className="md:hidden space-y-3">
             {rows.map((row, idx) => (
-              <DiaryCard key={`card_${row.slot.class_id}_${row.slot.subject_id}`} row={row} index={idx} viewMode={viewMode} onUpdate={updateRow} onSave={saveRow} />
+              <React.Fragment key={`card_${row.slot.class_id}_${row.slot.subject_id}`}>
+                <DiaryCard
+                  row={row}
+                  index={idx}
+                  viewMode={viewMode}
+                  onUpdate={updateRow}
+                  onSave={saveRow}
+                  diarySettings={schoolInfo?.diary_settings}
+                />
+              </React.Fragment>
             ))}
           </div>
 
@@ -435,17 +468,35 @@ export default function TeacherDiary() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 border-b-2 border-slate-200">
-                    <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide w-[100px]">{viewMode === 'class' ? 'Subject' : 'Class'}</th>
-                    <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide w-[110px]">{viewMode === 'class' ? 'Teacher' : 'Subject'}</th>
-                    <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide">Topic Covered <span className="text-red-500">*</span></th>
-                    <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide">Homework</th>
-                    <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide">Activity Notes</th>
-                    <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide">Next Plan</th>
+                    <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide w-[140px]">{viewMode === 'class' ? 'Subject' : 'Class'}</th>
+                    <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide w-[130px]">{viewMode === 'class' ? 'Teacher' : 'Subject'}</th>
+                    {schoolInfo?.diary_settings?.show_topic_covered !== false && (
+                      <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide">Topic Covered <span className="text-red-500">*</span></th>
+                    )}
+                    {schoolInfo?.diary_settings?.show_homework !== false && (
+                      <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide">Homework</th>
+                    )}
+                    {schoolInfo?.diary_settings?.show_activity_notes !== false && (
+                      <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide">Activity Notes</th>
+                    )}
+                    {schoolInfo?.diary_settings?.show_next_plan !== false && (
+                      <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide">Next Plan</th>
+                    )}
                     <th className="px-3 py-3 w-[80px] no-print"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {rows.map((row, idx) => (<DiaryTableRow key={`${row.slot.class_id}_${row.slot.subject_id}`} row={row} index={idx} viewMode={viewMode} onUpdate={updateRow} onSave={saveRow} />))}
+                  {rows.map((row, idx) => (
+                    <DiaryTableRow 
+                      key={`${row.slot.class_id}_${row.slot.subject_id}`} 
+                      row={row} 
+                      index={idx} 
+                      viewMode={viewMode} 
+                      onUpdate={updateRow} 
+                      onSave={saveRow} 
+                      diarySettings={schoolInfo?.diary_settings}
+                    />
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -455,92 +506,121 @@ export default function TeacherDiary() {
             <span className="flex items-center gap-1 text-emerald-700 font-bold"><CheckCircle2 className="w-4 h-4" />{filledCount} of {rows.length} entries filled</span>
             {filledCount < rows.length && (<span className="flex items-center gap-1 text-amber-600 font-medium"><AlertCircle className="w-3.5 h-3.5" />{rows.length - filledCount} remaining</span>)}
           </div>
-
-          {/* ── Hidden Static Report View ─────────────────────────────────── */}
-          <div className="print-only">
-            <div ref={reportRef} id="hidden-report-container" className="diary-print-layout" style={{ padding: '0 0 40px 0' }}>
-              <div className="top-banner" style={{ height: '12px', background: 'linear-gradient(90deg, #1e1b4b, #4f46e5)', marginBottom: '20px' }}></div>
-              <div style={{ display: 'flex', alignItems: 'center', margin: '0 35px 25px 35px', paddingBottom: '12px', borderBottom: '3px solid #1e1b4b' }}>
-                {schoolInfo?.logo_url && (
-                  <img src={schoolInfo.logo_url} crossOrigin="anonymous" style={{ width: '85px', height: '85px', objectFit: 'contain', marginRight: '30px' }} alt="logo" />
-                )}
-                <div style={{ flexGrow: 1, textAlign: 'center' }}>
-                  <h1 style={{ fontSize: '34px', fontWeight: '900', color: '#1e1b4b', margin: '0', letterSpacing: '-1px', textTransform: 'uppercase' }}>{schoolInfo?.name || 'School Diary'}</h1>
-                  <p style={{ fontSize: '14px', color: '#475569', fontWeight: '700', marginTop: '4px' }}>{schoolInfo?.address}</p>
-                  <div style={{ marginTop: '12px' }}>
-                     <span style={{ background: '#1e1b4b', color: 'white', padding: '6px 35px', borderRadius: '4px', fontWight: '900', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1.5px' }}>
-                       {viewMode === 'class' ? 'Class Academic Diary' : 'Professional Staff Record'}
-                     </span>
-                  </div>
-                </div>
-                <div style={{ width: '85px' }}></div> 
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', margin: '0 35px 20px 35px', fontWeight: '900', fontSize: '14px', border: '2.5px solid #1e1b4b', padding: '12px 25px', background: '#f8fafc', color: '#1e1b4b' }}>
-                <span>DATED: {formattedDate}</span>
-                <span>{viewMode === 'class' ? `CLASS: GRADE ${selectedClassName}` : `STAFF: ${selectedTeacherName}`}</span>
-              </div>
-
-              <table style={{ width: 'calc(100% - 70px)', margin: '0 35px', borderCollapse: 'collapse', border: '2.5px solid #1e1b4b', background: 'white' }}>
-                <thead>
-                  <tr>
-                    <th style={{ border: '1.5px solid #1e1b4b', padding: '12px 6px', background: '#1e1b4b', width: '12%', textAlign: 'center', color: '#fff', fontWeight: '900', fontSize: '10px' }}>{viewMode === 'class' ? 'Subject' : 'Class'}</th>
-                    <th style={{ border: '1.5px solid #1e1b4b', padding: '12px 6px', background: '#1e1b4b', width: '12%', textAlign: 'center', color: '#fff', fontWeight: '900', fontSize: '10px' }}>{viewMode === 'class' ? 'Teacher' : 'Subject'}</th>
-                    <th style={{ border: '1.5px solid #1e1b4b', padding: '12px 6px', background: '#1e1b4b', width: '25%', textAlign: 'center', color: '#fff', fontWeight: '900', fontSize: '10px' }}>Lesson / Work Covered</th>
-                    <th style={{ border: '1.5px solid #1e1b4b', padding: '12px 6px', background: '#1e1b4b', width: '17%', textAlign: 'center', color: '#fff', fontWeight: '900', fontSize: '10px' }}>Home Assignments</th>
-                    <th style={{ border: '1.5px solid #1e1b4b', padding: '12px 6px', background: '#1e1b4b', width: '17%', textAlign: 'center', color: '#fff', fontWeight: '900', fontSize: '10px' }}>Activity Notes</th>
-                    <th style={{ border: '1.5px solid #1e1b4b', padding: '12px 6px', background: '#1e1b4b', width: '17%', textAlign: 'center', color: '#fff', fontWeight: '900', fontSize: '10px' }}>Next Plan</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, idx) => {
-                    const meta = getSubjectMeta(viewMode === 'class' ? row.slot.subject_name : row.slot.class_name);
-                    const ReportIcon = meta.icon;
-                    return (
-                      <tr key={idx} style={{ background: idx % 2 === 0 ? 'white' : 'rgba(241, 245, 249, 0.4)' }}>
-                        <td style={{ border: '1px solid #cbd5e1', padding: '14px 10px', borderLeft: `8px solid ${meta.color}`, verticalAlign: 'middle', textAlign: 'center' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px' }}>
-                             <div style={{ color: meta.color, background: `${meta.color}15`, padding: '5px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <ReportIcon style={{ width: '18px', height: '18px' }} />
-                             </div>
-                             <span style={{ fontWeight: '900', color: '#1e1b4b', fontSize: '11px' }}>{viewMode === 'class' ? row.slot.subject_name : row.slot.class_name}</span>
-                          </div>
-                        </td>
-                        <td style={{ border: '1px solid #cbd5e1', padding: '14px 10px', fontSize: '10px', fontWeight: '800', color: '#444', textAlign: 'center' }}>{viewMode === 'class' ? row.slot.teacher_name : row.slot.subject_name}</td>
-                        <td className="urdu-text" style={{ border: '1px solid #cbd5e1', padding: '16px 12px', background: `${meta.color}05`, textAlign: 'center' }}>{row.topic_covered}</td>
-                        <td className="urdu-text" style={{ border: '1px solid #cbd5e1', padding: '16px 12px', textAlign: 'center' }}>{row.homework}</td>
-                        <td className="urdu-text" style={{ border: '1px solid #cbd5e1', padding: '16px 12px', background: `${meta.color}05`, textAlign: 'center' }}>{row.activity_notes}</td>
-                        <td className="urdu-text" style={{ border: '1px solid #cbd5e1', padding: '16px 12px', textAlign: 'center' }}>{row.next_plan}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-
-              <div className="sign-area" style={{ display: 'flex', justifyContent: 'center', margin: '50px 35px 0 35px' }}>
-                <div style={{ textAlign: 'center', width: '350px' }}>
-                  <div style={{ padding: '15px', borderRadius: '8px 8px 0 0', height: '40px' }}></div>
-                  <div style={{ borderTop: '2.5px solid #1e1b4b', paddingTop: '10px', fontWeight: '900', color: '#1e1b4b', fontSize: '13px', letterSpacing: '1px' }}>CLASS TEACHER SIGNATURE</div>
-                </div>
-              </div>
-            </div>
-          </div>
         </motion.div>
       ) : null)}
+    </div>
+
+      {/* ── PRINT ONLY LAYOUT (HIDDEN ON SCREEN) ────────────────────────── */}
+      <div className="print-only">
+        <div ref={reportRef} id="hidden-report-container" className="diary-print-layout" style={{ padding: '0 0 15px 0' }}>
+          <div className="top-banner" style={{ height: '10px', background: 'linear-gradient(90deg, #1e1b4b, #4338ca, #10b981)', marginBottom: '15px' }}></div>
+          <div style={{ padding: '0 35px', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', alignItems: 'center', width: '100%', paddingBottom: '6px', borderBottom: '2px solid #1e1b4b', marginBottom: '8px', boxSizing: 'border-box' }}>
+            {schoolInfo?.logo_url && (
+              <img src={schoolInfo.logo_url} crossOrigin="anonymous" style={{ width: '55px', height: '55px', objectFit: 'contain', marginRight: '15px' }} alt="logo" />
+            )}
+            <div style={{ flexGrow: 1, textAlign: 'center' }}>
+              <h1 style={{ fontSize: '22px', fontWeight: '900', color: '#1e1b4b', margin: '0', letterSpacing: '-0.3px', textTransform: 'uppercase' }}>{schoolInfo?.name || 'School Diary'}</h1>
+              <p style={{ fontSize: '11px', color: '#475569', fontWeight: '700', marginTop: '1px' }}>{schoolInfo?.address}</p>
+              <div style={{ marginTop: '6px' }}>
+                 <span style={{ background: 'linear-gradient(135deg, #1e1b4b, #4338ca)', color: 'white', padding: '4px 28px', borderRadius: '50px', fontWeight: '900', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                   {viewMode === 'class' ? 'Class Academic Diary' : 'Professional Staff Record'}
+                 </span>
+              </div>
+            </div>
+            <div style={{ width: '55px' }}></div> 
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontWeight: '900', fontSize: '12px', border: '2px solid #1e1b4b', padding: '7px 25px', background: 'linear-gradient(to right, #f8fafc, #ffffff)', color: '#1e1b4b', borderRadius: '4px', boxSizing: 'border-box', marginBottom: '12px' }}>
+            <span>DATED: {formattedDate}</span>
+            <span>{viewMode === 'class' ? `CLASS: GRADE ${selectedClassName}` : `STAFF: ${selectedTeacherName}`}</span>
+          </div>
+
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '2px solid #1e1b4b', background: 'white', tableLayout: 'fixed', boxSizing: 'border-box' }}>
+            <thead>
+              <tr>
+                <th style={{ border: '1.5px solid #1e1b4b', padding: '12px 10px !important', background: 'linear-gradient(180deg, #1e1b4b, #312e81)', width: '12%', textAlign: 'center', color: '#fff', fontWeight: '900', fontSize: '10px', textTransform: 'uppercase' }}>{viewMode === 'class' ? 'Subject' : 'Class'}</th>
+                <th style={{ border: '1.5px solid #1e1b4b', padding: '12px 10px !important', background: 'linear-gradient(180deg, #1e1b4b, #312e81)', width: '12%', textAlign: 'center', color: '#fff', fontWeight: '900', fontSize: '10px', textTransform: 'uppercase' }}>{viewMode === 'class' ? 'Teacher' : 'Subject'}</th>
+                {schoolInfo?.diary_settings?.show_topic_covered !== false && (
+                  <th style={{ border: '1.5px solid #1e1b4b', padding: '12px 10px !important', background: 'linear-gradient(180deg, #1e1b4b, #312e81)', width: '25%', textAlign: 'center', color: '#fff', fontWeight: '900', fontSize: '10px', textTransform: 'uppercase' }}>Lesson / Work Covered</th>
+                )}
+                {schoolInfo?.diary_settings?.show_homework !== false && (
+                  <th style={{ border: '1.5px solid #1e1b4b', padding: '12px 10px !important', background: 'linear-gradient(180deg, #1e1b4b, #312e81)', width: '17%', textAlign: 'center', color: '#fff', fontWeight: '900', fontSize: '10px', textTransform: 'uppercase' }}>Home Assignments</th>
+                )}
+                {schoolInfo?.diary_settings?.show_activity_notes !== false && (
+                  <th style={{ border: '1.5px solid #1e1b4b', padding: '12px 10px !important', background: 'linear-gradient(180deg, #1e1b4b, #312e81)', width: '17%', textAlign: 'center', color: '#fff', fontWeight: '900', fontSize: '10px', textTransform: 'uppercase' }}>Activity Notes</th>
+                )}
+                {schoolInfo?.diary_settings?.show_next_plan !== false && (
+                  <th style={{ border: '1.5px solid #1e1b4b', padding: '12px 10px !important', background: 'linear-gradient(180deg, #1e1b4b, #312e81)', width: '17%', textAlign: 'center', color: '#fff', fontWeight: '900', fontSize: '10px', textTransform: 'uppercase' }}>Next Plan</th>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, idx) => {
+                const meta = getSubjectMeta(viewMode === 'class' ? row.slot.subject_name : row.slot.class_name);
+                const ReportIcon = meta.icon;
+                return (
+                  <tr key={idx} style={{ background: idx % 2 === 0 ? 'white' : 'rgba(241, 245, 249, 0.4)' }}>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '8px 10px', borderLeft: `8px solid ${meta.color}`, verticalAlign: 'middle', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                         <div style={{ color: meta.color, background: `${meta.color}15`, padding: '4px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <ReportIcon style={{ width: '16px', height: '16px' }} />
+                         </div>
+                         <span style={{ fontWeight: '900', color: '#1e1b4b', fontSize: '10px' }}>{viewMode === 'class' ? row.slot.subject_name : row.slot.class_name}</span>
+                      </div>
+                    </td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '8px 10px', fontSize: '10px', fontWeight: '800', color: '#444', textAlign: 'center' }}>{viewMode === 'class' ? row.slot.teacher_name : row.slot.subject_name}</td>
+                    {schoolInfo?.diary_settings?.show_topic_covered !== false && (
+                      <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', background: `${meta.color}05`, textAlign: 'start', verticalAlign: 'top' }}>
+                        <div style={{ padding: '4px 20px' }}>{row.topic_covered}</div>
+                      </td>
+                    )}
+                    {schoolInfo?.diary_settings?.show_homework !== false && (
+                      <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', textAlign: 'start', verticalAlign: 'top' }}>
+                        <div style={{ padding: '4px 20px' }}>{row.homework}</div>
+                      </td>
+                    )}
+                    {schoolInfo?.diary_settings?.show_activity_notes !== false && (
+                      <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', background: `${meta.color}05`, textAlign: 'start', verticalAlign: 'top' }}>
+                        <div style={{ padding: '4px 20px' }}>{row.activity_notes}</div>
+                      </td>
+                    )}
+                    {schoolInfo?.diary_settings?.show_next_plan !== false && (
+                      <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', textAlign: 'start', verticalAlign: 'top' }}>
+                        <div style={{ padding: '4px 20px' }}>{row.next_plan}</div>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          <div className="sign-area" style={{ display: 'flex', justifyContent: 'space-between', width: '100%', margin: '40px 0 0 0', pageBreakInside: 'avoid', boxSizing: 'border-box' }}>
+            <div style={{ textAlign: 'center', width: '250px' }}>
+              <div style={{ borderTop: '2px solid #1e1b4b', paddingTop: '10px', fontWeight: '900', color: '#1e1b4b', fontSize: '11px', letterSpacing: '1px', textTransform: 'uppercase' }}>Class Teacher Signature</div>
+            </div>
+            <div style={{ textAlign: 'center', width: '250px' }}>
+              <div style={{ borderTop: '2px solid #1e1b4b', paddingTop: '10px', fontWeight: '900', color: '#1e1b4b', fontSize: '11px', letterSpacing: '1px', textTransform: 'uppercase' }}>Principal / Supervisor</div>
+            </div>
+          </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
 // ─── Mobile Card Component ────────────────────────────────────────────────────
 function DiaryCard({
-  row, index, onUpdate, onSave, viewMode,
+  row, index, onUpdate, onSave, viewMode, diarySettings
 }: {
-  key?: React.Key;
   row: DiaryRow;
   index: number;
   onUpdate: (i: number, field: keyof DiaryRow, value: string) => void;
   onSave: (i: number) => void | Promise<void>;
   viewMode: 'teacher' | 'class';
+  diarySettings?: any;
 }) {
   const meta = getSubjectMeta(viewMode === 'class' ? row.slot.subject_name : row.slot.class_name);
   const Icon = meta.icon;
@@ -552,15 +632,18 @@ function DiaryCard({
       </label>
       <textarea
         rows={3}
+        dir="auto"
         value={row[field] as string}
         onChange={e => onUpdate(index, field, e.target.value)}
         placeholder={placeholder}
-        className="w-full border rounded-xl px-3 py-2 text-sm resize-none outline-none transition focus:ring-2"
+        className="w-full border rounded-xl px-4 py-3 text-sm resize-none outline-none transition focus:ring-2"
         style={{
           borderColor: row[field] ? meta.color : '#e2e8f0',
           // @ts-ignore
           '--tw-ring-color': meta.color,
           backgroundColor: row[field] ? `${meta.color}08` : 'transparent',
+          unicodeBidi: 'plaintext',
+          textAlign: 'start'
         }}
       />
     </div>
@@ -590,7 +673,7 @@ function DiaryCard({
         ) : (
           <button
             onClick={() => onSave(index)}
-            disabled={row.saving || !row.topic_covered.trim()}
+            disabled={row.saving || (diarySettings?.show_topic_covered !== false ? !row.topic_covered.trim() : !row.homework.trim())}
             className="flex items-center gap-1.5 px-3 py-1.5 text-white text-xs font-bold rounded-lg shadow disabled:opacity-40 transition"
             style={{ backgroundColor: meta.color }}
           >
@@ -601,10 +684,10 @@ function DiaryCard({
 
       {/* Card fields */}
       <div className="p-4 space-y-3">
-        {cardField('topic_covered', 'Topic Covered', 'What was taught today?', true)}
-        {cardField('homework', 'Homework', 'Tasks for home…')}
-        {cardField('activity_notes', 'Activity Notes', 'Class observations…')}
-        {cardField('next_plan', 'Next Plan', "Tomorrow's agenda…")}
+        {diarySettings?.show_topic_covered !== false && cardField('topic_covered', 'Topic Covered', 'What was taught today?', true)}
+        {diarySettings?.show_homework !== false && cardField('homework', 'Homework', 'Tasks for home…')}
+        {diarySettings?.show_activity_notes !== false && cardField('activity_notes', 'Activity Notes', 'Class observations…')}
+        {diarySettings?.show_next_plan !== false && cardField('next_plan', 'Next Plan', "Tomorrow's agenda…")}
       </div>
     </div>
   );
@@ -612,7 +695,7 @@ function DiaryCard({
 
 // ─── Desktop Table Row ────────────────────────────────────────────────────────
 function DiaryTableRow({
-  row, index, onUpdate, onSave, viewMode,
+  row, index, onUpdate, onSave, viewMode, diarySettings
 }: {
   key?: React.Key;
   row: DiaryRow;
@@ -620,6 +703,7 @@ function DiaryTableRow({
   onUpdate: (i: number, field: keyof DiaryRow, value: string) => void;
   onSave: (i: number) => void | Promise<void>;
   viewMode: 'teacher' | 'class';
+  diarySettings?: any;
 }) {
   const meta = getSubjectMeta(viewMode === 'class' ? row.slot.subject_name : row.slot.class_name);
   const Icon = meta.icon;
@@ -627,17 +711,20 @@ function DiaryTableRow({
   const cellInput = (field: 'topic_covered' | 'homework' | 'activity_notes' | 'next_plan', placeholder: string) => (
     <textarea 
       rows={3} 
+      dir="auto"
       value={row[field] as string} 
       onChange={e => onUpdate(index, field, e.target.value)} 
       placeholder={placeholder} 
       className={cn(
-        "w-full border-2 border-transparent hover:border-indigo-100 focus:ring-1 transition outline-none leading-relaxed font-['Inter',_'Noto_Nastaliq_Urdu',_sans-serif] rounded-xl px-3 py-2 text-sm resize-none bg-transparent focus:bg-white",
+        "w-full border-2 border-transparent hover:border-indigo-100 focus:ring-1 transition outline-none leading-relaxed font-['Inter',_'Noto_Nastaliq_Urdu',_sans-serif] rounded-xl px-4 py-3 text-sm resize-none bg-transparent focus:bg-white",
         "focus:ring-offset-2"
       )}
       style={{ 
         // @ts-ignore
         '--tw-ring-color': meta.color,
-        borderBottomColor: row[field] ? meta.color : 'transparent'
+        borderBottomColor: row[field] ? meta.color : 'transparent',
+        unicodeBidi: 'plaintext',
+        textAlign: 'start'
       }}
     />
   );
@@ -675,15 +762,31 @@ function DiaryTableRow({
           )}
         </div>
       </td>
-      <td className="px-2 py-2 align-top min-w-[220px]">{cellInput('topic_covered', 'What was taught today?')}</td>
-      <td className="px-2 py-2 align-top min-w-[180px]">{cellInput('homework', 'Tasks for home...')}</td>
-      <td className="px-2 py-2 align-top min-w-[180px]">{cellInput('activity_notes', 'Class observations...')}</td>
-      <td className="px-2 py-2 align-top min-w-[180px]">{cellInput('next_plan', 'Tomorrow\'s agenda...')}</td>
-      <td className="px-3 py-4 align-top no-print">
+      {diarySettings?.show_topic_covered !== false && (
+        <td className="px-4 py-2 align-top min-w-[220px]">
+          {cellInput('topic_covered', 'What was taught today?')}
+        </td>
+      )}
+      {diarySettings?.show_homework !== false && (
+        <td className="px-4 py-2 align-top min-w-[180px]">{cellInput('homework', 'Tasks for home...')}</td>
+      )}
+      {diarySettings?.show_activity_notes !== false && (
+        <td className="px-4 py-2 align-top min-w-[180px]">{cellInput('activity_notes', 'Class observations...')}</td>
+      )}
+      {diarySettings?.show_next_plan !== false && (
+        <td className="px-4 py-2 align-top min-w-[180px]">{cellInput('next_plan', 'Tomorrow\'s agenda...')}</td>
+      )}
+      <td className="px-4 py-4 align-top no-print">
         {row.saved ? (
           <span className="flex items-center gap-1 text-emerald-600 font-bold text-[10px]"><CheckCircle2 className="w-3.5 h-3.5" /> Saved</span>
         ) : (
-          <button onClick={() => onSave(index)} disabled={row.saving || !row.topic_covered.trim()} className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow disabled:opacity-40 transition whitespace-nowrap"><Save className="w-3 h-3" />{row.saving ? '...' : 'Save'}</button>
+          <button 
+            onClick={() => onSave(index)} 
+            disabled={row.saving || (diarySettings?.show_topic_covered !== false ? !row.topic_covered.trim() : !row.homework.trim())} 
+            className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow disabled:opacity-40 transition whitespace-nowrap"
+          >
+            <Save className="w-3 h-3" />{row.saving ? '...' : 'Save'}
+          </button>
         )}
       </td>
     </tr>

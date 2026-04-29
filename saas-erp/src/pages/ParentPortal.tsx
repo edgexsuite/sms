@@ -69,7 +69,7 @@ export default function ParentPortal() {
   const [loginError, setLoginError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
 
-  const [school, setSchool] = useState<SchoolInfo>({ name: '' });
+  const [school, setSchool] = useState<SchoolInfo & { diary_settings?: any }>({ name: '' });
   const [children, setChildren] = useState<ChildData[]>([]);
   const [activeChildId, setActiveChildId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<Tab>('overview');
@@ -125,7 +125,7 @@ export default function ParentPortal() {
     try {
       const { data: schoolData } = await supabase
         .from('schools')
-        .select('name, address, contact_phone, logo_url')
+        .select('name, address, contact_phone, logo_url, diary_settings')
         .eq('id', parentData.school_id)
         .maybeSingle();
       if (schoolData) setSchool(schoolData);
@@ -233,7 +233,7 @@ export default function ParentPortal() {
       // Homework from teacher diary
       child.class_id
         ? supabase.from('teacher_diary')
-            .select('diary_date, topic_covered, homework, next_plan, subjects(subject_name)')
+            .select('diary_date, topic_covered, homework, activity_notes, next_plan, subjects(subject_name)')
             .eq('school_id', parentData!.school_id)
             .eq('class_id', child.class_id)
             .not('homework', 'is', null)
@@ -806,7 +806,7 @@ export default function ParentPortal() {
               {activeTab === 'results' && <ResultsTab examGroups={examGroups} />}
               {activeTab === 'timetable' && <TimetableTab slots={timetableSlots} todayName={todayName} />}
               {activeTab === 'notices' && <NoticesTab notices={notices} />}
-              {activeTab === 'homework' && <HomeworkTab homework={homework} />}
+              {activeTab === 'homework' && <HomeworkTab homework={homework} diarySettings={school.diary_settings} />}
               {activeTab === 'leave' && (
                 <LeaveTab 
                   applications={leaveApplications}
@@ -1436,7 +1436,7 @@ function TimetableTab({ slots, todayName }: { slots: any[]; todayName: string })
 }
 
 // ─── HOMEWORK TAB (DIARY) ──────────────────────────────────────────────────
-function HomeworkTab({ homework }: { homework: any[] }) {
+function HomeworkTab({ homework, diarySettings }: { homework: any[], diarySettings?: any }) {
   if (homework.length === 0) {
     return (
       <div className="bg-white rounded-3xl border border-gray-100 p-16 text-center shadow-sm">
@@ -1467,9 +1467,18 @@ function HomeworkTab({ homework }: { homework: any[] }) {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-900 text-white">
-              <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Subject & Topic</th>
-              <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Homework Task</th>
-              <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Next Class Plan</th>
+              <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">
+                {diarySettings?.show_topic_covered !== false ? 'Subject & Topic' : 'Subject'}
+              </th>
+              {diarySettings?.show_homework !== false && (
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Homework Task</th>
+              )}
+              {diarySettings?.show_activity_notes !== false && (
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Activity Notes</th>
+              )}
+              {diarySettings?.show_next_plan !== false && (
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Next Class Plan</th>
+              )}
               <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-right">Date</th>
             </tr>
           </thead>
@@ -1479,22 +1488,37 @@ function HomeworkTab({ homework }: { homework: any[] }) {
                 <td className="px-6 py-5 align-top">
                   <div className="flex flex-col">
                     <span className="text-sm font-black text-blue-600">{(h.subjects as any)?.subject_name || 'General'}</span>
-                    <span className="text-[11px] font-bold text-gray-400 mt-0.5">{h.topic_covered || 'N/A'}</span>
+                    {diarySettings?.show_topic_covered !== false && (
+                      <span className="text-[11px] font-bold text-gray-400 mt-0.5">{h.topic_covered || 'N/A'}</span>
+                    )}
                   </div>
                 </td>
-                <td className="px-6 py-5 align-top">
-                  <p className="text-sm text-gray-800 font-medium leading-relaxed max-w-sm">{h.homework}</p>
-                </td>
-                <td className="px-6 py-5 align-top">
-                  {h.next_plan ? (
-                    <div className="flex items-start gap-2 bg-emerald-50 rounded-xl p-3 border border-emerald-100/50">
-                      <BookOpen className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
-                      <p className="text-xs text-emerald-800 font-medium">{h.next_plan}</p>
-                    </div>
-                  ) : (
-                    <span className="text-xs text-gray-300 italic">No specific plan listed</span>
-                  )}
-                </td>
+                {diarySettings?.show_homework !== false && (
+                  <td className="px-6 py-5 align-top">
+                    <p className="text-sm text-gray-800 font-medium leading-relaxed max-w-sm">{h.homework}</p>
+                  </td>
+                )}
+                {diarySettings?.show_activity_notes !== false && (
+                  <td className="px-6 py-5 align-top">
+                    {h.activity_notes ? (
+                      <p className="text-xs text-slate-600 font-medium italic">{h.activity_notes}</p>
+                    ) : (
+                      <span className="text-[10px] text-slate-300">N/A</span>
+                    )}
+                  </td>
+                )}
+                {diarySettings?.show_next_plan !== false && (
+                  <td className="px-6 py-5 align-top">
+                    {h.next_plan ? (
+                      <div className="flex items-start gap-2 bg-emerald-50 rounded-xl p-3 border border-emerald-100/50">
+                        <BookOpen className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                        <p className="text-xs text-emerald-800 font-medium">{h.next_plan}</p>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-300 italic">No specific plan listed</span>
+                    )}
+                  </td>
+                )}
                 <td className="px-6 py-5 align-top text-right">
                   <span className="inline-block px-3 py-1 bg-gray-100 rounded-full text-[10px] font-black text-gray-500 uppercase">
                     {new Date(h.diary_date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}

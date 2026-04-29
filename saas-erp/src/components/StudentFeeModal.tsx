@@ -381,9 +381,10 @@ export default function StudentFeeModal({ student, onSave, onClose, includeAdmis
       // month_year DB column is DATE — input gives "YYYY-MM", DB needs "YYYY-MM-DD"
       const monthYearDate = monthYear.length === 7 ? `${monthYear}-01` : monthYear;
 
-      const { error: recErr } = await supabase.from('fee_records').insert([{
+      const { data: recData, error: recErr } = await supabase.from('fee_records').insert([{
         school_id: sid,
         student_id: student.id,
+        student_name: student.full_name,  // denormalized for quick display / challan
         month_year: monthYearDate,
         total_amount: total,            // net payable
         discount_amount: discountAmount, // explicit — 0 if no discount
@@ -395,10 +396,20 @@ export default function StudentFeeModal({ student, onSave, onClose, includeAdmis
         breakdown,
         invoice_number: invoiceNo,
         remarks: remarks || null,
-      }]);
+      }]).select('id').maybeSingle();
       if (recErr) throw recErr;
 
       if (collectNow && payNum > 0) {
+        // Scale breakdown items proportionally to actual net collected amount
+        // so P&L fee-type breakdown sums to real revenue (not inflated gross).
+        const grossTotal = breakdown.reduce((s: number, b: any) => s + Number(b.amount || 0), 0);
+        const scaledItems = grossTotal > 0 && breakdown.length > 0
+          ? breakdown.map((b: any) => ({
+              item: b.item,
+              amount: Math.round((Number(b.amount) / grossTotal) * payNum),
+            }))
+          : [{ item: 'Fee Collection', amount: payNum }];
+
         const { error: txErr } = await supabase.from('financial_transactions').insert([{
           school_id: sid,
           type: 'income',
@@ -407,6 +418,8 @@ export default function StudentFeeModal({ student, onSave, onClose, includeAdmis
           date: payDate,
           payment_mode: payMode,
           remarks: `Fee — ${student.full_name} (${monthYear}) · ${invoiceNo}`,
+          fee_record_id: recData?.id ?? null,
+          fee_items: scaledItems,  // proportional net amounts — sum equals payNum
         }]);
         if (txErr) throw txErr;
       }

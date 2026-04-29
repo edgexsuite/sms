@@ -198,7 +198,8 @@ export default function MonthlyFeeInvoices() {
             due_date: generateDueDate,
             payment_mode: 'Pending',
             breakdown: singleBreakdown,
-            invoice_number: `INV-${generateMonth.replace('-', '').slice(2)}-${String(student.roll_number || 0).padStart(3, '0')}`,
+            // Use student UUID prefix for guaranteed uniqueness across classes
+            invoice_number: `INV-${generateMonth.replace('-', '').slice(2)}-${student.id.slice(0, 6).toUpperCase()}`,
             no_structure: false,
           };
         }
@@ -246,7 +247,8 @@ export default function MonthlyFeeInvoices() {
           due_date: generateDueDate,
           payment_mode: 'Pending',
           breakdown,                    // gross amounts — challan header shows these
-          invoice_number: `INV-${generateMonth.replace('-', '').slice(2)}-${String(student.roll_number || 0).padStart(3, '0')}`,
+          // UUID prefix ensures no collision even if roll numbers repeat across classes
+          invoice_number: `INV-${generateMonth.replace('-', '').slice(2)}-${student.id.slice(0, 6).toUpperCase()}`,
           no_structure: !structure,
         };
       });
@@ -286,47 +288,60 @@ export default function MonthlyFeeInvoices() {
     } catch (err: any) { alert(err.message); }
   };
 
-  const handleDeleteInvoice = async (id: string, invNum?: string) => {
-    if (!confirm(`PERMANENT DELETE: Are you sure you want to completely eliminate invoice ${invNum || ''}? This action cannot be undone.`)) return;
+  const handleDeleteInvoice = async (inv: any) => {
+    // Paid invoices have P&L entries — block hard delete to protect audit trail
+    if (inv.status === 'paid') {
+      alert(`Invoice ${inv.invoice_number || ''} is already paid and cannot be deleted. Use the Trash Bin in Settings to recover deleted records if needed.`);
+      return;
+    }
+    const hasPayment = Number(inv.paid_amount) > 0;
+    if (hasPayment) {
+      if (!confirm(`Invoice ${inv.invoice_number || ''} has a partial payment of Rs. ${Number(inv.paid_amount).toLocaleString()}.\n\nThis will soft-delete the invoice (recoverable from Trash Bin). The payment records in the ledger will be preserved.\n\nProceed?`)) return;
+    } else {
+      if (!confirm(`Delete invoice ${inv.invoice_number || ''} for ${inv.students?.full_name || 'student'}?\n\nThis is a soft delete — recoverable from Settings → Trash Bin.`)) return;
+    }
     try {
-      const { error } = await supabase.from('fee_records').delete().eq('id', id);
+      // Soft-delete: set deleted_at. Financial transactions (if any) are NOT touched — P&L stays intact.
+      const { error } = await supabase.from('fee_records')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', inv.id);
       if (error) throw error;
-      
-      // Also clean up transactions
-      if (invNum) {
-        await supabase.from('financial_transactions').delete().ilike('remarks', `%${invNum}%`);
-      }
-
       fetchInvoices();
     } catch (err: any) { alert(err.message); }
   };
 
   const handleBulkDelete = async () => {
     if (selectedInvoices.size === 0) return;
-    if (!confirm(`PERMANENT DELETE: Are you sure you want to completely eliminate ${selectedInvoices.size} selected invoices? This action cannot be undone.`)) return;
+
+    // Fetch details of selected invoices to check for paid ones
+    const selectedList = invoices.filter(i => selectedInvoices.has(i.id));
+    const paidCount = selectedList.filter(i => i.status === 'paid').length;
+    const unpaidCount = selectedList.length - paidCount;
+
+    let msg = `Delete ${unpaidCount} pending/partial invoice(s) (soft delete — recoverable)?`;
+    if (paidCount > 0) {
+      msg += `\n\n⚠️ ${paidCount} PAID invoice(s) are selected and will be SKIPPED — paid invoices cannot be deleted to protect the payment ledger.`;
+    }
+    if (!confirm(msg)) return;
+
+    // Only soft-delete unpaid/partial invoices — never touch paid ones
+    const deletableIds = selectedList
+      .filter(i => i.status !== 'paid')
+      .map(i => i.id);
+
+    if (deletableIds.length === 0) {
+      alert('No deletable invoices in your selection. Paid invoices are protected.');
+      return;
+    }
+
     setLoading(true);
     try {
-      const ids = Array.from(selectedInvoices);
-      
-      // Get invoice numbers for transaction cleanup before deleting the main records
-      const { data: records } = await supabase
-        .from('fee_records')
-        .select('invoice_number')
-        .in('id', ids);
-      
-      const { error } = await supabase.from('fee_records').delete().in('id', ids);
+      const { error } = await supabase.from('fee_records')
+        .update({ deleted_at: new Date().toISOString() })
+        .in('id', deletableIds);
       if (error) throw error;
 
-      // Clean up transactions for each deleted invoice
-      if (records) {
-        for (const rec of records) {
-          if (rec.invoice_number) {
-            await supabase.from('financial_transactions').delete().ilike('remarks', `%${rec.invoice_number}%`);
-          }
-        }
-      }
-
-      alert(`Successfully eliminated ${selectedInvoices.size} invoices and their transactions.`);
+      alert(`Soft-deleted ${deletableIds.length} invoice(s).${paidCount > 0 ? ` ${paidCount} paid invoice(s) were skipped.` : ''}`);
       setSelectedInvoices(new Set());
       fetchInvoices();
     } catch (err: any) { alert(err.message); }
@@ -522,16 +537,31 @@ export default function MonthlyFeeInvoices() {
 
   const handleSaveInvoiceEdit = async () => {
     try {
-      // Re-derive total_amount from breakdown so it stays in sync
+      // breakdown stores GROSS amounts; discount_amount is subtracted to get net payable
       const breakdown = editingInvoice.breakdown || [];
-      const derivedTotal = breakdown.length > 0
+      const grossTotal = breakdown.length > 0
         ? breakdown.reduce((s: number, r: any) => s + (Number(r.amount) || 0), 0)
         : editingInvoice.total_amount;
+      const discountAmt = Number(editingInvoice.discount_amount) || 0;
+      const netTotal = Math.max(0, grossTotal - discountAmt);
+
+      // Guard: cannot set total below what's already paid
+      const alreadyPaid = Number(editingInvoice.paid_amount) || 0;
+      if (netTotal < alreadyPaid) {
+        alert(`Cannot set invoice total (Rs. ${netTotal.toLocaleString()}) below the amount already paid (Rs. ${alreadyPaid.toLocaleString()}).`);
+        return;
+      }
+
+      const newStatus = alreadyPaid >= netTotal && netTotal > 0 ? 'paid'
+        : alreadyPaid > 0 ? 'partial'
+        : 'pending';
 
       const { error } = await supabase.from('fee_records').update({
-        total_amount: derivedTotal,
+        total_amount: netTotal,
+        discount_amount: discountAmt,
         due_date: editingInvoice.due_date,
         breakdown,
+        status: newStatus,
       }).eq('id', editingInvoice.id);
       if (error) throw error;
       setEditingInvoice(null);
@@ -624,7 +654,7 @@ export default function MonthlyFeeInvoices() {
               groupByFamily ? "bg-indigo-600 text-white" : "bg-white hover:bg-slate-50 text-slate-700 border border-slate-200"
             )}
           >
-            <Users className="w-3.5 h-3.5" /> {groupByFamily ? 'By Family' : 'By Family'}
+            <Users className="w-3.5 h-3.5" /> {groupByFamily ? 'Family View ✓' : 'Group by Family'}
           </button>
           <button onClick={() => navigate('/fees/challan-settings')} className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition shadow-sm active:scale-95">
             <Layout className="w-3.5 h-3.5" /> Config
@@ -811,7 +841,7 @@ export default function MonthlyFeeInvoices() {
                             <button onClick={() => navigate(`/fees/student-detail?student=${inv.student_id}`)} className="p-1.5 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-all" title="Open Full Ledger"><ExternalLink className="w-4 h-4" /></button>
                             <button onClick={() => handleSendWhatsApp(inv)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all" title="WhatsApp Reminder"><MessageCircle className="w-4 h-4" /></button>
                             <button onClick={() => setEditingInvoice(inv)} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all" title="Edit Invoice"><Edit className="w-4 h-4" /></button>
-                            <button onClick={() => handleDeleteInvoice(inv.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" title="Delete Invoice"><Trash2 className="w-4 h-4" /></button>
+                            <button onClick={() => handleDeleteInvoice(inv)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" title="Delete Invoice"><Trash2 className="w-4 h-4" /></button>
                           </>
                         ) : (
                           <button onClick={() => handlePrintFamilyChallan(inv)} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg font-bold text-[10px] uppercase tracking-widest hover:bg-indigo-100 transition-all"><Printer className="w-3.5 h-3.5" /> Family</button>
