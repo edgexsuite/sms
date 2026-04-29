@@ -60,11 +60,20 @@ export default function Evaluation() {
     if (activeTab === 'students') {
       const [{ data: stus }, { data: cls }, { data: exams }] = await Promise.all([
         supabase.from('students').select('id, full_name, roll_number, class_id').eq('school_id', sid).eq('status', 'active'),
-        supabase.from('classes').select('id, name, section').eq('school_id', sid).order('name'),
+        supabase.from('classes').select('id, name, section, class_teacher_id').eq('school_id', sid).order('name'),
         supabase.from('exam_types').select('id, name, session').eq('school_id', sid).order('created_at'),
       ]);
       if (stus) setStudents(stus);
-      if (cls) setClasses(cls);
+      if (cls) {
+        setClasses(cls);
+        // If teacher, auto-select their class by default
+        if (userRole?.role === 'teacher' && userRole.staff_id) {
+          const assignedClass = cls.find(c => c.class_teacher_id === userRole.staff_id);
+          if (assignedClass) {
+            setEvalForm(prev => ({ ...prev, class_id: assignedClass.id }));
+          }
+        }
+      }
       if (exams) setExamTypes(exams);
     } else {
       const { data: tchrs } = await supabase.from('staff').select('id, full_name, role').eq('school_id', sid).eq('is_active', true);
@@ -256,41 +265,28 @@ export default function Evaluation() {
              
              <form onSubmit={handleSaveEval} className="p-8 space-y-6 bg-gray-50 overflow-y-auto max-h-[70vh]">
                 
-                {/* Exam + Class (students only) */}
+                {/* Step 1: Class Selection (students only) */}
                 {activeTab === 'students' && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest pl-1">Exam (for Report Card)</label>
-                      <select
-                        value={evalForm.exam_type_id}
-                        onChange={e => setEvalForm({...evalForm, exam_type_id: e.target.value})}
-                        className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded-xl text-sm font-bold focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none"
-                      >
-                        <option value="">-- No Exam Link --</option>
-                        {examTypes.map(et => (
-                          <option key={et.id} value={et.id}>{et.name} {et.session ? `(${et.session})` : ''}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest pl-1">Filter by Class</label>
-                      <select
-                        value={evalForm.class_id}
-                        onChange={e => setEvalForm({...evalForm, class_id: e.target.value, student_id: ''})}
-                        className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded-xl text-sm font-bold focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none"
-                      >
-                        <option value="">-- All Classes --</option>
-                        {classes.map(cls => (
-                          <option key={cls.id} value={cls.id}>{cls.name} {cls.section}</option>
-                        ))}
-                      </select>
-                    </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest pl-1">Step 1: Select Class</label>
+                    <select
+                      value={evalForm.class_id}
+                      onChange={e => setEvalForm({...evalForm, class_id: e.target.value, student_id: ''})}
+                      className="w-full bg-white border border-gray-200 px-4 py-3 rounded-xl text-sm font-bold focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none"
+                    >
+                      <option value="">-- All Classes --</option>
+                      {classes.map(cls => (
+                        <option key={cls.id} value={cls.id}>{cls.name} {cls.section}</option>
+                      ))}
+                    </select>
                   </div>
                 )}
 
-                {/* Target Selection */}
+                {/* Step 2: Target Selection */}
                 <div>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest pl-1">Select {activeTab} to Review</label>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest pl-1">
+                    Step 2: Select {activeTab} to Review
+                  </label>
                   <select
                     required
                     value={activeTab === 'students' ? evalForm.student_id : evalForm.staff_id}
@@ -308,6 +304,23 @@ export default function Evaluation() {
                     ))}
                   </select>
                 </div>
+
+                {/* Optional Exam Link (students only) */}
+                {activeTab === 'students' && (
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest pl-1">Exam Link (Optional)</label>
+                    <select
+                      value={evalForm.exam_type_id}
+                      onChange={e => setEvalForm({...evalForm, exam_type_id: e.target.value})}
+                      className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded-xl text-sm font-bold focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none"
+                    >
+                      <option value="">-- No Exam Link --</option>
+                      {examTypes.map(et => (
+                        <option key={et.id} value={et.id}>{et.name} {et.session ? `(${et.session})` : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* Rating Matrix */}
                 <div className="bg-white p-5 rounded-2xl border border-gray-200 space-y-4">
