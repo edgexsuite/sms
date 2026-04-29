@@ -353,6 +353,7 @@ CREATE TABLE IF NOT EXISTS evaluations (
   
   ratings JSONB DEFAULT '{}'::jsonb, -- e.g. {"teaching": 4, "punctuality": 5}
   feedback TEXT,
+  exam_type_id UUID REFERENCES exam_types(id) ON DELETE SET NULL,
   evaluation_date DATE NOT NULL DEFAULT CURRENT_DATE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
