@@ -160,7 +160,7 @@ export default function StudentLeave() {
     }));
 
     const { error } = await supabase.from('attendance').upsert(attendanceRecords, {
-      onConflict: 'student_id,date'
+      onConflict: 'school_id,student_id,date'
     });
 
     if (error) console.error('Error syncing leave with attendance:', error);

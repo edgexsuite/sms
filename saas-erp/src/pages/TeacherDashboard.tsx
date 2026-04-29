@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
-import { cn } from '../lib/utils';
+import { cn, formatDate } from '../lib/utils';
 import {
   BookOpen, Users, ClipboardList, CalendarCheck,
   ChevronRight, GraduationCap, CheckCircle2, XCircle,
@@ -437,7 +437,7 @@ export default function TeacherDashboard() {
     const rows = attStudents.map(s => ({
       school_id: userRole!.school_id, student_id: s.id, date: attDate, status: attMarks[s.id] || 'present',
     }));
-    const { error } = await supabase.from('attendance').upsert(rows, { onConflict: 'student_id,date' });
+    const { error } = await supabase.from('attendance').upsert(rows, { onConflict: 'school_id,student_id,date' });
     if (error) setAttError(error.message);
     else { setAttSaved(true); fetchAssignedClasses(staffId!); }
     setSavingAtt(false);
@@ -538,7 +538,7 @@ export default function TeacherDashboard() {
       date: d,
       status: 'leave' as AttStatus
     }));
-    await supabase.from('attendance').upsert(attRows, { onConflict: 'student_id,date' });
+    await supabase.from('attendance').upsert(attRows, { onConflict: 'school_id,student_id,date' });
   };
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -845,14 +845,14 @@ export default function TeacherDashboard() {
                     const status = attMarks[student.id] || 'present';
                     return (
                       <div key={student.id}
-                        className={`flex items-center gap-3 px-6 py-3 transition-colors ${status === 'absent' ? 'bg-red-50/40' : status === 'late' ? 'bg-amber-50/40' : status === 'leave' ? 'bg-slate-50/60' : ''}`}>
-                        <span className="text-xs font-black text-indigo-500 w-8 shrink-0 text-center">{student.roll_number}</span>
-                        <div className="w-8 h-8 rounded-lg bg-slate-100 overflow-hidden shrink-0 flex items-center justify-center">
+                        className={`flex items-center gap-2 px-3 sm:px-6 py-2.5 transition-colors ${status === 'absent' ? 'bg-red-50/40' : status === 'late' ? 'bg-amber-50/40' : status === 'leave' ? 'bg-slate-50/60' : ''}`}>
+                        <span className="text-xs font-black text-indigo-500 w-6 shrink-0 text-center">{student.roll_number}</span>
+                        <div className="w-7 h-7 rounded-lg bg-slate-100 overflow-hidden shrink-0 flex items-center justify-center">
                           {student.photograph_url
                             ? <img src={student.photograph_url} alt="" className="w-full h-full object-cover" />
                             : <span className="text-slate-500 font-black text-xs">{student.full_name.charAt(0)}</span>}
                         </div>
-                        <span className="flex-1 text-sm font-bold text-slate-800 min-w-0 truncate">{student.full_name}</span>
+                        <span className="flex-1 text-xs sm:text-sm font-bold text-slate-800 min-w-0 truncate">{student.full_name}</span>
                         <div className="flex gap-1 shrink-0">
                           {(['present', 'absent', 'late', 'leave'] as AttStatus[]).map(s => {
                             const cfg = STATUS_CONFIG[s];
@@ -860,7 +860,7 @@ export default function TeacherDashboard() {
                             return (
                               <button key={s}
                                 onClick={() => { setAttMarks(p => ({ ...p, [student.id]: s })); setAttSaved(false); }}
-                                className={`w-9 h-8 rounded-lg text-xs font-black transition-all ${active ? `${cfg.bg} ${cfg.text} ring-2 ${cfg.ring} shadow-sm` : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
+                                className={`w-8 h-7 sm:w-9 sm:h-8 rounded-lg text-[10px] sm:text-xs font-black transition-all ${active ? `${cfg.bg} ${cfg.text} ring-2 ${cfg.ring} shadow-sm` : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
                                 title={cfg.label}>
                                 {cfg.short}
                               </button>
