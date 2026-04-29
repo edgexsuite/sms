@@ -1389,12 +1389,24 @@ export default function TeacherDashboard() {
           {/* Quick Actions */}
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-5 text-white space-y-2">
             <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Quick Actions</h3>
+            {/* Mark Attendance — opens inline panel on this page */}
+            <button
+              onClick={() => {
+                setAttOpen(true);
+                setTimeout(() => attSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+              }}
+              className="w-full flex items-center justify-between px-4 py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 rounded-xl transition border border-emerald-500/20">
+              <div className="flex items-center gap-3">
+                <CalendarCheck className="w-4 h-4 text-emerald-300" />
+                <span className="text-sm font-bold text-emerald-200">Mark Attendance</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-emerald-400" />
+            </button>
             {[
-              { to: '/diary',                 icon: ClipboardList, label: "Fill Today's Diary"    },
-              { to: '/attendance',            icon: CalendarCheck, label: 'Attendance (Full Page)' },
-              { to: '/result/teacher-marks',  icon: BarChart2,     label: 'Enter Marks'            },
-              { to: '/timetable',             icon: CalendarDays,  label: 'View Timetable'         },
-              { to: '/result/reporting',      icon: FileText,      label: 'Report Cards'           },
+              { to: '/diary',                icon: ClipboardList, label: "Fill Today's Diary"   },
+              { to: '/result/teacher-marks', icon: BarChart2,     label: 'Enter Marks'           },
+              { to: '/timetable',            icon: CalendarDays,  label: 'View Timetable'        },
+              { to: '/result/reporting',     icon: FileText,      label: 'Report Cards'          },
             ].map(({ to, icon: Icon, label }) => (
               <Link key={to} to={to}
                 className="flex items-center justify-between px-4 py-2.5 bg-white/8 hover:bg-white/15 rounded-xl transition">
