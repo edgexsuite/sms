@@ -10,6 +10,7 @@ import {
   Clock, BarChart2, CalendarDays, Award, AlertCircle, Save,
   RefreshCw, ChevronDown, ChevronUp, UserCheck, CalendarOff,
   Plus, X, Briefcase, FileText, TrendingUp, MessageCircle, ChevronLeft, Flag, Send, Search,
+  Star, Package, ShoppingCart, Trash2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ChatInterface from '../components/ChatInterface';
@@ -162,6 +163,28 @@ export default function TeacherDashboard() {
   const [allStudents,   setAllStudents]   = useState<any[]>([]);
   const [isSelfLeave,   setIsSelfLeave]   = useState(true); // Toggle for leave modal
 
+  // Evaluation
+  const [recentEvals,       setRecentEvals]       = useState<any[]>([]);
+  const [examTypes,         setExamTypes]         = useState<any[]>([]);
+  const [showEvalModal,     setShowEvalModal]     = useState(false);
+  const [savingEval,        setSavingEval]        = useState(false);
+  const [evalSubmitted,     setEvalSubmitted]     = useState(false);
+  const [evalStudentList,   setEvalStudentList]   = useState<any[]>([]);
+  const [evalFormState, setEvalFormState] = useState({
+    class_id: '', student_id: '', exam_type_id: '', feedback: '',
+    ratings: {} as Record<string, number>,
+    evaluation_date: new Date().toISOString().split('T')[0],
+  });
+
+  // Stationery
+  const [stationeryRequests,   setStationeryRequests]   = useState<any[]>([]);
+  const [showStationeryModal,  setShowStationeryModal]  = useState(false);
+  const [savingStationery,     setSavingStationery]     = useState(false);
+  const [stationerySubmitted,  setStationerySubmitted]  = useState(false);
+  const [stationeryItems,      setStationeryItems]      = useState([{ name: '', qty: 1 }]);
+  const [stationeryPurpose,    setStationeryPurpose]    = useState('');
+  const [stationeryUrgency,    setStationeryUrgency]    = useState<'normal'|'urgent'>('normal');
+
   const today        = new Date().toISOString().split('T')[0];
   const todayDayName = DAY_NAMES[new Date().getDay()];
 
@@ -210,6 +233,9 @@ export default function TeacherDashboard() {
       fetchMyLeaves(sid),
       fetchStudentLeaves(sid),
       fetchAllClassStudents(sid),
+      fetchRecentEvals(sid),
+      fetchExamTypes(),
+      fetchStationery(sid),
     ]);
     setLoading(false);
     fetchUnreadCount(sid);
@@ -399,6 +425,33 @@ export default function TeacherDashboard() {
     if (data) setAllStudents(data);
   };
 
+  const fetchRecentEvals = async (sid: string) => {
+    const { data } = await supabase.from('evaluations')
+      .select('*, student:students(full_name, roll_number), exam_type:exam_types(name)')
+      .eq('school_id', userRole?.school_id)
+      .eq('target_type', 'student')
+      .order('evaluation_date', { ascending: false })
+      .limit(10);
+    if (data) setRecentEvals(data);
+  };
+
+  const fetchExamTypes = async () => {
+    const { data } = await supabase.from('exam_types')
+      .select('id, name').eq('school_id', userRole?.school_id).order('created_at');
+    if (data) setExamTypes(data);
+  };
+
+  const fetchStationery = async (sid: string) => {
+    const { data } = await supabase.from('complaints')
+      .select('id, title, description, status, priority, created_at')
+      .eq('school_id', userRole?.school_id)
+      .eq('category', 'Stationery Request')
+      .eq('user_id', userRole?.user_id || '')
+      .order('created_at', { ascending: false })
+      .limit(8);
+    if (data) setStationeryRequests(data);
+  };
+
   // ── Attendance panel ──────────────────────────────────────────────────────
 
   const loadAttendance = useCallback(async (classId: string, date: string) => {
@@ -539,6 +592,72 @@ export default function TeacherDashboard() {
       status: 'leave' as AttStatus
     }));
     await supabase.from('attendance').upsert(attRows, { onConflict: 'school_id,student_id,date' });
+  };
+
+  // ── Evaluation handler ────────────────────────────────────────────────────
+
+  const STUDENT_RATING_KEYS = ['Behavior', 'Punctuality', 'Participation', 'Academic Interest'];
+
+  const handleSaveEval = async () => {
+    if (!evalFormState.student_id) return alert('Please select a student.');
+    if (Object.keys(evalFormState.ratings).length === 0) return alert('Please rate at least one category.');
+    setSavingEval(true);
+    const payload: any = {
+      school_id: userRole!.school_id,
+      target_type: 'student',
+      student_id: evalFormState.student_id,
+      ratings: evalFormState.ratings,
+      feedback: evalFormState.feedback,
+      evaluation_date: evalFormState.evaluation_date,
+    };
+    if (evalFormState.exam_type_id) payload.exam_type_id = evalFormState.exam_type_id;
+    const { error } = await supabase.from('evaluations').insert([payload]);
+    setSavingEval(false);
+    if (error) { alert(error.message); return; }
+    setShowEvalModal(false);
+    setEvalFormState({ class_id: '', student_id: '', exam_type_id: '', feedback: '', ratings: {}, evaluation_date: today });
+    setEvalSubmitted(true);
+    fetchRecentEvals(staffId!);
+    setTimeout(() => setEvalSubmitted(false), 4000);
+  };
+
+  const loadEvalStudents = async (classId: string) => {
+    if (!classId) { setEvalStudentList([]); return; }
+    const { data } = await supabase.from('students')
+      .select('id, full_name, roll_number').eq('class_id', classId)
+      .eq('school_id', userRole?.school_id).eq('status', 'active').order('roll_number');
+    setEvalStudentList(data || []);
+  };
+
+  // ── Stationery handler ────────────────────────────────────────────────────
+
+  const handleSaveStationery = async () => {
+    const valid = stationeryItems.filter(i => i.name.trim());
+    if (!valid.length) return alert('Add at least one item.');
+    if (!stationeryPurpose.trim()) return alert('Please state the purpose.');
+    setSavingStationery(true);
+    const description = `Items requested:\n${valid.map(i => `• ${i.name} × ${i.qty}`).join('\n')}\n\nPurpose: ${stationeryPurpose}`;
+    const { error } = await supabase.from('complaints').insert([{
+      school_id:         userRole!.school_id,
+      user_id:           userRole?.user_id || null,
+      type:              'query',
+      category:          'Stationery Request',
+      title:             `Stationery Request — ${new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}`,
+      description,
+      priority:          stationeryUrgency,
+      status:            'pending',
+      submitted_by_type: 'teacher',
+      submitted_by_name: staffInfo?.full_name || staffName || 'Teacher',
+      responses:         [],
+    }]);
+    setSavingStationery(false);
+    if (error) { alert(error.message); return; }
+    setShowStationeryModal(false);
+    setStationeryItems([{ name: '', qty: 1 }]);
+    setStationeryPurpose('');
+    setStationerySubmitted(true);
+    fetchStationery(staffId!);
+    setTimeout(() => setStationerySubmitted(false), 4000);
   };
 
   // ── Derived ───────────────────────────────────────────────────────────────
