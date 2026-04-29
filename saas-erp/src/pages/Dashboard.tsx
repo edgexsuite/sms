@@ -11,7 +11,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  PieChart, Pie, Cell, Legend
+  PieChart, Pie, Cell, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip
 } from 'recharts';
 import { formatDate } from '../lib/utils';
 
