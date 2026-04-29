@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { formatDate } from '../lib/utils';
 import {
   Clock, Printer, Save, X, PlusCircle, Trash2, BookOpen,
   AlertTriangle, ChevronUp, ChevronDown, Edit2, Coffee,
@@ -567,7 +568,7 @@ export default function Timetable() {
     doc.text(modeLabel, 8, titleY);
 
     // date (right)
-    const d = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const d = formatDate(new Date());
     doc.setTextColor(100, 116, 139);
     doc.text(d, W - 8, titleY, { align: 'right' });
 
@@ -943,7 +944,7 @@ export default function Timetable() {
          </table>`;
 
     const modeLabel = mode === 'class' ? 'Class-wise' : mode === 'teacher' ? 'Teacher-wise' : 'School-wise';
-    const dateStr   = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const dateStr   = formatDate(new Date());
 
     const sigSections: string[] = [
       ...(sigPrincipal   ? [`<div class="sig-block"><div class="sig-line"></div><div class="sig-label">Principal</div></div>`]   : []),

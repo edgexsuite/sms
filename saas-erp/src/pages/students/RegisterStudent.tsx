@@ -3,10 +3,11 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { cn } from '../../lib/utils';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { Save, AlertCircle, Plus, Trash2, Camera, X, CheckCircle, Receipt, ArrowRight, ClipboardCheck, MessageCircle, Send } from 'lucide-react';
+import { Save, AlertCircle, Plus, Trash2, Camera, X, CheckCircle, Receipt, ArrowRight, ClipboardCheck, MessageCircle, Send, Calendar } from 'lucide-react';
 import { processStudentPhoto, uploadFile, PHOTO_WIDTH, PHOTO_HEIGHT, PHOTO_MAX_BYTES } from '../../lib/uploadUtils';
 import StudentFeeModal from '../../components/StudentFeeModal';
 import * as templatesLib from '../../lib/whatsappTemplates';
+import { formatDate, toYYYYMMDD } from '../../lib/utils';
 
 // Generates an alphanumeric password of length 6
 const generatePassword = () => Math.random().toString(36).slice(-6).toUpperCase();
@@ -101,6 +102,8 @@ export default function RegisterStudent() {
   const [photoProcessing, setPhotoProcessing] = useState<boolean[]>([false]);
   const [photoSizes, setPhotoSizes] = useState<(string | null)[]>([null]); // "12.3 KB WebP"
   const photoInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const dobRefs = useRef<Record<number, HTMLInputElement | null>>({});
+  const admissionRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
   useEffect(() => {
     if (userRole?.school_id) {
@@ -999,7 +1002,39 @@ export default function RegisterStudent() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth *</label>
-                      <input type="date" required name="dob" value={student.dob} onChange={(e) => handleStudentChange(index, e)} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500" />
+                      <div 
+                        className="relative cursor-pointer group"
+                        onClick={(e) => {
+                          const input = dobRefs.current[index];
+                          if (input && 'showPicker' in HTMLInputElement.prototype) {
+                            try {
+                              input.showPicker();
+                            } catch (err) {
+                              // Fallback: the input is already there and clickable
+                            }
+                          }
+                        }}
+                      >
+                        <input
+                          type="text"
+                          readOnly
+                          value={formatDate(student.dob)}
+                          placeholder="DD-MM-YYYY"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 bg-white group-hover:border-blue-400 transition-colors cursor-pointer"
+                        />
+                        <input
+                          type="date"
+                          required
+                          name="dob"
+                          ref={el => dobRefs.current[index] = el}
+                          value={student.dob || ''}
+                          onChange={(e) => handleStudentChange(index, e)}
+                          className="absolute inset-0 opacity-0 cursor-pointer pointer-events-none"
+                        />
+                        <div className="absolute right-3 top-2.5 text-gray-400 pointer-events-none group-hover:text-blue-500 transition-colors">
+                          <Calendar className="w-4 h-4" />
+                        </div>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
@@ -1015,7 +1050,39 @@ export default function RegisterStudent() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Admission Date *</label>
-                      <input type="date" required name="admission_date" value={student.admission_date} onChange={(e) => handleStudentChange(index, e)} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500" />
+                      <div 
+                        className="relative cursor-pointer group"
+                        onClick={(e) => {
+                          const input = admissionRefs.current[index];
+                          if (input && 'showPicker' in HTMLInputElement.prototype) {
+                            try {
+                              input.showPicker();
+                            } catch (err) {
+                              // Fallback
+                            }
+                          }
+                        }}
+                      >
+                        <input
+                          type="text"
+                          readOnly
+                          value={formatDate(student.admission_date)}
+                          placeholder="DD-MM-YYYY"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 bg-white group-hover:border-blue-400 transition-colors cursor-pointer"
+                        />
+                        <input
+                          type="date"
+                          required
+                          name="admission_date"
+                          ref={el => admissionRefs.current[index] = el}
+                          value={student.admission_date || ''}
+                          onChange={(e) => handleStudentChange(index, e)}
+                          className="absolute inset-0 opacity-0 cursor-pointer pointer-events-none"
+                        />
+                        <div className="absolute right-3 top-2.5 text-gray-400 pointer-events-none group-hover:text-blue-500 transition-colors">
+                          <Calendar className="w-4 h-4" />
+                        </div>
+                      </div>
                     </div>
                     
                     {/* Dynamic Basic Custom Fields */}

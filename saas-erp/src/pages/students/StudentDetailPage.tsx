@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { cn } from '../../lib/utils';
+import { cn, formatDate } from '../../lib/utils';
 import {
   ArrowLeft, Printer, User, BookOpen, Calendar, CreditCard, BarChart3,
   Phone, MapPin, Heart, Shield, CheckCircle, XCircle, Clock, Award,
@@ -34,6 +34,9 @@ export default function StudentDetailPage() {
   // Roles with full write access — teachers/staff are read-only
   const ADMIN_ROLES = ['admin', 'principal', 'director', 'accountant', 'staff'];
   const isReadOnly = !ADMIN_ROLES.includes((userRole?.role || '').toLowerCase());
+
+  // Roles that can see financial and sensitive credential info
+  const showFinance = ['admin', 'principal', 'director', 'accountant', 'staff'].includes((userRole?.role || '').toLowerCase());
 
   const [student, setStudent] = useState<any | null>(null);
   const [parent, setParent] = useState<any | null>(null);
@@ -508,7 +511,7 @@ export default function StudentDetailPage() {
                 <div className="flex justify-between text-slate-500">
                   <span>Month</span>
                   <span className="font-semibold text-slate-800">
-                    {collectingFee.month_year ? new Date(collectingFee.month_year).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '—'}
+                    {collectingFee.month_year ? formatDate(collectingFee.month_year) : '—'}
                   </span>
                 </div>
                 <div className="flex justify-between text-slate-500">
@@ -654,23 +657,25 @@ export default function StudentDetailPage() {
         </div>
 
         {/* ── Ledger Summary Bar (SkoolZoom Style) ── */}
-        <div className="no-print bg-white border-b border-slate-200 px-6 py-3 py-print-0 flex gap-4 overflow-x-auto custom-scrollbar shadow-inner">
-           {[
-             { label: 'Total Fees', val: ledgerSummary.total, color: 'text-slate-900', icon: CreditCard },
-             { label: 'Received', val: ledgerSummary.paid, color: 'text-emerald-600', icon: CheckCircle },
-             { label: 'Total Balance', val: ledgerSummary.balance, color: 'text-rose-600', icon: AlertCircle },
-           ].map(item => (
-             <div key={item.label} className="min-w-[150px] flex items-center gap-3 px-4 py-1.5 rounded-xl border border-slate-100 bg-slate-50/50">
-               <div className={cn("p-1.5 rounded-lg bg-white shadow-sm", item.color)}>
-                 <item.icon className="w-3.5 h-3.5" />
-               </div>
-               <div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-print-xs">{item.label}</p>
-                  <p className={cn("text-[13px] font-black mt-0.5", item.color)}>PKR {item.val.toLocaleString()}</p>
-               </div>
-             </div>
-           ))}
-        </div>
+        {showFinance && (
+          <div className="no-print bg-white border-b border-slate-200 px-6 py-3 py-print-0 flex gap-4 overflow-x-auto custom-scrollbar shadow-inner">
+            {[
+              { label: 'Total Fees', val: ledgerSummary.total, color: 'text-slate-900', icon: CreditCard },
+              { label: 'Received', val: ledgerSummary.paid, color: 'text-emerald-600', icon: CheckCircle },
+              { label: 'Total Balance', val: ledgerSummary.balance, color: 'text-rose-600', icon: AlertCircle },
+            ].map(item => (
+              <div key={item.label} className="min-w-[150px] flex items-center gap-3 px-4 py-1.5 rounded-xl border border-slate-100 bg-slate-50/50">
+                <div className={cn("p-1.5 rounded-lg bg-white shadow-sm", item.color)}>
+                  <item.icon className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-print-xs">{item.label}</p>
+                    <p className={cn("text-[13px] font-black mt-0.5", item.color)}>PKR {item.val.toLocaleString()}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* ── Official Print Header ── */}
         <div className="print-only mb-10 pb-8 border-b-2 border-slate-900 flex justify-between items-center text-slate-900">
@@ -685,11 +690,13 @@ export default function StudentDetailPage() {
             </div>
           </div>
           <div className="text-right">
-            <div className="bg-slate-100 px-4 py-2 rounded-xl inline-block mb-3 border border-slate-200">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-900">Registration Number</p>
-              <p className="text-xs font-mono font-bold mt-1 uppercase">{student.student_unique_id || id?.substring(0, 12)}</p>
-            </div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Printed: {new Date().toLocaleDateString()}</p>
+            {showFinance && (
+              <div className="bg-slate-100 px-4 py-2 rounded-xl inline-block mb-3 border border-slate-200">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-900">Registration Number</p>
+                <p className="text-xs font-mono font-bold mt-1 uppercase">{student.student_unique_id || id?.substring(0, 12)}</p>
+              </div>
+            )}
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Printed: {formatDate(new Date())}</p>
           </div>
         </div>
 
@@ -727,12 +734,12 @@ export default function StudentDetailPage() {
               <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">{student.full_name}</h1>
               <div className="flex flex-wrap gap-4 mt-3 text-slate-400 text-sm">
                 {student.gender && <span className="flex items-center gap-1"><User className="w-3.5 h-3.5" />{student.gender}</span>}
-                {student.dob && <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />DOB: {student.dob}</span>}
-                {student.admission_date && <span className="flex items-center gap-1"><BookOpen className="w-3.5 h-3.5" />Admitted: {student.admission_date}</span>}
+                {student.dob && <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />DOB: {formatDate(student.dob)}</span>}
+                {student.admission_date && <span className="flex items-center gap-1"><BookOpen className="w-3.5 h-3.5" />Admitted: {formatDate(student.admission_date)}</span>}
                 {student.blood_group && <span className="flex items-center gap-1"><Heart className="w-3.5 h-3.5 text-red-400" />{student.blood_group}</span>}
               </div>
               {/* Credentials */}
-              {student.student_unique_id && (
+              {showFinance && student.student_unique_id && (
                 <div className="mt-4 inline-flex items-center gap-4 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5">
                   <div>
                     <p className="text-[9px] text-slate-500 uppercase tracking-widest">Login ID</p>
@@ -749,10 +756,10 @@ export default function StudentDetailPage() {
             {/* Quick stats */}
             <div className="hidden sm:grid grid-cols-3 gap-3 shrink-0">
               {[
-                { label: 'Attendance', value: attPct + '%', color: attPct >= 75 ? 'text-emerald-400' : 'text-rose-400' },
-                { label: 'Outstanding', value: 'PKR ' + totalDue.toLocaleString(), color: totalDue > 0 ? 'text-rose-400' : 'text-emerald-400' },
-                { label: 'Results', value: results.length + ' marks', color: 'text-indigo-400' },
-              ].map(stat => (
+                { id: 'attendance', label: 'Attendance', value: attPct + '%', color: attPct >= 75 ? 'text-emerald-400' : 'text-rose-400' },
+                { id: 'fees', label: 'Outstanding', value: 'PKR ' + totalDue.toLocaleString(), color: totalDue > 0 ? 'text-rose-400' : 'text-emerald-400' },
+                { id: 'results', label: 'Results', value: results.length + ' marks', color: 'text-indigo-400' },
+              ].filter(s => showFinance || s.id !== 'fees').map(stat => (
                 <div key={stat.label} className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
                   <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">{stat.label}</p>
                   <p className={`text-sm font-black ${stat.color}`}>{stat.value}</p>
@@ -770,7 +777,9 @@ export default function StudentDetailPage() {
               { key: 'attendance', label: 'Attendance', icon: Calendar },
               { key: 'fees', label: 'Fees & Payments', icon: CreditCard },
               { key: 'results', label: 'Exam Results', icon: BarChart3 },
-            ] as { key: DetailTab; label: string; icon: any }[]).map(({ key, label, icon: Icon }) => (
+            ] as { key: DetailTab; label: string; icon: any }[])
+              .filter(t => showFinance || t.key !== 'fees')
+              .map(({ key, label, icon: Icon }) => (
               <button key={key} onClick={() => setTab(key)}
                 className={cn('flex items-center gap-2 px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm whitespace-nowrap font-bold border-b-2 transition-all',
                   tab === key ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700')}>
@@ -800,11 +809,12 @@ export default function StudentDetailPage() {
                   {[
                     { label: 'Full Name', val: student.full_name },
                     { label: 'Roll No', val: student.roll_number ? `#${student.roll_number}` : '—' },
-                    { label: 'Date of Birth', val: student.dob || '—' },
+                    { label: 'Date of Birth', val: formatDate(student.dob) },
                     { label: 'Gender', val: student.gender || '—' },
                     { label: 'Religion', val: student.religion || '—' },
                     { label: 'Nationality', val: student.nationality || '—' },
                     { label: 'Blood Group', val: student.blood_group || '—' },
+                    { label: 'Admission Date', val: formatDate(student.admission_date) },
                     { label: 'B-Form/CNIC', val: student.b_form_cnic || '—' },
                   ].map(({ label, val }) => (
                     <div key={label}>
@@ -838,7 +848,7 @@ export default function StudentDetailPage() {
                       <dd className="font-bold text-slate-800 mt-0.5">{val}</dd>
                     </div>
                   ))}
-                  {parent && (
+                  {showFinance && parent && (
                     <>
                       <div className="col-span-2 mt-2 pt-4 border-t border-slate-100">
                         <h3 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-3">Parent Login</h3>
@@ -910,7 +920,7 @@ export default function StudentDetailPage() {
 
 
               {/* Financial & Scholarship Status */}
-              {ADMIN_ROLES.includes((userRole?.role || '').toLowerCase()) && (
+              {showFinance && (
                 <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm p-6 relative overflow-hidden group hover:border-indigo-300 transition-colors">
                   <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
                     <CreditCard className="w-12 h-12 text-indigo-600" />
@@ -1120,8 +1130,10 @@ export default function StudentDetailPage() {
                     <tbody className="divide-y divide-slate-50">
                       {attendance.map(r => (
                         <tr key={r.id} className="hover:bg-slate-50/50">
-                          <td className="px-5 py-3 font-medium text-slate-700">{r.date}</td>
-                          <td className="px-5 py-3 text-slate-400 text-xs">{new Date(r.date).toLocaleDateString('en-US', { weekday: 'short' })}</td>
+                          <td className="px-5 py-3 font-medium text-slate-700">{formatDate(r.date)}</td>
+                          <td className="px-5 py-3 text-slate-400 text-xs">
+                            {formatDate(r.date)}
+                          </td>
                           <td className="px-5 py-3">
                             <span className={cn('px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest',
                               r.status === 'present' ? 'bg-emerald-100 text-emerald-700' :
@@ -1142,7 +1154,7 @@ export default function StudentDetailPage() {
             </div>
           )}
 
-          {!tabLoading && tab === 'fees' && (
+          {!tabLoading && tab === 'fees' && showFinance && (
             <div className="space-y-6">
 
               {/* Action bar */}
@@ -1230,7 +1242,7 @@ export default function StudentDetailPage() {
                         return (
                           <tr key={f.id} className="hover:bg-slate-50/50">
                             <td className="px-5 py-3 font-bold text-slate-800">
-                              {f.month_year ? new Date(f.month_year).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '—'}
+                              {f.month_year ? formatDate(f.month_year) : '—'}
                             </td>
                             <td className="px-5 py-3 font-mono text-xs text-slate-400">{f.invoice_number || '—'}</td>
                             <td className="px-5 py-3 font-medium">Rs. {(f.total_amount || 0).toLocaleString()}</td>
@@ -1390,12 +1402,32 @@ export default function StudentDetailPage() {
                 </div>
                 <div>
                   <label className="block text-[10px] font-black text-gray-500 uppercase mb-1">Due Date (optional)</label>
-                  <input
-                    type="date"
-                    value={newEntryDueDate}
-                    onChange={e => setNewEntryDueDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm"
-                  />
+                  <div 
+                    className="relative cursor-pointer group"
+                    onClick={() => {
+                      if (dueDateInputRef.current && 'showPicker' in HTMLInputElement.prototype) {
+                        try { dueDateInputRef.current.showPicker(); } catch(e) {}
+                      }
+                    }}
+                  >
+                    <input
+                      type="text"
+                      readOnly
+                      value={formatDate(newEntryDueDate)}
+                      placeholder="DD-MM-YYYY"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm bg-white group-hover:border-indigo-400 transition-colors"
+                    />
+                    <input
+                      type="date"
+                      ref={dueDateInputRef}
+                      value={newEntryDueDate}
+                      onChange={e => setNewEntryDueDate(e.target.value)}
+                      className="absolute inset-0 opacity-0 pointer-events-none"
+                    />
+                    <div className="absolute right-3 top-2.5 text-gray-400 pointer-events-none group-hover:text-indigo-500">
+                      <Calendar className="w-4 h-4" />
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -1475,8 +1507,32 @@ export default function StudentDetailPage() {
                 </div>
                 <div>
                   <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Payment Date</label>
-                  <input type="date" value={editForm.paid_at} onChange={e => setEditForm({...editForm, paid_at: e.target.value})}
-                    className="w-full px-3 py-2 border rounded-xl text-sm" />
+                  <div 
+                    className="relative cursor-pointer group"
+                    onClick={() => {
+                      if (paidAtInputRef.current && 'showPicker' in HTMLInputElement.prototype) {
+                        try { paidAtInputRef.current.showPicker(); } catch(e) {}
+                      }
+                    }}
+                  >
+                    <input
+                      type="text"
+                      readOnly
+                      value={formatDate(editForm.paid_at)}
+                      placeholder="DD-MM-YYYY"
+                      className="w-full px-3 py-2 border rounded-xl text-sm bg-white group-hover:border-indigo-400 transition-colors"
+                    />
+                    <input
+                      type="date"
+                      ref={paidAtInputRef}
+                      value={editForm.paid_at}
+                      onChange={e => setEditForm({...editForm, paid_at: e.target.value})}
+                      className="absolute inset-0 opacity-0 pointer-events-none"
+                    />
+                    <div className="absolute right-3 top-2.5 text-slate-400 pointer-events-none group-hover:text-indigo-500">
+                      <Calendar className="w-4 h-4" />
+                    </div>
+                  </div>
                 </div>
               </div>
               <div>

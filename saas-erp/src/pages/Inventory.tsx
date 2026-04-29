@@ -8,7 +8,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '../lib/utils';
+import { cn, formatDate } from '../lib/utils';
 
 interface Category {
   id: string;
@@ -297,7 +297,7 @@ export default function Inventory() {
                      <tbody className="divide-y divide-slate-50">
                        {transactions.map((t, i) => (
                          <motion.tr key={t.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.01 }} className="hover:bg-slate-50/50 transition-all">
-                           <td className="p-6 text-[10px] font-black text-slate-400 tracking-tighter italic">{new Date(t.created_at).toLocaleString()}</td>
+                           <td className="p-6 text-[10px] font-black text-slate-400 tracking-tighter italic">{formatDate(t.created_at)}</td>
                            <td className="p-6">
                               <span className={cn("px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border", t.type === 'issue' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100')}>
                                 {t.type}

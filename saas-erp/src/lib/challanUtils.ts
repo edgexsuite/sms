@@ -1,4 +1,5 @@
 import jsPDF from 'jspdf';
+import { formatDate } from './utils';
 
 // ─── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -168,12 +169,7 @@ export function numberToWords(amount: number): string {
 }
 
 function fmtDate(dateStr?: string): string {
-  if (!dateStr) return '-';
-  try {
-    return new Date(dateStr).toLocaleDateString('en-GB', {
-      day: '2-digit', month: 'short', year: 'numeric',
-    });
-  } catch { return '-'; }
+  return formatDate(dateStr);
 }
 
 function nextDayStr(dateStr?: string): string {

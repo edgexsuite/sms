@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Printer, Search, FileText } from 'lucide-react';
+import { formatDate } from '../../lib/utils';
 
 export default function LeavingCertificate() {
   const { userRole } = useAuth();
@@ -107,7 +108,7 @@ export default function LeavingCertificate() {
 
                   <div className="flex w-full justify-between text-sm font-bold text-gray-600 mb-6 px-10 z-10 max-w-4xl">
                      <p>Ref No: <span className="underline decoration-dotted italic text-blue-900">SCL-{selectedStudent.roll_number}-{new Date().getFullYear()}</span></p>
-                     <p>Date: <span className="underline decoration-dotted italic text-blue-900">{new Date().toLocaleDateString()}</span></p>
+                     <p>Date: <span className="underline decoration-dotted italic text-blue-900">{formatDate(new Date())}</span></p>
                   </div>
 
                   <div className="w-full max-w-4xl leading-[2.2] text-justify text-lg font-serif space-y-3 z-10 px-8">
@@ -117,9 +118,9 @@ export default function LeavingCertificate() {
                        was a bonafide student of this institution.
                      </p>
                      <p>
-                       He/She was admitted on <span className="font-bold underline decoration-dotted px-3 text-lg">{selectedStudent.admission_date ? new Date(selectedStudent.admission_date).toLocaleDateString() : '_____________'}</span> 
-                       and left the school on <span className="font-bold underline decoration-dotted px-3 text-lg">{new Date().toLocaleDateString()}</span>.
-                       His/Her date of birth according to the Admission Register is <span className="font-bold underline decoration-dotted px-3 text-lg">{selectedStudent.dob ? new Date(selectedStudent.dob).toLocaleDateString() : '________________'}</span>.
+                       He/She was admitted on <span className="font-bold underline decoration-dotted px-3 text-lg">{formatDate(selectedStudent.admission_date)}</span> 
+                       and left the school on <span className="font-bold underline decoration-dotted px-3 text-lg">{formatDate(new Date())}</span>.
+                       His/Her date of birth according to the Admission Register is <span className="font-bold underline decoration-dotted px-3 text-lg">{formatDate(selectedStudent.dob)}</span>.
                      </p>
                      <p>
                        At the time of leaving the school, he/she was studying in class <span className="font-bold underline decoration-dotted uppercase px-3 text-lg">{selectedStudent.classes?.name || '_____________'}</span>.

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { BookOpen, Calendar, ArrowUpRight, ArrowDownRight, Wallet, Printer } from 'lucide-react';
+import { formatDate } from '../../lib/utils';
 
 export default function Ledger() {
   const { userRole } = useAuth();
@@ -248,7 +249,7 @@ export default function Ledger() {
                   // Running balance calculation (since sorted descending, we reverse compute or just skip for simplicity, but let's do a gross balance visual)
                   return (
                     <tr key={index} className="hover:bg-gray-50 transition-colors text-xs">
-                      <td className="p-4 text-gray-500 whitespace-nowrap">{t.date}</td>
+                      <td className="p-4 text-gray-500 whitespace-nowrap">{formatDate(t.date)}</td>
                       <td className="p-4 whitespace-nowrap">
                         <span className={`px-2 py-0.5 rounded font-bold text-[10px] uppercase ${t.type === 'income' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                           {t.ref}
@@ -278,7 +279,7 @@ export default function Ledger() {
       {/* PRINT-ONLY UI */}
       <div className="print-only" style={{ display: 'none' }}>
          <h1 style={{ textAlign: 'center', fontFamily: 'sans-serif' }}>Unified Day Book Ledger</h1>
-         <p style={{ textAlign: 'center', fontFamily: 'sans-serif', fontSize: '12px' }}>Generated on {new Date().toLocaleDateString()}</p>
+         <p style={{ textAlign: 'center', fontFamily: 'sans-serif', fontSize: '12px' }}>Generated on {formatDate(new Date())}</p>
          
          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'sans-serif', marginTop: '20px', marginBottom: '20px' }}>
             <div><strong>Total Income:</strong> Rs. {totalIncome.toLocaleString()}</div>
@@ -300,7 +301,7 @@ export default function Ledger() {
             <tbody>
               {transactions.map((t, idx) => (
                 <tr key={idx}>
-                  <td>{t.date}</td>
+                  <td>{formatDate(t.date)}</td>
                   <td>{t.ref.substring(0, 15)}</td>
                   <td>{t.description}</td>
                   <td>{t.mode}</td>

@@ -9,6 +9,7 @@ import {
   School, MessageCircle
 } from 'lucide-react';
 import ChatInterface from '../components/ChatInterface';
+import { formatDate } from '../lib/utils';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface StudentData {
@@ -550,7 +551,7 @@ function OverviewTab({ studentData, className, attendanceRate, pendingFees, resu
                 <h3 className="font-black text-gray-900 text-[11px] flex items-center gap-2 uppercase tracking-wide">
                   <Clock className="w-4 h-4 text-blue-600" /> Today's schedule
                 </h3>
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{new Date().toLocaleDateString('en-US', { weekday: 'short' })}</span>
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{formatDate(new Date())}</span>
               </div>
               {todaySlots.length === 0 ? (
                 <div className="py-8 text-center text-gray-400 text-xs italic">No classes scheduled today.</div>
@@ -700,7 +701,7 @@ function AttendanceTab({ attendance, attMonth, setAttMonth }: { attendance: any[
             <ChevronLeft className="w-5 h-5 text-gray-500" />
           </button>
           <h2 className="font-black text-gray-900">
-            {new Date(attMonth + '-01').toLocaleDateString('en-PK', { month: 'long', year: 'numeric' })}
+            {formatDate(attMonth + '-01')}
           </h2>
           <button onClick={() => shiftMonth(1)} className="p-2 rounded-lg hover:bg-gray-100 transition">
             <ChevronRight className="w-5 h-5 text-gray-500" />
@@ -881,7 +882,7 @@ function FeesTab({ fees, pendingFees, fmt }: { fees: any[]; pendingFees: number;
                   return (
                     <tr key={i} className="hover:bg-gray-50/50 transition">
                       <td className="px-6 py-4 font-bold text-gray-900">
-                        {r.month_year ? new Date(r.month_year).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '—'}
+                        {r.month_year ? formatDate(r.month_year) : '—'}
                       </td>
                       <td className="px-4 py-4 text-right font-bold text-gray-900">{fmt(r.total_amount)}</td>
                       <td className="px-4 py-4 text-right font-bold text-emerald-600">{fmt(r.paid_amount)}</td>
@@ -983,7 +984,7 @@ function HomeworkTab({ homework }: { homework: any[] }) {
                 </td>
                 <td className="px-6 py-5 align-top text-right whitespace-nowrap">
                   <span className="inline-block px-3 py-1 bg-gray-100 rounded-full text-[10px] font-black text-gray-500 uppercase">
-                    {new Date(h.diary_date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
+                    {formatDate(h.diary_date)}
                   </span>
                 </td>
               </tr>

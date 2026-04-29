@@ -5,6 +5,7 @@ import {
   BookOpen, PlusCircle, Save, X, Search, Pencil, Trash2,
   ChevronLeft, ChevronRight, Calendar, ClipboardList
 } from 'lucide-react';
+import { formatDate } from '../../lib/utils';
 
 export default function TeacherDiary() {
   const { userRole } = useAuth();
@@ -179,7 +180,7 @@ export default function TeacherDiary() {
         <div className="flex items-center gap-3 mb-3">
           <Calendar className="w-4 h-4 text-indigo-600" />
           <h2 className="font-bold text-gray-800">
-            {new Date(viewDate + 'T00:00:00').toLocaleDateString('en-PK', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            {formatDate(viewDate)}
           </h2>
           <span className="text-xs bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full font-bold">
             {todayEntries.length} {todayEntries.length === 1 ? 'entry' : 'entries'}
@@ -346,7 +347,7 @@ function DiaryCard({ entry, onEdit, onDelete }: { entry: any; onEdit: (e: any) =
           </div>
         )}
         <p className="text-[10px] text-gray-400 text-right font-mono">
-          {new Date(entry.diary_date + 'T00:00:00').toLocaleDateString('en-PK', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+          {formatDate(entry.diary_date)}
         </p>
       </div>
     </div>

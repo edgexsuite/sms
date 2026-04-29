@@ -210,7 +210,7 @@ export default function DailyReport() {
         <div className="p-4 border-b border-gray-200 flex items-center gap-3">
           <h2 className="font-semibold text-gray-800 flex items-center gap-2">
             <Users className="w-4 h-4" />
-            {new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            {formatDate(date)}
           </h2>
           {classFilter !== 'all' && (
             <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">

@@ -7,6 +7,7 @@ import {
   Users, TrendingUp, TrendingDown, BarChart3, X, Trash2, ExternalLink
 } from 'lucide-react';
 import { exportToCSV } from '../../lib/exportUtils';
+import { formatDate } from '../../lib/utils';
 import {
   downloadChallanPDF,
   DEFAULT_CHALLAN_CONFIG,
@@ -269,7 +270,7 @@ export default function StudentFeeHistory() {
         const cls = r.students?.classes;
         return cls ? `${cls.name || ''}${cls.section ? `-${cls.section}` : ''}` : '-';
       }},
-      { header: 'Month', key: (r: FeeRecord) => new Date(r.month_year).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) },
+      { header: 'Month', key: (r: FeeRecord) => formatDate(r.month_year) },
       { header: 'Billed', key: 'total_amount' },
       { header: 'Paid', key: 'paid_amount' },
       { header: 'Balance', key: (r: FeeRecord) => Number(r.total_amount) - Number(r.paid_amount) },
@@ -538,7 +539,7 @@ export default function StudentFeeHistory() {
                       </td>
                       <td className="px-4 py-3 text-gray-600 text-sm">{className}</td>
                       <td className="px-4 py-3 font-medium text-gray-800">
-                        {new Date(r.month_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                        {formatDate(r.month_year)}
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-gray-700">
                         Rs. {Number(r.total_amount).toLocaleString()}

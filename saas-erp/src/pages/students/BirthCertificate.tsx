@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Printer, Search, FileText } from 'lucide-react';
+import { formatDate } from '../../lib/utils';
 
 export default function BirthCertificate() {
   const { userRole } = useAuth();
@@ -56,7 +57,7 @@ export default function BirthCertificate() {
                {filteredStudents.map(stu => (
                  <button key={stu.id} onClick={() => setSelectedStudent(stu)} className={`w-full text-left p-3 rounded-lg mb-1 transition-colors ${selectedStudent?.id === stu.id ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-50 border border-transparent'}`}>
                    <p className="font-bold text-gray-900 text-sm">{stu.full_name}</p>
-                   <p className="text-xs text-gray-500">DOB: {stu.dob ? new Date(stu.dob).toLocaleDateString() : 'N/A'}</p>
+                   <p className="text-xs text-gray-500">DOB: {formatDate(stu.dob)}</p>
                  </button>
                ))}
              </div>
@@ -104,13 +105,13 @@ export default function BirthCertificate() {
                      </p>
                      
                      <div className="inline-block bg-purple-50 border border-purple-200 px-10 py-3 text-center font-bold text-2xl tracking-wide shadow-sm font-sans mx-auto mt-2 text-purple-900 rounded-lg">
-                        {selectedStudent.dob ? new Date(selectedStudent.dob).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '________________'}
+                         {formatDate(selectedStudent.dob)}
                      </div>
                   </div>
 
                   <div className="mt-auto flex w-full justify-between items-end px-12 pb-0 pt-8 font-serif text-base z-10">
                      <div className="text-center w-56 flex flex-col items-center">
-                       <span className="mb-2 w-full border-b border-gray-400 border-dashed pb-1">{new Date().toLocaleDateString()}</span>
+                       <span className="mb-2 w-full border-b border-gray-400 border-dashed pb-1">{formatDate(new Date())}</span>
                        <span className="text-sm font-semibold text-gray-600">Date of Issue</span>
                      </div>
                      <div className="text-center w-56 flex flex-col items-center">

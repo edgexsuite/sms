@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatDate } from './utils';
 
 export type ReportTemplateId = 'classic' | 'modern' | 'minimal' | 'elegant' | 'compact' | 'royal' | 'prestige' | 'pearl';
 
@@ -885,7 +886,7 @@ export function RoyalReport(props: ReportCardProps) {
         <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
           <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px 16px', fontSize: c.tableFontSize * 0.95 }}>
             {[['Student Name', props.studentName], ['Term', props.examName || '—'], ['Roll / ID', props.rollNumber], ['Academic Year', props.examSession || '—'],
-              ['Grade / Class', props.className], ['Date', new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })],
+              ['Grade / Class', props.className], ['Date', formatDate(new Date())],
               ...(activeFields.includes('attendance_stats') ? [['Attendance', props.attendance]] : []),
               ...(props.positionInClass && props.totalStudents ? [['Position', `${props.positionInClass} of ${props.totalStudents}`]] : []),
             ].map(([label, val], i) => (

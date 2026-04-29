@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Bell, Plus, X, Trash2, AlertCircle } from 'lucide-react';
+import { formatDate } from '../../lib/utils';
 
 const AUDIENCES = ['all', 'students', 'staff', 'parents'] as const;
 type Audience = typeof AUDIENCES[number];
@@ -113,9 +114,9 @@ export default function NoticeBoard() {
                       </div>
                       <p className="text-sm text-gray-600 whitespace-pre-wrap">{n.content}</p>
                       <div className="flex items-center gap-3 mt-3 text-xs text-gray-400">
-                        <span>Posted: {new Date(n.created_at).toLocaleDateString()}</span>
+                        <span>Posted: {formatDate(n.created_at)}</span>
                         {n.posted_by && <span>By: {n.posted_by}</span>}
-                        {n.expires_at && <span>Expires: {new Date(n.expires_at).toLocaleDateString()}</span>}
+                        {n.expires_at && <span>Expires: {formatDate(n.expires_at)}</span>}
                       </div>
                     </div>
                     <button onClick={() => remove(n.id)} className="text-red-400 hover:text-red-600 p-1 shrink-0">

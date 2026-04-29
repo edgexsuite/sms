@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '../lib/utils';
+import { cn, formatDate } from '../lib/utils';
 import DeletePinModal from '../components/DeletePinModal';
 import ImportStaffModal from '../components/ImportStaffModal';
 import JoiningLetter from '../components/JoiningLetter';
@@ -74,6 +74,8 @@ export default function Staff() {
   const [photoSize, setPhotoSize] = useState<string | null>(null);
   const photoInputRef = React.useRef<HTMLInputElement>(null);
   const [waDropdown, setWaDropdown] = useState<string | null>(null);
+  const joiningDateRef = useRef<HTMLInputElement>(null);
+  const dobRef = useRef<HTMLInputElement>(null);
 
   // Bulk Selection States
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -532,6 +534,43 @@ export default function Staff() {
                   </div>
                 ))}
 
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date of Birth</label>
+                  <div 
+                    className="relative cursor-pointer group"
+                    onClick={() => {
+                      if (dobRef.current && 'showPicker' in HTMLInputElement.prototype) {
+                        dobRef.current.showPicker();
+                      }
+                    }}
+                  >
+                    <input 
+                      type="text" 
+                      readOnly 
+                      value={formData.dob ? formatDate(formData.dob) : ''} 
+                      placeholder="DD-MM-YYYY"
+                      className="w-full border border-gray-300 px-3 py-2 rounded-lg bg-slate-50 text-sm font-medium group-hover:border-indigo-400 transition-colors shadow-inner"
+                    />
+                    <input 
+                      type="date" 
+                      ref={dobRef}
+                      value={formData.dob} 
+                      onChange={(e) => setFormData({...formData, dob: e.target.value})} 
+                      className="absolute inset-0 opacity-0 pointer-events-none" 
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Gender</label>
+                  <select value={formData.gender} onChange={e => setFormData({ ...formData, gender: e.target.value })} className="w-full border border-gray-300 px-3 py-2 rounded-lg bg-white text-sm font-medium">
+                    <option value="">-- Select --</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
                 <div className="md:col-span-2 mt-4">
                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2">Employment Parameters</h4>
                   
@@ -609,8 +648,29 @@ export default function Staff() {
 
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Joining Date</label>
-                  <input type="date" value={formData.joining_date} onChange={e => setFormData({ ...formData, joining_date: e.target.value })}
-                    className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-slate-500 text-sm font-medium" />
+                  <div 
+                    className="relative cursor-pointer group"
+                    onClick={() => {
+                      if (joiningDateRef.current && 'showPicker' in HTMLInputElement.prototype) {
+                        joiningDateRef.current.showPicker();
+                      }
+                    }}
+                  >
+                    <input 
+                      type="text" 
+                      readOnly 
+                      value={formData.joining_date ? formatDate(formData.joining_date) : ''} 
+                      placeholder="DD-MM-YYYY"
+                      className="w-full border border-gray-300 px-3 py-2 rounded-lg bg-white text-sm font-medium group-hover:border-indigo-400 transition-colors"
+                    />
+                    <input 
+                      type="date" 
+                      ref={joiningDateRef}
+                      value={formData.joining_date} 
+                      onChange={(e) => setFormData({...formData, joining_date: e.target.value})} 
+                      className="absolute inset-0 opacity-0 pointer-events-none" 
+                    />
+                  </div>
                 </div>
 
                 <div>

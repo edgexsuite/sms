@@ -11,9 +11,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
 } from 'recharts';
+import { formatDate } from '../lib/utils';
 
 const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#6366f1'];
 
@@ -210,7 +210,7 @@ export default function Dashboard() {
               {schoolName || 'School Overview'}
             </h1>
             <p className="text-indigo-200 text-xs mt-1.5">
-              {new Date().toLocaleDateString('en-PK', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              {formatDate(new Date())}
             </p>
           </div>
           <div className="flex gap-3 flex-wrap">
@@ -450,7 +450,7 @@ export default function Dashboard() {
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-gray-900 text-sm truncate">{item.label}</p>
                     <p className="text-xs text-gray-400 capitalize">
-                      {item.sub} · {item.month ? new Date(item.month).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ''}
+                      {item.sub} · {item.month ? formatDate(item.month) : ''}
                     </p>
                   </div>
                   <span className="text-sm font-black text-gray-800 shrink-0">Rs. {Number(item.amount || 0).toLocaleString()}</span>

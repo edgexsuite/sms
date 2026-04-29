@@ -96,7 +96,7 @@ export default function AbsentStudentList() {
 
       <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between">
         <p className="text-red-800 font-medium">
-          {loading ? 'Loading...' : `${absentList.length} student${absentList.length !== 1 ? 's' : ''} absent on ${new Date(date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`}
+          {loading ? 'Loading...' : `${absentList.length} student${absentList.length !== 1 ? 's' : ''} absent on ${formatDate(date)}`}
         </p>
       </div>
 

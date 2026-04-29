@@ -15,6 +15,7 @@ import {
   FileDown
 } from 'lucide-react';
 import { exportToCSV } from '../../lib/exportUtils';
+import { formatDate } from '../../lib/utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -159,7 +160,7 @@ export default function MasterSummaryReport() {
     doc.setFontSize(9);
     doc.setFont('Inter', 'normal');
     doc.setTextColor(148, 163, 184);
-    doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - 20, 48, { align: 'right' });
+    doc.text(`Generated: ${formatDate(new Date())}`, pageWidth - 20, 48, { align: 'right' });
 
     // 3. KPI Summary Table
     autoTable(doc, {
@@ -185,7 +186,7 @@ export default function MasterSummaryReport() {
       autoTable(doc, {
         startY: currentY + 5,
         head: [['Student Name', 'Roll No', 'Class', 'Date']],
-        body: data.admissions.map(s => [s.full_name, `#${s.roll_number}`, s.classes?.name || '—', s.admission_date]),
+        body: data.admissions.map(s => [s.full_name, `#${s.roll_number}`, s.classes?.name || '—', formatDate(s.admission_date)]),
         styles: { fontSize: 9 }
       });
       currentY = (doc as any).lastAutoTable.finalY + 15;
@@ -201,7 +202,7 @@ export default function MasterSummaryReport() {
       autoTable(doc, {
         startY: currentY + 5,
         head: [['Date', 'Category', 'Description', 'Mode', 'Amount']],
-        body: data.income.map(i => [i.date, i.category, i.remarks || '—', i.payment_mode, `Rs. ${Number(i.amount).toLocaleString()}`]),
+        body: data.income.map(i => [formatDate(i.date), i.category, i.remarks || '—', i.payment_mode, `Rs. ${Number(i.amount).toLocaleString()}`]),
         styles: { fontSize: 9 },
         headStyles: { fillColor: [16, 185, 129] } // green-500
       });
@@ -217,7 +218,7 @@ export default function MasterSummaryReport() {
       autoTable(doc, {
         startY: currentY + 5,
         head: [['Date', 'Category', 'Description', 'Mode', 'Amount']],
-        body: data.expenses.map(e => [e.date, e.category, e.remarks || '—', e.payment_mode, `Rs. ${Number(e.amount).toLocaleString()}`]),
+        body: data.expenses.map(e => [formatDate(e.date), e.category, e.remarks || '—', e.payment_mode, `Rs. ${Number(e.amount).toLocaleString()}`]),
         styles: { fontSize: 9 },
         headStyles: { fillColor: [239, 68, 68] } // red-500
       });
@@ -487,11 +488,10 @@ export default function MasterSummaryReport() {
                       <tr><td colSpan={4} className="px-6 py-20 text-center text-slate-400 italic">No students enrolled during this period.</td></tr>
                     ) : (
                       data.admissions.map(stu => (
-                        <tr key={stu.id} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-6 py-4 font-bold text-slate-900">{stu.full_name}</td>
+                           <td className="px-6 py-4 font-bold text-slate-900">{stu.full_name}</td>
                           <td className="px-6 py-4 font-mono text-sm text-slate-600">#{stu.roll_number}</td>
                           <td className="px-6 py-4"><span className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg font-bold text-xs">{stu.classes?.name || 'Unassigned'}</span></td>
-                          <td className="px-6 py-4 text-sm text-slate-500 font-medium">{new Date(stu.admission_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                          <td className="px-6 py-4 text-sm text-slate-500 font-medium">{formatDate(stu.admission_date)}</td>
                         </tr>
                       ))
                     )}
@@ -516,7 +516,7 @@ export default function MasterSummaryReport() {
                     ) : (
                       (activeTab === 'income' ? data.income : data.expenses).map(trans => (
                         <tr key={trans.id} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-6 py-4 text-sm text-slate-500 font-medium">{new Date(trans.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                          <td className="px-6 py-4 text-sm text-slate-500 font-medium">{formatDate(trans.date)}</td>
                           <td className="px-6 py-4">
                             <span className={`px-3 py-1 rounded-lg font-bold text-xs ${activeTab === 'income' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
                               {trans.category}
@@ -560,11 +560,10 @@ export default function MasterSummaryReport() {
             </div>
           </div>
           <div className="text-right">
-             <div className="bg-slate-900 text-white px-4 py-2 rounded-lg mb-2">
-                <p className="text-[10px] font-black uppercase tracking-widest opacity-70">Report Type</p>
+                 <p className="text-[10px] font-black uppercase tracking-widest opacity-70">Report Type</p>
                 <p className="font-bold text-sm tracking-tight">EXECUTIVE SUMMARY</p>
              </div>
-             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date: {new Date().toLocaleDateString()}</p>
+             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date: {formatDate(new Date())}</p>
           </div>
         </div>
 
@@ -575,7 +574,7 @@ export default function MasterSummaryReport() {
            </div>
            <div className="text-right">
               <p className="text-[10px] font-black text-slate-400 uppercase">Generated On</p>
-              <p className="text-sm font-bold text-slate-800">{new Date().toLocaleString()}</p>
+              <p className="text-sm font-bold text-slate-800">{formatDate(new Date())}</p>
            </div>
         </div>
 
@@ -607,11 +606,10 @@ export default function MasterSummaryReport() {
                 </thead>
                 <tbody>
                   {data.admissions.map(s => (
-                    <tr key={s.id}>
-                      <td className="border border-slate-200 px-3 py-2 font-bold">{s.full_name}</td>
+                       <td className="border border-slate-200 px-3 py-2 font-bold">{s.full_name}</td>
                       <td className="border border-slate-200 px-3 py-2 font-mono">#{s.roll_number}</td>
                       <td className="border border-slate-200 px-3 py-2">{s.classes?.name || '—'}</td>
-                      <td className="border border-slate-200 px-3 py-2">{s.admission_date}</td>
+                      <td className="border border-slate-200 px-3 py-2">{formatDate(s.admission_date)}</td>
                     </tr>
                   ))}
                   {data.admissions.length === 0 && <tr><td colSpan={4} className="border border-slate-200 px-3 py-4 text-center italic text-slate-400">No enrollment records found.</td></tr>}
@@ -636,7 +634,7 @@ export default function MasterSummaryReport() {
                 <tbody>
                   {data.income.map(i => (
                     <tr key={i.id}>
-                      <td className="border border-slate-200 px-3 py-2">{i.date}</td>
+                      <td className="border border-slate-200 px-3 py-2">{formatDate(i.date)}</td>
                       <td className="border border-slate-200 px-3 py-2 font-bold text-green-700">{i.category}</td>
                       <td className="border border-slate-200 px-3 py-2 italic truncate max-w-xs">{i.remarks || '—'}</td>
                       <td className="border border-slate-200 px-3 py-2 text-right font-black">Rs. {Number(i.amount).toLocaleString()}</td>
@@ -667,7 +665,7 @@ export default function MasterSummaryReport() {
                 <tbody>
                   {data.expenses.map(e => (
                     <tr key={e.id}>
-                      <td className="border border-slate-200 px-3 py-2">{e.date}</td>
+                      <td className="border border-slate-200 px-3 py-2">{formatDate(e.date)}</td>
                       <td className="border border-slate-200 px-3 py-2 font-bold text-red-700">{e.category}</td>
                       <td className="border border-slate-200 px-3 py-2 italic truncate max-w-xs">{e.remarks || '—'}</td>
                       <td className="border border-slate-200 px-3 py-2 text-right font-black">Rs. {Number(e.amount).toLocaleString()}</td>

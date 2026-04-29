@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -8,10 +8,12 @@ import {
 } from 'lucide-react';
 import DeletePinModal from '../../components/DeletePinModal';
 import { motion, AnimatePresence } from 'framer-motion';
+import { formatDate } from '../../lib/utils';
 
 export default function AddDailyExpenses() {
   const { userRole } = useAuth();
   const navigate = useNavigate();
+  const dateRef = useRef<HTMLInputElement>(null);
   const [heads, setHeads] = useState<any[]>([]);
   const [recentExpenses, setRecentExpenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -188,10 +190,33 @@ export default function AddDailyExpenses() {
                </div>
 
                <div className="grid grid-cols-1 gap-6">
-                 <div>
-                   <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-[0.2em]">Transaction Date</label>
-                   <input type="date" required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full bg-slate-50 border border-transparent focus:bg-white focus:border-slate-100 px-4 py-3 rounded-2xl text-sm font-bold text-slate-700 outline-none transition-all" />
-                 </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-[0.2em]">Transaction Date</label>
+                    <div 
+                      className="relative cursor-pointer group"
+                      onClick={() => {
+                        if (dateRef.current && 'showPicker' in HTMLInputElement.prototype) {
+                          dateRef.current.showPicker();
+                        }
+                      }}
+                    >
+                      <input 
+                        type="text" 
+                        readOnly 
+                        value={formData.date ? formatDate(formData.date) : ''} 
+                        placeholder="DD-MM-YYYY"
+                        className="w-full bg-slate-50 border border-transparent group-hover:border-slate-200 px-4 py-3 rounded-2xl text-sm font-bold text-slate-700 outline-none transition-all cursor-pointer" 
+                      />
+                      <input 
+                        type="date" 
+                        ref={dateRef}
+                        required 
+                        value={formData.date} 
+                        onChange={e => setFormData({...formData, date: e.target.value})} 
+                        className="absolute inset-0 opacity-0 pointer-events-none" 
+                      />
+                    </div>
+                  </div>
                  <div>
                    <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-[0.2em]">Payment Mode</label>
                    <select value={formData.payment_mode} onChange={e => setFormData({...formData, payment_mode: e.target.value})} className="w-full bg-slate-50 border border-transparent focus:bg-white focus:border-slate-100 px-4 py-3 rounded-2xl text-sm font-bold text-slate-700 outline-none transition-all">
@@ -255,7 +280,7 @@ export default function AddDailyExpenses() {
                          whileHover={{ scale: 1.002, x: 5 }}
                          className="hover:bg-rose-50/30 transition-all group"
                        >
-                         <td className="p-6 text-slate-900 font-bold text-xs uppercase tracking-tight whitespace-nowrap">{new Date(exp.date).toLocaleDateString(undefined, { dateStyle: 'medium' })}</td>
+                         <td className="p-6 text-slate-900 font-bold text-xs uppercase tracking-tight whitespace-nowrap">{formatDate(exp.date)}</td>
                          <td className="p-6">
                             <span className="bg-slate-100 text-slate-700 font-black px-3 py-1 rounded-lg text-[9px] uppercase tracking-widest group-hover:bg-white transition-colors">{exp.category}</span>
                          </td>

@@ -14,6 +14,7 @@ import {
   Calendar
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { formatDate } from '../lib/utils';
 
 type Ticket = {
   id: string;
@@ -308,7 +309,7 @@ export default function HelpSupport() {
                               {ticket.category}
                             </span>
                             <span className="text-[10px] text-slate-400 flex items-center gap-1 font-bold">
-                              <Calendar size={12} /> {new Date(ticket.created_at).toLocaleDateString()}
+                              <Calendar size={12} /> {formatDate(ticket.created_at)}
                             </span>
                           </div>
                           {ticket.admin_reply && (

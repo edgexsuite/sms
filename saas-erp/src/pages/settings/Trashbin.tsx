@@ -5,6 +5,7 @@ import {
   Trash2, RefreshCw, XCircle, Users, Briefcase, 
   TrendingDown, AlertTriangle, Search, CheckCircle2 
 } from 'lucide-react';
+import { formatDate } from '../../lib/utils';
 
 type TrashModule = 'students' | 'staff' | 'expenses';
 
@@ -212,7 +213,7 @@ export default function Trashbin() {
                     </td>
                     <td className="p-6 text-center">
                        <span className="text-sm font-black text-slate-700 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
-                         {item.deleted_at ? new Date(item.deleted_at).toLocaleString() : 'N/A'}
+                         {item.deleted_at ? formatDate(item.deleted_at) : 'N/A'}
                        </span>
                     </td>
                     <td className="p-6 text-right">

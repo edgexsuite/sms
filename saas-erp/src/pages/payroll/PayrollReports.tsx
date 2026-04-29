@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { BarChart2, Download } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { exportToExcel, exportToPDF } from '../../lib/exportUtils';
+import { formatDate } from '../../lib/utils';
 
 export default function PayrollReports() {
   const { userRole } = useAuth();
@@ -34,7 +35,7 @@ export default function PayrollReports() {
     const key = `${year}-${m}`;
     const monthRecords = records.filter(r => r.month_year?.startsWith(key));
     return {
-      month: new Date(year, i, 1).toLocaleString('default', { month: 'short' }),
+      month: formatDate(new Date(year, i, 1)),
       net: monthRecords.reduce((s, r) => s + (r.net_salary || 0), 0),
       count: monthRecords.length,
     };

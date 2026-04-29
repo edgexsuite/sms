@@ -5,7 +5,7 @@ import {
   Search, Filter, Download, Printer,
   ChevronRight, ClipboardList, School, Layout
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, formatDate } from '../../lib/utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -184,7 +184,7 @@ export default function CustomStudentList() {
     y += 5;
 
     doc.setFontSize(7);
-    doc.text(`Generated: ${new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'long', year: 'numeric' })}`, pageW / 2, y, { align: 'center' });
+    doc.text(`Generated: ${formatDate(new Date())}`, pageW / 2, y, { align: 'center' });
     y += 4;
 
     doc.setDrawColor(200, 200, 200);
@@ -241,7 +241,7 @@ export default function CustomStudentList() {
         ...activeCols.map(c =>
           c.category === 'Finance'
             ? `PKR ${Number(r[c.key] || 0).toLocaleString()}`
-            : String(r[c.key] || '-')
+            : formatDate(r[c.key]) || '-'
         ),
       ]),
       startY: y,
@@ -368,7 +368,7 @@ export default function CustomStudentList() {
             {classFilter ? 'Class Summary Report' : 'Whole School Summary Report'}
           </p>
           <p className="text-slate-400 text-[10px] mt-2 tracking-widest uppercase font-bold">
-            Generated: {new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'long', year: 'numeric' })}
+            Generated: {formatDate(new Date())}
           </p>
         </div>
 
@@ -596,7 +596,7 @@ export default function CustomStudentList() {
                     Student List{classFilter ? ` — ${classes.find(c => c.id === classFilter)?.name}` : ' — All Classes'}
                   </p>
                   <p className="text-slate-400 text-[10px] mt-2 tracking-widest uppercase">
-                    Generated: {new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'long', year: 'numeric' })}
+                    Generated: {formatDate(new Date())}
                   </p>
                 </div>
 
@@ -652,7 +652,7 @@ export default function CustomStudentList() {
                                 </span>
                               ) : col.category === 'Finance'
                                 ? `PKR ${Number(row[col.key] || 0).toLocaleString()}`
-                                : row[col.key] || '—'
+                                : formatDate(row[col.key]) || '—'
                               }
                             </td>
                           ))}

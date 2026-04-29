@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Calendar, PlusCircle, Trash2, Save, X, Clock } from 'lucide-react';
+import { formatDate } from '../../lib/utils';
 
 export default function AddExamSchedule() {
   const { userRole } = useAuth();
@@ -176,7 +177,7 @@ export default function AddExamSchedule() {
                 {schedules.map(s => (
                   <div key={s.id} className="grid grid-cols-11 px-6 py-3 items-center hover:bg-gray-50 transition">
                     <div className="col-span-3 font-bold text-gray-900 text-sm">{s.subjects?.subject_name}</div>
-                    <div className="col-span-2 text-sm text-gray-600 font-medium">{s.exam_date ? new Date(s.exam_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' }) : '—'}</div>
+                    <div className="col-span-2 text-sm text-gray-600 font-medium">{s.exam_date ? formatDate(s.exam_date) : '—'}</div>
                     <div className="col-span-2 text-xs text-gray-500 flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       {s.start_time || '—'} – {s.end_time || '—'}

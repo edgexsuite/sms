@@ -9,7 +9,7 @@ import Papa from 'papaparse';
 import { exportToExcel } from '../../lib/exportUtils';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { cn } from '../../lib/utils';
+import { cn, formatDate } from '../../lib/utils';
 
 interface Student {
   id: string;
@@ -939,9 +939,7 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
                       </div>
                     </td>
                     <td className="px-4 py-2 text-xs text-slate-500 font-medium hidden md:table-cell">
-                      {student.admission_date
-                        ? new Date(student.admission_date).toLocaleDateString(undefined, { dateStyle: 'medium' })
-                        : '-'}
+                      {formatDate(student.admission_date)}
                     </td>
                     <td className="px-4 py-2">
                       <span
@@ -1195,12 +1193,12 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
                       {[
                         { label: 'Full Name', val: selectedStudent.full_name },
                         { label: 'Roll Number', val: selectedStudent.roll_number ? `#${selectedStudent.roll_number}` : '-' },
-                        { label: 'Date of Birth', val: selectedStudent.dob || '-' },
+                        { label: 'Date of Birth', val: formatDate(selectedStudent.dob) },
                         { label: 'Gender', val: selectedStudent.gender || '-' },
                         { label: 'Religion', val: selectedStudent.religion || '-' },
                         { label: 'Nationality', val: selectedStudent.nationality || '-' },
                         { label: 'Blood Group', val: selectedStudent.blood_group || '-' },
-                        { label: 'Admission Date', val: selectedStudent.admission_date || '-' },
+                        { label: 'Admission Date', val: formatDate(selectedStudent.admission_date) },
                         { label: 'B-Form / CNIC', val: selectedStudent.b_form_cnic || '-' },
                       ].map(({ label, val }) => (
                         <div key={label} className="flex flex-col gap-1">
@@ -1382,7 +1380,7 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
                         <tbody className="divide-y divide-slate-50">
                           {detailAttendance.map((rec) => (
                             <tr key={rec.id} className="hover:bg-slate-50/50">
-                              <td className="px-5 py-3 font-medium text-slate-700">{rec.date}</td>
+                              <td className="px-5 py-3 font-medium text-slate-700">{formatDate(rec.date)}</td>
                               <td className="px-5 py-3">
                                 <span
                                   className={cn(
@@ -1457,7 +1455,7 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
                             return (
                               <tr key={fee.id} className="hover:bg-slate-50/50">
                                 <td className="px-5 py-3 font-bold text-slate-800">
-                                  {fee.month_year ? new Date(fee.month_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
+                                  {fee.month_year ? formatDate(fee.month_year) : '—'}
                                 </td>
                                 <td className="px-5 py-3 text-slate-500 font-mono text-xs">{fee.invoice_number || '-'}</td>
                                 <td className="px-5 py-3 font-medium">{(fee.total_amount || 0).toLocaleString()}</td>

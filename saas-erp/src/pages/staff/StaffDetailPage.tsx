@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { cn } from '../../lib/utils';
+import { useAuth } from '../../contexts/AuthContext';
+import { cn, formatDate } from '../../lib/utils';
 import {
   ArrowLeft, Printer, User, Calendar, CreditCard,
   Mail, MapPin, Shield, AlertCircle, MessageSquare, Award, Clock,
@@ -298,7 +299,7 @@ export default function StaffDetailPage() {
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-900">Document Reference</p>
                 <p className="text-xs font-mono font-bold mt-1 uppercase">{id?.substring(0, 12)}</p>
               </div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Generated: {new Date().toLocaleDateString()}</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Generated: {formatDate(new Date())}</p>
             </div>
           </div>
 
@@ -504,7 +505,7 @@ export default function StaffDetailPage() {
                           <tr><td colSpan={6} className="py-20 text-center text-slate-400 font-bold uppercase text-[10px]">No payroll records finalized yet</td></tr>
                         ) : payrollHistory.map((p, idx) => (
                           <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                            <td className="px-6 py-5 font-black text-slate-800">{new Date(p.month_year).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</td>
+                            <td className="px-6 py-5 font-black text-slate-800">{formatDate(p.month_year)}</td>
                             <td className="px-6 py-5 text-right font-mono text-slate-600">{p.base_salary?.toLocaleString()}</td>
                             <td className="px-6 py-5 text-right font-mono text-emerald-600">+{p.gross_salary - p.base_salary > 0 ? (p.gross_salary - p.base_salary).toLocaleString() : '0'}</td>
                             <td className="px-6 py-5 text-right font-mono text-rose-600">−{p.absent_deduction?.toLocaleString() || '0'}</td>
@@ -591,7 +592,7 @@ export default function StaffDetailPage() {
                       ) : diary.map((entry, idx) => (
                         <div key={idx} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
                           <div className="flex justify-between mb-2">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{new Date(entry.date).toLocaleDateString()}</p>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{formatDate(entry.date)}</p>
                             <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">{entry.class_id}</p>
                           </div>
                           <p className="text-sm font-bold text-slate-800 leading-relaxed">{entry.content}</p>

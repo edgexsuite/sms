@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Send, Check, CheckCheck, User, MessageCircle, AlertCircle } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, formatDate } from '../lib/utils';
 
 interface Message {
   id: string;
@@ -224,7 +224,7 @@ export default function ChatInterface({
                 {showDate && (
                   <div className="flex justify-center my-4">
                     <span className="bg-sky-100 text-sky-700 text-[10px] font-black uppercase px-3 py-1 rounded-full shadow-sm">
-                      {new Date(msg.created_at).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' })}
+                      {formatDate(msg.created_at)}
                     </span>
                   </div>
                 )}

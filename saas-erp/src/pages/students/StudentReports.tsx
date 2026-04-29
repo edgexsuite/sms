@@ -6,7 +6,7 @@ import {
   FileText, Download, CheckCircle2, ChevronRight, Search, 
   Filter, Award, ShieldAlert, GraduationCap, Clock
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, formatDate } from '../../lib/utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -76,7 +76,7 @@ export default function StudentReports() {
     try {
       const doc = new jsPDF();
       const schoolTitle = userRole?.schools?.name || 'Academic Institution';
-      const dateString = `${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`;
+      const dateString = `${formatDate(startDate)} to ${formatDate(endDate)}`;
       const logoUrl = userRole?.schools?.logo_url;
 
       // Load logo as base64 (CORS-safe)
@@ -122,7 +122,7 @@ export default function StudentReports() {
 
         if (!students) return;
 
-        addHeader('Student Strength Summary', `Generated: ${new Date().toLocaleDateString()}`);
+        addHeader('Student Strength Summary', `Generated: ${formatDate(new Date())}`);
 
         const grouped: Record<string, any[]> = {};
         students.forEach(s => {
@@ -177,7 +177,7 @@ export default function StudentReports() {
           s.student_unique_id || 'N/A',
           s.full_name,
           (s.classes as any)?.name ? `${(s.classes as any).name} ${(s.classes as any).section}` : 'N/A',
-          s.admission_date,
+          formatDate(s.admission_date),
           s.gender || '—'
         ]);
 
@@ -214,7 +214,7 @@ export default function StudentReports() {
           s.full_name,
           (s.classes as any)?.name ? `${(s.classes as any).name} ${(s.classes as any).section}` : 'N/A',
           s.status.toUpperCase(),
-          s.admission_date || '—'
+          formatDate(s.admission_date)
         ]);
 
         autoTable(doc, {
@@ -250,7 +250,7 @@ export default function StudentReports() {
           s.full_name,
           (s.classes as any)?.name ? `${(s.classes as any).name} ${(s.classes as any).section}` : 'N/A',
           `${s.fee_waiver_percentage}%`,
-          s.admission_date || '—'
+          formatDate(s.admission_date)
         ]);
 
         autoTable(doc, {

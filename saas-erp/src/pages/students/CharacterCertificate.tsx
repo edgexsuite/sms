@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Printer, Search, FileText } from 'lucide-react';
+import { formatDate } from '../../lib/utils';
 
 export default function CharacterCertificate() {
   const { userRole } = useAuth();
@@ -122,7 +123,7 @@ export default function CharacterCertificate() {
 
                   <div className="mt-auto flex w-full justify-between items-end px-12 pb-0 pt-8 font-serif text-base z-10">
                      <div className="text-center w-56 flex flex-col items-center">
-                       <span className="mb-2 w-full border-b border-gray-400 border-dashed pb-1">{new Date().toLocaleDateString()}</span>
+                       <span className="mb-2 w-full border-b border-gray-400 border-dashed pb-1">{formatDate(new Date())}</span>
                        <span className="text-sm font-semibold text-gray-600">Date of Issue</span>
                      </div>
                      <div className="text-center w-56 flex flex-col items-center">

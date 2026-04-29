@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { CreditCard, Plus, Search, Download, Trash2 } from 'lucide-react';
 import { exportToCSV } from '../../lib/exportUtils';
+import { formatDate } from '../../lib/utils';
 
 interface AdvanceRecord {
   id: string;
@@ -164,7 +165,7 @@ export default function AdvanceFee() {
                   <td className="px-6 py-4 text-gray-600">
                     {r.student?.class ? `${r.student.class.name}-${r.student.class.section}` : '-'}
                   </td>
-                  <td className="px-6 py-4 text-gray-600">{new Date(r.month_year).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</td>
+                  <td className="px-6 py-4 text-gray-600">{formatDate(r.month_year)}</td>
                   <td className="px-6 py-4 text-right font-mono font-medium text-gray-900">Rs. {Number(r.paid_amount).toLocaleString()}</td>
                   <td className="px-6 py-4 text-center">
                     <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">Advance</span>

@@ -7,7 +7,7 @@ import {
   Briefcase, RefreshCw, Settings, Shield, Timer, QrCode,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '../../lib/utils';
+import { cn, formatDate } from '../../lib/utils';
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 interface ScanLog {
@@ -56,7 +56,7 @@ function LiveClock() {
         {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
       </div>
       <div className="text-[10px] text-indigo-400 mt-0.5 uppercase tracking-widest font-bold">
-        {now.toLocaleDateString('en-PK', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
+        {formatDate(now)}
       </div>
     </div>
   );

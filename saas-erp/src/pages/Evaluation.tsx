@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { formatDate } from '../lib/utils';
 
 export default function Evaluation() {
   const { userRole } = useAuth();
@@ -209,7 +210,7 @@ export default function Evaluation() {
                   <p className="text-xs text-gray-600 italic line-clamp-2 mb-4">"{ev.feedback}"</p>
                   
                   <div className="mt-auto pt-4 border-t border-gray-50 flex justify-between items-center text-[9px] font-bold text-gray-400">
-                     <span className="flex items-center gap-1 uppercase tracking-tighter"><Calendar className="w-3 h-3" /> {new Date(ev.evaluation_date).toLocaleDateString()}</span>
+                     <span className="flex items-center gap-1 uppercase tracking-tighter"><Calendar className="w-3 h-3" /> {formatDate(ev.evaluation_date)}</span>
                      <span className="bg-gray-100 px-2 py-0.5 rounded uppercase">By: {ev.evaluator?.full_name || 'Admin'}</span>
                   </div>
                 </div>

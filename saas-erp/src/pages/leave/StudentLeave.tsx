@@ -5,6 +5,7 @@ import {
   CalendarOff, PlusCircle, CheckCircle, XCircle, Clock, Search,
   Save, X, Filter, Printer, ChevronDown, User
 } from 'lucide-react';
+import { formatDate } from '../../lib/utils';
 
 const STUDENT_LEAVE_TYPES = ['Sick Leave', 'Casual Leave', 'Emergency Leave', 'Family Event', 'Medical Procedure', 'Other'];
 
@@ -259,8 +260,8 @@ export default function StudentLeave() {
                       <span className="text-xs bg-orange-50 text-orange-700 border border-orange-200 px-2 py-0.5 rounded-full font-bold">{l.leave_type}</span>
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-600 font-mono">
-                      {new Date(l.from_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })} →{' '}
-                      {new Date(l.to_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })}
+                      {formatDate(l.from_date)} →{' '}
+                      {formatDate(l.to_date)}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className="font-black text-gray-900">{l.total_days}</span>

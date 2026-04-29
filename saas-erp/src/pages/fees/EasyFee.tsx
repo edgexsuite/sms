@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';
 import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, type ChallanRecord, type SchoolInfo } from '../../lib/challanUtils';
 import HelpBanner from '../../components/HelpBanner';
+import { formatDate } from '../../lib/utils';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -251,7 +252,7 @@ export default function EasyFee() {
 
         paidRecords.push(fee);
         paymentBreakdown.push({
-          item: new Date(fee.month_year).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+          item: formatDate(fee.month_year),
           amount: paying,
         });
 
@@ -270,7 +271,7 @@ export default function EasyFee() {
       }
 
       const coveredMonths = paidRecords
-        .map(r => new Date(r.month_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }))
+        .map(r => formatDate(r.month_year))
         .join(', ');
 
       // 2. Log one P&L transaction per invoice covered (fee_record_id links to invoice for reporting)
@@ -296,7 +297,7 @@ export default function EasyFee() {
           amount: paidAmt,
           date: payDate,
           payment_mode: payMode,
-          remarks: `${selectedStudent.full_name} — ${new Date(fee.month_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}${payRemarks ? ` (${payRemarks})` : ''}`,
+          remarks: `${selectedStudent.full_name} — ${formatDate(fee.month_year)}${payRemarks ? ` (${payRemarks})` : ''}`,
           fee_record_id: fee.id,
           fee_items: scaledItems,  // proportional net amounts — sum equals paidAmt
         };
@@ -323,7 +324,7 @@ export default function EasyFee() {
           roll_number: selectedStudent.roll_number,
           class_name: `${selectedStudent.class?.name || ''}-${selectedStudent.class?.section || ''}`,
           amount,
-          date: new Date(payDate).toLocaleDateString(),
+          date: formatDate(payDate),
           mode: payMode,
           invoice_number: paidRecords[0]?.invoice_number || '',
           months: coveredMonths,
@@ -356,7 +357,7 @@ export default function EasyFee() {
       total_amount: payment.amount,
       paid_amount: payment.amount,
       status: 'paid',
-      breakdown: payment.breakdown || [{ item: `Fee Payment (${payment.months || new Date().toLocaleDateString()})`, amount: payment.amount }],
+      breakdown: payment.breakdown || [{ item: `Fee Payment (${payment.months || formatDate(new Date())})`, amount: payment.amount }],
       student_name: payment.student_name,
       roll_number: payment.roll_number,
       class_name: payment.class_name,
@@ -501,7 +502,7 @@ export default function EasyFee() {
                   <div className="flex justify-between items-center">
                     <p className="text-[10px] text-gray-400">{t.mode}</p>
                     <div className="flex items-center gap-1.5">
-                      <p className="text-[10px] text-gray-400">{new Date(t.date).toLocaleDateString()}</p>
+                      <p className="text-[10px] text-gray-400">{formatDate(t.date)}</p>
                       <ArrowRight className="w-2.5 h-2.5 text-gray-300 group-hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-all" />
                     </div>
                   </div>
@@ -571,7 +572,7 @@ export default function EasyFee() {
                             return (
                               <tr key={f.id} className="hover:bg-gray-50 transition-colors group/row">
                                 <td className="px-3 py-3">
-                                  <p className="font-medium text-gray-800 text-sm">{new Date(f.month_year).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</p>
+                                  <p className="font-medium text-gray-800 text-sm">{formatDate(f.month_year)}</p>
                                   <span className={cn(
                                     "inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full mt-1",
                                     f.status === 'partial' ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
@@ -763,7 +764,7 @@ export default function EasyFee() {
                 <div className="space-y-3">
                   <div className="flex justify-between items-center py-2 border-b border-gray-50">
                     <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Date</span>
-                    <span className="text-sm font-bold text-gray-800">{new Date(selectedRecentTx.date).toLocaleDateString(undefined, { dateStyle: 'long' })}</span>
+                    <span className="text-sm font-bold text-gray-800">{formatDate(selectedRecentTx.date)}</span>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b border-gray-50">
                     <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Method</span>

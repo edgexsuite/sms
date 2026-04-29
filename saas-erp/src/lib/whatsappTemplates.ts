@@ -1,7 +1,7 @@
 /**
- * Centralized WhatsApp message templates for the school management system.
  * All templates return a plain-text string ready for wa.me URL encoding.
  */
+import { formatDate } from './utils';
 
 export interface TemplateVars {
   studentName?: string;
@@ -42,7 +42,7 @@ export function overdueFeeTemplate(vars: TemplateVars): string {
 
 /** Absence alert — sent on the same day a student is marked absent */
 export function absenceAlertTemplate(vars: TemplateVars): string {
-  return `Dear Parent,\n\nYour child *${vars.studentName}* was marked *absent* from school today (*${vars.attendanceDate || new Date().toLocaleDateString()}*).\n\nRegular attendance is crucial for academic success. Please provide a reason for the absence.\n\n— ${vars.schoolName || 'School Management'}`;
+  return `Dear Parent,\n\nYour child *${vars.studentName}* was marked *absent* from school today (*${formatDate(vars.attendanceDate || new Date())}*).\n\nRegular attendance is crucial for academic success. Please provide a reason for the absence.\n\n— ${vars.schoolName || 'School Management'}`;
 }
 
 /** Late arrival notice — sent for students who are continuously late */
@@ -57,7 +57,7 @@ export function healthIssueTemplate(vars: TemplateVars): string {
 
 /** Admission confirmation */
 export function admissionConfirmationTemplate(vars: TemplateVars): string {
-  return `Dear Parent,\n\nCongratulations! We are delighted to confirm the admission of *${vars.studentName}* into Class *${vars.className}* at *${vars.schoolName}*.\n\n*Admission Date:* ${vars.admissionDate || new Date().toLocaleDateString()}\n\nWelcome to our school family! We look forward to a successful academic journey together.\n\n— ${vars.schoolName || 'School Management'}`;
+  return `Dear Parent,\n\nCongratulations! We are delighted to confirm the admission of *${vars.studentName}* into Class *${vars.className}* at *${vars.schoolName}*.\n\n*Admission Date:* ${formatDate(vars.admissionDate || new Date())}\n\nWelcome to our school family! We look forward to a successful academic journey together.\n\n— ${vars.schoolName || 'School Management'}`;
 }
 
 /** Result notification — sent after results are published */

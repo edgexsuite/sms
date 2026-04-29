@@ -5,6 +5,7 @@ import { useTheme, ThemeName } from '../contexts/ThemeContext';
 import { Building2, CreditCard, Database, ShieldCheck, Save, Download, Upload, Play, Palette, Briefcase, Plus, Clock, Calendar, Trash2, X, ClipboardList } from 'lucide-react';
 import { seedDemoData } from '../lib/seedData';
 import { uploadFile } from '../lib/uploadUtils';
+import { formatDate } from '../lib/utils';
 
 export default function Settings() {
   const { userRole } = useAuth();
@@ -727,7 +728,7 @@ export default function Settings() {
                                      <div>
                                         <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight">{v.name}</h4>
                                         <p className="text-[10px] font-bold text-slate-500">
-                                          {new Date(v.start_date).toLocaleDateString()} — {new Date(v.end_date).toLocaleDateString()}
+                                          {formatDate(v.start_date)} — {formatDate(v.end_date)}
                                           <span className="mx-2">•</span>
                                           <span className={v.deduct_salary ? 'text-amber-600' : 'text-green-600'}>
                                             {v.deduct_salary ? 'Salary Deducted' : 'Complimentary Paid Break'}

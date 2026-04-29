@@ -10,7 +10,7 @@ import {
   TrendingDown, ChevronDown, ChevronUp, Trash2, Tag, Percent, BadgeDollarSign
 } from 'lucide-react';
 import { calculateLateFine, getFineRules, FineRule } from '../../lib/fineUtils';
-import { cn } from '../../lib/utils';
+import { cn, formatDate } from '../../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   downloadChallanPDF,
@@ -73,6 +73,7 @@ export default function StudentFeeDetail() {
   const [dropdownRect, setDropdownRect] = useState<DOMRect | null>(null);
 
   const [showNewInvoice, setShowNewInvoice] = useState(false);
+  const paidAtInputRef = useRef<HTMLInputElement>(null);
 
   // ── Fetch Metadata ─────────────────────────────────────────────────────────
 
@@ -277,7 +278,7 @@ export default function StudentFeeDetail() {
         payment_mode: paymentMode,
         category: 'Fee Collection',
         date: new Date().toISOString().split('T')[0],
-        remarks: `${selectedStudent.full_name} — ${payingInvoice.invoice_number || new Date(payingInvoice.month_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`,
+        remarks: `${selectedStudent.full_name} — ${payingInvoice.invoice_number || formatDate(payingInvoice.month_year)}`,
         fee_record_id: payingInvoice.id,
         fee_items: finalBreakdown,
       }]);
@@ -684,7 +685,7 @@ export default function StudentFeeDetail() {
                         <tr className="hover:bg-gray-50 transition-colors">
                           <td className="px-4 py-3">
                             <p className="font-medium text-gray-800 text-sm">
-                              {new Date(inv.month_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                              {formatDate(inv.month_year)}
                             </p>
                           </td>
                           <td className="px-3 py-3 hidden sm:table-cell">
@@ -790,7 +791,7 @@ export default function StudentFeeDetail() {
                 <div>
                   <p className="text-sm font-bold">Collect Payment</p>
                   <p className="text-xs text-indigo-200 mt-0.5">
-                    {new Date(payingInvoice.month_year).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                    {formatDate(payingInvoice.month_year)}
                   </p>
                 </div>
                 <button
@@ -927,8 +928,32 @@ export default function StudentFeeDetail() {
                   </div>
                   <div>
                     <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Paid At</label>
-                    <input type="date" value={editForm.paid_at} onChange={e => setEditForm({...editForm, paid_at: e.target.value})}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                    <div 
+                      className="relative cursor-pointer group"
+                      onClick={() => {
+                        if (paidAtInputRef.current && 'showPicker' in HTMLInputElement.prototype) {
+                          try { paidAtInputRef.current.showPicker(); } catch(e) {}
+                        }
+                      }}
+                    >
+                      <input
+                        type="text"
+                        readOnly
+                        value={formatDate(editForm.paid_at)}
+                        placeholder="DD-MM-YYYY"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white group-hover:border-indigo-400 transition-colors"
+                      />
+                      <input
+                        type="date"
+                        ref={paidAtInputRef}
+                        value={editForm.paid_at}
+                        onChange={e => setEditForm({...editForm, paid_at: e.target.value})}
+                        className="absolute inset-0 opacity-0 pointer-events-none"
+                      />
+                      <div className="absolute right-3 top-2.5 text-slate-400 pointer-events-none group-hover:text-indigo-500">
+                        <Calendar className="w-4 h-4" />
+                      </div>
+                    </div>
                   </div>
                 </div>
 

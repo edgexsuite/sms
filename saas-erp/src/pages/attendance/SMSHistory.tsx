@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { MessageSquare, Download, MessageCircle } from 'lucide-react';
 import { openWhatsApp } from '../../lib/whatsappTemplates';
 import { exportToCSV } from '../../lib/exportUtils';
+import { formatDate } from '../../lib/utils';
 
 interface LogEntry {
   id: string;
@@ -128,7 +129,7 @@ export default function SMSHistory() {
                 {logs.map(log => (
                   <tr key={log.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 text-gray-500 text-xs whitespace-nowrap">
-                      {new Date(log.sent_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      {formatDate(log.sent_at)}
                     </td>
                     <td className="px-6 py-4">
                       <span className="flex items-center gap-1 text-gray-700">

@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Search, GraduationCap, Briefcase, CreditCard, X, ArrowRight, Command, Layout } from 'lucide-react';
 import { NAV_SECTIONS } from '../constants/navigation';
+import { formatDate } from '../lib/utils';
 
 interface SearchResult {
   id: string;
@@ -134,7 +135,7 @@ export default function CommandPalette() {
             id: f.id,
             type: 'fee' as const,
             title: f.student?.full_name || 'Unknown',
-            subtitle: `Fee Due: Rs. ${Number((f.total_amount ?? 0) - (f.paid_amount ?? 0)).toLocaleString()} · ${f.month_year ? new Date(f.month_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ''}`,
+            subtitle: `Fee Due: Rs. ${Number((f.total_amount ?? 0) - (f.paid_amount ?? 0)).toLocaleString()} · ${f.month_year ? formatDate(f.month_year) : ''}`,
             path: '/fees/student-detail',
           })),
       ];

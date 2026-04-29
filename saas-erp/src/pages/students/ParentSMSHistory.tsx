@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { MessageCircle, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import { openWhatsApp } from '../../lib/whatsappTemplates';
+import { formatDate } from '../../lib/utils';
 
 export default function ParentSMSHistory() {
   const { userRole } = useAuth();
@@ -91,7 +92,7 @@ export default function ParentSMSHistory() {
               ) : (
                  logs.map(log => (
                    <tr key={log.id} className="hover:bg-gray-50">
-                     <td className="p-4 text-gray-500 whitespace-nowrap text-xs">{new Date(log.sent_at).toLocaleString()}</td>
+                     <td className="p-4 text-gray-500 whitespace-nowrap text-xs">{formatDate(log.sent_at)}</td>
                      <td className="p-4 font-medium text-gray-900">{log.parents?.father_name || 'Unknown'}</td>
                      <td className="p-4 font-mono text-gray-600 text-xs">{log.recipient_number}</td>
                      <td className="p-4 text-gray-600 truncate max-w-xs" title={log.message_content}>

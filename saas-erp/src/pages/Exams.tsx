@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Plus, Search, FileText, Save, Award, Download } from 'lucide-react';
 import { exportToCSV } from '../lib/exportUtils';
+import { formatDate } from '../lib/utils';
 
 interface Exam {
   id: string;
@@ -359,8 +360,8 @@ export default function Exams() {
                       <Award className="w-4 h-4 text-blue-500" />
                       {exam.name}
                     </td>
-                    <td className="p-4 text-sm text-gray-600">{new Date(exam.start_date).toLocaleDateString()}</td>
-                    <td className="p-4 text-sm text-gray-600">{new Date(exam.end_date).toLocaleDateString()}</td>
+                    <td className="p-4 text-sm text-gray-600">{formatDate(exam.start_date)}</td>
+                    <td className="p-4 text-sm text-gray-600">{formatDate(exam.end_date)}</td>
                   </tr>
                 ))
               )}

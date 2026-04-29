@@ -1,5 +1,6 @@
 import React from 'react';
 import { Mail, Phone, MapPin, Globe, ShieldCheck } from 'lucide-react';
+import { formatDate } from '../lib/utils';
 
 interface JoiningLetterProps {
   staff: any;
@@ -65,7 +66,7 @@ export default function JoiningLetter({ staff, schoolInfo }: JoiningLetterProps)
               DOC-REF: {new Date().getFullYear()}/APPT/{staff.id?.substring(0, 10).toUpperCase()}
            </p>
            <p className="text-[11px] font-display font-bold text-slate-500 mt-1">
-              ISSUED ON: {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+              ISSUED ON: {formatDate(new Date())}
            </p>
         </div>
       </div>
@@ -86,9 +87,9 @@ export default function JoiningLetter({ staff, schoolInfo }: JoiningLetterProps)
 
         <p className={`${isUrdu ? 'font-nastaleeq text-right leading-[3.4] text-xl' : 'font-medium'}`} dir={isUrdu ? 'rtl' : 'ltr'}>
           {isUrdu ? (
-            `ہمیں آپ کو ${schoolInfo?.name} کے معزز عملے میں شامل کرنے پر فخر ہے۔ آپ کو بطور ${staff.role} ${staff.department || 'جنرل'} شعبہ میں ${staff.joining_date ? new Date(staff.joining_date).toLocaleDateString() : 'تاریخِ شمولیت'} سے تقرر کیا جاتا ہے۔`
+            `ہمیں آپ کو ${schoolInfo?.name} کے معزز عملے میں شامل کرنے پر فخر ہے۔ آپ کو بطور ${staff.role} ${staff.department || 'جنرل'} شعبہ میں ${staff.joining_date ? formatDate(staff.joining_date) : 'تاریخِ شمولیت'} سے تقرر کیا جاتا ہے۔`
           ) : (
-            `We are honoured to extend this formal offer of employment to join the faculty/staff at ${schoolInfo?.name}. Following our rigorous selection process, you have been appointed as ${staff.role} within the ${staff.department || 'General Academic'} department, effective from ${staff.joining_date ? new Date(staff.joining_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : 'the date of joining'}.`
+            `We are honoured to extend this formal offer of employment to join the faculty/staff at ${schoolInfo?.name}. Following our rigorous selection process, you have been appointed as ${staff.role} within the ${staff.department || 'General Academic'} department, effective from ${staff.joining_date ? formatDate(staff.joining_date) : 'the date of joining'}.`
           )}
         </p>
 

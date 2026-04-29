@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Users, Plus, X, Trash2, Download } from 'lucide-react';
 import { exportToExcel } from '../../lib/exportUtils';
+import { formatDate } from '../../lib/utils';
 
 interface Member {
   id: string;
@@ -118,7 +119,7 @@ export default function LibraryMembers() {
                       </span>
                     </td>
                     <td className="px-5 py-3 font-mono text-xs text-gray-600">{m.card_number}</td>
-                    <td className="px-5 py-3 text-xs text-gray-500">{new Date(m.created_at).toLocaleDateString()}</td>
+                    <td className="px-5 py-3 text-xs text-gray-500">{formatDate(m.created_at)}</td>
                     <td className="px-5 py-3 text-center">
                       <button onClick={() => toggleStatus(m.id, m.status)}
                         className={`px-2 py-0.5 text-xs font-medium rounded-full cursor-pointer ${m.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>

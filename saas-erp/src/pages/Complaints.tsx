@@ -507,7 +507,7 @@ export default function Complaints() {
                 <p className="text-[11px] text-gray-400 mt-0.5">
                   <span className="font-bold text-gray-600">{selected.category}</span>
                   {' · '}Submitted by <span className="font-bold">{selected.submitted_by_name}</span>
-                  {' · '}{new Date(selected.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  {' · '}{formatDate(selected.created_at)}
                 </p>
               </div>
 

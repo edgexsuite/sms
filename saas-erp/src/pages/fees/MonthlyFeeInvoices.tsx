@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';
 import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, ChallanConfig, ChallanRecord, SchoolInfo } from '../../lib/challanUtils';
 import * as templatesLib from '../../lib/whatsappTemplates';
+import { formatDate } from '../../lib/utils';
 
 export default function MonthlyFeeInvoices() {
   const { userRole } = useAuth();
@@ -24,6 +25,10 @@ export default function MonthlyFeeInvoices() {
   const [classes, setClasses] = useState<any[]>([]);
   const [classFilter, setClassFilter] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
+  
+  const bulkDateRef = useRef<HTMLInputElement>(null);
+  const genDateRef = useRef<HTMLInputElement>(null);
+  const editDateRef = useRef<HTMLInputElement>(null);
   const [school, setSchool] = useState<SchoolInfo>({ name: '' });
   const [challanConfig, setChallanConfig] = useState<ChallanConfig>(DEFAULT_CHALLAN_CONFIG);
   const [feeItemSuggestions, setFeeItemSuggestions] = useState<string[]>([]);
@@ -352,7 +357,7 @@ export default function MonthlyFeeInvoices() {
     const parentPhone = invoice.students?.parents?.whatsapp_number;
     if (!parentPhone) return alert('No WhatsApp number found for this student\'s parent.');
     const balance = (invoice.total_amount || 0) - (invoice.paid_amount || 0);
-    const dueDate = invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : 'N/A';
+    const dueDate = formatDate(invoice.due_date);
     
     const isOverdue = invoice.due_date && new Date(invoice.due_date) < new Date();
     const templateFn = isOverdue ? templatesLib.overdueFeeTemplate : templatesLib.feeDueTemplate;
@@ -363,7 +368,7 @@ export default function MonthlyFeeInvoices() {
       invoiceNumber: invoice.invoice_number || invoice.id.substring(0, 10),
       balance: balance,
       dueDate: dueDate,
-      month: invoice.month_year ? new Date(invoice.month_year).toLocaleString('default', { month: 'long' }) : '',
+      month: formatDate(invoice.month_year),
       schoolName: school.name
     });
     await supabase.from('communication_logs').insert([{ school_id: userRole?.school_id, recipient_number: parentPhone, message_content: msg, channel: 'whatsapp', status: 'sent' }]);
@@ -752,7 +757,30 @@ export default function MonthlyFeeInvoices() {
                  </>
                ) : (
                  <div className="flex items-center gap-2 bg-white/10 p-2 rounded-2xl border border-white/5">
-                   <input type="date" value={bulkDueDate} onChange={e => setBulkDueDate(e.target.value)} className="bg-transparent border-none text-white text-xs font-black px-4 py-1 outline-none appearance-none" style={{ colorScheme: 'dark' }} />
+                   <div 
+                     className="relative cursor-pointer flex items-center"
+                     onClick={() => {
+                       if (bulkDateRef.current && 'showPicker' in HTMLInputElement.prototype) {
+                         bulkDateRef.current.showPicker();
+                       }
+                     }}
+                   >
+                     <input 
+                       type="text" 
+                       readOnly 
+                       value={bulkDueDate ? formatDate(bulkDueDate) : ''} 
+                       placeholder="DD-MM-YYYY"
+                       className="bg-transparent border-none text-white text-xs font-black px-4 py-1 outline-none appearance-none cursor-pointer" 
+                     />
+                     <input 
+                       type="date" 
+                       ref={bulkDateRef}
+                       value={bulkDueDate} 
+                       onChange={e => setBulkDueDate(e.target.value)} 
+                       className="absolute inset-0 opacity-0 pointer-events-none" 
+                       style={{ colorScheme: 'dark' }} 
+                     />
+                   </div>
                    <button onClick={executeBulkDateChange} className="bg-white text-indigo-600 px-6 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-50 transition-all">Apply Change</button>
                    <button onClick={() => setShowBulkEdit(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all"><X className="w-5 h-5" /></button>
                  </div>
@@ -805,16 +833,14 @@ export default function MonthlyFeeInvoices() {
                     </td>
                     <td className="px-4 py-2">
                       <p className="text-[10px] font-mono font-black text-slate-500 tracking-tight uppercase">{isFamily ? `FAM-${inv.id.substring(0,6)}` : (inv.invoice_number || 'LEGACY')}</p>
-                      {!isFamily && <p className="text-[9px] font-bold text-slate-400 mt-0.5 flex items-center gap-1"><Clock className="w-2.5 h-2.5" /> {inv.due_date ? new Date(inv.due_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : 'No due date'}</p>}
+                      {!isFamily && <p className="text-[9px] font-bold text-slate-400 mt-0.5 flex items-center gap-1"><Clock className="w-2.5 h-2.5" /> {formatDate(inv.due_date)}</p>}
                     </td>
                     <td className="px-4 py-2">
                       <p className="text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">{isFamily ? inv.name : inv.students?.full_name}</p>
                       <p className="text-[10px] text-slate-400 font-bold">{isFamily ? `${inv.count} students` : (inv.students?.classes ? `${inv.students.classes.name}-${inv.students.classes.section}` : 'N/A')}</p>
                     </td>
                     <td className="px-4 py-2 hidden sm:table-cell">
-                      <span className="bg-slate-100 text-slate-600 font-black px-2.5 py-1 rounded-lg text-[9px] uppercase tracking-widest">
-                        {new Date(inv.month_year).toLocaleString('default', { month: 'short', year: 'numeric' })}
-                      </span>
+                        {formatDate(inv.month_year)}
                     </td>
                     <td className="px-4 py-2 text-right">
                       <p className="text-sm font-black text-slate-900">Rs. {Number(inv.total_amount).toLocaleString()}</p>
@@ -1058,7 +1084,29 @@ export default function MonthlyFeeInvoices() {
                    </div>
                    <div>
                      <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest text-center">Due Date</label>
-                     <input type="date" value={generateDueDate} onChange={e => setGenerateDueDate(e.target.value)} className="w-full bg-slate-50 border border-transparent focus:bg-white focus:border-slate-100 p-4 rounded-2xl text-center font-bold text-slate-700 transition-all outline-none" />
+                    <div 
+                      className="relative cursor-pointer group"
+                      onClick={() => {
+                        if (genDateRef.current && 'showPicker' in HTMLInputElement.prototype) {
+                          genDateRef.current.showPicker();
+                        }
+                      }}
+                    >
+                      <input 
+                        type="text" 
+                        readOnly 
+                        value={generateDueDate ? formatDate(generateDueDate) : ''} 
+                        placeholder="DD-MM-YYYY"
+                        className="w-full bg-slate-50 border border-transparent group-hover:border-indigo-100 p-4 rounded-2xl text-center font-bold text-slate-700 transition-all outline-none cursor-pointer" 
+                      />
+                      <input 
+                        type="date" 
+                        ref={genDateRef}
+                        value={generateDueDate} 
+                        onChange={e => setGenerateDueDate(e.target.value)} 
+                        className="absolute inset-0 opacity-0 pointer-events-none" 
+                      />
+                    </div>
                    </div>
                    <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100/50 flex items-center gap-4">
                       <div className="flex-1">
@@ -1092,11 +1140,32 @@ export default function MonthlyFeeInvoices() {
               </div>
               <div className="p-6 overflow-y-auto space-y-5 flex-1">
                 {/* Due Date */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">Due Date</label>
-                  <input type="date" value={editingInvoice.due_date || ''} onChange={e => setEditingInvoice({ ...editingInvoice, due_date: e.target.value })}
-                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-indigo-500" />
-                </div>
+                 <div>
+                   <label className="block text-xs font-semibold text-gray-500 mb-1">Due Date</label>
+                   <div 
+                     className="relative cursor-pointer group"
+                     onClick={() => {
+                       if (editDateRef.current && 'showPicker' in HTMLInputElement.prototype) {
+                         editDateRef.current.showPicker();
+                       }
+                     }}
+                   >
+                     <input 
+                       type="text" 
+                       readOnly 
+                       value={editingInvoice.due_date ? formatDate(editingInvoice.due_date) : ''} 
+                       placeholder="DD-MM-YYYY"
+                       className="w-full border border-gray-300 group-hover:border-indigo-400 rounded-xl px-3 py-2 text-sm font-bold transition-all outline-none cursor-pointer" 
+                     />
+                     <input 
+                       type="date" 
+                       ref={editDateRef}
+                       value={editingInvoice.due_date || ''} 
+                       onChange={e => setEditingInvoice({ ...editingInvoice, due_date: e.target.value })}
+                       className="absolute inset-0 opacity-0 pointer-events-none" 
+                     />
+                   </div>
+                 </div>
                 {/* Breakdown Editor */}
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-2">Fee Breakdown</label>

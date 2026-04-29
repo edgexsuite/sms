@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,6 +8,7 @@ import { exportToCSV } from '../lib/exportUtils';
 import { uploadFile } from '../lib/uploadUtils';
 import DeletePinModal from '../components/DeletePinModal';
 import { ShieldAlert, Trash2, Users, CheckCircle, X } from 'lucide-react';
+import { formatDate } from '../lib/utils';
 
 interface Student {
   id: string;
@@ -29,6 +30,7 @@ export default function Students() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const dobRef = useRef<HTMLInputElement>(null);
   const [isPromoteModalOpen, setIsPromoteModalOpen] = useState(false);
   const [promoteCurrentClass, setPromoteCurrentClass] = useState('');
   const [promoteTargetClass, setPromoteTargetClass] = useState('');
@@ -332,7 +334,7 @@ export default function Students() {
       { header: 'Roll No', key: 'roll_number' },
       { header: 'Full Name', key: 'full_name' },
       { header: 'B-Form / CNIC', key: 'b_form_cnic' },
-      { header: 'Admission Date', key: (row) => new Date(row.admission_date).toLocaleDateString() },
+      { header: 'Admission Date', key: (row) => formatDate(row.admission_date) },
       { header: 'Status', key: 'status' }
     ]);
   };
@@ -463,7 +465,7 @@ export default function Students() {
                     <td className="p-4 text-sm text-gray-900">{student.full_name}</td>
                     <td className="p-4 text-sm text-gray-500">{student.classes ? `${student.classes.name} (${student.classes.section})` : '-'}</td>
                     <td className="p-4 text-sm text-gray-500">{student.b_form_cnic || '-'}</td>
-                    <td className="p-4 text-sm text-gray-500">{new Date(student.admission_date).toLocaleDateString()}</td>
+                    <td className="p-4 text-sm text-gray-500">{formatDate(student.admission_date)}</td>
                     <td className="p-4 text-sm">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         student.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
@@ -534,7 +536,7 @@ export default function Students() {
                       <span className="font-medium capitalize">{selectedStudent.status}</span>
                     )}
                   </div>
-                  <div><span className="text-gray-500">Date of Birth:</span> <span className="font-medium">{selectedStudent.dob ? new Date(selectedStudent.dob).toLocaleDateString() : '-'}</span></div>
+                  <div><span className="text-gray-500">Date of Birth:</span> <span className="font-medium">{formatDate(selectedStudent.dob)}</span></div>
                   <div><span className="text-gray-500">Gender:</span> <span className="font-medium">{selectedStudent.gender || '-'}</span></div>
                   <div><span className="text-gray-500">Blood Group:</span> <span className="font-medium">{selectedStudent.blood_group || '-'}</span></div>
                   <div><span className="text-gray-500">Religion:</span> <span className="font-medium">{selectedStudent.religion || '-'}</span></div>
@@ -613,11 +615,11 @@ export default function Students() {
                       <span className="font-semibold">Roll No:</span> <span className="border-b border-gray-400 border-dashed pb-1 px-4 inline-block min-w-[150px]">{selectedStudent.roll_number}</span>
                     </p>
                     <p className="flex-1">
-                      <span className="font-semibold">Admission Date:</span> <span className="border-b border-gray-400 border-dashed pb-1 px-4 inline-block min-w-[150px]">{new Date(selectedStudent.admission_date).toLocaleDateString()}</span>
+                      <span className="font-semibold">Admission Date:</span> <span className="border-b border-gray-400 border-dashed pb-1 px-4 inline-block min-w-[150px]">{formatDate(selectedStudent.admission_date)}</span>
                     </p>
                   </div>
                   <p>
-                    <span className="font-semibold">Date of Birth:</span> <span className="border-b border-gray-400 border-dashed pb-1 px-4 inline-block min-w-[300px]">{selectedStudent.dob ? new Date(selectedStudent.dob).toLocaleDateString() : '_________________________'}</span>
+                    <span className="font-semibold">Date of Birth:</span> <span className="border-b border-gray-400 border-dashed pb-1 px-4 inline-block min-w-[300px]">{formatDate(selectedStudent.dob)}</span>
                   </p>
                   <p>
                     <span className="font-semibold">Class Last Attended:</span> <span className="border-b border-gray-400 border-dashed pb-1 px-4 inline-block min-w-[300px]">{selectedStudent.classes ? `${selectedStudent.classes.name} (${selectedStudent.classes.section})` : '_________________________'}</span>
@@ -634,7 +636,7 @@ export default function Students() {
                   <div className="text-center">
                     <div className="w-48 border-t border-gray-800 pt-2">
                       <p className="font-semibold">Date of Issue</p>
-                      <p className="text-sm text-gray-600">{new Date().toLocaleDateString()}</p>
+                      <p className="text-sm text-gray-600">{formatDate(new Date())}</p>
                     </div>
                   </div>
                   <div className="text-center">
@@ -812,7 +814,29 @@ export default function Students() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
-                    <input type="date" value={formData.dob} onChange={(e) => setFormData({...formData, dob: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" />
+                    <div 
+                      className="relative cursor-pointer group"
+                      onClick={() => {
+                        if (dobRef.current && 'showPicker' in HTMLInputElement.prototype) {
+                          dobRef.current.showPicker();
+                        }
+                      }}
+                    >
+                      <input 
+                        type="text" 
+                        readOnly 
+                        value={formData.dob ? formatDate(formData.dob) : ''} 
+                        placeholder="DD-MM-YYYY"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm font-medium group-hover:border-blue-400 transition-colors"
+                      />
+                      <input 
+                        type="date" 
+                        ref={dobRef}
+                        value={formData.dob} 
+                        onChange={(e) => setFormData({...formData, dob: e.target.value})} 
+                        className="absolute inset-0 opacity-0 pointer-events-none" 
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>

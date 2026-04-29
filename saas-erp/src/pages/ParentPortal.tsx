@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, ChallanRecord, SchoolInfo } from '../lib/challanUtils';
 import ChatInterface from '../components/ChatInterface';
+import { formatDate } from '../lib/utils';
 
 interface ParentData {
   id: string;
@@ -398,8 +399,8 @@ export default function ParentPortal() {
   const handleShareWhatsApp = (fee: any) => {
     const child = children.find(c => c.id === fee.student_id);
     const balance = (fee.total_amount || 0) - (fee.paid_amount || 0);
-    const dueDate = fee.due_date ? new Date(fee.due_date).toLocaleDateString() : 'N/A';
-    const monthLabel = new Date(fee.month_year).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const dueDate = fee.due_date ? formatDate(fee.due_date) : 'N/A';
+    const monthLabel = formatDate(fee.month_year);
     const msg = `Fee Challan — ${child?.full_name || ''}\nMonth: ${monthLabel}\nAmount Due: Rs. ${balance.toLocaleString()}\nDue Date: ${dueDate}\nInvoice: ${fee.invoice_number || fee.id.substring(0, 10)}\n\n— ${school.name}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
   };
@@ -450,7 +451,7 @@ export default function ParentPortal() {
   }, {});
 
   // Today's timetable
-  const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+  const todayName = formatDate(new Date());
   const todaySlots = timetableSlots.filter(s => s.day_of_week === todayName).sort((a, b) => a.period_number - b.period_number);
 
   // Pending fees count
@@ -1122,13 +1123,13 @@ function FeesTab({ fees, totalPaid, totalDue, onDownload, onWhatsApp }: {
               <tbody className="divide-y divide-gray-100">
                 {fees.map(fee => {
                   const balance = Math.max(0, (fee.total_amount || 0) - (fee.paid_amount || 0));
-                  const monthLabel = new Date(fee.month_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                  const monthLabel = formatDate(fee.month_year);
                   return (
                     <tr key={fee.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-5 py-3 font-medium text-gray-900">{monthLabel}</td>
                       <td className="px-5 py-3 font-mono text-xs text-gray-500">{fee.invoice_number || fee.id.substring(0, 10)}</td>
                       <td className="px-5 py-3 text-gray-600">
-                        {fee.due_date ? new Date(fee.due_date).toLocaleDateString() : '-'}
+                        {fee.due_date ? formatDate(fee.due_date) : '-'}
                       </td>
                       <td className="px-5 py-3 text-right font-medium text-gray-900">
                         Rs. {Number(fee.total_amount).toLocaleString()}
@@ -1222,7 +1223,7 @@ function AttendanceTab({ attPct, attPresent, attAbsent, attLeave, attTotal, attM
             <ChevronLeft className="w-4 h-4 text-gray-500" />
           </button>
           <h3 className="font-bold text-gray-900">
-            {new Date(attMonth + '-01').toLocaleDateString('en-PK', { month: 'long', year: 'numeric' })}
+            {formatDate(attMonth + '-01')}
           </h3>
           <button onClick={onNextMonth} className="p-1.5 rounded-lg hover:bg-gray-100 transition">
             <ChevronRight className="w-4 h-4 text-gray-500" />
@@ -1521,7 +1522,7 @@ function HomeworkTab({ homework, diarySettings }: { homework: any[], diarySettin
                 )}
                 <td className="px-6 py-5 align-top text-right">
                   <span className="inline-block px-3 py-1 bg-gray-100 rounded-full text-[10px] font-black text-gray-500 uppercase">
-                    {new Date(h.diary_date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
+                    {formatDate(h.diary_date)}
                   </span>
                 </td>
               </tr>
@@ -1561,7 +1562,7 @@ function NoticesTab({ notices }: { notices: any[] }) {
               <p className="text-sm text-gray-600 mt-1">{n.message}</p>
             </div>
             <p className="text-xs text-gray-400 whitespace-nowrap shrink-0">
-              {new Date(n.created_at).toLocaleDateString('en-PK', { day: 'numeric', month: 'short' })}
+              {formatDate(n.created_at)}
             </p>
           </div>
           {n.type && (
@@ -1652,9 +1653,9 @@ function LeaveTab({
                         </span>
                       </div>
                       <p className="text-xs font-bold text-gray-400 mt-0.5">
-                        {new Date(app.from_date).toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {formatDate(app.from_date)}
                         <span className="mx-2 text-gray-200">→</span>
-                        {new Date(app.to_date).toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {formatDate(app.to_date)}
                       </p>
                     </div>
                   </div>

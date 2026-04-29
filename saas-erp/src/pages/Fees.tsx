@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Plus, Search, CreditCard, AlertCircle, CheckCircle, DollarSign, Download } from 'lucide-react';
 import { exportToCSV } from '../lib/exportUtils';
+import { formatDate } from '../lib/utils';
 
 interface FeeRecord {
   id: string;
@@ -270,7 +271,7 @@ export default function Fees() {
       { header: 'Roll No', key: (row) => row.student?.roll_number },
       { header: 'Student Name', key: (row) => row.student?.full_name },
       { header: 'Class', key: (row) => row.student?.class?.name || '-' },
-      { header: 'Month', key: (row) => new Date(row.month_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) },
+      { header: 'Month', key: (row) => formatDate(row.month_year) },
       { header: 'Total Amount', key: 'total_amount' },
       { header: 'Paid Amount', key: 'paid_amount' },
       { header: 'Pending Amount', key: (row) => row.total_amount - row.paid_amount },
@@ -390,9 +391,7 @@ export default function Fees() {
                         <div className="text-xs text-gray-500">Roll: {record.student?.roll_number}</div>
                       </td>
                       <td className="p-4 text-sm text-gray-500">{record.student?.class?.name || '-'}</td>
-                      <td className="p-4 text-sm text-gray-900">
-                        {new Date(record.month_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                      </td>
+                        {formatDate(record.month_year)}
                       <td className="p-4 text-sm font-medium text-gray-900">Rs. {record.total_amount}</td>
                       <td className="p-4 text-sm text-gray-500">Rs. {record.paid_amount}</td>
                       <td className="p-4 text-sm">
@@ -698,7 +697,7 @@ export default function Fees() {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Date:</span>
-                    <span className="font-medium text-gray-900">{new Date().toLocaleDateString()}</span>
+                    <span className="font-medium text-gray-900">{formatDate(new Date())}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Student Name:</span>
@@ -715,7 +714,7 @@ export default function Fees() {
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Fee Month:</span>
                     <span className="font-medium text-gray-900">
-                      {new Date(selectedRecord.month_year).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                      {formatDate(selectedRecord.month_year)}
                     </span>
                   </div>
                 </div>

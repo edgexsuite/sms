@@ -1,5 +1,6 @@
 import React from 'react';
 import { Award, Calendar, ShieldCheck, Star } from 'lucide-react';
+import { formatDate } from '../lib/utils';
 
 interface ExperienceCertificateProps {
   staff: any;
@@ -69,8 +70,8 @@ export default function ExperienceCertificate({ staff, schoolInfo }: ExperienceC
           <p>
             Has been an integral part of the <strong>{schoolInfo?.name}</strong> faculty, serving with distinct professional merit as 
             <strong> {staff.role}</strong> within the <strong>{staff.department || 'Academic'}</strong> Department. 
-            Throughout the tenure from <strong>{joinDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</strong> to 
-            <strong> {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>, their dedication toward pedagogical excellence and institutional growth has been exemplary.
+            Throughout the tenure from <strong>{formatDate(joinDate)}</strong> to 
+            <strong> {formatDate(new Date())}</strong>, their dedication toward pedagogical excellence and institutional growth has been exemplary.
           </p>
           
           <p className="mt-4">

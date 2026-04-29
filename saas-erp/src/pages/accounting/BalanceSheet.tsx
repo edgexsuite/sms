@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { BarChart2, Printer } from 'lucide-react';
+import { formatDate } from '../../lib/utils';
 
 export default function BalanceSheet() {
   const { userRole } = useAuth();
@@ -111,7 +112,7 @@ export default function BalanceSheet() {
           <div className="text-center py-2">
             <h2 className="text-xl font-bold text-gray-900">{schoolName}</h2>
             <p className="text-sm text-gray-500 mt-0.5">
-              Balance Sheet as of {new Date(asOf + 'T00:00:00').toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}
+              Balance Sheet as of {formatDate(asOf)}
             </p>
           </div>
 

@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { TrendingUp, Download, Printer } from 'lucide-react';
 import { exportToCSV } from '../../lib/exportUtils';
+import { formatDate } from '../../lib/utils';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
 
 interface MonthRow {
@@ -40,7 +41,7 @@ export default function ProfitLoss() {
 
     const monthlyData: Record<number, MonthRow> = {};
     for (let m = 1; m <= 12; m++) {
-      const label = new Date(year, m - 1, 1).toLocaleDateString('en-US', { month: 'short' });
+      const label = formatDate(new Date(year, m - 1, 1));
       monthlyData[m] = { month: label, income: 0, expenses: 0, net: 0 };
     }
 

@@ -8,7 +8,7 @@ import {
   ChevronLeft, Mail, Phone, Building2, ShieldCheck,
   Wand2, CheckCheck, Filter, ChevronDown, Activity,
 } from 'lucide-react';
-
+import { formatDate } from '../../lib/utils';
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface StaffWithAccount {
@@ -646,7 +646,7 @@ export default function StaffUserAccounts() {
                       )}
                       {selected.last_login && (
                         <span className="inline-flex items-center gap-1.5 text-xs bg-white/15 px-2.5 py-1 rounded-full">
-                          <Clock className="w-3 h-3" /> Last login: {new Date(selected.last_login).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          <Clock className="w-3 h-3" /> Last login: {formatDate(selected.last_login)}
                         </span>
                       )}
                     </div>

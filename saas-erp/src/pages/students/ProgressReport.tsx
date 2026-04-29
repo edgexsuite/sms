@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Search, FileText, Printer, AlertCircle } from 'lucide-react';
+import { formatDate } from '../../lib/utils';
 
 export default function ProgressReport() {
   const { userRole } = useAuth();
@@ -80,7 +81,7 @@ export default function ProgressReport() {
                     <div><span className="font-bold text-gray-600 block">Student Name:</span><span className="text-lg font-bold">{selectedStudent.full_name}</span></div>
                     <div><span className="font-bold text-gray-600 block">Roll Number:</span><span className="text-lg font-bold">{selectedStudent.roll_number}</span></div>
                     <div><span className="font-bold text-gray-600 block">Class & Section:</span><span className="text-lg font-bold">{selectedStudent.classes?.name} - {selectedStudent.classes?.section}</span></div>
-                    <div><span className="font-bold text-gray-600 block">Date of Birth:</span><span className="text-lg font-bold">{selectedStudent.dob ? new Date(selectedStudent.dob).toLocaleDateString() : 'N/A'}</span></div>
+                    <div><span className="font-bold text-gray-600 block">Date of Birth:</span><span className="text-lg font-bold">{formatDate(selectedStudent.dob)}</span></div>
                   </div>
 
                   {/* Mock Academic Grades Table */}

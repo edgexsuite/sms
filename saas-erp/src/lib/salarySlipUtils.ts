@@ -6,6 +6,7 @@
  */
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { formatDate } from './utils';
 
 export interface SlipData {
   id: string;
@@ -30,13 +31,9 @@ const DARK    = [31, 41, 55]   as const;   // gray-800
 const LIGHT   = [249, 250, 251] as const;  // gray-50
 const RED     = [220, 38, 38]  as const;   // red-600
 
-/** Format month label e.g. "April 2025" */
+/** Format month label e.g. "01-04-2025" */
 function monthLabel(monthYear: string): string {
-  try {
-    return new Date(monthYear).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  } catch {
-    return monthYear;
-  }
+  return formatDate(monthYear);
 }
 
 /**
@@ -182,7 +179,7 @@ function drawCopy(doc: jsPDF, slip: SlipData, schoolName: string, startY: number
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
     doc.setTextColor(160, 160, 160);
-    const today = new Date().toLocaleDateString('en-GB');
+    const today = formatDate(new Date());
     doc.text(`Generated: ${today}`, LX + 2, y + 5);
     // Signature line
     doc.setDrawColor(180, 180, 180);

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Printer, Grid, RefreshCw } from 'lucide-react';
+import { formatDate } from '../../lib/utils';
 
 export default function MonthlyReport() {
   const { userRole, schoolInfo } = useAuth();
@@ -112,7 +113,7 @@ export default function MonthlyReport() {
              {/* Print Header */}
              <div className="hidden print:block text-center py-4 border-b-2 border-black mb-4">
                  <h1 className="text-2xl font-black uppercase tracking-wider">{schoolInfo?.name || 'MASTER REGISTER'}</h1>
-                 <h2 className="text-sm font-bold mt-1">ATTENDANCE SHEET - {new Date(month + '-01').toLocaleDateString('default', { month: 'long', year: 'numeric'})}</h2>
+                 <h2 className="text-sm font-bold mt-1">ATTENDANCE SHEET - {formatDate(month + '-01')}</h2>
                  <p className="text-xs font-medium uppercase mt-2">Class: {currentClassObj?.name} {currentClassObj?.section}</p>
              </div>
 

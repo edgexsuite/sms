@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { exportToCSV } from '../lib/exportUtils';
 import * as templatesLib from '../lib/whatsappTemplates';
+import { formatDate } from '../lib/utils';
 
 const emptyForm = {
   full_name: '', father_name: '', mother_name: '', cnic: '',
@@ -100,10 +101,10 @@ export default function Parents() {
       className: student.classes?.name || 'Class',
       balance: (student.fee_records || []).reduce((a: number, f: any) => a + (f.total_amount - f.paid_amount), 0),
       month: 'this month',
-      attendanceDate: new Date().toLocaleDateString(),
+      attendanceDate: formatDate(new Date()),
       arrivalTime: '08:15 AM',
       symptoms: 'fever',
-      admissionDate: new Date().toLocaleDateString()
+      admissionDate: formatDate(new Date())
     };
 
     let content = '';

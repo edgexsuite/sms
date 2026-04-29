@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
+import { formatDate } from '../lib/utils';
 import {
   CreditCard, Wallet, TrendingUp, BarChart2,
   DollarSign, ChevronRight, Scale, PiggyBank,
@@ -101,7 +102,7 @@ export default function AccountantDashboard() {
     });
 
     setMonthlyChart(months.map(m => ({
-      month: new Date(m + '-01').toLocaleDateString('en-PK', { month: 'short' }),
+      month: formatDate(new Date(m + '-01')),
       income: Math.round(incomeMap.get(m) || 0),
       expense: Math.round(expenseMap.get(m) || 0),
     })));
@@ -154,7 +155,7 @@ export default function AccountantDashboard() {
               <Scale className="w-7 h-7" /> Financial Overview
             </h1>
             <p className="text-emerald-200 text-xs mt-2">
-              {new Date().toLocaleDateString('en-PK', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              {formatDate(new Date())}
             </p>
           </div>
           <div className="flex gap-3 flex-wrap">
@@ -173,7 +174,7 @@ export default function AccountantDashboard() {
         {[
           { label: 'Total Collected', value: fmt(feeSummary.collected), icon: CheckCircle2, color: 'emerald', sub: `${feeSummary.totalInvoices} invoices` },
           { label: 'Pending Amount', value: fmt(feeSummary.pending), icon: AlertCircle, color: 'amber', sub: 'outstanding fees' },
-          { label: "Today's Collection", value: fmt(feeSummary.todayCollected), icon: TrendingUp, color: 'blue', sub: today },
+          { label: "Today's Collection", value: fmt(feeSummary.todayCollected), icon: TrendingUp, color: 'blue', sub: formatDate(today) },
           { label: 'This Month Expenses', value: fmt(expenseSummary.thisMonth), icon: Wallet, color: 'red', sub: thisMonth },
         ].map(({ label, value, icon: Icon, color, sub }) => (
           <div key={label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">

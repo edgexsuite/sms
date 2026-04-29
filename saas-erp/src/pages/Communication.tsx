@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { formatDate } from '../lib/utils';
 import * as templatesLib from '../lib/whatsappTemplates';
 
 export default function Communication() {
@@ -559,7 +560,7 @@ export default function Communication() {
                           {log.channel}
                         </span>
                         <span className="text-[9px] font-bold text-gray-400 uppercase">
-                          {new Date(log.sent_at).toLocaleDateString()}
+                          {formatDate(log.sent_at)}
                         </span>
                      </div>
                      <p className="text-xs font-bold text-gray-900 mb-0.5 truncate">
@@ -612,7 +613,7 @@ export default function Communication() {
                       <p className="text-xs text-gray-500 truncate" title={log.message_content}>{log.message_content}</p>
                    </td>
                    <td className="px-6 py-4 text-xs text-gray-400">
-                      {new Date(log.sent_at).toLocaleString()}
+                      {formatDate(log.sent_at)}
                    </td>
                    <td className="px-6 py-4 text-right">
                       {log.channel === 'whatsapp' && (

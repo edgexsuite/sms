@@ -5,6 +5,7 @@ import {
   Briefcase, PlusCircle, CheckCircle, XCircle, Search,
   Save, X, Printer, Calendar, Clock, BarChart2
 } from 'lucide-react';
+import { formatDate } from '../../lib/utils';
 
 const STAFF_LEAVE_TYPES = ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Emergency Leave', 'Hajj Leave', 'Maternity Leave', 'Paternity Leave', 'Study Leave', 'Unpaid Leave'];
 const LEAVE_BALANCE_DEFAULTS: Record<string, number> = {
@@ -233,7 +234,7 @@ export default function StaffLeave() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-xs text-gray-600 font-mono">
-                          {new Date(l.from_date).toLocaleDateString()} {l.from_date !== l.to_date && `→ ${new Date(l.to_date).toLocaleDateString()}`}
+                          {formatDate(l.from_date)} {l.from_date !== l.to_date && `→ ${formatDate(l.to_date)}`}
                         </td>
                         <td className="px-4 py-3 text-center font-black text-gray-900">{l.is_half_day ? '0.5' : l.total_days}</td>
                         <td className="px-4 py-3 text-xs text-gray-500 max-w-32 truncate" title={l.reason}>{l.reason || '—'}</td>

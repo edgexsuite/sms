@@ -9,6 +9,7 @@ import {
   MessageSquare, FileText, Award, Clock
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { formatDate } from '../lib/utils';
 
 export default function PrincipalDashboard() {
   const { userRole } = useAuth();
@@ -203,7 +204,7 @@ export default function PrincipalDashboard() {
             <p className="text-violet-200 text-sm font-medium capitalize">{userRole?.role} Dashboard</p>
             <h1 className="text-2xl font-black mt-1">{schoolName || 'School Overview'}</h1>
             <p className="text-violet-200 text-xs mt-2">
-              {new Date().toLocaleDateString('en-PK', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              {formatDate(new Date())}
             </p>
           </div>
           <div className="flex gap-3 flex-wrap">

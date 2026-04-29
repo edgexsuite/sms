@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { LogOut, GraduationCap, Users, BookOpen, LayoutDashboard, CreditCard, CalendarCheck, FileText, Settings as SettingsIcon, Star, MessageSquare, Calendar, CalendarOff, Package, AlertTriangle, Bot, Briefcase, ClipboardList, ChevronRight, ChevronLeft, UserPlus, Upload, ShieldCheck, Award, LineChart, Menu, X, Wallet, Key, PiggyBank, BarChart3, Banknote, TrendingUp, UserX, ClipboardCheck, BarChart2, Wifi, Ticket, Search, DollarSign, Scale, Library, Home, Bell, Palette, School, Shield, Trash2, Clock, Box } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { cn } from '../lib/utils';
+import { cn, formatDate } from '../lib/utils';
 import CommandPalette from '../components/CommandPalette';
 import DashboardAlerts from '../components/DashboardAlerts';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -427,7 +427,7 @@ export default function DashboardLayout() {
                             <h4 className="text-sm font-black text-slate-900 mb-1">{notif.title}</h4>
                             <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed mb-2">{notif.message}</p>
                             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                              <Clock className="w-2.5 h-2.5" /> {new Date(notif.created_at).toLocaleDateString()}
+                              <Clock className="w-2.5 h-2.5" /> {formatDate(notif.created_at)}
                             </span>
                           </div>
                         ))}
@@ -483,7 +483,7 @@ export default function DashboardLayout() {
             }
             <h1 className="text-xl font-black uppercase tracking-widest text-slate-900">{schoolName}</h1>
             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-              {new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'long', year: 'numeric' })}
+              {formatDate(new Date())}
             </p>
           </div>
         )}

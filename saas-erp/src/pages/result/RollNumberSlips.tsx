@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Hash, Printer, Download } from 'lucide-react';
 import { exportToCSV } from '../../lib/exportUtils';
+import { formatDate } from '../../lib/utils';
 
 interface SlipData {
   student_id: string;
@@ -73,7 +74,7 @@ export default function RollNumberSlips() {
 
     const subjects = (schedule || []).map((s: any) => ({
       name: s.subject?.subject_name || 'Unknown',
-      date: s.exam_date ? new Date(s.exam_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : 'TBD',
+      date: s.exam_date ? formatDate(s.exam_date) : 'TBD',
       time: s.start_time ? `${s.start_time} - ${s.end_time}` : 'TBD',
     }));
 
@@ -211,7 +212,7 @@ export default function RollNumberSlips() {
                 )}
 
                 <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between items-end">
-                  <p className="text-xs text-gray-300">Issued: {new Date().toLocaleDateString()}</p>
+                  <p className="text-xs text-gray-300">Issued: {formatDate(new Date())}</p>
                   <div className="text-right">
                     <div className="border-b border-gray-400 w-24 mb-0.5" />
                     <p className="text-xs text-gray-400">Signature</p>

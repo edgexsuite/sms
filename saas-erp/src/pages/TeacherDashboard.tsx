@@ -619,7 +619,7 @@ export default function TeacherDashboard() {
                 )}
               </div>
               <p className="text-indigo-300 text-xs mt-1.5">
-                {new Date().toLocaleDateString('en-PK', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                {formatDate(new Date())}
               </p>
             </div>
           </div>
@@ -1835,7 +1835,7 @@ function MessageCenter({ staffId, schoolId, onClose }: { staffId: string; school
                                 {chat.targetType === 'parent' ? 'Parent of ' : ''}{chat.student?.full_name}
                               </p>
                               <span className="text-[9px] font-black text-gray-400 uppercase tracking-tighter shrink-0 mt-0.5">
-                                {new Date(chat.lastDate).toLocaleDateString([], { day: 'numeric', month: 'short' })}
+                                {formatDate(chat.lastDate)}
                               </span>
                             </div>
                             <p className={`text-xs truncate mt-1 leading-relaxed ${chat.unreadCount > 0 ? 'text-indigo-600 font-black' : 'text-gray-500 font-medium'}`}>

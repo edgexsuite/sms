@@ -20,6 +20,7 @@ import {
   Download, Search, Users, AlertTriangle, Loader2, BookOpen,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { formatDate } from '../../lib/utils';
 
 /* ─── Types ────────────────────────────────────────────────────────────── */
 type Stage = 'new_inquiry' | 'follow_up_1' | 'follow_up_2' | 'test_scheduled' | 'admitted' | 'rejected';
@@ -143,6 +144,12 @@ export default function AdmissionPipeline() {
   const [testTotal,   setTestTotal]   = useState('100');
   const [testResult,  setTestResult]  = useState<'pass' | 'fail'>('pass');
   const [testRemarks, setTestRemarks] = useState('');
+
+  /* ── Refs for optimized picker ── */
+  const dobInputRef = React.useRef<HTMLInputElement>(null);
+  const inquiryInputRef = React.useRef<HTMLInputElement>(null);
+  const fuInputRef = React.useRef<HTMLInputElement>(null);
+  const testInputRef = React.useRef<HTMLInputElement>(null);
 
   /* ── Load ── */
   useEffect(() => {
@@ -429,8 +436,32 @@ export default function AdmissionPipeline() {
                     className={INPUT} placeholder="Student's full name" />
                 </Field>
                 <Field label="Date of Birth">
-                  <input type="date" value={form.student_dob} onChange={e => setForm({...form, student_dob: e.target.value})}
-                    className={INPUT} />
+                  <div 
+                    className="relative cursor-pointer group"
+                    onClick={() => {
+                      if (dobInputRef.current && 'showPicker' in HTMLInputElement.prototype) {
+                        try { dobInputRef.current.showPicker(); } catch(e) {}
+                      }
+                    }}
+                  >
+                    <input
+                      type="text"
+                      readOnly
+                      value={formatDate(form.student_dob)}
+                      placeholder="DD-MM-YYYY"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white group-hover:border-indigo-400 transition-colors"
+                    />
+                    <input
+                      type="date"
+                      ref={dobInputRef}
+                      value={form.student_dob}
+                      onChange={e => setForm({...form, student_dob: e.target.value})}
+                      className="absolute inset-0 opacity-0 pointer-events-none"
+                    />
+                    <div className="absolute right-3 top-2.5 text-slate-400 pointer-events-none group-hover:text-indigo-500">
+                      <Calendar className="w-4 h-4" />
+                    </div>
+                  </div>
                 </Field>
                 <Field label="Gender">
                   <select value={form.student_gender} onChange={e => setForm({...form, student_gender: e.target.value})}
@@ -477,8 +508,32 @@ export default function AdmissionPipeline() {
 
               <FormSection title="Inquiry Details" cols={2}>
                 <Field label="Inquiry Date">
-                  <input type="date" value={form.inquiry_date} onChange={e => setForm({...form, inquiry_date: e.target.value})}
-                    className={INPUT} />
+                  <div 
+                    className="relative cursor-pointer group"
+                    onClick={() => {
+                      if (inquiryInputRef.current && 'showPicker' in HTMLInputElement.prototype) {
+                        try { inquiryInputRef.current.showPicker(); } catch(e) {}
+                      }
+                    }}
+                  >
+                    <input
+                      type="text"
+                      readOnly
+                      value={formatDate(form.inquiry_date)}
+                      placeholder="DD-MM-YYYY"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white group-hover:border-indigo-400 transition-colors"
+                    />
+                    <input
+                      type="date"
+                      ref={inquiryInputRef}
+                      value={form.inquiry_date}
+                      onChange={e => setForm({...form, inquiry_date: e.target.value})}
+                      className="absolute inset-0 opacity-0 pointer-events-none"
+                    />
+                    <div className="absolute right-3 top-2.5 text-slate-400 pointer-events-none group-hover:text-indigo-500">
+                      <Calendar className="w-4 h-4" />
+                    </div>
+                  </div>
                 </Field>
                 <Field label="How did they find us?">
                   <select value={form.source} onChange={e => setForm({...form, source: e.target.value})}
@@ -521,13 +576,13 @@ export default function AdmissionPipeline() {
               <InfoBox label="Father" value={activeInquiry.father_name} />
               <InfoBox label="Contact" value={activeInquiry.contact_number} />
               {activeInquiry.mother_name && <InfoBox label="Mother" value={activeInquiry.mother_name} />}
-              {activeInquiry.student_dob && <InfoBox label="Date of Birth" value={activeInquiry.student_dob} />}
+              {activeInquiry.student_dob && <InfoBox label="Date of Birth" value={formatDate(activeInquiry.student_dob)} />}
               {activeInquiry.student_gender && <InfoBox label="Gender" value={activeInquiry.student_gender} />}
               <InfoBox label="Applying For" value={activeInquiry.applying_for_class || '—'} />
               {activeInquiry.email && <InfoBox label="Email" value={activeInquiry.email} />}
               {activeInquiry.address && <InfoBox label="Address" value={activeInquiry.address} className="col-span-2" />}
               {activeInquiry.source && <InfoBox label="Source" value={activeInquiry.source} />}
-              <InfoBox label="Inquiry Date" value={activeInquiry.inquiry_date} />
+              <InfoBox label="Inquiry Date" value={formatDate(activeInquiry.inquiry_date)} />
               {activeInquiry.notes && <InfoBox label="Notes" value={activeInquiry.notes} className="col-span-2" />}
             </div>
 
@@ -541,7 +596,32 @@ export default function AdmissionPipeline() {
             {actionModal === 'follow_up_1' && (
               <SubForm title="Record Follow Up 1" onCancel={() => setActionModal(null)} onSave={doFollowUp1} saving={saving}>
                 <Field label="Follow-Up Date">
-                  <input type="date" value={fuDate} onChange={e => setFuDate(e.target.value)} className={INPUT} />
+                  <div 
+                    className="relative cursor-pointer group"
+                    onClick={() => {
+                      if (fuInputRef.current && 'showPicker' in HTMLInputElement.prototype) {
+                        try { fuInputRef.current.showPicker(); } catch(e) {}
+                      }
+                    }}
+                  >
+                    <input
+                      type="text"
+                      readOnly
+                      value={formatDate(fuDate)}
+                      placeholder="DD-MM-YYYY"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white group-hover:border-indigo-400 transition-colors"
+                    />
+                    <input
+                      type="date"
+                      ref={fuInputRef}
+                      value={fuDate}
+                      onChange={e => setFuDate(e.target.value)}
+                      className="absolute inset-0 opacity-0 pointer-events-none"
+                    />
+                    <div className="absolute right-3 top-2.5 text-slate-400 pointer-events-none group-hover:text-indigo-500">
+                      <Calendar className="w-4 h-4" />
+                    </div>
+                  </div>
                 </Field>
                 <Field label="Notes / Outcome">
                   <textarea value={fuNotes} onChange={e => setFuNotes(e.target.value)} rows={2} className={INPUT}
@@ -553,7 +633,32 @@ export default function AdmissionPipeline() {
             {actionModal === 'follow_up_2' && (
               <SubForm title="Record Follow Up 2" onCancel={() => setActionModal(null)} onSave={doFollowUp2} saving={saving}>
                 <Field label="Follow-Up Date">
-                  <input type="date" value={fuDate} onChange={e => setFuDate(e.target.value)} className={INPUT} />
+                  <div 
+                    className="relative cursor-pointer group"
+                    onClick={() => {
+                      if (fuInputRef.current && 'showPicker' in HTMLInputElement.prototype) {
+                        try { fuInputRef.current.showPicker(); } catch(e) {}
+                      }
+                    }}
+                  >
+                    <input
+                      type="text"
+                      readOnly
+                      value={formatDate(fuDate)}
+                      placeholder="DD-MM-YYYY"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white group-hover:border-indigo-400 transition-colors"
+                    />
+                    <input
+                      type="date"
+                      ref={fuInputRef}
+                      value={fuDate}
+                      onChange={e => setFuDate(e.target.value)}
+                      className="absolute inset-0 opacity-0 pointer-events-none"
+                    />
+                    <div className="absolute right-3 top-2.5 text-slate-400 pointer-events-none group-hover:text-indigo-500">
+                      <Calendar className="w-4 h-4" />
+                    </div>
+                  </div>
                 </Field>
                 <Field label="Notes / Outcome">
                   <textarea value={fuNotes} onChange={e => setFuNotes(e.target.value)} rows={2} className={INPUT}
@@ -575,7 +680,32 @@ export default function AdmissionPipeline() {
               >
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field label="Test Date">
-                    <input type="date" value={testDate} onChange={e => setTestDate(e.target.value)} className={INPUT} />
+                    <div 
+                      className="relative cursor-pointer group"
+                      onClick={() => {
+                        if (testInputRef.current && 'showPicker' in HTMLInputElement.prototype) {
+                          try { testInputRef.current.showPicker(); } catch(e) {}
+                        }
+                      }}
+                    >
+                      <input
+                        type="text"
+                        readOnly
+                        value={formatDate(testDate)}
+                        placeholder="DD-MM-YYYY"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white group-hover:border-indigo-400 transition-colors"
+                      />
+                      <input
+                        type="date"
+                        ref={testInputRef}
+                        value={testDate}
+                        onChange={e => setTestDate(e.target.value)}
+                        className="absolute inset-0 opacity-0 pointer-events-none"
+                      />
+                      <div className="absolute right-3 top-2.5 text-slate-400 pointer-events-none group-hover:text-indigo-500">
+                        <Calendar className="w-4 h-4" />
+                      </div>
+                    </div>
                   </Field>
                   <Field label="Pass / Fail">
                     <select value={testResult} onChange={e => setTestResult(e.target.value as 'pass' | 'fail')} className={INPUT}>
@@ -747,7 +877,7 @@ function Timeline({ inquiry }: { inquiry: Inquiry }) {
               <span className={`text-xs font-bold ${step.done ? 'text-slate-700' : step.active ? 'text-indigo-600' : 'text-slate-400'}`}>
                 {step.label}
               </span>
-              {step.date && <span className="text-[10px] text-slate-400">{step.date}</span>}
+              {step.date && <span className="text-[10px] text-slate-400">{formatDate(step.date)}</span>}
             </div>
             {step.note && <p className="text-[11px] text-slate-500 mt-0.5">{step.note}</p>}
           </div>
