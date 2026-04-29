@@ -394,7 +394,7 @@ export default function MonthlyFeeInvoices() {
       .select('total_amount, paid_amount')
       .eq('school_id', userRole?.school_id)
       .eq('student_id', inv.student_id)
-      .in('status', ['pending', 'overdue'])
+      .in('status', ['pending', 'partial', 'overdue'])  // include partial — remaining balance still owed
       .is('deleted_at', null)
       .neq('id', inv.id)
       .lt('month_year', inv.month_year);

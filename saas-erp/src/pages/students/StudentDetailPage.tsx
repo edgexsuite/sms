@@ -274,6 +274,16 @@ export default function StudentDetailPage() {
       }).eq('id', collectingFee.id);
       if (recErr) throw recErr;
 
+      // Scale fee_items proportionally to actual amount paid (net, not gross)
+      const rawBreakdown: { item: string; amount: number }[] = collectingFee.breakdown || [];
+      const grossTotal = rawBreakdown.reduce((s: number, b: any) => s + Number(b.amount || 0), 0);
+      const scaledItems = grossTotal > 0 && rawBreakdown.length > 0
+        ? rawBreakdown.map((b: any) => ({
+            item: b.item,
+            amount: Math.round((Number(b.amount) / grossTotal) * amt),
+          }))
+        : [{ item: 'Fee Collection', amount: amt }];
+
       await supabase.from('financial_transactions').insert({
         school_id: userRole!.school_id,
         type: 'income',
@@ -283,8 +293,22 @@ export default function StudentDetailPage() {
         payment_mode: collectMode,
         remarks: `Fee — ${student.full_name} (${collectingFee.invoice_number || collectingFee.id.slice(0,8)})`,
         fee_record_id: collectingFee.id,
-        fee_items: (collectingFee.breakdown || []).map((b: any) => ({ item: b.item, amount: Number(b.amount) })),
+        fee_items: scaledItems,
       });
+
+      // Query previous unpaid months for challan previous-fee display
+      const { data: prevFees } = await supabase
+        .from('fee_records')
+        .select('total_amount, paid_amount')
+        .eq('school_id', userRole!.school_id)
+        .eq('student_id', student.id)
+        .in('status', ['pending', 'partial', 'overdue'])
+        .is('deleted_at', null)
+        .neq('id', collectingFee.id)
+        .lt('month_year', collectingFee.month_year);
+      const previousFee = (prevFees || []).reduce(
+        (sum: number, r: any) => sum + Math.max(0, (r.total_amount || 0) - (r.paid_amount || 0)), 0
+      );
 
       // Print challan receipt
       const cls = student.classes as any;
@@ -296,11 +320,13 @@ export default function StudentDetailPage() {
         total_amount: collectingFee.total_amount,
         paid_amount: newPaid,
         status: newStatus,
-        breakdown: (collectingFee.breakdown || []).map((b: any) => ({ item: b.item, amount: Number(b.amount) })),
+        breakdown: rawBreakdown.map((b: any) => ({ item: b.item, amount: Number(b.amount) })),
         student_name: student.full_name,
         roll_number: student.roll_number,
         class_name: cls ? `${cls.name}${cls.section ? ' - ' + cls.section : ''}` : '',
         issue_date: collectDate,
+        previous_fee: previousFee,
+        discount_amount: collectingFee.discount_amount ?? 0,
       };
       const schoolInfo: SchoolInfo = {
         name: school?.name || 'School',
