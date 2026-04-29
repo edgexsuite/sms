@@ -488,7 +488,8 @@ export default function MasterSummaryReport() {
                       <tr><td colSpan={4} className="px-6 py-20 text-center text-slate-400 italic">No students enrolled during this period.</td></tr>
                     ) : (
                       data.admissions.map(stu => (
-                           <td className="px-6 py-4 font-bold text-slate-900">{stu.full_name}</td>
+                        <tr key={stu.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-6 py-4 font-bold text-slate-900">{stu.full_name}</td>
                           <td className="px-6 py-4 font-mono text-sm text-slate-600">#{stu.roll_number}</td>
                           <td className="px-6 py-4"><span className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg font-bold text-xs">{stu.classes?.name || 'Unassigned'}</span></td>
                           <td className="px-6 py-4 text-sm text-slate-500 font-medium">{formatDate(stu.admission_date)}</td>
@@ -560,10 +561,11 @@ export default function MasterSummaryReport() {
             </div>
           </div>
           <div className="text-right">
-                 <p className="text-[10px] font-black uppercase tracking-widest opacity-70">Report Type</p>
-                <p className="font-bold text-sm tracking-tight">EXECUTIVE SUMMARY</p>
-             </div>
-             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date: {formatDate(new Date())}</p>
+            <div className="bg-slate-900 text-white px-4 py-2 rounded-lg mb-2">
+              <p className="text-[10px] font-black uppercase tracking-widest opacity-70">Report Type</p>
+              <p className="font-bold text-sm tracking-tight">EXECUTIVE SUMMARY</p>
+            </div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date: {formatDate(new Date())}</p>
           </div>
         </div>
 
@@ -606,7 +608,8 @@ export default function MasterSummaryReport() {
                 </thead>
                 <tbody>
                   {data.admissions.map(s => (
-                       <td className="border border-slate-200 px-3 py-2 font-bold">{s.full_name}</td>
+                    <tr key={s.id}>
+                      <td className="border border-slate-200 px-3 py-2 font-bold">{s.full_name}</td>
                       <td className="border border-slate-200 px-3 py-2 font-mono">#{s.roll_number}</td>
                       <td className="border border-slate-200 px-3 py-2">{s.classes?.name || '—'}</td>
                       <td className="border border-slate-200 px-3 py-2">{formatDate(s.admission_date)}</td>
