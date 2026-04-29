@@ -38,6 +38,7 @@ export default function QRAttendanceCards() {
       .select('id,full_name,roll_number,photograph_url,classes(name,section)')
       .eq('school_id', userRole.school_id)
       .eq('status', 'active')
+      .eq('is_deleted', false)
       .order('full_name');
     if (classFilter !== 'all') q = q.eq('class_id', classFilter);
     q.then(({ data }) => { setStudents(data || []); setLoading(false); });
@@ -51,6 +52,7 @@ export default function QRAttendanceCards() {
       .select('id,full_name,role,department,photograph_url')
       .eq('school_id', userRole.school_id)
       .eq('is_active', true)
+      .eq('is_deleted', false)
       .order('full_name')
       .then(({ data }) => { setStaffList(data || []); setLoading(false); });
   }, [userRole?.school_id, tab]);

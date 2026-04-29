@@ -155,7 +155,7 @@ export default function AverageFee() {
             </table>
           ) : (
             <div className="p-6">
-              <ResponsiveContainer width="100%" height={320} minWidth={0}>
+              <ResponsiveContainer width="100%" height={320} minWidth={0} minHeight={0}>
                 <BarChart data={monthlyData} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />

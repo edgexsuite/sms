@@ -45,6 +45,7 @@ export default function StaffAttendance() {
       .select('id, full_name, role, department, employment_type, photograph_url')
       .eq('school_id', userRole?.school_id)
       .eq('is_active', true)
+      .eq('is_deleted', false)
       .order('full_name');
     
     // Fetch existing attendance logs for this specific date
@@ -55,16 +56,20 @@ export default function StaffAttendance() {
       .not('staff_id', 'is', null);
 
     const attMap: Record<string, string> = {};
+    
+    // 1. Pre-populate all staff with default status
+    if (stData) {
+      stData.forEach(s => {
+        if (isSunday) attMap[s.id] = 'present'; // Sundays are paid/present by default
+        else if (vacationToday) attMap[s.id] = 'vacation';
+        else attMap[s.id] = 'present';
+      });
+    }
+
+    // 2. Overlay existing logs
     if (attData && attData.length > 0) {
        attData.forEach(a => attMap[a.staff_id] = a.status);
        setHasSaved(true);
-    } else if (stData) {
-       // Default state
-       stData.forEach(s => {
-         if (isSunday) attMap[s.id] = 'present'; // Sundays are paid/present by default
-         else if (vacationToday) attMap[s.id] = 'vacation';
-         else attMap[s.id] = 'present';
-       });
     }
 
     if (stData) setStaffList(stData);
@@ -92,13 +97,13 @@ export default function StaffAttendance() {
        }
 
        // Step 2: Push Fresh Commit
-       const inserts = staffList.map(s => ({
-         school_id: userRole?.school_id,
-         staff_id: s.id,
-         date: date,
-         status: attendance[s.id],
-         created_by: user?.id
-       }));
+        const inserts = staffList.map(s => ({
+          school_id: userRole?.school_id,
+          staff_id: s.id,
+          date: date,
+          status: attendance[s.id] || (isSunday ? 'present' : vacationToday ? 'vacation' : 'present'),
+          created_by: user?.id
+        }));
 
        if (inserts.length > 0) {
            const { error } = await supabase.from('attendance').insert(inserts);

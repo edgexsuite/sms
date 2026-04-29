@@ -109,6 +109,7 @@ export default function StudentDetailPage() {
       .from('students')
       .select('*, classes(id, name, section)')
       .eq('id', id)
+      .eq('is_deleted', false)
       .single();
     if (error || !data) { setLoading(false); return; }
     setStudent(data);

@@ -280,6 +280,7 @@ export default function QRScanner() {
           .from('students')
           .select('id,full_name,roll_number,photograph_url,school_id,status,classes(name,section)')
           .eq('id', personId)
+          .eq('is_deleted', false)
           .single();
         if (error || !data) throw new Error('Student not found');
         if (data.school_id !== sid) throw new Error('ID card belongs to a different school');

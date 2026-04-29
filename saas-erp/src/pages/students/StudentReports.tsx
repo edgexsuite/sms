@@ -59,8 +59,8 @@ export default function StudentReports() {
   }, [userRole]);
 
   const fetchQuickStats = async () => {
-    const { count: active } = await supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', userRole?.school_id).eq('status', 'active');
-    const { count: left } = await supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', userRole?.school_id).neq('status', 'active');
+    const { count: active } = await supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', userRole?.school_id).eq('status', 'active').eq('is_deleted', false);
+    const { count: left } = await supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', userRole?.school_id).neq('status', 'active').eq('is_deleted', false);
     
     setStats({
       totalActive: active || 0,
@@ -118,7 +118,8 @@ export default function StudentReports() {
           .from('students')
           .select('*, classes(name, section)')
           .eq('school_id', userRole.school_id)
-          .eq('status', 'active');
+          .eq('status', 'active')
+          .eq('is_deleted', false);
 
         if (!students) return;
 
@@ -168,6 +169,7 @@ export default function StudentReports() {
           .eq('school_id', userRole.school_id)
           .gte('admission_date', startDate)
           .lte('admission_date', endDate)
+          .eq('is_deleted', false)
           .order('admission_date');
 
         addHeader('New Admissions Report', `Period: ${dateString}`);
@@ -200,6 +202,7 @@ export default function StudentReports() {
           .select('*, classes(name, section)')
           .eq('school_id', userRole.school_id)
           .neq('status', 'active')
+          .eq('is_deleted', false)
           .order('created_at', { ascending: false });
 
         if (reportId === 'adm_wd') {
@@ -235,7 +238,8 @@ export default function StudentReports() {
           .from('students')
           .select('*, classes(name, section)')
           .eq('school_id', userRole.school_id)
-          .eq('status', 'active');
+          .eq('status', 'active')
+          .eq('is_deleted', false);
         
         if (reportId === 'free_stu') query.eq('fee_waiver_percentage', 100);
         else query.gt('fee_waiver_percentage', 0);

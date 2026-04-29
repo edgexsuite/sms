@@ -36,12 +36,12 @@ export default function LibraryMembers() {
   };
 
   const fetchStudents = async () => {
-    const { data } = await supabase.from('students').select('id, full_name').eq('school_id', userRole!.school_id).eq('status', 'active').order('full_name');
+    const { data } = await supabase.from('students').select('id, full_name').eq('school_id', userRole!.school_id).eq('status', 'active').eq('is_deleted', false).order('full_name');
     setStudents(data || []);
   };
 
   const fetchStaff = async () => {
-    const { data } = await supabase.from('staff').select('id, full_name').eq('school_id', userRole!.school_id).eq('is_active', true).order('full_name');
+    const { data } = await supabase.from('staff').select('id, full_name').eq('school_id', userRole!.school_id).eq('is_active', true).eq('is_deleted', false).order('full_name');
     setStaff(data || []);
   };
 

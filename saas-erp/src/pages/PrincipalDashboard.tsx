@@ -252,7 +252,7 @@ export default function PrincipalDashboard() {
                 <p className="text-sm">No attendance marked today yet.</p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={200} minWidth={0}>
+              <ResponsiveContainer width="100%" height={200} minWidth={0} minHeight={0}>
                 <BarChart data={classAttendance} barGap={2}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="name" tick={{ fontSize: 10 }} />

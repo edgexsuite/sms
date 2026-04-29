@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { CalendarCheck, Download, Printer, ChevronDown, ChevronRight, Users, X } from 'lucide-react';
 import { exportToCSV } from '../../lib/exportUtils';
-import { cn } from '../../lib/utils';
+import { cn, formatDate } from '../../lib/utils';
 
 interface ClassSummary {
   class_id: string;
@@ -47,7 +47,7 @@ export default function DailyReport() {
 
     const [{ data: classes }, { data: students }, { data: attData }] = await Promise.all([
       supabase.from('classes').select('id, name, section').eq('school_id', sid).order('name'),
-      supabase.from('students').select('id, full_name, roll_number, class_id').eq('school_id', sid).eq('status', 'active').order('roll_number'),
+      supabase.from('students').select('id, full_name, roll_number, class_id').eq('school_id', sid).eq('status', 'active').eq('is_deleted', false).order('roll_number'),
       supabase.from('attendance').select('student_id, status, arrival_time, departure_time')
         .eq('school_id', sid).eq('date', date).not('student_id', 'is', null),
     ]);

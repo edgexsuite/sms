@@ -69,7 +69,7 @@ export default function StudentTransport() {
   const fetchDropdowns = async () => {
     const sid = userRole!.school_id;
     const [{ data: stds }, { data: rts }, { data: vehs }] = await Promise.all([
-      supabase.from('students').select('id, full_name, roll_number').eq('school_id', sid).eq('status', 'active').order('full_name'),
+      supabase.from('students').select('id, full_name, roll_number').eq('school_id', sid).eq('status', 'active').eq('is_deleted', false).order('full_name'),
       supabase.from('transport_routes').select('id, route_name').eq('school_id', sid).eq('is_active', true).order('route_name'),
       supabase.from('vehicles').select('id, vehicle_name').eq('school_id', sid).eq('is_active', true).order('vehicle_name'),
     ]);

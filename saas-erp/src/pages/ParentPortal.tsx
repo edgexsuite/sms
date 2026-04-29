@@ -679,7 +679,7 @@ export default function ParentPortal() {
         </aside>
 
         {/* ── Main Content ─────────────────────────────────────────────── */}
-        <div className="flex-1 min-w-0 px-4 py-6 space-y-5 pb-24 lg:pb-6">
+        <div className="flex-1 min-w-0 px-4 py-6 space-y-5 portal-content-padding lg:pb-6">
         {loadingData ? (
           <div className="text-center py-20">
             <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
@@ -755,7 +755,7 @@ export default function ParentPortal() {
             )}
 
             {/* Tab Content Rendering */}
-            <div className="portal-content-padding px-4">
+            <div className="px-4">
               {activeTab !== 'overview' && (
                 <button
                   onClick={() => setActiveTab('overview')}
@@ -841,7 +841,7 @@ export default function ParentPortal() {
       </div>
 
       {/* Bottom Navigation for Mobile */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 aura-glass border-t border-gray-200 px-6 py-3 flex items-center justify-between pb-safe">
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 aura-glass border-t border-gray-200 px-6 py-3 flex items-center justify-between safe-area-pb no-print">
         {[
           { id: 'overview', icon: LayoutDashboard, label: 'Home' },
           { id: 'fees', icon: CreditCard, label: 'Fees', badge: pendingCount > 0 },

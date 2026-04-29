@@ -38,7 +38,13 @@ export default function MarkAttendance() {
     setHasSaved(false);
     
     // Fetch students
-    const { data: stuData } = await supabase.from('students').select('id, full_name, roll_number, parents(whatsapp_number)').eq('class_id', selectedClass).eq('status', 'active').order('roll_number');
+    const { data: stuData } = await supabase
+      .from('students')
+      .select('id, full_name, roll_number, parents(whatsapp_number)')
+      .eq('class_id', selectedClass)
+      .eq('status', 'active')
+      .eq('is_deleted', false)
+      .order('roll_number');
     
     // Fetch existing attendance
     const { data: attData } = await supabase.from('attendance')
@@ -47,12 +53,16 @@ export default function MarkAttendance() {
       .eq('date', date);
 
     const attMap: Record<string, string> = {};
+    
+    // 1. Pre-populate all students with 'present' as default
+    if (stuData) {
+      stuData.forEach(s => attMap[s.id] = 'present');
+    }
+
+    // 2. Overlay existing attendance records if any
     if (attData && attData.length > 0) {
        attData.forEach(a => attMap[a.student_id] = a.status);
        setHasSaved(true);
-    } else if (stuData) {
-       // Default to present if no records
-       stuData.forEach(s => attMap[s.id] = 'present');
     }
 
     if (stuData) setStudents(stuData);
@@ -89,7 +99,7 @@ export default function MarkAttendance() {
          school_id: userRole?.school_id,
          student_id: s.id,
          date: date,
-         status: attendance[s.id],
+         status: attendance[s.id] || 'present',
          created_by: user?.id
        }));
 

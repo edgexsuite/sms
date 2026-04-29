@@ -39,10 +39,11 @@ export default function AbsentStudentList() {
 
     let query = supabase
       .from('attendance')
-      .select('student_id, student:student_id(full_name, roll_number, class:class_id(name, section), parent:parent_id(whatsapp_number))')
+      .select('student_id, student:student_id!inner(full_name, roll_number, is_deleted, class:class_id(name, section), parent:parent_id(whatsapp_number))')
       .eq('school_id', sid)
       .eq('date', date)
-      .eq('status', 'absent');
+      .eq('status', 'absent')
+      .eq('student.is_deleted', false);
 
     const { data: absentData } = await query;
 

@@ -44,7 +44,7 @@ export default function SessionalReport() {
     const sid = userRole!.school_id;
 
     const [{ data: students }, { data: attData }] = await Promise.all([
-      supabase.from('students').select('id, full_name, roll_number').eq('school_id', sid).eq('class_id', selectedClass).eq('status', 'active').order('roll_number'),
+      supabase.from('students').select('id, full_name, roll_number').eq('school_id', sid).eq('class_id', selectedClass).eq('status', 'active').eq('is_deleted', false).order('roll_number'),
       supabase.from('attendance').select('student_id, status, date').eq('school_id', sid).gte('date', startDate).lte('date', endDate),
     ]);
 

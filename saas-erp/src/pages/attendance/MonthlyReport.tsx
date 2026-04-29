@@ -34,7 +34,7 @@ export default function MonthlyReport() {
   const fetchRegisterData = async () => {
     setLoading(true);
     // Students
-    const { data: stuData } = await supabase.from('students').select('id, full_name, roll_number').eq('class_id', selectedClass).eq('status', 'active').order('roll_number');
+    const { data: stuData } = await supabase.from('students').select('id, full_name, roll_number').eq('class_id', selectedClass).eq('status', 'active').eq('is_deleted', false).order('roll_number');
     if (stuData) setStudents(stuData);
     
     // Date bounds

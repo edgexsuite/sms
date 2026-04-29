@@ -100,7 +100,7 @@ export default function PayrollReports() {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-w-0">
               <h2 className="font-semibold text-gray-800 mb-4">Monthly Net Payroll — {year}</h2>
               <div className="h-56">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <BarChart data={monthlyTotals}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis dataKey="month" tick={{ fontSize: 12 }} />

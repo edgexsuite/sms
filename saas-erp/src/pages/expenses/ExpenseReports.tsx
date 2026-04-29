@@ -124,7 +124,7 @@ export default function ExpenseReports() {
               {chartView === 'category' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="h-72 min-w-0">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <PieChart>
                       <Pie data={categoryData} cx="50%" cy="50%" innerRadius={60} outerRadius={110} dataKey="value" nameKey="name" paddingAngle={2}>
                         {categoryData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}

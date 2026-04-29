@@ -143,7 +143,7 @@ export default function ProfitLoss() {
       {/* Chart */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 no-print">
         {loading ? <div className="h-64 flex items-center justify-center text-gray-400">Loading...</div> : (
-          <ResponsiveContainer width="100%" height={280} minWidth={0}>
+          <ResponsiveContainer width="100%" height={280} minWidth={0} minHeight={0}>
             <BarChart data={rows} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="month" tick={{ fontSize: 12 }} />
@@ -164,7 +164,7 @@ export default function ProfitLoss() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Pie chart */}
             <div className="flex items-center justify-center">
-              <ResponsiveContainer width="100%" height={220} minWidth={0}>
+              <ResponsiveContainer width="100%" height={220} minWidth={0} minHeight={0}>
                 <PieChart>
                   <Pie data={feeItemTotals} dataKey="amount" nameKey="item" cx="50%" cy="50%" outerRadius={90} label={({ item, percent }) => `${item} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
                     {feeItemTotals.map((_, idx) => <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />)}

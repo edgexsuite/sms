@@ -31,7 +31,7 @@ export default function PromoteStudents() {
 
   const fetchStudents = async () => {
     setLoading(true);
-    const { data } = await supabase.from('students').select('id, full_name, roll_number, status').eq('class_id', sourceClass).eq('status', 'active').order('roll_number');
+    const { data } = await supabase.from('students').select('id, full_name, roll_number, status').eq('class_id', sourceClass).eq('status', 'active').eq('is_deleted', false).order('roll_number');
     if (data) {
       setStudents(data);
       // Automatically select all active students by default

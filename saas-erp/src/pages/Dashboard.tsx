@@ -366,7 +366,7 @@ export default function Dashboard() {
             <BarChart2 className="w-4 h-4 text-indigo-500" /> Income vs Expense (6 Months)
           </h3>
           <div className="h-56 w-full">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <BarChart data={monthlyData} barGap={2} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                 <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9ca3af' }} />
@@ -386,7 +386,7 @@ export default function Dashboard() {
           </h3>
           <div className="h-56 w-full">
             {classData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <BarChart data={classData} margin={{ top: 0, right: 0, left: 0, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#9ca3af' }} angle={-35} textAnchor="end" />
@@ -410,7 +410,7 @@ export default function Dashboard() {
           </h3>
           <div className="h-52 w-full">
             {feeStatusData.some(d => d.value > 0) ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <PieChart>
                   <Pie data={feeStatusData} cx="50%" cy="50%" innerRadius={65} outerRadius={95} paddingAngle={4} dataKey="value">
                     {feeStatusData.map((_, i) => <Cell key={i} fill={COLORS[i]} />)}

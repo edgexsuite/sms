@@ -29,7 +29,7 @@ export default function StaffAttendanceReport() {
     setLoading(true);
     try {
       // 1. Fetch Staff
-      const { data: stData } = await supabase.from('staff').select('*').eq('school_id', userRole?.school_id).eq('is_active', true).order('full_name');
+      const { data: stData } = await supabase.from('staff').select('*').eq('school_id', userRole?.school_id).eq('is_active', true).eq('is_deleted', false).order('full_name');
       
       // 2. Fetch Attendance
       const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
