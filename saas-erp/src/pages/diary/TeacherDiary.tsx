@@ -156,7 +156,6 @@ export default function TeacherDiary() {
       .from('classes')
       .select('id, name, section')
       .eq('school_id', userRole?.school_id)
-      .eq('is_deleted', false)
       .order('name');
     if (data) setAllClasses(data);
   };
