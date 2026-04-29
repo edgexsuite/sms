@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { FileText, Save, Type } from 'lucide-react';
+import { FileText, Save, Type, QrCode, Upload, CheckCircle2 } from 'lucide-react';
 
 interface ChallanConfig {
   show_school_logo: boolean;
@@ -33,6 +33,10 @@ interface ChallanConfig {
   signature_right?: string;
   custom_instructions?: string;
   font_scale: number;
+  show_qr_code?: boolean;
+  qr_image_url?: string;
+  qr_account_title?: string;
+  qr_instructions?: string;
 }
 
 const DEFAULT_LABELS: Record<number, string[]> = {
@@ -68,6 +72,10 @@ const DEFAULTS: ChallanConfig = {
   signature_left: 'Accountant/Admin',
   signature_right: 'Principal',
   font_scale: 1.0,
+  show_qr_code: false,
+  qr_image_url: '',
+  qr_account_title: 'Aftab Ahmed Khakwani',
+  qr_instructions: 'Scan QR code to pay fee and send receipt on 0302-3605351',
 };
 
 export default function ChallanFormSettings() {
@@ -76,6 +84,8 @@ export default function ChallanFormSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [uploadingQr, setUploadingQr] = useState(false);
+  const [qrUploadOk, setQrUploadOk] = useState(false);
 
   useEffect(() => {
     if (userRole?.school_id) fetchConfig();
@@ -126,6 +136,26 @@ export default function ChallanFormSettings() {
       labels[idx] = val;
       return { ...prev, copy_labels: labels };
     });
+  };
+
+  const handleQrUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingQr(true);
+    setQrUploadOk(false);
+    const path = `${userRole!.school_id}/qr-code`;
+    const { error } = await supabase.storage.from('school-assets').upload(path, file, { upsert: true });
+    if (!error) {
+      const { data } = supabase.storage.from('school-assets').getPublicUrl(path);
+      setConfig(prev => ({ ...prev, qr_image_url: data.publicUrl + '?t=' + Date.now() }));
+      setQrUploadOk(true);
+      setTimeout(() => setQrUploadOk(false), 3000);
+    } else {
+      alert('Upload failed: ' + error.message);
+    }
+    setUploadingQr(false);
+    // Reset file input so same file can be re-uploaded
+    e.target.value = '';
   };
 
   const Toggle = ({ label, field, desc }: { label: string; field: keyof ChallanConfig; desc?: string }) => (
@@ -272,6 +302,51 @@ export default function ChallanFormSettings() {
             <Toggle label="Depositor Info Section" field="show_depositor_info" desc="Master toggle for all depositor fields" />
             <Toggle label="Class Fee Structure Table" field="show_fee_matrix" desc="Shows the class monthly fee schedule with actual vs payable amounts" />
             <Toggle label="Fine Policy Table" field="show_fine_policy" desc="Shows configured late-payment fine rules at the bottom of the challan" />
+          </div>
+        </div>
+
+        {/* ── QR Code Payment ── */}
+        <div className="p-6 bg-indigo-50/30">
+          <h2 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
+            <QrCode className="w-4 h-4 text-indigo-500" /> QR Code Payment
+          </h2>
+          <p className="text-xs text-gray-400 mb-4">Add a payment QR code (JazzCash/EasyPaisa/Bank) to the challan.</p>
+          
+          <div className="space-y-4">
+            <Toggle label="Show QR Code on Challan" field="show_qr_code" desc="Toggle QR payment section on all copies" />
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-gray-700">QR Code Image</label>
+                <div className="flex items-center gap-4">
+                  {config.qr_image_url ? (
+                    <div className="relative group w-20 h-20 border rounded-lg overflow-hidden bg-white">
+                      <img src={config.qr_image_url} alt="QR Preview" className="w-full h-full object-contain" />
+                      <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
+                        <Upload className="w-5 h-5 text-white" />
+                        <input type="file" className="sr-only" onChange={handleQrUpload} accept="image/*" />
+                      </label>
+                    </div>
+                  ) : (
+                    <label className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition-all">
+                      <Upload className="w-5 h-5 text-gray-400" />
+                      <span className="text-[10px] text-gray-500 mt-1">Upload</span>
+                      <input type="file" className="sr-only" onChange={handleQrUpload} accept="image/*" />
+                    </label>
+                  )}
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-500 mb-2">Recommended: Square image (min 300x300px)</p>
+                    {uploadingQr && <p className="text-xs text-indigo-600 font-medium animate-pulse">Uploading...</p>}
+                    {qrUploadOk && <p className="text-xs text-green-600 font-medium flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Uploaded!</p>}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <Input label="Account Title" field="qr_account_title" placeholder="Aftab Ahmed Khakwani" />
+                <Input label="Instructions" field="qr_instructions" placeholder="Scan QR code to pay fee..." />
+              </div>
+            </div>
           </div>
         </div>
 

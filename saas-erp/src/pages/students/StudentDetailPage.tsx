@@ -395,7 +395,6 @@ export default function StudentDetailPage() {
       const { data: rec, error: recErr } = await supabase.from('fee_records').insert({
         school_id: userRole!.school_id,
         student_id: student.id,
-        class_id: student.class_id,
         month_year: newEntryMonth + '-01',
         due_date: newEntryDueDate || null,
         total_amount: totalAmt,

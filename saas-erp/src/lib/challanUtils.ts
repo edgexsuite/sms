@@ -33,6 +33,11 @@ export interface ChallanConfig {
   custom_instructions?: string;
   /** Font scale: 1.0 = default, 1.2 = larger, 0.85 = smaller */
   font_scale?: number;
+  // QR Code Payment
+  show_qr_code?: boolean;
+  qr_image_url?: string;
+  qr_account_title?: string;
+  qr_instructions?: string;
 }
 
 export const DEFAULT_COPY_LABELS: Record<number, string[]> = {
@@ -68,6 +73,10 @@ export const DEFAULT_CHALLAN_CONFIG: ChallanConfig = {
   signature_left: 'Accountant/Admin',
   signature_right: 'Principal',
   font_scale: 1.0,
+  show_qr_code: false,
+  qr_image_url: '',
+  qr_account_title: 'Aftab Ahmed Khakwani',
+  qr_instructions: 'Scan QR code to pay fee and send receipt on 0302-3605351',
 };
 
 export interface SchoolInfo {
@@ -211,6 +220,7 @@ function drawChallanCopy(
   cw: number,
   ch: number,
   logoDataUrl?: string,
+  qrDataUrl?: string,
 ): void {
   // Sizing — compact when copies are narrow (3-up landscape ≈ 95mm wide)
   const compact = cw < 110;
@@ -500,6 +510,57 @@ function drawChallanCopy(
     y += boxH + 2;
   }
 
+  // ── QR Code Payment ──────────────────────────────────────────────────────
+  if (config.show_qr_code) {
+    let qrSize = 25; 
+    const titleH = config.qr_account_title ? (compact ? 4 : 5) : 0;
+    const instrH = config.qr_instructions ? (compact ? 6 : 8) : 0;
+    
+    // Position check: Ensure we don't overlap signatures
+    const sigY = cy + ch - (compact ? 13 : 17);
+    const gap = compact ? 2 : 3; // Gap between QR and text
+    const availableH = sigY - y - 6;
+
+    // If space is very limited, scale down the QR code
+    if (availableH < (qrSize + titleH + instrH + gap)) {
+      qrSize = Math.max(12, availableH - titleH - instrH - gap - 2);
+    }
+
+    if (availableH > 10) { 
+      y += 2;
+      const centerX = cx + (cw / 2);
+      const qrX = centerX - (qrSize / 2);
+
+      if (qrDataUrl) {
+        try {
+          doc.addImage(qrDataUrl, 'PNG', qrX, y, qrSize, qrSize);
+          y += qrSize + gap;
+        } catch (e) {
+          console.error("QR Image Add Error:", e);
+        }
+      }
+
+      const txtMaxW = cw - pad * 4;
+      doc.setTextColor(30, 30, 30);
+      
+      if (config.qr_account_title) {
+        doc.setFontSize((compact ? 6.5 : 8) * scale);
+        doc.setFont('helvetica', 'bold');
+        doc.text(config.qr_account_title, centerX, y, { align: 'center', maxWidth: txtMaxW });
+        y += titleH;
+      }
+      if (config.qr_instructions) {
+        doc.setFontSize((compact ? 5.5 : 7) * scale);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(80, 80, 80);
+        doc.text(config.qr_instructions, centerX, y, { align: 'center', maxWidth: txtMaxW });
+        y += instrH;
+      }
+      doc.setTextColor(0, 0, 0);
+      y += 1;
+    }
+  }
+
   // ── Fee Matrix (Class Fee Structure) ─────────────────────────────────────
   const feeMatrix = record.fee_matrix;
   if (config.show_fee_matrix !== false && feeMatrix?.recurrent?.length && y + 28 < cy + ch - 22) {
@@ -642,6 +703,7 @@ export function generateChallanPDF(
   config: ChallanConfig,
   filename: string | null = null,
   logoDataUrl?: string,
+  qrDataUrl?: string,
 ): jsPDF {
   const copies = Math.max(1, Math.min(3, config.copies || 2));
   const copyLabels = resolveCopyLabels(config);
@@ -677,7 +739,7 @@ export function generateChallanPDF(
         (doc as any).setLineDash([], 0);
       }
 
-      drawChallanCopy(doc, record, school, config, copyLabels[c], cx, margin, copyW, copyH, logoDataUrl);
+      drawChallanCopy(doc, record, school, config, copyLabels[c], cx, margin, copyW, copyH, logoDataUrl, qrDataUrl);
     }
   });
 
@@ -701,6 +763,12 @@ export async function downloadChallanPDF(
     logoDataUrl = await loadImageAsDataUrl(school.logo_url);
   }
 
+  // Load QR code image if enabled
+  let qrDataUrl: string | undefined;
+  if (config.show_qr_code && config.qr_image_url) {
+    qrDataUrl = await loadImageAsDataUrl(config.qr_image_url);
+  }
+
   const normalizedOptions: ChallanDownloadOptions =
     typeof options === 'string'
       ? { filenameOverride: options }
@@ -712,7 +780,7 @@ export async function downloadChallanPDF(
   const filename = normalizedOptions.filenameOverride || `challan-${label}.pdf`;
   const shouldDownload = normalizedOptions.download !== false;
   const shouldAutoPrint = normalizedOptions.autoPrint === true;
-  const doc = generateChallanPDF(records, school, config, null, logoDataUrl);
+  const doc = generateChallanPDF(records, school, config, null, logoDataUrl, qrDataUrl);
 
   if (shouldDownload) {
     doc.save(filename);
