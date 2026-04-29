@@ -159,9 +159,11 @@ export default function StudentLeave() {
       marked_by: userRole?.id || null
     }));
 
-    const { error } = await supabase.from('attendance').upsert(attendanceRecords, {
-      onConflict: 'school_id,student_id,date'
-    });
+    await supabase.from('attendance').delete()
+      .eq('school_id', userRole?.school_id)
+      .eq('student_id', leave.student_id)
+      .in('date', dates);
+    const { error } = await supabase.from('attendance').insert(attendanceRecords);
 
     if (error) console.error('Error syncing leave with attendance:', error);
   };

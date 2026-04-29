@@ -498,7 +498,12 @@ export default function TeacherDashboard() {
     const rows = attStudents.map(s => ({
       school_id: userRole!.school_id, student_id: s.id, date: attDate, status: attMarks[s.id] || 'present',
     }));
-    const { error } = await supabase.from('attendance').upsert(rows, { onConflict: 'school_id,student_id,date' });
+    const studentIds = rows.map(r => r.student_id);
+    await supabase.from('attendance').delete()
+      .eq('school_id', userRole!.school_id)
+      .eq('date', attDate)
+      .in('student_id', studentIds);
+    const { error } = await supabase.from('attendance').insert(rows);
     if (error) setAttError(error.message);
     else { setAttSaved(true); fetchAssignedClasses(staffId!); }
     setSavingAtt(false);
@@ -599,7 +604,11 @@ export default function TeacherDashboard() {
       date: d,
       status: 'leave' as AttStatus
     }));
-    await supabase.from('attendance').upsert(attRows, { onConflict: 'school_id,student_id,date' });
+    await supabase.from('attendance').delete()
+      .eq('school_id', userRole!.school_id)
+      .eq('student_id', leave.student_id)
+      .in('date', dates);
+    await supabase.from('attendance').insert(attRows);
   };
 
   // ── Evaluation handler ────────────────────────────────────────────────────

@@ -166,11 +166,12 @@ export default function Attendance() {
         marked_by: user.id
       }));
 
-      const { error } = await supabase
-        .from('attendance')
-        .upsert(recordsToUpsert, { 
-          onConflict: 'school_id,student_id,date' 
-        });
+      const studentIds = recordsToUpsert.map(r => r.student_id);
+      await supabase.from('attendance').delete()
+        .eq('school_id', userRole.school_id)
+        .eq('date', selectedDate)
+        .in('student_id', studentIds);
+      const { error } = await supabase.from('attendance').insert(recordsToUpsert);
 
       if (error) throw error;
       alert('Attendance saved successfully!');
