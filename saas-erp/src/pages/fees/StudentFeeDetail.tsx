@@ -7,7 +7,8 @@ import {
   Search, Wallet, AlertCircle, Save, CheckCircle,
   ShieldOff, AlertTriangle, FileText, ArrowRight,
   Filter, Plus, Printer, X, CreditCard, Clock,
-  TrendingDown, ChevronDown, ChevronUp, Trash2, Tag, Percent, BadgeDollarSign
+  TrendingDown, ChevronDown, ChevronUp, Trash2, Tag, Percent, BadgeDollarSign,
+  Calendar, ExternalLink
 } from 'lucide-react';
 import { calculateLateFine, getFineRules, FineRule } from '../../lib/fineUtils';
 import { cn, formatDate } from '../../lib/utils';
@@ -297,12 +298,18 @@ export default function StudentFeeDetail() {
     setEditSaving(true);
     try {
       const newPaid = parseFloat(editForm.paid_amount) || 0;
-      // total_amount is derived from breakdown; fallback to editForm if breakdown is empty
+      // total_amount is derived from breakdown (net = gross - discount)
       const newTotal = editBreakdown.length > 0
-        ? editBreakdown.reduce((s, r) => s + (Number(r.amount) || 0), 0)
+        ? editBreakdown.reduce((s, r) => s + Math.max(0, (Number(r.amount) || 0) - (Number(r.discount) || 0)), 0)
         : parseFloat(editForm.total_amount) || 0;
+      
+      const newTotalDiscount = editBreakdown.length > 0
+        ? editBreakdown.reduce((s, r) => s + (Number(r.discount) || 0), 0)
+        : editingInvoice.discount_amount || 0;
+
       const { error } = await supabase.from('fee_records').update({
         total_amount: newTotal,
+        discount_amount: newTotalDiscount,
         paid_amount: newPaid,
         breakdown: editBreakdown.length > 0 ? editBreakdown : editingInvoice.breakdown,
         month_year: editForm.month_year + '-01',
@@ -730,7 +737,7 @@ export default function StudentFeeDetail() {
                               <button
                                 onClick={() => {
                                   setEditingInvoice(inv);
-                                  setEditBreakdown(inv.breakdown?.length ? inv.breakdown.map((b: any) => ({ item: b.item, amount: Number(b.amount) })) : []);
+                                  setEditBreakdown(inv.breakdown?.length ? inv.breakdown.map((b: any) => ({ item: b.item, amount: Number(b.amount), discount: Number(b.discount || 0) })) : []);
                                   setEditForm({
                                     total_amount: String(inv.total_amount),
                                     paid_amount: String(inv.paid_amount || 0),
@@ -778,16 +785,16 @@ export default function StudentFeeDetail() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
           >
             <motion.div
               initial={{ scale: 0.95, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 20 }}
-              className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden"
+              className="w-full max-w-sm bg-white rounded-3xl shadow-2xl flex flex-col max-h-[calc(100vh-2rem)] overflow-hidden"
             >
               {/* Modal Header */}
-              <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-5 py-4 flex items-center justify-between text-white">
+              <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-5 py-4 flex items-center justify-between text-white shrink-0">
                 <div>
                   <p className="text-sm font-bold">Collect Payment</p>
                   <p className="text-xs text-indigo-200 mt-0.5">
@@ -802,7 +809,7 @@ export default function StudentFeeDetail() {
                 </button>
               </div>
 
-              <div className="p-5 space-y-5">
+              <div className="p-5 space-y-5 overflow-y-auto">
                 {/* Outstanding Balance */}
                 <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-center">
                   <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Outstanding Balance</p>
@@ -905,20 +912,22 @@ export default function StudentFeeDetail() {
         {editingInvoice && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 text-left"
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 text-left"
           >
             <motion.div
               initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-              className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden"
+              className="w-full max-w-md bg-white rounded-3xl shadow-2xl flex flex-col max-h-[calc(100vh-2rem)] overflow-hidden"
             >
-              <div className="bg-slate-900 px-6 py-4 flex items-center justify-between text-white">
+              <div className="bg-slate-900 px-6 py-4 flex items-center justify-between text-white shrink-0">
                 <div>
                   <h2 className="text-sm font-black uppercase tracking-widest leading-none">Edit Invoice</h2>
                   <p className="text-xs text-slate-400 mt-0.5">{editingInvoice.invoice_number}</p>
                 </div>
-                <button onClick={() => setEditingInvoice(null)} className="text-white/60 hover:text-white">✕</button>
+                <button onClick={() => setEditingInvoice(null)} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-              <div className="p-6 space-y-5 overflow-y-auto max-h-[75vh]">
+              <div className="p-6 space-y-5 overflow-y-auto">
                 {/* Month + Paid At */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
@@ -975,7 +984,7 @@ export default function StudentFeeDetail() {
                   <input type="text" inputMode="decimal" value={editForm.paid_amount} onFocus={e => e.target.select()} onChange={e => setEditForm({...editForm, paid_amount: e.target.value.replace(/[^0-9.]/g, '')})}
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-black text-emerald-600 font-mono" />
                   <p className="text-[10px] text-slate-400 mt-1">
-                    Total billed (from breakdown): Rs. {editBreakdown.reduce((s, r) => s + (Number(r.amount) || 0), 0).toLocaleString()}
+                    Total billed (Net): Rs. {editBreakdown.reduce((s, r) => s + Math.max(0, (Number(r.amount) || 0) - (Number(r.discount) || 0)), 0).toLocaleString()}
                   </p>
                 </div>
 

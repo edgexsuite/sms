@@ -12,7 +12,7 @@ import { cn, formatDate } from '../../lib/utils';
 type Invoice = {
   id: string; student_id: string; total_amount: number; paid_amount: number;
   discount_amount: number; status: string; month_year: string; due_date: string;
-  invoice_number: string;
+  invoice_number: string; breakdown: any[];
   students: { full_name: string; roll_number: string; class_id: string; classes: { name: string; section: string } | null } | null;
 };
 
@@ -39,6 +39,8 @@ export default function InvoiceReport() {
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
+  const [studentView, setStudentView] = useState<'all' | 'current' | 'arrears'>('all');
+  const [showBreakdown, setShowBreakdown] = useState(false);
 
   useEffect(() => {
     if (userRole?.school_id) { load(); loadClasses(); }
@@ -48,7 +50,7 @@ export default function InvoiceReport() {
     setLoading(true);
     const { data } = await supabase
       .from('fee_records')
-      .select('id, student_id, total_amount, paid_amount, discount_amount, status, month_year, due_date, invoice_number, students(full_name, roll_number, class_id, classes(name, section))')
+      .select('id, student_id, total_amount, paid_amount, discount_amount, status, month_year, due_date, invoice_number, breakdown, students(full_name, roll_number, class_id, classes(name, section))')
       .eq('school_id', userRole!.school_id)
       .is('deleted_at', null)
       .order('month_year', { ascending: false });
@@ -78,10 +80,10 @@ export default function InvoiceReport() {
   const totalOutstanding = filtered.reduce((s, i) => s + Math.max(0, (i.total_amount || 0) - (i.paid_amount || 0)), 0);
   const collectionRate = totalBilled > 0 ? (totalCollected / totalBilled) * 100 : 0;
 
-  // Per-student aggregation
-  const studentMap = useMemo(() => {
+  // Per-student aggregation helper
+  const buildStudentMap = (invList: Invoice[]) => {
     const m = new Map<string, any>();
-    filtered.forEach(inv => {
+    invList.forEach(inv => {
       const sid = inv.student_id;
       if (!m.has(sid)) {
         m.set(sid, {
@@ -89,18 +91,70 @@ export default function InvoiceReport() {
           className: inv.students?.classes ? `${inv.students.classes.name} ${inv.students.classes.section}` : '—',
           class_id: inv.students?.class_id,
           billed: 0, paid: 0, count: 0, worstStatus: 'paid',
+          breakdownTotals: new Map<string, number>(),
         });
       }
       const s = m.get(sid);
       s.billed += inv.total_amount || 0;
-      s.paid += inv.paid_amount || 0;
+      s.paid   += inv.paid_amount  || 0;
       s.count++;
+      
+      if (inv.breakdown) {
+        inv.breakdown.forEach((b: any) => {
+          if (b.item && b.amount) {
+            const cur = s.breakdownTotals.get(b.item) || 0;
+            s.breakdownTotals.set(b.item, cur + Number(b.amount));
+          }
+        });
+      }
+
       const rank: any = { overdue: 3, pending: 2, partial: 1, paid: 0 };
       if ((rank[inv.status] || 0) > (rank[s.worstStatus] || 0)) s.worstStatus = inv.status;
     });
-    return Array.from(m.values()).map(s => ({ ...s, balance: Math.max(0, s.billed - s.paid) }))
+    return Array.from(m.values())
+      .map(s => ({ ...s, balance: Math.max(0, s.billed - s.paid) }))
       .sort((a, b) => b.balance - a.balance);
+  };
+
+  // Latest month across ALL filtered invoices
+  const latestMonth = useMemo(() => {
+    const months = filtered.map(i => i.month_year?.slice(0, 7)).filter(Boolean) as string[];
+    return months.length ? months.reduce((a, b) => (a > b ? a : b)) : null;
   }, [filtered]);
+
+  // Split invoices into current-month vs older-with-balance (arrears)
+  const currentInvoices = useMemo(() =>
+    latestMonth ? filtered.filter(i => i.month_year?.startsWith(latestMonth)) : []
+  , [filtered, latestMonth]);
+
+  const arrearsInvoices = useMemo(() =>
+    latestMonth
+      ? filtered.filter(i => !i.month_year?.startsWith(latestMonth) && Math.max(0, (i.total_amount || 0) - (i.paid_amount || 0)) > 0)
+      : filtered.filter(i => Math.max(0, (i.total_amount || 0) - (i.paid_amount || 0)) > 0)
+  , [filtered, latestMonth]);
+
+  // Three student maps
+  const studentMap         = useMemo(() => buildStudentMap(filtered),         [filtered]);
+  const studentMapCurrent  = useMemo(() => buildStudentMap(currentInvoices),  [currentInvoices]);
+  const studentMapArrears  = useMemo(() => buildStudentMap(arrearsInvoices),  [arrearsInvoices]);
+
+  const activeStudentMap = studentView === 'current' ? studentMapCurrent
+                         : studentView === 'arrears' ? studentMapArrears
+                         : studentMap;
+
+  // Lookup maps for split columns in 'all' view
+  const arrearsLookup  = useMemo(() => new Map(studentMapArrears.map(s => [s.id, s.balance])),  [studentMapArrears]);
+  const currentLookup  = useMemo(() => new Map(studentMapCurrent.map(s => [s.id, s.balance])),  [studentMapCurrent]);
+
+  const breakdownKeys = useMemo(() => {
+    const keys = new Set<string>();
+    activeStudentMap.forEach(s => {
+      if (s.breakdownTotals) {
+        for (const k of s.breakdownTotals.keys()) keys.add(k);
+      }
+    });
+    return Array.from(keys).sort();
+  }, [activeStudentMap]);
 
   // Monthly breakdown
   const monthMap = useMemo(() => {
@@ -129,11 +183,18 @@ export default function InvoiceReport() {
   }, [filtered]);
 
   // Print a single section by hiding all others via body data-attribute
-  const printSection = (sectionId: string) => {
+  const printSection = (sectionId: string, title: string) => {
     document.body.dataset.printSection = sectionId;
+    const originalTitle = document.title;
+    document.title = `${title} - Invoice Report`;
+    
     window.print();
+    
     // Clean up after browser closes print dialog
-    const cleanup = () => { delete document.body.dataset.printSection; };
+    const cleanup = () => { 
+      delete document.body.dataset.printSection; 
+      document.title = originalTitle;
+    };
     window.addEventListener('afterprint', cleanup, { once: true });
     // Fallback cleanup after 3s in case afterprint doesn't fire
     setTimeout(cleanup, 3000);
@@ -234,68 +295,133 @@ export default function InvoiceReport() {
         <>
           {/* Per-Student Outstanding */}
           <div data-section="students" className="bg-white rounded-2xl border border-slate-100 shadow overflow-hidden">
-            <div className="px-5 py-3 border-b border-slate-50 flex items-center justify-between">
+            <div className="px-5 py-3 border-b border-slate-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <h2 className="font-black text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2"><Users className="w-4 h-4 text-indigo-500" />Per-Student Outstanding</h2>
-                <span className="text-xs text-slate-400 font-bold">{studentMap.length} students</span>
+                <span className="text-xs text-slate-400 font-bold">{activeStudentMap.length} students</span>
               </div>
-              <button onClick={() => printSection('students')} title="Print this section"
-                className="no-print flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest transition">
-                <Printer className="w-3 h-3" /> Print
-              </button>
+              <div className="flex items-center gap-2 no-print">
+                <label className="flex items-center gap-1.5 px-2 py-1.5 cursor-pointer text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700">
+                  <input type="checkbox" checked={showBreakdown} onChange={e => setShowBreakdown(e.target.checked)} className="rounded text-indigo-500 focus:ring-indigo-500 w-3 h-3 border-slate-300" />
+                  Details
+                </label>
+                <div className="flex bg-slate-100 rounded-xl p-0.5 text-[10px] font-black uppercase tracking-widest">
+                  {([['all','All'],['current','Current'],['arrears','Arrears']] as [string,string][]).map(([v, label]) => (
+                    <button key={v} onClick={() => setStudentView(v as 'all'|'current'|'arrears')}
+                      className={cn('px-3 py-1.5 rounded-[10px] transition-all',
+                        studentView === v ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
+                      {label}{v === 'current' && latestMonth ? ` (${latestMonth})` : ''}
+                    </button>
+                  ))}
+                </div>
+                <button onClick={() => printSection('students', 'Per-Student Outstanding')} title="Print this section"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest transition">
+                  <Printer className="w-3 h-3" /> Print
+                </button>
+              </div>
             </div>
+            {studentView !== 'all' && (
+              <div className={cn('px-5 py-2 text-[11px] font-bold border-b flex items-center gap-2',
+                studentView === 'current' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'bg-amber-50 text-amber-700 border-amber-100')}>
+                {studentView === 'current'
+                  ? `📅 Latest month: ${latestMonth || '—'} — ${currentInvoices.length} invoice(s)`
+                  : `⚠️ Previous months with unpaid balance (arrears) — ${arrearsInvoices.length} invoice(s)`}
+              </div>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    <th className="px-4 py-3">Sr#</th>
                     <th className="px-4 py-3">Roll #</th>
                     <th className="px-4 py-3">Student</th>
                     <th className="px-4 py-3">Class</th>
-                    <th className="px-4 py-3 text-right">Invoices</th>
+                    <th className="px-4 py-3 text-right">Inv.</th>
+                    {showBreakdown && breakdownKeys.map(k => (
+                      <th key={k} className="px-4 py-3 text-right whitespace-nowrap text-indigo-500 font-black">{k}</th>
+                    ))}
                     <th className="px-4 py-3 text-right">Billed</th>
                     <th className="px-4 py-3 text-right">Paid</th>
-                    <th className="px-4 py-3 text-right">Balance Due</th>
+                    {studentView === 'all' && <th className="px-4 py-3 text-right text-indigo-500">Current</th>}
+                    {studentView === 'all' && <th className="px-4 py-3 text-right text-amber-600">Arrears</th>}
+                    <th className="px-4 py-3 text-right">Total Balance</th>
                     <th className="px-4 py-3 text-center no-print">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {studentMap.length === 0 ? (
-                    <tr><td colSpan={8} className="py-12 text-center text-slate-400 font-bold text-sm">No data for selected filters</td></tr>
-                  ) : studentMap.map(s => (
+                  {activeStudentMap.length === 0 ? (
+                    <tr><td colSpan={15} className="py-12 text-center text-slate-400 font-bold text-sm">
+                      {studentView === 'arrears' ? '✅ No arrears — all previous invoices are settled!' : 'No data for selected filters'}
+                    </td></tr>
+                  ) : activeStudentMap.map((s, idx) => {
+                    const currBal    = currentLookup.get(s.id) ?? 0;
+                    const arrBal     = arrearsLookup.get(s.id) ?? 0;
+                    const totalBal   = s.balance;
+                    return (
                     <tr key={s.id} className="hover:bg-slate-50/50 transition group">
+                      <td className="px-4 py-3 text-xs font-bold text-slate-400">{idx + 1}</td>
                       <td className="px-4 py-3 text-xs font-bold text-slate-400">{s.roll}</td>
                       <td className="px-4 py-3 text-sm font-black text-slate-800">{s.name}</td>
                       <td className="px-4 py-3 text-xs font-bold text-slate-500">{s.className}</td>
                       <td className="px-4 py-3 text-xs font-bold text-slate-500 text-right">{s.count}</td>
+                      {showBreakdown && breakdownKeys.map(k => (
+                        <td key={k} className="px-4 py-3 text-xs font-bold text-slate-500 text-right">
+                          {s.breakdownTotals?.has(k) ? fmt(s.breakdownTotals.get(k)) : '—'}
+                        </td>
+                      ))}
                       <td className="px-4 py-3 text-xs font-bold text-slate-700 text-right">{fmt(s.billed)}</td>
                       <td className="px-4 py-3 text-xs font-bold text-emerald-600 text-right">{fmt(s.paid)}</td>
+                      {studentView === 'all' && (
+                        <td className="px-4 py-3 text-right">
+                          <span className={cn('text-xs font-black px-2 py-0.5 rounded-lg',
+                            currBal === 0 ? 'bg-slate-50 text-slate-400' : 'bg-indigo-50 text-indigo-600')}>
+                            {fmt(currBal)}
+                          </span>
+                        </td>
+                      )}
+                      {studentView === 'all' && (
+                        <td className="px-4 py-3 text-right">
+                          <span className={cn('text-xs font-black px-2 py-0.5 rounded-lg',
+                            arrBal === 0 ? 'bg-slate-50 text-slate-400' : 'bg-amber-50 text-amber-700')}>
+                            {fmt(arrBal)}
+                          </span>
+                        </td>
+                      )}
                       <td className="px-4 py-3 text-right">
                         <span className={cn('text-xs font-black px-2 py-0.5 rounded-lg',
-                          s.balance === 0 ? 'bg-emerald-50 text-emerald-600' :
-                          s.balance < s.billed / 2 ? 'bg-yellow-50 text-yellow-700' : 'bg-red-50 text-red-600')}>
-                          {fmt(s.balance)}
+                          totalBal === 0 ? 'bg-emerald-50 text-emerald-600' :
+                          totalBal < s.billed / 2 ? 'bg-yellow-50 text-yellow-700' : 'bg-red-50 text-red-600')}>
+                          {fmt(totalBal)}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center no-print">
-                        <button onClick={() => navigate(`/fees/student-detail?student_id=${s.id}`)}
+                        <button onClick={() => navigate(`/fees/student-detail?student=${s.id}`)}
                           className="opacity-0 group-hover:opacity-100 p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg transition text-xs font-bold flex items-center gap-1 mx-auto">
                           <ExternalLink className="w-3.5 h-3.5" /> Ledger
                         </button>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-                {studentMap.length > 0 && (
-                  <tfoot>
+                    );
+                  })}
+                  {activeStudentMap.length > 0 && (
                     <tr className="bg-slate-50 border-t-2 border-slate-200 text-xs font-black text-slate-700">
-                      <td colSpan={4} className="px-4 py-3">TOTAL ({studentMap.length} students)</td>
-                      <td className="px-4 py-3 text-right">{fmt(totalBilled)}</td>
-                      <td className="px-4 py-3 text-right text-emerald-600">{fmt(totalCollected)}</td>
-                      <td className="px-4 py-3 text-right text-rose-600">{fmt(totalOutstanding)}</td>
+                      <td colSpan={5} className="px-4 py-3">
+                        TOTAL ({activeStudentMap.length} students){studentView === 'current' && <span className="ml-2 text-indigo-500 font-bold normal-case">— Current Month</span>}{studentView === 'arrears' && <span className="ml-2 text-amber-600 font-bold normal-case">— Arrears</span>}
+                      </td>
+                      {showBreakdown && breakdownKeys.map(k => (
+                        <td key={k} className="px-4 py-3 text-right text-indigo-600">
+                          {fmt(activeStudentMap.reduce((sum, s) => sum + (s.breakdownTotals?.get(k) || 0), 0))}
+                        </td>
+                      ))}
+                      <td className="px-4 py-3 text-right">{fmt(activeStudentMap.reduce((s,r)=>s+r.billed,0))}</td>
+                      <td className="px-4 py-3 text-right text-emerald-600">{fmt(activeStudentMap.reduce((s,r)=>s+r.paid,0))}</td>
+                      {studentView === 'all' && <td className="px-4 py-3 text-right text-indigo-600">{fmt(studentMapCurrent.reduce((s,r)=>s+r.balance,0))}</td>}
+                      {studentView === 'all' && <td className="px-4 py-3 text-right text-amber-600">{fmt(studentMapArrears.reduce((s,r)=>s+r.balance,0))}</td>}
+                      <td className="px-4 py-3 text-right text-rose-600">{fmt(activeStudentMap.reduce((s,r)=>s+r.balance,0))}</td>
                       <td className="no-print" />
                     </tr>
-                  </tfoot>
-                )}
+                  )}
+                </tbody>
               </table>
             </div>
           </div>
@@ -304,7 +430,7 @@ export default function InvoiceReport() {
           <div data-section="monthly" className="bg-white rounded-2xl border border-slate-100 shadow overflow-hidden">
             <div className="px-5 py-3 border-b border-slate-50 flex items-center justify-between">
               <h2 className="font-black text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2"><Calendar className="w-4 h-4 text-indigo-500" />Monthly Breakdown</h2>
-              <button onClick={() => printSection('monthly')} title="Print this section"
+              <button onClick={() => printSection('monthly', 'Monthly Breakdown')} title="Print this section"
                 className="no-print flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest transition">
                 <Printer className="w-3 h-3" /> Print
               </button>
@@ -369,7 +495,7 @@ export default function InvoiceReport() {
           <div data-section="classes" className="bg-white rounded-2xl border border-slate-100 shadow overflow-hidden">
             <div className="px-5 py-3 border-b border-slate-50 flex items-center justify-between">
               <h2 className="font-black text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2"><BarChart3 className="w-4 h-4 text-indigo-500" />Class-Wise Analysis</h2>
-              <button onClick={() => printSection('classes')} title="Print this section"
+              <button onClick={() => printSection('classes', 'Class-Wise Analysis')} title="Print this section"
                 className="no-print flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest transition">
                 <Printer className="w-3 h-3" /> Print
               </button>
@@ -417,10 +543,17 @@ export default function InvoiceReport() {
 
       <style>{`
         @media print {
+          @page { size: landscape; margin: 5mm; }
           .no-print { display: none !important; }
-          body { background: white !important; }
+          body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .rounded-2xl { border-radius: 0 !important; }
           .shadow { box-shadow: none !important; }
+          
+          /* Auto-fit columns */
+          table { width: 100% !important; table-layout: auto !important; }
+          th, td { padding: 2px 4px !important; font-size: 8px !important; line-height: 1.1 !important; }
+          /* Allow text to wrap if it needs to, preventing horizontal overflow */
+          th { white-space: normal !important; word-break: break-word !important; }
 
           /* Section-isolated printing:
              When body has data-print-section set, hide every

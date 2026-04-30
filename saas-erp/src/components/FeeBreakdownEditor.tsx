@@ -17,6 +17,7 @@ import { useFeeItems } from '../lib/feeItems';
 export interface BreakdownRow {
   item: string;
   amount: number;
+  discount?: number;
 }
 
 interface Props {
@@ -74,9 +75,9 @@ export default function FeeBreakdownEditor({
   const { all, recurring, onetime } = useFeeItems(schoolId);
   const suggestions = itemType === 'recurring' ? recurring : itemType === 'onetime' ? onetime : all;
 
-  const updateItem = (index: number, field: 'item' | 'amount', value: string | number) => {
+  const updateItem = (index: number, field: 'item' | 'amount' | 'discount', value: string | number) => {
     const updated = breakdown.map((row, i) =>
-      i === index ? { ...row, [field]: field === 'amount' ? Number(value) || 0 : value } : row
+      i === index ? { ...row, [field]: (field === 'amount' || field === 'discount') ? Number(value) || 0 : value } : row
     );
     onChange(updated);
   };
@@ -89,21 +90,26 @@ export default function FeeBreakdownEditor({
     onChange(breakdown.filter((_, i) => i !== index));
   };
 
-  const total = breakdown.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  const totalGross = breakdown.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  const totalDisc = breakdown.reduce((s, r) => s + (Number(r.discount) || 0), 0);
+  const totalNet = Math.max(0, totalGross - totalDisc);
 
   if (readOnly) {
     return (
       <div className="space-y-1">
-        {breakdown.map((row, i) => (
-          <div key={i} className="flex justify-between text-sm">
-            <span className="text-gray-600">{row.item}</span>
-            <span className="font-medium text-gray-800">Rs. {Number(row.amount).toLocaleString()}</span>
-          </div>
-        ))}
+        {breakdown.map((row, i) => {
+          const net = Math.max(0, (Number(row.amount) || 0) - (Number(row.discount) || 0));
+          return (
+            <div key={i} className="flex justify-between text-sm">
+              <span className="text-gray-600">{row.item} {row.discount ? <span className="text-[10px] text-emerald-600 ml-1">(Disc: {row.discount})</span> : null}</span>
+              <span className="font-medium text-gray-800">Rs. {net.toLocaleString()}</span>
+            </div>
+          );
+        })}
         {showTotal && (
           <div className="flex justify-between text-sm font-bold border-t border-gray-200 pt-1 mt-1">
-            <span>Total</span>
-            <span className="text-indigo-700">Rs. {total.toLocaleString()}</span>
+            <span>Total Net</span>
+            <span className="text-indigo-700">Rs. {totalNet.toLocaleString()}</span>
           </div>
         )}
       </div>
@@ -113,15 +119,19 @@ export default function FeeBreakdownEditor({
   return (
     <div className="space-y-2">
       {/* Column headers */}
-      <div className="grid grid-cols-[1fr_110px_32px] gap-2 px-1">
-        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Fee Item</span>
-        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider text-right">Amount (Rs)</span>
+      <div className="grid grid-cols-[1fr_80px_70px_75px_32px] gap-2 px-1 items-end">
+        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Fee Item</span>
+        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider text-right leading-tight">Gross<br/>(Rs)</span>
+        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider text-right leading-tight">Disc.<br/>(Rs)</span>
+        <span className="text-[9px] font-bold text-indigo-500 uppercase tracking-wider text-right leading-tight">Net<br/>(Rs)</span>
         <span />
       </div>
 
       {/* Rows */}
-      {breakdown.map((row, i) => (
-        <div key={i} className="grid grid-cols-[1fr_110px_32px] gap-2 items-center">
+      {breakdown.map((row, i) => {
+        const net = Math.max(0, (Number(row.amount) || 0) - (Number(row.discount) || 0));
+        return (
+        <div key={i} className="grid grid-cols-[1fr_80px_70px_75px_32px] gap-2 items-center group">
           <ItemCombobox
             value={row.item}
             onChange={v => updateItem(i, 'item', v)}
@@ -134,18 +144,31 @@ export default function FeeBreakdownEditor({
             onFocus={e => e.target.select()}
             onChange={e => updateItem(i, 'amount', e.target.value.replace(/[^0-9]/g, ''))}
             placeholder="0"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-right font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full"
+            className="border border-gray-200 rounded-lg px-2 py-2 text-sm text-right font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full"
           />
+          <input
+            type="text"
+            inputMode="numeric"
+            value={row.discount || ''}
+            onFocus={e => e.target.select()}
+            onChange={e => updateItem(i, 'discount', e.target.value.replace(/[^0-9]/g, ''))}
+            placeholder="0"
+            className="border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-lg px-2 py-2 text-sm text-right font-medium focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 w-full placeholder-emerald-300"
+          />
+          <div className="text-right text-sm font-black text-indigo-700 truncate pr-1">
+            {net.toLocaleString()}
+          </div>
           <button
             type="button"
             onClick={() => removeRow(i)}
-            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+            className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
             title="Remove row"
           >
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
-      ))}
+        );
+      })}
 
       {/* Add Row */}
       <button
@@ -159,9 +182,12 @@ export default function FeeBreakdownEditor({
 
       {/* Total Footer */}
       {showTotal && breakdown.length > 0 && (
-        <div className="flex justify-between items-center border-t border-gray-200 pt-2 mt-1 px-1">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</span>
-          <span className="text-base font-black text-indigo-700">Rs. {total.toLocaleString()}</span>
+        <div className="grid grid-cols-[1fr_80px_70px_75px_32px] gap-2 items-center border-t border-gray-200 pt-2 mt-2 px-1">
+          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total</span>
+          <span className="text-xs font-bold text-gray-500 text-right">{totalGross.toLocaleString()}</span>
+          <span className="text-xs font-bold text-emerald-600 text-right">{totalDisc > 0 ? '-' + totalDisc.toLocaleString() : '0'}</span>
+          <span className="text-sm font-black text-indigo-700 text-right">Rs. {totalNet.toLocaleString()}</span>
+          <span />
         </div>
       )}
     </div>

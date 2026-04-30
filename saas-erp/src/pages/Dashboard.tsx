@@ -38,6 +38,7 @@ export default function Dashboard() {
 
   const [loading, setLoading] = useState(true);
   const [schoolName, setSchoolName] = useState('');
+  const [activeTab, setActiveTab] = useState('attention');
   const [stats, setStats] = useState({
     totalStudents: 0, totalStaff: 0, totalClasses: 0,
     todayRevenue: 0, pendingFees: 0, totalRevenue: 0,
@@ -247,217 +248,340 @@ export default function Dashboard() {
             </Link>
           ))}
         </div>
-      )}
-
-      {/* Primary Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      )}      {/* Primary Stats - Overview Band */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { label: 'Total Students', value: stats.totalStudents, icon: GraduationCap, color: 'blue', link: '/students' },
-          { label: 'Active Staff', value: stats.totalStaff, icon: Users, color: 'indigo', link: '/staff' },
-          { label: 'Classes', value: stats.totalClasses, icon: Layers, color: 'violet', link: '/classes' },
-          { label: "Attendance Rate", value: `${stats.attendanceRate}%`, icon: CalendarCheck, color: 'teal', link: '/attendance' },
-          { label: 'Pending Fees', value: fmt(stats.pendingFees), icon: AlertTriangle, color: 'orange', link: '/fees/invoices' },
-          { label: 'This Month Net', value: fmt(stats.cashInHand), icon: Wallet, color: stats.cashInHand >= 0 ? 'green' : 'red', link: '/accounting' },
-        ].map(({ label, value, icon: Icon, color, link }) => {
-          const c = colorMap[color] || colorMap['indigo'];
-          return (
-            <Link key={label} to={link}
-              className={`bg-white rounded-xl border border-gray-100 p-4 flex flex-col gap-2 hover:shadow-md hover:border-gray-300 transition group`}>
-              <div className={`w-9 h-9 rounded-lg ${c.bg} flex items-center justify-center`}>
-                <Icon className={`w-5 h-5 ${c.icon}`} />
-              </div>
-              <div>
-                <p className="text-xl font-black text-gray-900 leading-tight">{value}</p>
-                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mt-0.5">{label}</p>
-              </div>
-            </Link>
-          );
-        })}
-      </div>
-
-      {/* Today's Financials */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[
-          { label: "Today's Income", value: stats.todayRevenue, icon: ArrowUpRight, color: 'text-green-600', bg: 'bg-green-50 border-green-200' },
-          { label: "Today's Expenses", value: stats.todayExpense, icon: TrendingUp, color: 'text-red-500', bg: 'bg-red-50 border-red-200' },
-          { label: "Today's Net", value: stats.todayRevenue - stats.todayExpense, icon: DollarSign, color: (stats.todayRevenue - stats.todayExpense) >= 0 ? 'text-blue-600' : 'text-red-500', bg: 'bg-blue-50 border-blue-200' },
-        ].map(s => {
-          const Icon = s.icon;
-          return (
-            <div key={s.label} className={`rounded-xl border p-5 flex items-center gap-5 ${s.bg}`}>
-              <div className={`w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center ${s.color}`}>
+          { 
+            label: 'Total Students', 
+            value: stats.totalStudents, 
+            sub: `${stats.newAdmissions} new this week`,
+            icon: GraduationCap, 
+            color: 'from-blue-500 to-indigo-600',
+            link: '/students' 
+          },
+          { 
+            label: 'Today\'s Attendance', 
+            value: `${stats.attendanceRate}%`, 
+            sub: `${stats.todayPresent} present today`,
+            icon: CalendarCheck, 
+            color: 'from-emerald-400 to-teal-600',
+            link: '/attendance/daily-report' 
+          },
+          { 
+            label: 'Month Revenue (Net)', 
+            value: fmt(stats.cashInHand), 
+            sub: `Total: ${fmt(stats.totalRevenue)}`,
+            icon: Wallet, 
+            color: stats.cashInHand >= 0 ? 'from-indigo-500 to-purple-600' : 'from-rose-500 to-red-600',
+            link: '/accounting' 
+          },
+          { 
+            label: 'Pending Fees', 
+            value: fmt(stats.pendingFees), 
+            sub: 'Action required',
+            icon: AlertTriangle, 
+            color: 'from-orange-400 to-rose-500',
+            link: '/fees/invoices' 
+          },
+        ].map(({ label, value, sub, icon: Icon, color, link }) => (
+          <Link key={label} to={link}
+            className={`relative overflow-hidden group bg-white rounded-3xl border border-gray-100 p-6 hover:shadow-2xl hover:shadow-indigo-100 transition-all duration-500 hover:-translate-y-1.5`}>
+            {/* Background Accent */}
+            <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${color} opacity-5 blur-3xl -mr-16 -mt-16 group-hover:opacity-10 transition-opacity`} />
+            
+            <div className="flex justify-between items-start mb-4">
+              <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${color} flex items-center justify-center text-white shadow-lg shadow-indigo-200 group-hover:scale-110 transition-transform duration-500`}>
                 <Icon className="w-6 h-6" />
               </div>
-              <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">{s.label}</p>
-                <p className={`text-2xl font-black mt-0.5 ${s.color}`}>{fmt(s.value)}</p>
+              <div className="flex flex-col items-end">
+                <span className="text-3xl font-black text-gray-900 tracking-tight">{value}</span>
               </div>
             </div>
-          );
-        })}
+            
+            <div>
+              <p className="text-sm font-bold text-gray-800 tracking-tight">{label}</p>
+              <p className="text-xs font-semibold text-gray-400 mt-0.5 flex items-center gap-1">
+                {sub} <ChevronRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+              </p>
+            </div>
+
+            {/* Attendance Progress Ring - Mini version if it's the attendance card */}
+            {label === 'Today\'s Attendance' && (
+              <div className="absolute bottom-6 right-6 w-12 h-12">
+                <svg className="w-full h-full transform -rotate-90">
+                  <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-gray-100" />
+                  <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" 
+                    className="text-teal-500"
+                    strokeDasharray={125.6}
+                    strokeDashoffset={125.6 - (125.6 * stats.attendanceRate) / 100}
+                    strokeLinecap="round" />
+                </svg>
+              </div>
+            )}
+          </Link>
+        ))}
       </div>
 
-      {/* Attendance + Quick Actions row */}
+      {/* Main Insights Band */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* Attendance Snapshot */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="font-bold text-gray-900 flex items-center gap-2">
-              <Activity className="w-4 h-4 text-teal-500" /> Today's Attendance
-            </h2>
-            <Link to="/attendance" className="text-xs text-indigo-600 hover:underline flex items-center gap-1">
-              View full report <ChevronRight className="w-3 h-3" />
-            </Link>
-          </div>
-          <div className="flex gap-8 mb-4">
-            {[
-              { label: 'Present', value: stats.todayPresent, color: 'text-green-600', dot: 'bg-green-500' },
-              { label: 'Absent', value: stats.todayAbsent, color: 'text-red-500', dot: 'bg-red-500' },
-              { label: 'Rate', value: `${stats.attendanceRate}%`, color: stats.attendanceRate >= 75 ? 'text-teal-600' : 'text-orange-500', dot: 'bg-teal-500' },
-              { label: 'Total Marked', value: stats.todayPresent + stats.todayAbsent, color: 'text-gray-700', dot: 'bg-gray-300' },
-            ].map(s => (
-              <div key={s.label} className="flex items-center gap-2">
-                <div className={`w-2.5 h-2.5 rounded-full ${s.dot} shrink-0`} />
-                <div>
-                  <p className={`text-xl font-black leading-tight ${s.color}`}>{s.value}</p>
-                  <p className="text-xs text-gray-400 font-medium">{s.label}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-          {stats.todayPresent + stats.todayAbsent > 0 && (
-            <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-              <div className={`h-3 rounded-full transition-all ${stats.attendanceRate >= 75 ? 'bg-green-500' : stats.attendanceRate >= 60 ? 'bg-amber-400' : 'bg-red-500'}`}
-                style={{ width: `${stats.attendanceRate}%` }} />
+        {/* Financial Trends - Area Chart */}
+        <div className="lg:col-span-2 bg-white rounded-3xl border border-gray-100 shadow-sm p-6 hover:shadow-md transition-shadow">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-indigo-500" /> Financial Pulse
+              </h2>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Income vs Expense Trends</p>
             </div>
-          )}
-        </div>
-
-        {/* Quick Actions */}
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-5 text-white">
-          <h3 className="text-xs font-black uppercase tracking-widest text-slate-300 mb-3">Quick Actions</h3>
-          <div className="space-y-2">
-            {[
-              { to: '/students', icon: GraduationCap, label: 'Manage Students' },
-              { to: '/attendance', icon: CalendarCheck, label: 'Mark Attendance' },
-              { to: '/fees/invoices', icon: CreditCard, label: 'Fee Invoices' },
-              { to: '/result', icon: BarChart2, label: 'Exam Results' },
-              { to: '/communication', icon: Mail, label: 'Send Notice' },
-              { to: '/reports/master-summary', icon: FileText, label: 'Reports' },
-            ].map(({ to, icon: Icon, label }) => (
-              <Link key={to} to={to}
-                className="flex items-center justify-between px-3 py-2.5 bg-white/10 hover:bg-white/20 rounded-xl transition">
-                <div className="flex items-center gap-2.5">
-                  <Icon className="w-4 h-4 text-slate-300" />
-                  <span className="text-sm font-bold">{label}</span>
-                </div>
-                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-              </Link>
-            ))}
+            <div className="flex gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-indigo-500" />
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">Income</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-rose-400" />
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">Expense</span>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-w-0">
-          <h3 className="font-bold text-gray-900 mb-5 flex items-center gap-2">
-            <BarChart2 className="w-4 h-4 text-indigo-500" /> Income vs Expense (6 Months)
-          </h3>
-          <div className="h-56 w-full">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-              <BarChart data={monthlyData} barGap={2} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9ca3af' }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9ca3af' }} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
-                <Tooltip formatter={(v: any) => [`Rs. ${Number(v).toLocaleString()}`, '']} contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                <Bar dataKey="income" fill="#6366f1" radius={[4, 4, 0, 0]} name="Income" />
-                <Bar dataKey="expense" fill="#f87171" radius={[4, 4, 0, 0]} name="Expense" />
-                <Legend height={28} />
+          <div className="h-72 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={monthlyData} barGap={8} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0.1}/>
+                  </linearGradient>
+                  <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#fb7185" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#fb7185" stopOpacity={0.1}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 600, fill: '#64748b' }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 600, fill: '#64748b' }} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
+                <Tooltip 
+                  cursor={{ fill: '#f8fafc' }}
+                  contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', padding: 12 }} 
+                  formatter={(v: any) => [`Rs. ${Number(v).toLocaleString()}`, '']}
+                />
+                <Bar dataKey="income" fill="#6366f1" radius={[6, 6, 0, 0]} name="Income" barSize={32} />
+                <Bar dataKey="expense" fill="#fb7185" radius={[6, 6, 0, 0]} name="Expense" barSize={32} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-w-0">
-          <h3 className="font-bold text-gray-900 mb-5 flex items-center gap-2">
-            <GraduationCap className="w-4 h-4 text-indigo-500" /> Students Per Class
+        {/* Fee Collection - Donut Chart */}
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 hover:shadow-md transition-shadow">
+          <div className="mb-6 text-center lg:text-left">
+            <h2 className="text-lg font-black text-gray-900 flex items-center justify-center lg:justify-start gap-2">
+              <PiggyBank className="w-5 h-5 text-emerald-500" /> Revenue Split
+            </h2>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Fee Collection Status</p>
+          </div>
+          <div className="h-56 w-full relative">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={feeStatusData} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={8} dataKey="value" stroke="none">
+                  {feeStatusData.map((_, i) => <Cell key={i} fill={['#10b981', '#f59e0b', '#ef4444'][i]} />)}
+                </Pie>
+                <Tooltip contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
+              </PieChart>
+            </ResponsiveContainer>
+            {/* Center Hole Text */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-tighter">Pending</p>
+              <p className="text-xl font-black text-gray-900">Rs. {(stats.pendingFees / 1000).toFixed(0)}k</p>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            {[
+              { label: 'Paid', color: 'bg-emerald-500' },
+              { label: 'Partial', color: 'bg-amber-500' },
+              { label: 'Unpaid', color: 'bg-rose-500' },
+            ].map(l => (
+              <div key={l.label} className="flex flex-col items-center gap-1">
+                <div className={`w-full h-1 rounded-full ${l.color} opacity-20`} />
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">{l.label}</span>
+              </div>
+            ))}
+          </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 min-w-0 hover:shadow-md transition-shadow">
+          <h3 className="font-black text-gray-900 mb-5 flex items-center gap-2">
+            <GraduationCap className="w-5 h-5 text-indigo-500" /> Student Distribution
           </h3>
-          <div className="h-56 w-full">
+          <div className="h-64 w-full">
             {classData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <BarChart data={classData} margin={{ top: 0, right: 0, left: 0, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#9ca3af' }} angle={-35} textAnchor="end" />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9ca3af' }} />
-                  <Tooltip contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                  <Bar dataKey="students" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 600, fill: '#64748b' }} angle={-35} textAnchor="end" />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 600, fill: '#64748b' }} />
+                  <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
+                  <Bar dataKey="students" fill="#6366f1" radius={[6, 6, 0, 0]} barSize={24} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-gray-400 font-medium">No class data yet</div>
+              <div className="h-full flex items-center justify-center text-gray-400 font-medium italic">Waiting for demographic data...</div>
             )}
           </div>
+        </div>
         </div>
       </div>
 
-      {/* Fee Status + Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-w-0">
-          <h3 className="font-bold text-gray-900 mb-5 flex items-center gap-2">
-            <PiggyBank className="w-4 h-4 text-green-500" /> Fee Collection Status
-          </h3>
-          <div className="h-52 w-full">
-            {feeStatusData.some(d => d.value > 0) ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                <PieChart>
-                  <Pie data={feeStatusData} cx="50%" cy="50%" innerRadius={65} outerRadius={95} paddingAngle={4} dataKey="value">
-                    {feeStatusData.map((_, i) => <Cell key={i} fill={COLORS[i]} />)}
-                  </Pie>
-                  <Tooltip contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ paddingTop: '8px' }} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-gray-400 font-medium">No fee records found</div>
+      {/* Operations Band - Unified Action Center */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+          <div className="flex border-b border-gray-100 bg-gray-50/50">
+            {[
+              { id: 'attention', label: 'Needs Attention', count: stats.pendingComplaints + stats.pendingLeave },
+              { id: 'recent', label: 'Recent Activity', count: recentActivity.length },
+              { id: 'defaulters', label: 'Fee Defaulters', count: feeStatusData[2]?.value || 0 },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 px-6 py-4 text-xs font-black uppercase tracking-widest transition-all relative ${
+                  activeTab === tab.id ? 'text-indigo-600 bg-white' : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                <span className="relative z-10 flex items-center justify-center gap-2">
+                  {tab.label}
+                  {tab.count > 0 && (
+                    <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${
+                      activeTab === tab.id ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500'
+                    }`}>
+                      {tab.count}
+                    </span>
+                  )}
+                </span>
+                {activeTab === tab.id && <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600" />}
+              </button>
+            ))}
+          </div>
+
+          <div className="p-6 h-[400px] overflow-y-auto custom-scrollbar">
+            {activeTab === 'attention' && (
+              <div className="space-y-4">
+                {stats.pendingComplaints === 0 && stats.pendingLeave === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full py-12 text-center">
+                    <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-500 mb-4">
+                      <CheckCircle className="w-8 h-8" />
+                    </div>
+                    <p className="text-gray-900 font-black">All Clear!</p>
+                    <p className="text-sm text-gray-400 font-medium">No pending requests or complaints.</p>
+                  </div>
+                ) : (
+                  <>
+                    {stats.pendingComplaints > 0 && (
+                      <Link to="/complaints" className="block p-4 bg-rose-50 border border-rose-100 rounded-2xl hover:bg-rose-100 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-rose-500 shadow-sm">
+                              <MessageSquare className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <p className="font-black text-gray-900 text-sm">{stats.pendingComplaints} Open Complaints</p>
+                              <p className="text-xs text-rose-600 font-bold">Action required from support</p>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-rose-400" />
+                        </div>
+                      </Link>
+                    )}
+                    {stats.pendingLeave > 0 && (
+                      <Link to="/leave" className="block p-4 bg-amber-50 border border-amber-100 rounded-2xl hover:bg-amber-100 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-amber-500 shadow-sm">
+                              <CalendarCheck className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <p className="font-black text-gray-900 text-sm">{stats.pendingLeave} Leave Requests</p>
+                              <p className="text-xs text-amber-600 font-bold">Pending administrative approval</p>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-amber-400" />
+                        </div>
+                      </Link>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'recent' && (
+              <div className="space-y-3">
+                {recentActivity.length === 0 ? (
+                  <p className="text-center text-gray-400 py-12 italic">No recent transactions recorded.</p>
+                ) : (
+                  recentActivity.map((item, i) => (
+                    <div key={i} className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-md transition-all">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                        item.sub === 'paid' ? 'bg-emerald-100 text-emerald-600' :
+                        'bg-amber-100 text-amber-600'
+                      }`}>
+                        {item.sub === 'paid' ? <CheckCircle className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-black text-gray-900 text-sm truncate">{item.label}</p>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                          {item.sub} · {item.month ? formatDate(item.month) : ''}
+                        </p>
+                      </div>
+                      <span className="text-sm font-black text-gray-900 shrink-0">Rs. {Number(item.amount || 0).toLocaleString()}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {activeTab === 'defaulters' && (
+              <div className="flex flex-col items-center justify-center h-full py-12 text-center">
+                <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center text-rose-500 mb-4">
+                  <AlertTriangle className="w-8 h-8" />
+                </div>
+                <p className="text-gray-900 font-black">Feature Coming Soon</p>
+                <p className="text-sm text-gray-400 font-medium max-w-xs mx-auto">Detailed class-wise defaulter reports are being generated for your view.</p>
+                <Link to="/fees/invoices" className="mt-4 text-xs font-black text-indigo-600 hover:underline">View All Unpaid Invoices</Link>
+              </div>
             )}
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-gray-900 flex items-center gap-2">
-              <Bell className="w-4 h-4 text-amber-500" /> Recent Fee Activity
-            </h3>
-            <Link to="/fees/invoices" className="text-xs text-indigo-600 hover:underline">View all</Link>
-          </div>
-          {recentActivity.length === 0 ? (
-            <div className="text-center text-gray-400 py-12 font-medium">No recent activity</div>
-          ) : (
-            <div className="space-y-2.5">
-              {recentActivity.map((item, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                    item.sub === 'paid' ? 'bg-green-100 text-green-600' :
-                    item.sub === 'partially paid' || item.sub === 'partial' ? 'bg-yellow-100 text-yellow-600' :
-                    'bg-red-100 text-red-600'
-                  }`}>
-                    {item.sub === 'paid' ? <CheckCircle className="w-4 h-4" /> :
-                     (item.sub === 'partially paid' || item.sub === 'partial') ? <Clock className="w-4 h-4" /> :
-                     <AlertTriangle className="w-4 h-4" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-gray-900 text-sm truncate">{item.label}</p>
-                    <p className="text-xs text-gray-400 capitalize">
-                      {item.sub} · {item.month ? formatDate(item.month) : ''}
-                    </p>
-                  </div>
-                  <span className="text-sm font-black text-gray-800 shrink-0">Rs. {Number(item.amount || 0).toLocaleString()}</span>
+        {/* Compact Quick Actions Grid */}
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
+          <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-5">Admin Shortcuts</h3>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { to: '/students', icon: GraduationCap, label: 'Students', color: 'indigo' },
+              { to: '/attendance', icon: CalendarCheck, label: 'Attendance', color: 'emerald' },
+              { to: '/fees/invoices', icon: CreditCard, label: 'Invoices', color: 'rose' },
+              { to: '/result', icon: BarChart2, label: 'Exam Results', color: 'amber' },
+              { to: '/communication', icon: Mail, label: 'Notices', color: 'blue' },
+              { to: '/reports/master-summary', icon: FileText, label: 'Reports', color: 'slate' },
+            ].map(({ to, icon: Icon, label, color }) => (
+              <Link key={to} to={to}
+                className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-2xl hover:bg-white hover:shadow-xl hover:shadow-indigo-50 transition-all group">
+                <div className={`w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-${color}-500 mb-3 group-hover:scale-110 transition-transform`}>
+                  <Icon className="w-5 h-5" />
                 </div>
-              ))}
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-600">{label}</span>
+              </Link>
+            ))}
+          </div>
+          
+          <div className="mt-6 p-4 bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl text-white">
+            <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 opacity-80 mb-1">System Health</p>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-bold">Stable & Secured</span>
+              <ShieldCheck className="w-4 h-4 text-indigo-300" />
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>

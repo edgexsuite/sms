@@ -71,10 +71,16 @@ export default function ProgressReport() {
              )}
 
              {selectedStudent && (
-               <div className="report-card bg-white w-full max-w-[210mm] shadow-xl p-8 border border-gray-300">
-                  <div className="text-center border-b-4 border-blue-900 pb-4 mb-6">
-                    <h2 className="text-3xl font-black uppercase tracking-widest text-blue-900">Academic Progress Report</h2>
-                    <p className="mt-1 font-bold text-gray-600">Session 2025-2026</p>
+               <div className="report-card bg-white w-full max-w-[210mm] shadow-xl p-10 border border-gray-200">
+                  
+                  {/* Report Header */}
+              <div className="flex flex-col items-center justify-center pb-4 mb-6 border-b-2 border-slate-200">
+                <h1 className="text-2xl font-black tracking-widest uppercase text-slate-900 leading-tight">Student Progress Report</h1>
+                <p className="text-sm font-bold text-slate-500 mt-1 uppercase tracking-[0.2em] italic">Official Academic Record</p>
+              </div>
+
+                  <div className="text-center mb-8">
+                    <h3 className="text-xl font-black uppercase tracking-widest text-indigo-600">Report Card</h3>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4 mb-8 text-sm border-2 border-gray-800 p-4 rounded bg-gray-50">
