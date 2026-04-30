@@ -2,15 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { LayoutDashboard, Printer, TrendingUp } from 'lucide-react';
-
-const getGrade = (pct: number): string => {
-  if (pct >= 90) return 'A+';
-  if (pct >= 80) return 'A';
-  if (pct >= 70) return 'B';
-  if (pct >= 60) return 'C';
-  if (pct >= 50) return 'D';
-  return 'F';
-};
+import { fetchGradingPolicy, getGradeFromPolicy, GradingBracket } from '../../lib/gradingUtils';
 
 const GRADE_COLORS: Record<string, string> = {
   'A+': 'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -28,12 +20,16 @@ export default function ConsolidatedResult() {
   const [subjects, setSubjects] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [results, setResults] = useState<any[]>([]);
+  const [gradingBrackets, setGradingBrackets] = useState<GradingBracket[]>([]);
 
   const [selectedExamType, setSelectedExamType] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => { if (userRole?.school_id) fetchInit(); }, [userRole]);
+  useEffect(() => { if (userRole?.school_id) {
+    fetchInit();
+    fetchGradingPolicy(userRole.school_id).then(setGradingBrackets);
+  }}, [userRole]);
   useEffect(() => { if (selectedClass) fetchClassData(); }, [selectedClass]);
   useEffect(() => { if (selectedExamType && selectedClass) fetchResults(); }, [selectedExamType, selectedClass]);
 
@@ -77,18 +73,20 @@ export default function ConsolidatedResult() {
     const subjectResults = subjects.map(subj => {
       const r = getResult(stu.id, subj.id);
       if (r) {
+        const g = getGradeFromPolicy(r.obtained_marks, r.total_marks, gradingBrackets);
         totalObtained += r.obtained_marks;
-        grandTotal += r.total_marks;
-        if (r.obtained_marks < (subj.passing_marks || 33)) failCount++;
+        grandTotal    += r.total_marks;
+        if (g.status !== 'Pass') failCount++;
       } else {
         grandTotal += subj.total_marks || 100;
       }
       return { subject: subj, result: r };
     });
 
-    const overallPct = grandTotal > 0 ? Math.round((totalObtained / grandTotal) * 100) : 0;
-    const overallGrade = getGrade(overallPct);
-    const status = failCount > 0 ? 'FAIL' : 'PASS';
+    const overallG       = getGradeFromPolicy(totalObtained, grandTotal, gradingBrackets);
+    const overallPct     = overallG.pct;
+    const overallGrade   = overallG.grade;
+    const status         = failCount > 0 ? 'FAIL' : 'PASS';
 
     return { student: stu, subjectResults, totalObtained, grandTotal, overallPct, overallGrade, status };
   }).sort((a, b) => b.overallPct - a.overallPct);
@@ -211,7 +209,7 @@ export default function ConsolidatedResult() {
                         </span>
                       </td>
                       <td className="px-3 py-2.5 text-center">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-black border ${GRADE_COLORS[row.overallGrade]}`}>{row.overallGrade}</span>
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-black border ${GRADE_COLORS[row.overallGrade] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>{row.overallGrade}</span>
                       </td>
                       <td className="px-3 py-2.5 text-center">
                         <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-black ${row.status === 'PASS' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{row.status}</span>

@@ -6,15 +6,9 @@ import {
   BookOpen, ChevronDown, Info, CalendarDays,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { fetchGradingPolicy, getGradeFromPolicy, GradingBracket } from '../../lib/gradingUtils';
 
-// ── Grade helpers ─────────────────────────────────────────────────────────────
-const getGrade = (obtained: number, total: number, passing: number): string => {
-  if (obtained < passing) return 'F';
-  const pct = (obtained / total) * 100;
-  if (pct >= 90) return 'A+'; if (pct >= 80) return 'A';
-  if (pct >= 70) return 'B';  if (pct >= 60) return 'C';
-  if (pct >= 50) return 'D';  return 'F';
-};
+// ── Grade helpers (fallback only — policy loaded from DB) ────────────────────
 const GRADE_COLORS: Record<string, string> = {
   'A+': 'text-emerald-700 bg-emerald-50', 'A': 'text-green-700 bg-green-50',
   'B':  'text-blue-700 bg-blue-50',        'C': 'text-yellow-700 bg-yellow-50',
@@ -48,15 +42,20 @@ export default function TeacherMarks() {
   const [selectedClass,   setSelectedClass]   = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
 
-  // ── Marks state ───────────────────────────────────────────────────────────
   const [marks,   setMarks]   = useState<Record<string, string>>({});
   const [saving,  setSaving]  = useState(false);
   const [saved,   setSaved]   = useState(false);
   const [error,   setError]   = useState('');
   const [loading, setLoading] = useState(true);
+  const [gradingBrackets, setGradingBrackets] = useState<GradingBracket[]>([]);
 
   // ── Init ──────────────────────────────────────────────────────────────────
-  useEffect(() => { if (userRole?.school_id) init(); }, [userRole]);
+  useEffect(() => {
+    if (userRole?.school_id) {
+      init();
+      fetchGradingPolicy(userRole.school_id).then(setGradingBrackets);
+    }
+  }, [userRole]);
 
   useEffect(() => {
     if (selectedClass) {
@@ -179,10 +178,10 @@ export default function TeacherMarks() {
 
   const loadExisting = async () => {
     setSaved(false);
-    // Filter by exam_type_id + subject_id; then cross-match to current class's students
     const { data } = await supabase
       .from('exam_results')
       .select('student_id, obtained_marks')
+      .eq('school_id', userRole!.school_id)
       .eq('exam_type_id', selectedExam)
       .eq('subject_id', selectedSubject);
     if (data && data.length > 0) {
@@ -213,7 +212,7 @@ export default function TeacherMarks() {
       subject_id:     selectedSubject,
       obtained_marks: Number(marks[s.id]),
       total_marks:    sub.total_marks,
-      grade:          getGrade(Number(marks[s.id]), sub.total_marks, sub.passing_marks),
+      grade:          getGradeFromPolicy(Number(marks[s.id]), sub.total_marks, gradingBrackets).grade,
     }));
 
     const { error: err } = await supabase
@@ -442,8 +441,10 @@ export default function TeacherMarks() {
                 {students.map((student, i) => {
                   const val     = marks[student.id] ?? '';
                   const num     = val === '' ? null : Number(val);
-                  const grade   = num !== null && !isNaN(num) ? getGrade(num, selectedSub.total_marks, selectedSub.passing_marks) : null;
-                  const invalid = num !== null && (isNaN(num) || num < 0 || num > selectedSub.total_marks);
+                  const gradeRes = num !== null && !isNaN(num) ? getGradeFromPolicy(num, selectedSub.total_marks, gradingBrackets) : null;
+                  const grade    = gradeRes?.grade ?? null;
+                  const isPass   = gradeRes?.status === 'Pass';
+                  const invalid  = num !== null && (isNaN(num) || num < 0 || num > selectedSub.total_marks);
                   return (
                     <tr
                       key={student.id}
@@ -517,13 +518,13 @@ export default function TeacherMarks() {
               <span className="text-emerald-600">
                 {Object.values(marks).filter(v => {
                   const n = Number(v);
-                  return v !== '' && !isNaN(n) && getGrade(n, selectedSub.total_marks, selectedSub.passing_marks) !== 'F';
+                  return v !== '' && !isNaN(n) && getGradeFromPolicy(n, selectedSub.total_marks, gradingBrackets).status === 'Pass';
                 }).length} pass
               </span>
               <span className="text-red-500">
                 {Object.values(marks).filter(v => {
                   const n = Number(v);
-                  return v !== '' && !isNaN(n) && getGrade(n, selectedSub.total_marks, selectedSub.passing_marks) === 'F';
+                  return v !== '' && !isNaN(n) && getGradeFromPolicy(n, selectedSub.total_marks, gradingBrackets).status !== 'Pass';
                 }).length} fail
               </span>
               <span className="text-slate-400">{students.length - filledCount} pending</span>

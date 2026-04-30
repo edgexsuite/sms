@@ -23,6 +23,16 @@ const COLOR_LEVELS = [
   { value: 'red', label: 'Red (Level Poor)', hex: '#ef4444', bg: '#fee2e2' },
 ];
 
+const DEFAULT_BRACKETS: GradingBracket[] = [
+  { id: 'default-1', min_pct: 80, max_pct: 100, grade_title: 'A+', result_status: 'pass', color_level: 'emerald', remarks: 'Outstanding performance. Exceptional grasp of all concepts. Keep excelling!' },
+  { id: 'default-2', min_pct: 70, max_pct: 79,  grade_title: 'A',  result_status: 'pass', color_level: 'blue',    remarks: 'Excellent work. Strong command of the subject with minor areas to refine.' },
+  { id: 'default-3', min_pct: 60, max_pct: 69,  grade_title: 'B',  result_status: 'pass', color_level: 'blue',    remarks: 'Good performance. Demonstrates solid understanding with room for improvement.' },
+  { id: 'default-4', min_pct: 50, max_pct: 59,  grade_title: 'C',  result_status: 'pass', color_level: 'yellow',  remarks: 'Satisfactory. Basic concepts understood; consistent effort needed to improve.' },
+  { id: 'default-5', min_pct: 40, max_pct: 49,  grade_title: 'D',  result_status: 'pass', color_level: 'orange',  remarks: 'Below average. Considerable improvement required; extra study is recommended.' },
+  { id: 'default-6', min_pct: 33, max_pct: 39,  grade_title: 'E',  result_status: 'pass', color_level: 'red',     remarks: 'Marginal pass. Student is at risk; immediate attention and support needed.' },
+  { id: 'default-7', min_pct: 0,  max_pct: 32,  grade_title: 'F',  result_status: 'fail', color_level: 'custom',  custom_hex: '#991b1b', custom_label: 'Fail', remarks: 'Unsatisfactory. Student has not met the minimum standard. Re-examination advised.' },
+];
+
 export default function GradingPolicy() {
   const { userRole } = useAuth();
   
@@ -85,6 +95,16 @@ export default function GradingPolicy() {
       setErrorMsg(err.message || 'Failed to save policy');
     }
     setSaving(false);
+  };
+
+  const handleLoadDefault = async () => {
+    if (brackets.length > 0) {
+      const ok = window.confirm('This will replace your current grading policy with the default scale (A+ to F). Continue?');
+      if (!ok) return;
+    }
+    const seeded = DEFAULT_BRACKETS.map(b => ({ ...b, id: Date.now().toString() + b.id }));
+    setBrackets(seeded);
+    await syncToDatabase(seeded);
   };
 
   const validateOverlap = (min: number, max: number, ignoreId?: string): string | null => {
@@ -150,9 +170,19 @@ export default function GradingPolicy() {
 
   return (
     <div className="space-y-6 max-w-5xl">
-      <div className="mb-4">
-        <h1 className="text-2xl font-black text-gray-900">Grading Policy Configuration</h1>
-        <p className="text-gray-500 text-sm mt-1">Define your institutional grading scale, ranges, and pass/fail criteria.</p>
+      <div className="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-black text-gray-900">Grading Policy Configuration</h1>
+          <p className="text-gray-500 text-sm mt-1">Define your institutional grading scale, ranges, and pass/fail criteria.</p>
+        </div>
+        <button
+          type="button"
+          onClick={handleLoadDefault}
+          disabled={saving}
+          className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-sm shadow-sm transition-colors disabled:opacity-50 whitespace-nowrap"
+        >
+          <Save className="w-4 h-4" /> Load Default Policy (A+ → F)
+        </button>
       </div>
 
       {errorMsg && (

@@ -1,15 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { FileText, Printer, Users, Loader2 } from 'lucide-react';
+import { FileText, Printer, Users, Loader2, AlertTriangle } from 'lucide-react';
 import { ReportCardLayoutRenderer, DEFAULT_REPORT_CUSTOM } from '../../lib/reportCardTemplates';
-
-const getGrade = (obtained: number, total: number, passing: number) => {
-  if (total === 0) return { grade: '—', status: '—', pct: 0 };
-  const pct = Math.round((obtained / total) * 100);
-  const grade = pct >= 90 ? 'A+' : pct >= 80 ? 'A' : pct >= 70 ? 'B' : pct >= 60 ? 'C' : pct >= 50 ? 'D' : 'F';
-  return { grade, status: obtained >= passing ? 'Pass' : 'Fail', pct };
-};
+import {
+  fetchGradingPolicy, fetchResultConfig, getGradeFromPolicy,
+  calculateGPA, buildActiveFields, GradingBracket,
+} from '../../lib/gradingUtils';
 
 export default function ResultReporting() {
   const { userRole } = useAuth();
@@ -21,6 +18,9 @@ export default function ResultReporting() {
   const [classResults, setClassResults] = useState<any[]>([]);
   const [schoolInfo, setSchoolInfo] = useState<any>(null);
   const [rcSettings, setRcSettings] = useState<any>(null);
+  const [gradingBrackets, setGradingBrackets] = useState<GradingBracket[]>([]);
+  const [resultConfig, setResultConfig] = useState<any>(null);
+  const [attendanceMap, setAttendanceMap] = useState<Record<string, number>>({});
 
   const [selectedExamType, setSelectedExamType] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
@@ -28,7 +28,6 @@ export default function ResultReporting() {
   const [loading, setLoading] = useState(false);
   const [batchLoading, setBatchLoading] = useState(false);
 
-  // Batch print: array of { student, results } for all students in class
   const [batchCards, setBatchCards] = useState<any[]>([]);
   const [printMode, setPrintMode] = useState<'single' | 'batch'>('single');
   const [evaluationMap, setEvaluationMap] = useState<Record<string, { ratings: Record<string, number>; feedback?: string }>>({});
@@ -38,10 +37,14 @@ export default function ResultReporting() {
       fetchInit();
       Promise.all([
         supabase.from('schools').select('*').eq('id', userRole.school_id).single(),
-        supabase.from('report_card_settings').select('*').eq('school_id', userRole.school_id).maybeSingle()
-      ]).then(([{ data: school }, { data: settings }]) => {
+        supabase.from('report_card_settings').select('*').eq('school_id', userRole.school_id).maybeSingle(),
+        fetchGradingPolicy(userRole.school_id),
+        fetchResultConfig(userRole.school_id),
+      ]).then(([{ data: school }, { data: settings }, brackets, rConfig]) => {
         if (school) setSchoolInfo(school);
         if (settings) setRcSettings(settings);
+        setGradingBrackets(brackets);
+        setResultConfig(rConfig);
       });
     }
   }, [userRole]);
@@ -72,14 +75,18 @@ export default function ResultReporting() {
 
   const fetchStudentResults = async () => {
     setLoading(true);
-    const [{ data }, { data: evalData }] = await Promise.all([
+    const [{ data }, { data: evalData }, { data: attData }] = await Promise.all([
       supabase.from('exam_results').select('*').eq('exam_type_id', selectedExamType).eq('student_id', selectedStudent),
       supabase.from('evaluations').select('student_id, ratings, feedback')
         .eq('exam_type_id', selectedExamType).eq('student_id', selectedStudent).maybeSingle(),
+      supabase.from('attendance').select('id').eq('student_id', selectedStudent).eq('status', 'present'),
     ]);
     if (data) setResults(data);
     if (evalData) {
       setEvaluationMap(prev => ({ ...prev, [selectedStudent]: { ratings: evalData.ratings || {}, feedback: evalData.feedback } }));
+    }
+    if (attData) {
+      setAttendanceMap(prev => ({ ...prev, [selectedStudent]: attData.length }));
     }
     setLoading(false);
   };
@@ -103,21 +110,42 @@ export default function ResultReporting() {
   // Build batch cards for all students
   const handlePrintClass = async () => {
     if (!selectedExamType || !selectedClass || !subjects.length) return;
+    const ids = students.map(s => s.id);
+
+    // ── Preflight: check for missing marks ──────────────────────────────────
+    const { data: existingMarks } = await supabase
+      .from('exam_results')
+      .select('student_id, subject_id')
+      .eq('exam_type_id', selectedExamType)
+      .in('student_id', ids);
+    const missing = students.length * subjects.length - (existingMarks?.length || 0);
+    if (missing > 0) {
+      const go = window.confirm(
+        `⚠️ Pre-flight Warning\n\n${missing} mark entr${missing === 1 ? 'y is' : 'ies are'} missing ` +
+        `(${existingMarks?.length || 0}/${students.length * subjects.length} filled).\n\n` +
+        `Missing subjects will show as "AB" (Absent). Proceed anyway?`
+      );
+      if (!go) return;
+    }
+
     setBatchLoading(true);
     setBatchCards([]);
 
-    // Fetch ALL results + evaluations for ALL students in one query
-    const ids = students.map(s => s.id);
-    const [{ data: allRes }, { data: allEvals }] = await Promise.all([
+    const [{ data: allRes }, { data: allEvals }, { data: allAtt }] = await Promise.all([
       supabase.from('exam_results').select('*').eq('exam_type_id', selectedExamType).in('student_id', ids),
       supabase.from('evaluations').select('student_id, ratings, feedback').eq('exam_type_id', selectedExamType).in('student_id', ids),
+      supabase.from('attendance').select('student_id').eq('status', 'present').in('student_id', ids),
     ]);
-    // Build evaluation map
+
     const evalMap: Record<string, { ratings: Record<string, number>; feedback?: string }> = {};
     (allEvals || []).forEach((e: any) => { evalMap[e.student_id] = { ratings: e.ratings || {}, feedback: e.feedback }; });
     setEvaluationMap(evalMap);
 
-    // Build position map
+    // Attendance count per student
+    const attCount: Record<string, number> = {};
+    (allAtt || []).forEach((a: any) => { attCount[a.student_id] = (attCount[a.student_id] || 0) + 1; });
+    setAttendanceMap(prev => ({ ...prev, ...attCount }));
+
     const totals: Record<string, number> = {};
     (allRes || []).forEach((r: any) => { totals[r.student_id] = (totals[r.student_id] || 0) + r.obtained_marks; });
     const sorted = Object.entries(totals).sort(([, a], [, b]) => b - a);
@@ -127,16 +155,26 @@ export default function ResultReporting() {
       let obtained = 0, grand = 0, fails = 0;
       const subjectRows = subjects.map((subj: any) => {
         const r = stuResults.find((res: any) => res.subject_id === subj.id);
-        const { grade, status } = r ? getGrade(r.obtained_marks, r.total_marks, subj.passing_marks || 33) : { grade: 'AB', status: 'Absent' };
-        if (r) { obtained += r.obtained_marks; grand += r.total_marks; }
-        else { grand += subj.total_marks || 100; }
-        if (status !== 'Pass') fails++;
-        return { name: subj.subject_name, marks: r?.obtained_marks ?? 0, total: subj.total_marks || 100, grade, status };
+        if (r) {
+          const g = getGradeFromPolicy(r.obtained_marks, r.total_marks, gradingBrackets);
+          if (g.status !== 'Pass') fails++;
+          obtained += r.obtained_marks; grand += r.total_marks;
+          return { name: subj.subject_name, marks: r.obtained_marks, total: subj.total_marks || 100, grade: g.grade, status: g.status };
+        } else {
+          grand += subj.total_marks || 100; fails++;
+          return { name: subj.subject_name, marks: 0, total: subj.total_marks || 100, grade: 'AB', status: 'Absent' };
+        }
       });
-      const pct = grand > 0 ? Math.round((obtained / grand) * 100) : 0;
-      const overallGrade = pct >= 90 ? 'A+' : pct >= 80 ? 'A' : pct >= 70 ? 'B' : pct >= 60 ? 'C' : pct >= 50 ? 'D' : 'F';
+      const overallG = getGradeFromPolicy(obtained, grand, gradingBrackets);
       const pos = sorted.findIndex(([id]) => id === stu.id) + 1;
-      return { student: stu, subjects: subjectRows, obtained, grand, pct, grade: overallGrade, fails, position: pos, evaluation: evalMap[stu.id] || null };
+      const presentDays = attCount[stu.id] || 0;
+      return {
+        student: stu, subjects: subjectRows, obtained, grand,
+        pct: overallG.pct, grade: overallG.grade, remarks: overallG.remarks,
+        gpa: calculateGPA(overallG.grade), fails, position: pos,
+        evaluation: evalMap[stu.id] || null,
+        attendance: presentDays > 0 ? `${presentDays} days` : 'N/A',
+      };
     });
 
     setBatchCards(cards);
@@ -153,20 +191,27 @@ export default function ResultReporting() {
   let totalObtained = 0, grandTotal = 0, failSubjects = 0;
   const subjectRows = subjects.map(subj => {
     const r = results.find(res => res.subject_id === subj.id);
-    const { grade, status } = r ? getGrade(r.obtained_marks, r.total_marks, subj.passing_marks || 33) : { grade: 'AB', status: 'Absent' };
-    if (r) { totalObtained += r.obtained_marks; grandTotal += r.total_marks; }
-    else { grandTotal += subj.total_marks || 100; }
-    if (status !== 'Pass') failSubjects++;
-    return { subj, r, grade, status };
+    if (r) {
+      const g = getGradeFromPolicy(r.obtained_marks, r.total_marks, gradingBrackets);
+      if (g.status !== 'Pass') failSubjects++;
+      totalObtained += r.obtained_marks; grandTotal += r.total_marks;
+      return { subj, r, grade: g.grade, status: g.status, remarks: g.remarks };
+    } else {
+      grandTotal += subj.total_marks || 100; failSubjects++;
+      return { subj, r: null, grade: 'AB', status: 'Absent', remarks: '' };
+    }
   });
 
-  const overallPct = grandTotal > 0 ? Math.round((totalObtained / grandTotal) * 100) : 0;
-  const overallGrade = overallPct >= 90 ? 'A+' : overallPct >= 80 ? 'A' : overallPct >= 70 ? 'B' : overallPct >= 60 ? 'C' : overallPct >= 50 ? 'D' : 'F';
+  const overallG = getGradeFromPolicy(totalObtained, grandTotal, gradingBrackets);
+  const overallGrade = overallG.grade;
+  const overallPct   = overallG.pct;
   const { position, outOf } = computePosition(selectedStudent);
+  const studentPresent = attendanceMap[selectedStudent];
+  const attendanceDisplay = studentPresent !== undefined ? `${studentPresent} days` : 'N/A';
 
   const template = rcSettings?.template || 'classic';
   const customization = rcSettings?.layout_config?.customization || DEFAULT_REPORT_CUSTOM;
-  const activeFields = rcSettings?.fields || ['school_logo', 'gpa_summary', 'teacher_remarks'];
+  const activeFields = buildActiveFields(rcSettings?.fields, resultConfig);
 
   const commonCardProps = {
     template, customization, activeFields,
@@ -208,6 +253,12 @@ export default function ResultReporting() {
           <FileText className="w-6 h-6 text-teal-600" /> Individual Result Cards
         </h1>
         <p className="text-gray-500 text-sm mt-1">Generate printable result cards for individual students or the whole class.</p>
+        {gradingBrackets.length === 0 && (
+          <div className="mt-3 flex items-center gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 text-sm font-medium">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            No custom grading policy found — using default scale. <a href="/result/grading-policy" className="underline ml-1 font-bold">Configure Grading Policy →</a>
+          </div>
+        )}
       </div>
 
       {/* Selectors */}
@@ -277,7 +328,7 @@ export default function ResultReporting() {
               obtainedMarks={totalObtained}
               percentage={overallPct}
               grade={overallGrade}
-              attendance={'N/A'}
+              attendance={attendanceDisplay}
               positionInClass={position > 0 ? position : undefined}
               totalStudents={outOf > 0 ? outOf : undefined}
               finalStatus={failSubjects === 0 ? 'PROMOTED' : 'NOT PROMOTED'}
@@ -302,7 +353,7 @@ export default function ResultReporting() {
                 obtainedMarks={card.obtained}
                 percentage={card.pct}
                 grade={card.grade}
-                attendance={'N/A'}
+                attendance={card.attendance || 'N/A'}
                 positionInClass={card.position > 0 ? card.position : undefined}
                 totalStudents={batchCards.length}
                 finalStatus={card.fails === 0 ? 'PROMOTED' : 'NOT PROMOTED'}

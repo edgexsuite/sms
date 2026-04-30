@@ -9,13 +9,11 @@ import { formatDate } from '../lib/utils';
 
 export default function Evaluation() {
   const { userRole } = useAuth();
-  const [activeTab, setActiveTab] = useState<'students' | 'teachers'>('students');
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   
   const [evaluations, setEvaluations] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
-  const [staff, setStaff] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
   const [examTypes, setExamTypes] = useState<any[]>([]);
 
@@ -37,85 +35,68 @@ export default function Evaluation() {
   const staffRatingKeys = ['Teaching Quality', 'Discipline', 'Student Engagement', 'Admin Compliance'];
 
   useEffect(() => {
-    if (userRole?.school_id) {
-      fetchInitialData();
-    }
-  }, [userRole, activeTab]);
+    if (userRole?.school_id) fetchInitialData();
+  }, [userRole]);
 
   const fetchInitialData = async () => {
     setLoading(true);
     const sid = userRole?.school_id;
 
-    // Fetch Evaluations
     const { data: evals } = await supabase
       .from('evaluations')
-      .select('*, student:students(full_name, roll_number), staff:staff(full_name, role), evaluator:staff!evaluator_id(full_name), exam_type:exam_types(name)')
+      .select('*, student:students(full_name, roll_number), evaluator:staff!evaluator_id(full_name), exam_type:exam_types(name)')
       .eq('school_id', sid)
-      .eq('target_type', activeTab === 'students' ? 'student' : 'staff')
+      .eq('target_type', 'student')
       .order('evaluation_date', { ascending: false });
-
     if (evals) setEvaluations(evals);
 
-    // Fetch Targets for Modal
-    if (activeTab === 'students') {
-      const [{ data: stus }, { data: cls }, { data: exams }] = await Promise.all([
-        supabase.from('students').select('id, full_name, roll_number, class_id').eq('school_id', sid).eq('status', 'active'),
-        supabase.from('classes').select('id, name, section, class_teacher_id').eq('school_id', sid).order('name'),
-        supabase.from('exam_types').select('id, name, session').eq('school_id', sid).order('created_at'),
-      ]);
-      if (stus) setStudents(stus);
-      if (cls) {
-        setClasses(cls);
-        // If teacher, auto-select their class by default
-        if (userRole?.role === 'teacher' && userRole.staff_id) {
-          const assignedClass = cls.find(c => c.class_teacher_id === userRole.staff_id);
-          if (assignedClass) {
-            setEvalForm(prev => ({ ...prev, class_id: assignedClass.id }));
-          }
-        }
+    const [{ data: stus }, { data: cls }, { data: exams }] = await Promise.all([
+      supabase.from('students').select('id, full_name, roll_number, class_id').eq('school_id', sid).eq('status', 'active'),
+      supabase.from('classes').select('id, name, section, class_teacher_id').eq('school_id', sid).order('name'),
+      supabase.from('exam_types').select('id, name, session').eq('school_id', sid).order('created_at'),
+    ]);
+    if (stus) setStudents(stus);
+    if (cls) {
+      setClasses(cls);
+      if (userRole?.role === 'teacher' && userRole.staff_id) {
+        const assignedClass = cls.find(c => c.class_teacher_id === userRole.staff_id);
+        if (assignedClass) setEvalForm(prev => ({ ...prev, class_id: assignedClass.id }));
       }
-      if (exams) setExamTypes(exams);
-    } else {
-      const { data: tchrs } = await supabase.from('staff').select('id, full_name, role').eq('school_id', sid).eq('is_active', true);
-      if (tchrs) setStaff(tchrs);
     }
-
+    if (exams) setExamTypes(exams);
     setLoading(false);
   };
 
   const handleSaveEval = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userRole?.school_id) return;
-    
+
+    // Validate: at least all ratings must be set
+    const unrated = studentRatingKeys.filter(k => !evalForm.ratings[k]);
+    if (unrated.length > 0) {
+      alert(`Please rate all categories before submitting.\nMissing: ${unrated.join(', ')}`);
+      return;
+    }
+    if (!evalForm.student_id) { alert('Please select a student.'); return; }
+
     setSaving(true);
     try {
       const payload: any = {
-        target_type: evalForm.target_type,
+        target_type: 'student',
+        student_id: evalForm.student_id,
         feedback: evalForm.feedback,
         evaluation_date: evalForm.evaluation_date,
         ratings: evalForm.ratings,
         school_id: userRole.school_id,
       };
-      if (evalForm.target_type === 'student') {
-        payload.student_id = evalForm.student_id || null;
-        if (evalForm.exam_type_id) payload.exam_type_id = evalForm.exam_type_id;
-      } else {
-        payload.staff_id = evalForm.staff_id || null;
-      }
-      const { error } = await supabase.from('evaluations').insert([payload]);
+      if (evalForm.exam_type_id) payload.exam_type_id = evalForm.exam_type_id;
+      // Fix: always save the evaluator
+      if (userRole.staff_id) payload.evaluator_id = userRole.staff_id;
 
+      const { error } = await supabase.from('evaluations').insert([payload]);
       if (error) throw error;
       setIsModalOpen(false);
-      setEvalForm({
-        target_type: activeTab === 'students' ? 'student' : 'staff',
-        student_id: '',
-        staff_id: '',
-        exam_type_id: '',
-        class_id: '',
-        feedback: '',
-        evaluation_date: new Date().toISOString().split('T')[0],
-        ratings: {}
-      });
+      resetForm();
       fetchInitialData();
     } catch (error: any) {
       alert(error.message);
@@ -123,51 +104,53 @@ export default function Evaluation() {
     setSaving(false);
   };
 
-  const filteredEvals = evaluations.filter(e => {
-    const name = activeTab === 'students' ? e.student?.full_name : e.staff?.full_name;
-    return name?.toLowerCase().includes(search.toLowerCase());
+  const resetForm = () => setEvalForm({
+    target_type: 'student', student_id: '', staff_id: '',
+    exam_type_id: '', class_id: '', feedback: '',
+    evaluation_date: new Date().toISOString().split('T')[0], ratings: {}
   });
+
+  const handleDeleteEval = async (id: string) => {
+    if (!window.confirm('Delete this evaluation?')) return;
+    await supabase.from('evaluations').delete().eq('id', id);
+    fetchInitialData();
+  };
+
+  const exportCSV = () => {
+    const rows = [
+      ['Student', 'Roll No', 'Evaluator', 'Date', 'Avg Rating', 'Feedback'],
+      ...filteredEvals.map(ev => {
+        const vals = Object.values(ev.ratings || {}) as number[];
+        const avg = vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '0';
+        return [ev.student?.full_name, ev.student?.roll_number, ev.evaluator?.full_name || 'Admin', ev.evaluation_date, avg, ev.feedback];
+      })
+    ];
+    const csv = rows.map(r => r.map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = 'student_evaluations.csv'; a.click();
+  };
+
+  const filteredEvals = evaluations.filter(e =>
+    e.student?.full_name?.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-20">
-      
+
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black text-gray-900 flex items-center gap-2">
-            <Award className="w-7 h-7 text-amber-500" /> Evaluation & Performance
+            <Award className="w-7 h-7 text-amber-500" /> Student Evaluations
           </h1>
-          <p className="text-gray-500 text-sm mt-0.5">Formal qualitative reviews for students and staff performance tracking.</p>
+          <p className="text-gray-500 text-sm mt-0.5">Character assessments shown on report cards as ★ star ratings.</p>
         </div>
-        
-        <button 
-          onClick={() => { 
-            setEvalForm({...evalForm, target_type: activeTab === 'students' ? 'student' : 'staff'}); 
-            setIsModalOpen(true); 
-          }}
+        <button
+          onClick={() => { resetForm(); setIsModalOpen(true); }}
           className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all"
         >
-          <Plus className="w-4 h-4" /> New {activeTab === 'students' ? 'Student' : 'Staff'} Review
-        </button>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-        <button
-          onClick={() => setActiveTab('students')}
-          className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all ${
-            activeTab === 'students' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'
-          }`}
-        >
-          <Users className="w-4 h-4" /> Student Evaluations
-        </button>
-        <button
-          onClick={() => setActiveTab('teachers')}
-          className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all ${
-            activeTab === 'teachers' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'
-          }`}
-        >
-          <BookOpen className="w-4 h-4" /> Teacher / Staff Reviews
+          <Plus className="w-4 h-4" /> New Student Review
         </button>
       </div>
 
@@ -178,13 +161,13 @@ export default function Evaluation() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input 
               type="text" 
-              placeholder={`Search ${activeTab}...`}
+              placeholder="Search students..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
             />
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-50">
+          <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-50">
             <Filter className="w-4 h-4" /> Export CSV
           </button>
         </div>
@@ -207,20 +190,21 @@ export default function Evaluation() {
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-black text-sm">
-                        {(activeTab === 'students' ? ev.student?.full_name : ev.staff?.full_name)?.[0]}
+                        {ev.student?.full_name?.[0]}
                       </div>
                       <div>
-                        <h3 className="font-black text-gray-900 text-sm leading-tight">
-                          {activeTab === 'students' ? ev.student?.full_name : ev.staff?.full_name}
-                        </h3>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">
-                          {activeTab === 'students' ? `Roll: ${ev.student?.roll_number}` : ev.staff?.role}
-                        </p>
+                        <h3 className="font-black text-gray-900 text-sm leading-tight">{ev.student?.full_name}</h3>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Roll: {ev.student?.roll_number}</p>
                       </div>
                     </div>
-                    <div className="bg-amber-50 text-amber-600 px-2 py-1 rounded-lg flex items-center gap-1">
-                       <Star className="w-3 h-3 fill-current" />
-                       <span className="text-xs font-black">{avg}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="bg-amber-50 text-amber-600 px-2 py-1 rounded-lg flex items-center gap-1">
+                        <Star className="w-3 h-3 fill-current" />
+                        <span className="text-xs font-black">{avg}</span>
+                      </div>
+                      <button onClick={() => handleDeleteEval(ev.id)} className="opacity-0 group-hover:opacity-100 p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Delete">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
 
@@ -251,81 +235,72 @@ export default function Evaluation() {
         )}
       </div>
 
-      {/* New Evaluation Modal */}
+      {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200">
              <div className="bg-indigo-600 px-8 py-6 flex justify-between items-center text-white">
                <div>
                  <h3 className="text-xl font-black tracking-tight">Submit Performance Review</h3>
-                 <p className="text-indigo-100 text-[10px] mt-1 uppercase font-bold tracking-widest leading-none">New {activeTab} Evaluation</p>
+                 <p className="text-indigo-100 text-[10px] mt-1 uppercase font-bold tracking-widest leading-none">Student Evaluation</p>
                </div>
                <button onClick={() => setIsModalOpen(false)} className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors"><X className="w-5 h-5" /></button>
              </div>
              
              <form onSubmit={handleSaveEval} className="p-8 space-y-6 bg-gray-50 overflow-y-auto max-h-[70vh]">
                 
-                {/* Step 1: Class Selection (students only) */}
-                {activeTab === 'students' && (
-                  <div>
-                    <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest pl-1">Step 1: Select Class</label>
-                    <select
-                      value={evalForm.class_id}
-                      onChange={e => setEvalForm({...evalForm, class_id: e.target.value, student_id: ''})}
-                      className="w-full bg-white border border-gray-200 px-4 py-3 rounded-xl text-sm font-bold focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none"
-                    >
-                      <option value="">-- All Classes --</option>
-                      {classes.map(cls => (
-                        <option key={cls.id} value={cls.id}>{cls.name} {cls.section}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {/* Step 2: Target Selection */}
+                {/* Step 1: Select Class */}
                 <div>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest pl-1">
-                    Step 2: Select {activeTab} to Review
-                  </label>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest pl-1">Step 1: Select Class</label>
                   <select
-                    required
-                    value={activeTab === 'students' ? evalForm.student_id : evalForm.staff_id}
-                    onChange={e => setEvalForm({...evalForm, [activeTab === 'students' ? 'student_id' : 'staff_id']: e.target.value})}
+                    value={evalForm.class_id}
+                    onChange={e => setEvalForm({...evalForm, class_id: e.target.value, student_id: ''})}
                     className="w-full bg-white border border-gray-200 px-4 py-3 rounded-xl text-sm font-bold focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none"
                   >
-                    <option value="">-- Choose {activeTab} --</option>
-                    {(activeTab === 'students'
-                      ? (evalForm.class_id ? students.filter(s => s.class_id === evalForm.class_id) : students)
-                      : staff
-                    ).map(item => (
-                      <option key={item.id} value={item.id}>
-                        {activeTab === 'students' ? `${item.roll_number} - ${item.full_name}` : `${item.full_name} (${item.role})`}
-                      </option>
+                    <option value="">-- All Classes --</option>
+                    {classes.map(cls => (
+                      <option key={cls.id} value={cls.id}>{cls.name} {cls.section}</option>
                     ))}
                   </select>
                 </div>
 
-                {/* Optional Exam Link (students only) */}
-                {activeTab === 'students' && (
-                  <div>
-                    <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest pl-1">Exam Link (Optional)</label>
-                    <select
-                      value={evalForm.exam_type_id}
-                      onChange={e => setEvalForm({...evalForm, exam_type_id: e.target.value})}
-                      className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded-xl text-sm font-bold focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none"
-                    >
-                      <option value="">-- No Exam Link --</option>
-                      {examTypes.map(et => (
-                        <option key={et.id} value={et.id}>{et.name} {et.session ? `(${et.session})` : ''}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                {/* Step 2: Select Student */}
+                <div>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest pl-1">
+                    Step 2: Select Student to Review
+                  </label>
+                  <select
+                    required
+                    value={evalForm.student_id}
+                    onChange={e => setEvalForm({...evalForm, student_id: e.target.value})}
+                    className="w-full bg-white border border-gray-200 px-4 py-3 rounded-xl text-sm font-bold focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none"
+                  >
+                    <option value="">-- Choose Student --</option>
+                    {(evalForm.class_id ? students.filter(s => s.class_id === evalForm.class_id) : students).map(item => (
+                      <option key={item.id} value={item.id}>{item.roll_number} - {item.full_name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Optional Exam Link */}
+                <div>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest pl-1">Exam Link (Optional)</label>
+                  <select
+                    value={evalForm.exam_type_id}
+                    onChange={e => setEvalForm({...evalForm, exam_type_id: e.target.value})}
+                    className="w-full bg-white border border-gray-200 px-3 py-2.5 rounded-xl text-sm font-bold focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none"
+                  >
+                    <option value="">-- No Exam Link --</option>
+                    {examTypes.map(et => (
+                      <option key={et.id} value={et.id}>{et.name} {et.session ? `(${et.session})` : ''}</option>
+                    ))}
+                  </select>
+                </div>
 
                 {/* Rating Matrix */}
                 <div className="bg-white p-5 rounded-2xl border border-gray-200 space-y-4">
                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50 pb-2">Rating Matrix (1-5 Stars)</p>
-                  {(activeTab === 'students' ? studentRatingKeys : staffRatingKeys).map(key => (
+                  {studentRatingKeys.map(key => (
                     <div key={key} className="flex justify-between items-center">
                        <span className="text-xs font-bold text-gray-700">{key}</span>
                        <div className="flex gap-1">
@@ -345,11 +320,11 @@ export default function Evaluation() {
 
                 <div>
                    <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest pl-1">Review Feedback / Observations</label>
-                   <textarea 
+                    <textarea 
                      required rows={3}
                      value={evalForm.feedback} onChange={e => setEvalForm({...evalForm, feedback: e.target.value})}
                      className="w-full bg-white border border-gray-200 p-4 rounded-xl text-sm font-medium focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none resize-none"
-                     placeholder={`Share your feedback on this ${activeTab}...`}
+                     placeholder="Share your observations about this student..."
                    />
                 </div>
 

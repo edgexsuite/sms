@@ -152,10 +152,31 @@ function CharacterAssessment({ evaluation, c }: {
           </div>
         ))}
       </div>
-      {evaluation.feedback && (
-        <div style={{ marginTop: '5px', fontSize: c.tableFontSize * 0.85, color: '#555', borderTop: `1px dashed ${c.borderColor}`, paddingTop: '4px', fontStyle: 'italic' }}>
-          {evaluation.feedback}
+    </div>
+  );
+}
+
+// ─── Teacher Remarks Block (shared — shows typed feedback or blank write lines) ─
+
+function TeacherRemarksBlock({ feedback, label = 'Teacher Remarks', c, lines = 2 }: {
+  feedback?: string;
+  label?: string;
+  c: ReportCardCustomization;
+  lines?: number;
+}) {
+  return (
+    <div style={{ border: `1px solid ${c.borderColor}`, borderRadius: '6px', padding: '8px 12px', marginBottom: '10px', background: '#fafafa' }}>
+      <div style={{ fontSize: c.tableFontSize * 0.82, fontWeight: '800', color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+        {label}
+      </div>
+      {feedback ? (
+        <div style={{ fontSize: c.tableFontSize * 0.9, color: '#1f2937', fontStyle: 'italic', lineHeight: 1.5 }}>
+          {feedback}
         </div>
+      ) : (
+        Array.from({ length: lines }).map((_, i) => (
+          <div key={i} style={{ borderBottom: '1px dashed #d1d5db', height: '18px', marginBottom: '4px' }} />
+        ))
       )}
     </div>
   );
@@ -286,13 +307,9 @@ export function ClassicReport(props: ReportCardProps) {
           </tfoot>
         </table>
 
-        {/* Remarks */}
+        {/* Teacher Remarks — shows typed feedback or blank write lines */}
         {activeFields.includes('teacher_remarks') && (
-          <div style={{ border: `1px solid ${c.borderColor}`, borderRadius: '6px', padding: '8px 12px', marginBottom: '12px', background: '#fafafa' }}>
-            <div style={{ fontSize: c.tableFontSize * 0.85, fontWeight: '700', color: '#374151', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Teacher Remarks</div>
-            <div style={{ borderBottom: '1px dashed #d1d5db', height: '18px' }} />
-            <div style={{ borderBottom: '1px dashed #d1d5db', height: '18px' }} />
-          </div>
+          <TeacherRemarksBlock feedback={props.evaluation?.feedback} label="Teacher's Comments" c={c} lines={2} />
         )}
 
         {activeFields.includes('evaluation') && props.evaluation && (
@@ -433,10 +450,7 @@ export function ModernReport(props: ReportCardProps) {
 
           {activeFields.includes('teacher_remarks') && (
             <div style={{ background: '#fff', borderRadius: '10px', padding: '12px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-              <div style={{ fontSize: c.tableFontSize * 0.8, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '700', marginBottom: '8px' }}>Teacher / Principal Remarks</div>
-              {[1, 2, 3].map(n => (
-                <div key={n} style={{ borderBottom: '1px dashed #e2e8f0', height: '20px', marginBottom: '4px' }} />
-              ))}
+              <TeacherRemarksBlock feedback={props.evaluation?.feedback} label="Teacher / Principal Remarks" c={c} lines={3} />
             </div>
           )}
         </div>
@@ -557,8 +571,7 @@ export function MinimalReport(props: ReportCardProps) {
 
         {activeFields.includes('teacher_remarks') && (
           <div style={{ marginBottom: '32px' }}>
-            <div style={{ textTransform: 'uppercase', letterSpacing: '1px', fontSize: c.tableFontSize * 0.85, marginBottom: '6px', fontWeight: '700' }}>Remarks:</div>
-            {[1, 2].map(n => <div key={n} style={{ borderBottom: '1px dashed #ccc', height: '20px', marginBottom: '4px' }} />)}
+            <TeacherRemarksBlock feedback={props.evaluation?.feedback} label="Remarks" c={c} lines={2} />
           </div>
         )}
 
@@ -720,8 +733,7 @@ export function ElegantReport(props: ReportCardProps) {
         <div style={{ display: 'flex', gap: '14px', marginBottom: '14px' }}>
           {activeFields.includes('teacher_remarks') && (
             <div style={{ flex: 1.5, border: `1px solid ${c.borderColor}`, borderRadius: '10px', padding: '12px', background: '#fff' }}>
-              <div style={{ fontSize: c.tableFontSize * 0.82, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '700', marginBottom: '8px' }}>Instructor Remarks</div>
-              {[1, 2].map(n => <div key={n} style={{ borderBottom: '1px dashed #e2e8f0', height: '20px', marginBottom: '6px' }} />)}
+              <TeacherRemarksBlock feedback={props.evaluation?.feedback} label="Instructor Remarks" c={c} lines={2} />
             </div>
           )}
           {activeFields.includes('gpa_summary') && (
@@ -1005,10 +1017,7 @@ export function RoyalReport(props: ReportCardProps) {
         {/* Bottom: remarks + grading scale */}
         <div style={{ display: 'flex', gap: '10px', flex: 1, marginBottom: '10px' }}>
           {activeFields.includes('teacher_remarks') && (
-            <div style={{ flex: 1.2, border: '1px solid #e0d8c0', borderRadius: '6px', padding: '8px 10px', background: '#fffef9' }}>
-              <div style={{ fontSize: c.tableFontSize * 0.85, fontWeight: '700', color: GOLD, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>👤 Teacher's Comments</div>
-              {[1, 2, 3].map(n => <div key={n} style={{ borderBottom: '1px dashed #d4c48a', height: '18px', marginBottom: '4px' }} />)}
-            </div>
+            <TeacherRemarksBlock feedback={props.evaluation?.feedback} label="Teacher's Comments" c={c} lines={3} />
           )}
           <div style={{ flex: 1, border: '1px solid #e0d8c0', borderRadius: '6px', padding: '8px 10px', background: '#fffef9' }}>
             <div style={{ fontSize: c.tableFontSize * 0.85, fontWeight: '700', color: GOLD, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>🏅 Grading Scale</div>
