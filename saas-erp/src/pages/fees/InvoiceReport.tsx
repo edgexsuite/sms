@@ -128,6 +128,17 @@ export default function InvoiceReport() {
     return Array.from(m.values()).sort((a, b) => (b.billed - b.paid) - (a.billed - a.paid));
   }, [filtered]);
 
+  // Print a single section by hiding all others via body data-attribute
+  const printSection = (sectionId: string) => {
+    document.body.dataset.printSection = sectionId;
+    window.print();
+    // Clean up after browser closes print dialog
+    const cleanup = () => { delete document.body.dataset.printSection; };
+    window.addEventListener('afterprint', cleanup, { once: true });
+    // Fallback cleanup after 3s in case afterprint doesn't fire
+    setTimeout(cleanup, 3000);
+  };
+
   const exportCSV = () => {
     const rows = [
       ['Student', 'Roll', 'Class', 'Invoices', 'Total Billed', 'Total Paid', 'Balance Due', 'Status'],
@@ -222,10 +233,16 @@ export default function InvoiceReport() {
       ) : (
         <>
           {/* Per-Student Outstanding */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow overflow-hidden">
+          <div data-section="students" className="bg-white rounded-2xl border border-slate-100 shadow overflow-hidden">
             <div className="px-5 py-3 border-b border-slate-50 flex items-center justify-between">
-              <h2 className="font-black text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2"><Users className="w-4 h-4 text-indigo-500" />Per-Student Outstanding</h2>
-              <span className="text-xs text-slate-400 font-bold">{studentMap.length} students</span>
+              <div className="flex items-center gap-3">
+                <h2 className="font-black text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2"><Users className="w-4 h-4 text-indigo-500" />Per-Student Outstanding</h2>
+                <span className="text-xs text-slate-400 font-bold">{studentMap.length} students</span>
+              </div>
+              <button onClick={() => printSection('students')} title="Print this section"
+                className="no-print flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest transition">
+                <Printer className="w-3 h-3" /> Print
+              </button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left">
@@ -284,9 +301,13 @@ export default function InvoiceReport() {
           </div>
 
           {/* Monthly Breakdown */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow overflow-hidden">
-            <div className="px-5 py-3 border-b border-slate-50">
+          <div data-section="monthly" className="bg-white rounded-2xl border border-slate-100 shadow overflow-hidden">
+            <div className="px-5 py-3 border-b border-slate-50 flex items-center justify-between">
               <h2 className="font-black text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2"><Calendar className="w-4 h-4 text-indigo-500" />Monthly Breakdown</h2>
+              <button onClick={() => printSection('monthly')} title="Print this section"
+                className="no-print flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest transition">
+                <Printer className="w-3 h-3" /> Print
+              </button>
             </div>
             <div className="divide-y divide-slate-50">
               {monthMap.map(m => {
@@ -345,9 +366,13 @@ export default function InvoiceReport() {
           </div>
 
           {/* Class-wise Analysis */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow overflow-hidden">
-            <div className="px-5 py-3 border-b border-slate-50">
+          <div data-section="classes" className="bg-white rounded-2xl border border-slate-100 shadow overflow-hidden">
+            <div className="px-5 py-3 border-b border-slate-50 flex items-center justify-between">
               <h2 className="font-black text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2"><BarChart3 className="w-4 h-4 text-indigo-500" />Class-Wise Analysis</h2>
+              <button onClick={() => printSection('classes')} title="Print this section"
+                className="no-print flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest transition">
+                <Printer className="w-3 h-3" /> Print
+              </button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left">
@@ -396,6 +421,16 @@ export default function InvoiceReport() {
           body { background: white !important; }
           .rounded-2xl { border-radius: 0 !important; }
           .shadow { box-shadow: none !important; }
+
+          /* Section-isolated printing:
+             When body has data-print-section set, hide every
+             [data-section] that doesn't match the chosen one. */
+          body[data-print-section] [data-section] { display: none !important; }
+          body[data-print-section='students'] [data-section='students'],
+          body[data-print-section='monthly']  [data-section='monthly'],
+          body[data-print-section='classes']  [data-section='classes'] {
+            display: block !important;
+          }
         }
       `}</style>
     </div>
