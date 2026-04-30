@@ -197,6 +197,7 @@ export const NAV_SECTIONS = [
           { name: 'Challan Settings',         path: '/fees/challan-settings',icon: Palette,     roles: ALL_ADMIN },
           { name: 'Bulk Discount Entry',      path: '/fees/bulk-discount',   icon: Tag,         roles: ALL_ADMIN },
           { name: 'Bulk Arrears Entry',       path: '/fees/bulk-arrears',    icon: History,     roles: ALL_ADMIN },
+          { name: 'Invoice Report',           path: '/fees/invoice-report',  icon: BarChart3,   roles: ALL_FINANCE },
         ],
       },
       {
