@@ -5,7 +5,7 @@ import {
   Wallet, BookOpen, ArrowUpRight, RefreshCw, AlertTriangle,
   CheckCircle, Clock, DollarSign, UserPlus, FileText,
   MessageSquare, Mail, ChevronRight, Bell, ShieldCheck,
-  BarChart2, PiggyBank, Activity, Layers
+  BarChart2, PiggyBank, Activity, Layers, Banknote, X
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -13,9 +13,40 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   PieChart, Pie, Cell, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip
 } from 'recharts';
-import { formatDate } from '../lib/utils';
+import { formatDate, cn } from '../lib/utils';
+import { PageHeader, Card, Btn, Badge, EmptyState, StatCard, WelcomeBanner, CountUp } from '../components/ui';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#6366f1'];
+
+const TypewriterText = ({ text, delay = 25 }: { text: string; delay?: number }) => {
+  const [displayedText, setDisplayedText] = useState('');
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    if (currentIndex < text.length) {
+      const timeout = setTimeout(() => {
+        // Play subtle typing sound
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
+        audio.volume = 0.05;
+        audio.play().catch(() => {}); // Catch browser policy blocks
+
+        setDisplayedText(prev => prev + text[currentIndex]);
+        setCurrentIndex(prev => prev + 1);
+      }, delay);
+      return () => clearTimeout(timeout);
+    }
+  }, [currentIndex, delay, text]);
+
+  return (
+    <span>
+      {displayedText}
+      {currentIndex < text.length && (
+        <span className="inline-block w-1.5 h-4 ml-1 bg-indigo-500 animate-pulse align-middle" />
+      )}
+    </span>
+  );
+};
 
 const colorMap: Record<string, { bg: string; text: string; icon: string }> = {
   indigo: { bg: 'bg-indigo-50', text: 'text-indigo-600', icon: 'text-indigo-500' },
@@ -37,6 +68,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
+  const [showBriefing, setShowBriefing] = useState(true);
   const [schoolName, setSchoolName] = useState('');
   const [activeTab, setActiveTab] = useState('attention');
   const [stats, setStats] = useState({
@@ -45,6 +77,8 @@ export default function Dashboard() {
     todayExpense: 0, cashInHand: 0,
     todayPresent: 0, todayAbsent: 0, attendanceRate: 0,
     pendingComplaints: 0, pendingLeave: 0, newAdmissions: 0,
+    activeMonthLabel: '',
+    collectionProgress: 0,
   });
 
   const [classData, setClassData] = useState<any[]>([]);
@@ -70,122 +104,148 @@ export default function Dashboard() {
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     const sixMonthsAgoStr = sixMonthsAgo.toISOString().slice(0, 10);
+    const currentMonth = new Date().toISOString().slice(0, 7);
 
-    const [
-      { count: stuCount },
-      { count: staffCount },
-      { count: classCount },
-      { data: fees },
-      { data: attendance },
-      { data: classes },
-      { data: allStudents },
-      { data: transactions },
-      { data: recentFees },
-      { data: schoolData },
-      { count: complaintsCount },
-      { count: leaveCount },
-      { count: newStudents },
-    ] = await Promise.all([
-      supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', sid).eq('status', 'active'),
-      supabase.from('staff').select('*', { count: 'exact', head: true }).eq('school_id', sid).eq('is_active', true),
-      supabase.from('classes').select('*', { count: 'exact', head: true }).eq('school_id', sid),
-      supabase.from('fee_records').select('total_amount, paid_amount, status').eq('school_id', sid),
-      supabase.from('attendance').select('status').eq('school_id', sid).eq('date', today),
-      supabase.from('classes').select('id, name, section').eq('school_id', sid),
-      supabase.from('students').select('class_id').eq('school_id', sid).eq('status', 'active'),
-      supabase.from('financial_transactions').select('type, amount, date, category').eq('school_id', sid).gte('date', sixMonthsAgoStr),
-      supabase.from('fee_records').select('total_amount, paid_amount, status, month_year, invoice_number').eq('school_id', sid).order('created_at', { ascending: false }).limit(5),
-      supabase.from('schools').select('name').eq('id', sid).maybeSingle(),
-      supabase.from('complaints').select('*', { count: 'exact', head: true }).eq('school_id', sid).eq('status', 'open'),
-      supabase.from('leave_requests').select('*', { count: 'exact', head: true }).eq('school_id', sid).eq('status', 'pending'),
-      supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', sid).gte('created_at', sevenDaysAgo),
-    ]);
+    try {
+      const [
+        { count: stuCount },
+        { count: staffCount },
+        { count: classCount },
+        { data: fees },
+        { data: attendance },
+        { data: classes },
+        { data: allStudents },
+        { data: transactions },
+        { data: recentFees },
+        { data: schoolData },
+        { count: complaintsCount },
+        { count: leaveCount },
+        { count: newStudents },
+      ] = await Promise.all([
+        supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', sid).eq('status', 'active'),
+        supabase.from('staff').select('*', { count: 'exact', head: true }).eq('school_id', sid).eq('is_active', true),
+        supabase.from('classes').select('*', { count: 'exact', head: true }).eq('school_id', sid),
+        supabase.from('fee_records').select('total_amount, paid_amount, status, month_year').eq('school_id', sid),
+        supabase.from('attendance').select('status').eq('school_id', sid).eq('date', today),
+        supabase.from('classes').select('id, name, section').eq('school_id', sid),
+        supabase.from('students').select('class_id').eq('school_id', sid).eq('status', 'active'),
+        supabase.from('financial_transactions').select('type, amount, date, category').eq('school_id', sid).gte('date', sixMonthsAgoStr),
+        supabase.from('fee_records').select('total_amount, paid_amount, status, month_year, invoice_number').eq('school_id', sid).order('created_at', { ascending: false }).limit(5),
+        supabase.from('schools').select('name').eq('id', sid).maybeSingle(),
+        supabase.from('complaints').select('*', { count: 'exact', head: true }).eq('school_id', sid).eq('status', 'open'),
+        supabase.from('leave_requests').select('*', { count: 'exact', head: true }).eq('school_id', sid).eq('status', 'pending'),
+        supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', sid).gte('created_at', sevenDaysAgo),
+      ]);
 
-    if (schoolData) setSchoolName((schoolData as any).name || '');
+      if (schoolData) setSchoolName((schoolData as any).name || '');
 
-    // Fee stats
-    let totalRevenue = 0, pendingFees = 0, paidCount = 0, partialCount = 0, pendingCount = 0;
-    (fees || []).forEach(f => {
-      totalRevenue += Number(f.paid_amount || 0);
-      pendingFees += Math.max(0, Number(f.total_amount || 0) - Number(f.paid_amount || 0));
-      if (f.status === 'paid') paidCount++;
-      else if (f.status === 'partially paid' || f.status === 'partial') partialCount++;
-      else pendingCount++;
-    });
-    setFeeStatusData([
-      { name: 'Paid', value: paidCount },
-      { name: 'Partial', value: partialCount },
-      { name: 'Pending', value: pendingCount },
-    ]);
+      // Fee stats
+      let totalRevenue = 0, pendingFees = 0;
+      let mPaid = 0, mPartial = 0, mPending = 0;
 
-    // Attendance stats
-    const presentCount = (attendance || []).filter(a => a.status === 'present' || a.status === 'late').length;
-    const absentCount = (attendance || []).filter(a => a.status === 'absent').length;
-    const attRate = attendance && attendance.length > 0 ? Math.round((presentCount / attendance.length) * 100) : 0;
+      // Find the latest month that actually has fee records
+      const availableMonths = [...new Set((fees || []).map(f => f.month_year?.slice(0, 7)))].filter(Boolean).sort().reverse();
+      const activeMonth = availableMonths[0] || currentMonth;
 
-    // Class-wise student chart
-    const classStats = (classes || []).map(c => ({
-      name: c.section ? `${c.name}-${c.section}` : c.name,
-      students: (allStudents || []).filter(s => s.class_id === c.id).length,
-    })).filter(c => c.students > 0).slice(0, 10);
-    setClassData(classStats);
+      let mTarget = 0, mCollected = 0;
 
-    // Last 6 months chart
-    const monthMap: Record<string, { income: number; expense: number }> = {};
-    (transactions || []).forEach(t => {
-      const m = t.date?.slice(0, 7) || 'N/A';
-      if (!monthMap[m]) monthMap[m] = { income: 0, expense: 0 };
-      if (t.type === 'income') monthMap[m].income += t.amount;
-      else monthMap[m].expense += t.amount;
-    });
-    const monthlyArr = Array.from({ length: 6 }, (_, i) => {
-      const d = new Date();
-      d.setMonth(d.getMonth() - (5 - i));
-      const key = d.toISOString().slice(0, 7);
-      const month = d.toLocaleString('default', { month: 'short' });
-      return { month, income: monthMap[key]?.income || 0, expense: monthMap[key]?.expense || 0 };
-    });
-    setMonthlyData(monthlyArr);
+      (fees || []).forEach(f => {
+        const balance = Math.max(0, Number(f.total_amount || 0) - Number(f.paid_amount || 0));
+        pendingFees += balance;
+        totalRevenue += Number(f.paid_amount || 0);
 
-    // Today financials
-    const todayIncome = (transactions || []).filter(t => t.date === today && t.type === 'income').reduce((a, t) => a + t.amount, 0);
-    const todayExpense_ = (transactions || []).filter(t => t.date === today && t.type === 'expense').reduce((a, t) => a + t.amount, 0);
-    const thisMonthIncome = (transactions || []).filter(t => t.type === 'income').reduce((a, t) => a + t.amount, 0);
-    const thisMonthExpense = (transactions || []).filter(t => t.type === 'expense').reduce((a, t) => a + t.amount, 0);
+        if (f.month_year?.slice(0, 7) === activeMonth) {
+          mTarget += Number(f.total_amount || 0);
+          mCollected += Number(f.paid_amount || 0);
+          if (f.status === 'paid') mPaid++;
+          else if (f.status === 'partially paid' || f.status === 'partial') mPartial++;
+          else mPending++;
+        }
+      });
 
-    setRecentActivity((recentFees || []).map(f => ({
-      label: f.invoice_number || 'Invoice',
-      sub: f.status,
-      amount: f.paid_amount,
-      month: f.month_year,
-    })));
+      const collectionProgress = mTarget > 0 ? Math.round((mCollected / mTarget) * 100) : 0;
 
-    // Build alerts
-    const alertList: { type: string; message: string; link: string; count: number }[] = [];
-    if ((complaintsCount || 0) > 0) alertList.push({ type: 'warning', message: `${complaintsCount} open complaint${complaintsCount !== 1 ? 's' : ''} need attention`, link: '/complaints', count: complaintsCount! });
-    if ((leaveCount || 0) > 0) alertList.push({ type: 'info', message: `${leaveCount} leave request${leaveCount !== 1 ? 's' : ''} pending approval`, link: '/leave', count: leaveCount! });
-    if (pendingCount > 0) alertList.push({ type: 'warning', message: `${pendingCount} fee invoice${pendingCount !== 1 ? 's' : ''} unpaid`, link: '/fees/invoices', count: pendingCount });
-    if ((newStudents || 0) > 0) alertList.push({ type: 'success', message: `${newStudents} new admission${newStudents !== 1 ? 's' : ''} this week`, link: '/students', count: newStudents! });
-    setAlerts(alertList);
+      setFeeStatusData([
+        { name: 'Paid', value: mPaid },
+        { name: 'Partial', value: mPartial },
+        { name: 'Pending', value: mPending },
+      ]);
 
-    setStats({
-      totalStudents: stuCount || 0,
-      totalStaff: staffCount || 0,
-      totalClasses: classCount || 0,
-      totalRevenue,
-      pendingFees,
-      todayRevenue: todayIncome,
-      todayExpense: todayExpense_,
-      cashInHand: thisMonthIncome - thisMonthExpense,
-      todayPresent: presentCount,
-      todayAbsent: absentCount,
-      attendanceRate: attRate,
-      pendingComplaints: complaintsCount || 0,
-      pendingLeave: leaveCount || 0,
-      newAdmissions: newStudents || 0,
-    });
+      const activeMonthLabel = activeMonth ? new Date(activeMonth + '-01').toLocaleString('default', { month: 'long', year: 'numeric' }) : 'This Month';
 
-    setLoading(false);
+      const presentCount = (attendance || []).filter(a => a.status === 'present' || a.status === 'late').length;
+      const attRate = attendance && attendance.length > 0 ? Math.round((presentCount / attendance.length) * 100) : 0;
+
+      const classStats = (classes || [])
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
+        .map(c => ({
+          name: c.section ? `${c.name}-${c.section}` : c.name,
+          students: (allStudents || []).filter(s => s.class_id === c.id).length,
+        })).filter(c => c.students > 0);
+      setClassData(classStats);
+
+      const monthMap: Record<string, { income: number; expense: number }> = {};
+      (transactions || []).forEach(t => {
+        const m = t.date?.slice(0, 7) || 'N/A';
+        if (!monthMap[m]) monthMap[m] = { income: 0, expense: 0 };
+        if (t.type === 'income') monthMap[m].income += t.amount;
+        else monthMap[m].expense += t.amount;
+      });
+
+      const monthlyArr = Array.from({ length: 6 }, (_, i) => {
+        const d = new Date();
+        d.setMonth(d.getMonth() - (5 - i));
+        const key = d.toISOString().slice(0, 7);
+        return { 
+          month: d.toLocaleString('default', { month: 'short' }), 
+          income: monthMap[key]?.income || 0, 
+          expense: monthMap[key]?.expense || 0 
+        };
+      });
+      setMonthlyData(monthlyArr);
+
+      const todayIncome = (transactions || []).filter(t => t.date === today && t.type === 'income').reduce((a, t) => a + t.amount, 0);
+      const todayExpense_ = (transactions || []).filter(t => t.date === today && t.type === 'expense').reduce((a, t) => a + t.amount, 0);
+      const thisMonthIncome = (transactions || []).filter(t => t.type === 'income').reduce((a, t) => a + t.amount, 0);
+      const thisMonthExpense = (transactions || []).filter(t => t.type === 'expense').reduce((a, t) => a + t.amount, 0);
+
+      setRecentActivity((recentFees || []).map(f => ({
+        label: f.invoice_number || 'Invoice',
+        sub: f.status,
+        amount: f.paid_amount,
+        month: f.month_year,
+      })));
+
+      const alertList: { type: string; message: string; link: string; count: number }[] = [];
+      if ((complaintsCount || 0) > 0) alertList.push({ type: 'warning', message: `${complaintsCount} open complaint${complaintsCount !== 1 ? 's' : ''} need attention`, link: '/complaints', count: complaintsCount! });
+      if ((leaveCount || 0) > 0) alertList.push({ type: 'info', message: `${leaveCount} leave request${leaveCount !== 1 ? 's' : ''} pending approval`, link: '/leave', count: leaveCount! });
+      if (mPending > 0) alertList.push({ type: 'warning', message: `${mPending} fee invoice${mPending !== 1 ? 's' : ''} unpaid for ${activeMonthLabel}`, link: '/fees/invoices', count: mPending });
+      if ((newStudents || 0) > 0) alertList.push({ type: 'success', message: `${newStudents} new admission${newStudents !== 1 ? 's' : ''} this week`, link: '/students', count: newStudents! });
+      setAlerts(alertList);
+
+      setStats({
+        totalStudents: stuCount || 0,
+        totalStaff: staffCount || 0,
+        totalClasses: classCount || 0,
+        totalRevenue,
+        pendingFees,
+        todayRevenue: todayIncome,
+        todayExpense: todayExpense_,
+        cashInHand: thisMonthIncome - thisMonthExpense,
+        todayPresent: presentCount,
+        todayAbsent: (attendance || []).filter(a => a.status === 'absent').length,
+        attendanceRate: attRate,
+        pendingComplaints: complaintsCount || 0,
+        pendingLeave: leaveCount || 0,
+        newAdmissions: newStudents || 0,
+        activeMonthLabel,
+        collectionProgress,
+      });
+    } catch (err) {
+      console.error('Dashboard fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fmt = (n: number) => `Rs. ${Math.abs(n).toLocaleString('en-PK', { maximumFractionDigits: 0 })}`;
@@ -198,392 +258,554 @@ export default function Dashboard() {
     );
   }
 
-  return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    const container = {
+      hidden: { opacity: 0 },
+      show: {
+        opacity: 1,
+        transition: {
+          staggerChildren: 0.08
+        }
+      }
+    };
 
-      {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-700 via-indigo-600 to-blue-600 rounded-2xl p-6 text-white shadow-xl shadow-indigo-200">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <p className="text-indigo-200 text-sm font-medium">Admin Dashboard</p>
-            <h1 className="text-2xl font-black mt-1 flex items-center gap-2">
-              <ShieldCheck className="w-6 h-6" />
-              {schoolName || 'School Overview'}
-            </h1>
-            <p className="text-indigo-200 text-xs mt-1.5">
-              {formatDate(new Date())}
-            </p>
-          </div>
-          <div className="flex gap-3 flex-wrap">
-            <Link to="/students/add" className="flex items-center gap-2 bg-white text-indigo-700 font-bold px-4 py-2 rounded-xl text-sm hover:bg-indigo-50 transition shadow">
-              <UserPlus className="w-4 h-4" /> Add Student
-            </Link>
-            <Link to="/fees/invoices" className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-white font-bold px-4 py-2 rounded-xl text-sm transition">
-              <CreditCard className="w-4 h-4" /> Fee Invoices
-            </Link>
-            <button onClick={fetchAll} className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-xl text-sm transition">
-              <RefreshCw className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </div>
+    const item = {
+      hidden: { opacity: 0, y: 20 },
+      show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } }
+    };
 
-      {/* Alerts */}
+    return (
+      <motion.div 
+        variants={container}
+        initial="hidden"
+        animate="show"
+        className="max-w-7xl mx-auto space-y-6"
+      >
+        <motion.div variants={item}>
+          <WelcomeBanner 
+            userName={userRole?.full_name || 'Admin'} 
+            schoolName={schoolName || 'School ERP'} 
+          />
+        </motion.div>
+
+        {/* Header Section */}
+        <motion.div 
+          variants={item}
+          className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-orange-500 to-amber-600 p-6 text-white shadow-2xl shadow-orange-500/10"
+        >
+          <div className="absolute top-0 right-0 -m-8 opacity-10">
+            <GraduationCap className="w-48 h-48 rotate-12" />
+          </div>
+          
+          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+            <div className="shrink-0">
+              <div className="flex items-center gap-2 text-orange-100 font-black uppercase tracking-widest text-[9px] mb-2 opacity-80">
+                <ShieldCheck className="w-3 h-3" /> System Overview — {stats.activeMonthLabel}
+              </div>
+              <h1 className="text-2xl md:text-3xl font-black tracking-tight mb-1 drop-shadow-md">
+                {schoolName || 'Management Console'}
+              </h1>
+              <div className="flex items-center gap-4 text-orange-50/80 font-bold text-xs tracking-tight mt-2">
+                <span className="flex items-center gap-1.5 bg-white/10 px-2 py-1 rounded-lg backdrop-blur-sm">
+                  <Clock className="w-3.5 h-3.5" /> {new Date().toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}
+                </span>
+                <span className="flex items-center gap-1.5 bg-white/10 px-2 py-1 rounded-lg backdrop-blur-sm">
+                  <Activity className="w-3.5 h-3.5 text-emerald-300" /> Active Session
+                </span>
+              </div>
+            </div>
+
+            <div className="flex-1 flex flex-col sm:flex-row items-center gap-6 lg:justify-end">
+              {/* Condensed Quick Actions */}
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { label: 'Attendance', icon: CheckCircle, link: '/attendance', color: 'bg-emerald-400/20 text-emerald-100 border-emerald-400/30' },
+                  { label: 'Register', icon: UserPlus, link: '/students/add', color: 'bg-blue-400/20 text-blue-100 border-blue-400/30' },
+                  { label: 'Reports', icon: BarChart2, link: '/reports', color: 'bg-amber-400/20 text-amber-100 border-amber-400/30' },
+                  { label: 'Staff', icon: Users, link: '/staff', color: 'bg-purple-400/20 text-purple-100 border-purple-400/30' },
+                ].map((act, i) => (
+                  <button 
+                    key={i} 
+                    onClick={() => navigate(act.link)}
+                    title={act.label}
+                    className={cn(
+                      "w-11 h-11 backdrop-blur-md border hover:scale-110 rounded-xl flex items-center justify-center transition-all group",
+                      act.color
+                    )}
+                  >
+                    <act.icon className="w-5 h-5" />
+                  </button>
+                ))}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2 border-l border-white/20 pl-6 h-12">
+                <Btn 
+                  variant="secondary" 
+                  onClick={() => navigate('/students/add')} 
+                  icon={UserPlus} 
+                  className="!h-11 !px-4 !bg-white !text-orange-600 !border-none hover:!scale-105 transition-all shadow-lg !text-xs !font-black uppercase tracking-widest"
+                >
+                  Add Student
+                </Btn>
+                <Btn 
+                  onClick={() => navigate('/fees/invoices')} 
+                  icon={CreditCard} 
+                  className="!h-11 !px-4 !bg-white/20 !backdrop-blur-md !border-white/20 !text-white hover:!bg-white/30 transition-all !text-xs !font-black uppercase tracking-widest"
+                >
+                  Invoices
+                </Btn>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Floating AI Command Strip */}
+        <AnimatePresence>
+          {showBriefing && (
+            <motion.div 
+              initial={{ y: 150, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 150, opacity: 0 }}
+              className="fixed bottom-0 left-0 right-0 z-[100] pointer-events-none px-4 pb-4"
+            >
+              <div className="max-w-6xl mx-auto pointer-events-auto">
+                <div className="bg-slate-950/95 backdrop-blur-3xl border-t border-x border-white/10 rounded-t-[2.5rem] p-5 shadow-[0_-20px_50px_rgba(0,0,0,0.3)] relative overflow-hidden group ring-1 ring-white/10">
+                  {/* AI Ambient Glow */}
+                  <div className="absolute -left-20 -top-20 w-64 h-64 bg-indigo-500/20 rounded-full blur-[100px] animate-pulse" />
+                  
+                  <button 
+                    onClick={() => setShowBriefing(false)}
+                    className="absolute top-5 right-5 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/40 hover:bg-rose-500/20 hover:text-rose-400 transition-all z-20"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+
+                  <div className="flex flex-col lg:flex-row lg:items-center gap-8">
+                    {/* Left: AI Avatar & Narrative */}
+                    <div className="flex-1 flex items-start gap-3 sm:gap-5">
+                      <div className="shrink-0 relative">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30 relative z-10">
+                          <Activity className="w-5 h-5 sm:w-6 sm:h-6" />
+                        </div>
+                        <div className="absolute -inset-1 bg-indigo-500/30 rounded-xl sm:rounded-2xl blur-lg animate-pulse" />
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-400">Intelligence</h4>
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                        </div>
+                        <div className="text-[13px] sm:text-[14px] font-bold text-white/90 leading-tight sm:leading-relaxed font-mono tracking-tight">
+                          <TypewriterText 
+                            text={`Good afternoon! ${schoolName || 'The Edge School'} metrics are healthy. Collected Rs. ${(stats?.currentMonthCollection || 0).toLocaleString()} this month. Attention required: ${feeStatusData?.[2]?.value || 0} overdue accounts detected. Attendance is at ${stats?.attendanceRate || 0}% today.`} 
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: Actions & Pulse */}
+                    <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 border-t sm:border-t-0 sm:border-l border-white/10 pt-4 sm:pt-0 sm:pl-8 mt-2 sm:mt-0">
+                      <div className="flex flex-col items-start sm:items-end">
+                        <div className="text-sm sm:text-lg font-black text-white leading-none">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                        <div className="text-[8px] font-black uppercase text-indigo-400 tracking-widest mt-1">PKT • 32°C</div>
+                      </div>
+                      
+                      <Btn 
+                        variant="primary" 
+                        onClick={() => {
+                          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3');
+                          audio.volume = 0.2;
+                          audio.play().catch(() => {});
+                          navigate('/reports');
+                        }} 
+                        icon={ArrowUpRight}
+                        className="!rounded-xl !h-10 !px-5 !bg-white !text-slate-950 hover:!bg-indigo-50 transition-all shadow-xl !text-[10px] !font-black uppercase tracking-[0.1em]"
+                      >
+                        Launch
+                      </Btn>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+      {/* Alert Pills */}
       {alerts.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {alerts.map((alert, i) => (
-            <Link key={i} to={alert.link}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-medium transition hover:shadow-md ${
-                alert.type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100' :
-                alert.type === 'success' ? 'bg-green-50 border-green-200 text-green-800 hover:bg-green-100' :
-                'bg-blue-50 border-blue-200 text-blue-800 hover:bg-blue-100'
-              }`}>
-              <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 font-black text-sm ${
-                alert.type === 'warning' ? 'bg-amber-200 text-amber-800' :
-                alert.type === 'success' ? 'bg-green-200 text-green-800' :
-                'bg-blue-200 text-blue-800'
-              }`}>{alert.count}</span>
-              <span className="flex-1 leading-tight">{alert.message}</span>
-              <ChevronRight className="w-3.5 h-3.5 shrink-0 opacity-60" />
-            </Link>
-          ))}
-        </div>
-      )}      {/* Primary Stats - Overview Band */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {[
-          { 
-            label: 'Total Students', 
-            value: stats.totalStudents, 
-            sub: `${stats.newAdmissions} new this week`,
-            icon: GraduationCap, 
-            color: 'from-blue-500 to-indigo-600',
-            link: '/students' 
-          },
-          { 
-            label: 'Today\'s Attendance', 
-            value: `${stats.attendanceRate}%`, 
-            sub: `${stats.todayPresent} present today`,
-            icon: CalendarCheck, 
-            color: 'from-emerald-400 to-teal-600',
-            link: '/attendance/daily-report' 
-          },
-          { 
-            label: 'Month Revenue (Net)', 
-            value: fmt(stats.cashInHand), 
-            sub: `Total: ${fmt(stats.totalRevenue)}`,
-            icon: Wallet, 
-            color: stats.cashInHand >= 0 ? 'from-indigo-500 to-purple-600' : 'from-rose-500 to-red-600',
-            link: '/accounting' 
-          },
-          { 
-            label: 'Pending Fees', 
-            value: fmt(stats.pendingFees), 
-            sub: 'Action required',
-            icon: AlertTriangle, 
-            color: 'from-orange-400 to-rose-500',
-            link: '/fees/invoices' 
-          },
-        ].map(({ label, value, sub, icon: Icon, color, link }) => (
-          <Link key={label} to={link}
-            className={`relative overflow-hidden group bg-white rounded-3xl border border-gray-100 p-6 hover:shadow-2xl hover:shadow-indigo-100 transition-all duration-500 hover:-translate-y-1.5`}>
-            {/* Background Accent */}
-            <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${color} opacity-5 blur-3xl -mr-16 -mt-16 group-hover:opacity-10 transition-opacity`} />
-            
-            <div className="flex justify-between items-start mb-4">
-              <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${color} flex items-center justify-center text-white shadow-lg shadow-indigo-200 group-hover:scale-110 transition-transform duration-500`}>
-                <Icon className="w-6 h-6" />
-              </div>
-              <div className="flex flex-col items-end">
-                <span className="text-3xl font-black text-gray-900 tracking-tight">{value}</span>
-              </div>
-            </div>
-            
-            <div>
-              <p className="text-sm font-bold text-gray-800 tracking-tight">{label}</p>
-              <p className="text-xs font-semibold text-gray-400 mt-0.5 flex items-center gap-1">
-                {sub} <ChevronRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
-              </p>
-            </div>
+        <motion.div variants={item} className="flex gap-2 flex-wrap mb-6">
+          {alerts.map((a, i) => {
+            const colors = {
+              danger: { bg: 'bg-rose-50', color: 'text-rose-700', border: 'border-rose-200', dot: 'bg-rose-500' },
+              warning: { bg: 'bg-amber-50', color: 'text-amber-700', border: 'border-amber-200', dot: 'bg-amber-500' },
+              success: { bg: 'bg-emerald-50', color: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500' },
+              info: { bg: 'bg-indigo-50', color: 'text-indigo-700', border: 'border-indigo-200', dot: 'bg-indigo-500' },
+            };
+            const s = colors[a.type as keyof typeof colors] || colors.info;
+            return (
+              <Link key={i} to={a.link}
+                className={`flex items-center gap-2 border rounded-full px-3 py-1 text-xs font-semibold hover:shadow-sm transition-all ${s.bg} ${s.color} ${s.border}`}
+              >
+                <div className={`w-1.5 h-1.5 rounded-full ${s.dot} shrink-0`} />
+                {a.message}
+              </Link>
+            );
+          })}
+        </motion.div>
+      )}
 
-            {/* Attendance Progress Ring - Mini version if it's the attendance card */}
-            {label === 'Today\'s Attendance' && (
-              <div className="absolute bottom-6 right-6 w-12 h-12">
-                <svg className="w-full h-full transform -rotate-90">
-                  <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-gray-100" />
-                  <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" 
-                    className="text-teal-500"
-                    strokeDasharray={125.6}
-                    strokeDashoffset={125.6 - (125.6 * stats.attendanceRate) / 100}
-                    strokeLinecap="round" />
-                </svg>
-              </div>
-            )}
-          </Link>
-        ))}
-      </div>
+      {/* Stat Cards */}
+      <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatCard
+          label="Total Students"
+          value={stats.totalStudents}
+          sub={`${stats.newAdmissions} new this week`}
+          icon={GraduationCap}
+          color="indigo"
+          onClick={() => navigate('/students')}
+          animateValue={true}
+        />
+        <StatCard
+          label="Today Attendance"
+          value={`${stats.attendanceRate}%`}
+          sub={`${stats.todayPresent} present today`}
+          icon={CalendarCheck}
+          color="emerald"
+          onClick={() => navigate('/attendance/daily-report')}
+          animateValue={false}
+        />
+        <StatCard
+          label="Today Revenue"
+          value={fmt(stats.todayRevenue)}
+          sub="Fees & other income"
+          icon={TrendingUp}
+          color="blue"
+          onClick={() => navigate('/accounting')}
+          animateValue={true}
+          prefix="Rs. "
+        />
+        <StatCard
+          label="Today Expense"
+          value={fmt(stats.todayExpense)}
+          sub="Staff & operations"
+          icon={ArrowUpRight}
+          color="rose"
+          onClick={() => navigate('/accounting')}
+          animateValue={true}
+          prefix="Rs. "
+        />
+        <StatCard
+          label="Pending Fees"
+          value={fmt(stats.pendingFees)}
+          sub="Action required"
+          icon={AlertTriangle}
+          color="amber"
+          onClick={() => navigate('/fees/invoices')}
+          animateValue={true}
+          prefix="Rs. "
+        />
+        <StatCard
+          label="Total Staff"
+          value={stats.totalStaff}
+          sub="Active employees"
+          icon={Users}
+          color="teal"
+          onClick={() => navigate('/staff')}
+          animateValue={true}
+        />
+        <StatCard
+          label="Total Classes"
+          value={stats.totalClasses}
+          sub="Managed class groups"
+          icon={Layers}
+          color="purple"
+          onClick={() => navigate('/classes')}
+          animateValue={true}
+        />
+        <StatCard
+          label="Pending Actions"
+          value={stats.pendingComplaints + stats.pendingLeave}
+          sub="Needs attention"
+          icon={Activity}
+          color="orange"
+          onClick={() => setActiveTab('attention')}
+          animateValue={true}
+        />
+      </motion.div>
 
-      {/* Main Insights Band */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Financial Trends - Area Chart */}
-        <div className="lg:col-span-2 bg-white rounded-3xl border border-gray-100 shadow-sm p-6 hover:shadow-md transition-shadow">
-          <div className="flex justify-between items-center mb-6">
+      {/* Charts Row */}
+      <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        {/* Student Enrollment by Class (Half Page/Two Thirds) */}
+        <Card className="lg:col-span-2 p-6 flex flex-col">
+          <div className="flex justify-between items-center mb-5 shrink-0">
             <div>
-              <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-indigo-500" /> Financial Pulse
-              </h2>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Income vs Expense Trends</p>
+              <div className="text-[15px] font-semibold text-slate-900 tracking-tight">Student Enrollment by Class</div>
+              <div className="text-xs text-slate-400 mt-1">Active student distribution</div>
             </div>
-            <div className="flex gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-indigo-500" />
-                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">Income</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-rose-400" />
-                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">Expense</span>
-              </div>
-            </div>
+            <Btn variant="ghost" size="sm" onClick={() => navigate('/students')} icon={ArrowUpRight} className="!text-[10px] !font-black uppercase tracking-widest">
+              Directory
+            </Btn>
           </div>
-          <div className="h-72 w-full">
+          <div className="flex-1 min-h-[240px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyData} barGap={8} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0.1}/>
-                  </linearGradient>
-                  <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#fb7185" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#fb7185" stopOpacity={0.1}/>
-                  </linearGradient>
-                </defs>
+              <BarChart data={classData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 600, fill: '#64748b' }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 600, fill: '#64748b' }} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
-                <Tooltip 
-                  cursor={{ fill: '#f8fafc' }}
-                  contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', padding: 12 }} 
-                  formatter={(v: any) => [`Rs. ${Number(v).toLocaleString()}`, '']}
+                <XAxis 
+                  dataKey="name" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} 
+                  interval={0}
+                  angle={-45}
+                  textAnchor="end"
+                  height={60}
                 />
-                <Bar dataKey="income" fill="#6366f1" radius={[6, 6, 0, 0]} name="Income" barSize={32} />
-                <Bar dataKey="expense" fill="#fb7185" radius={[6, 6, 0, 0]} name="Expense" barSize={32} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} />
+                <Tooltip 
+                  cursor={{ fill: '#f8fafc' }} 
+                  contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} 
+                />
+                <Bar dataKey="students" radius={[6, 6, 0, 0]} barSize={32}>
+                  {classData.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={[`#6366f1`, `#10b981`, `#f59e0b`, `#ef4444`, `#ec4899`, `#8b5cf6`, `#06b6d4`, `#f97316`][index % 8]} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </Card>
 
-        {/* Fee Collection - Donut Chart */}
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 hover:shadow-md transition-shadow">
-          <div className="mb-6 text-center lg:text-left">
-            <h2 className="text-lg font-black text-gray-900 flex items-center justify-center lg:justify-start gap-2">
-              <PiggyBank className="w-5 h-5 text-emerald-500" /> Revenue Split
-            </h2>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Fee Collection Status</p>
+        {/* Donut Chart with Progress */}
+        <Card className="p-6 flex flex-col relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+            <PiggyBank className="w-24 h-24 -rotate-12" />
           </div>
-          <div className="h-56 w-full relative">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={feeStatusData} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={8} dataKey="value" stroke="none">
-                  {feeStatusData.map((_, i) => <Cell key={i} fill={['#10b981', '#f59e0b', '#ef4444'][i]} />)}
-                </Pie>
-                <Tooltip contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
-              </PieChart>
-            </ResponsiveContainer>
-            {/* Center Hole Text */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-tighter">Pending</p>
-              <p className="text-xl font-black text-gray-900">Rs. {(stats.pendingFees / 1000).toFixed(0)}k</p>
+          <div className="text-[15px] font-semibold text-slate-900 tracking-tight mb-1">Monthly Revenue Split</div>
+          <div className="text-xs text-slate-400 mb-6">{stats.activeMonthLabel || 'Current Month'} Collection Status</div>
+          
+          {/* Progress Indicator */}
+          <div className="mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Collection Progress</span>
+              <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-lg">{stats.collectionProgress}%</span>
+            </div>
+            <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-indigo-500 to-blue-500 transition-all duration-1000 ease-out"
+                style={{ width: `${stats.collectionProgress}%` }}
+              />
             </div>
           </div>
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            {[
-              { label: 'Paid', color: 'bg-emerald-500' },
-              { label: 'Partial', color: 'bg-amber-500' },
-              { label: 'Unpaid', color: 'bg-rose-500' },
-            ].map(l => (
-              <div key={l.label} className="flex flex-col items-center gap-1">
-                <div className={`w-full h-1 rounded-full ${l.color} opacity-20`} />
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">{l.label}</span>
-              </div>
-            ))}
-          </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 min-w-0 hover:shadow-md transition-shadow">
-          <h3 className="font-black text-gray-900 mb-5 flex items-center gap-2">
-            <GraduationCap className="w-5 h-5 text-indigo-500" /> Student Distribution
-          </h3>
+          <div className="flex-1 min-h-[140px] relative">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={feeStatusData} cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={5} dataKey="value" stroke="none">
+                  {feeStatusData.map((_, i) => <Cell key={i} fill={['#10b981', '#f59e0b', '#e11d48'][i]} />)}
+                </Pie>
+                <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex flex-col gap-2 mt-5">
+            {feeStatusData.map((f, i) => {
+              const total = feeStatusData.reduce((s, d) => s + d.value, 0);
+              const pct = total === 0 ? 0 : Math.round(f.value / total * 100);
+              const colors = ['#10b981', '#f59e0b', '#e11d48'];
+              return (
+                <div key={f.name} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: colors[i] }} />
+                    <span className="text-[13px] text-slate-700">{f.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] font-semibold text-slate-900">{f.value}</span>
+                    <span className="text-[11px] text-slate-400 w-8 text-right">{pct}%</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      </motion.div>
+
+      <div className="h-4" /> {/* Spacer */}
+
+      {/* Financial Pulse - Restored Below */}
+      <motion.div variants={item} className="mb-4">
+        <Card className="p-6 overflow-hidden relative">
+          <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
+            <DollarSign className="w-32 h-32" />
+          </div>
+          <div className="flex justify-between items-start mb-6">
+            <div>
+              <div className="text-[15px] font-black text-slate-900 tracking-tight uppercase">Financial Performance Pulse</div>
+              <div className="text-[11px] font-bold text-slate-400 mt-1 uppercase tracking-wider">6-Month Trend — Revenue vs Operational Costs</div>
+            </div>
+            <div className="flex gap-4">
+              {[
+                { color: '#6366f1', label: 'Income', icon: ArrowUpRight },
+                { color: '#e11d48', label: 'Expense', icon: TrendingUp }
+              ].map(l => (
+                <div key={l.label} className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: l.color }} />
+                  <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">{l.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
           <div className="h-64 w-full">
-            {classData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                <BarChart data={classData} margin={{ top: 0, right: 0, left: 0, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 600, fill: '#64748b' }} angle={-35} textAnchor="end" />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 600, fill: '#64748b' }} />
-                  <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
-                  <Bar dataKey="students" fill="#6366f1" radius={[6, 6, 0, 0]} barSize={24} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-gray-400 font-medium italic">Waiting for demographic data...</div>
-            )}
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={monthlyData} barGap={8} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f1f5f9" />
+                <XAxis 
+                  dataKey="month" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} 
+                  dy={10} 
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} 
+                  tickFormatter={v => `Rs. ${(v / 1000).toFixed(0)}k`} 
+                />
+                <Tooltip 
+                  cursor={{ fill: '#f8fafc', radius: 8 }} 
+                  contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }} 
+                  formatter={(v: any) => [`Rs. ${Number(v).toLocaleString()}`, '']} 
+                />
+                <Bar dataKey="income" fill="#6366f1" radius={[6, 6, 0, 0]} barSize={28} />
+                <Bar dataKey="expense" fill="#e11d48" radius={[6, 6, 0, 0]} barSize={28} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
-        </div>
-        </div>
-      </div>
+        </Card>
+      </motion.div>
 
-      {/* Operations Band - Unified Action Center */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
-          <div className="flex border-b border-gray-100 bg-gray-50/50">
+      <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Tabbed Panel */}
+        <Card className="lg:col-span-2 flex flex-col overflow-hidden">
+          <div className="flex border-b border-slate-100 bg-slate-50 shrink-0 overflow-x-auto no-scrollbar">
             {[
               { id: 'attention', label: 'Needs Attention', count: stats.pendingComplaints + stats.pendingLeave },
               { id: 'recent', label: 'Recent Activity', count: recentActivity.length },
               { id: 'defaulters', label: 'Fee Defaulters', count: feeStatusData[2]?.value || 0 },
             ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 px-6 py-4 text-xs font-black uppercase tracking-widest transition-all relative ${
-                  activeTab === tab.id ? 'text-indigo-600 bg-white' : 'text-gray-400 hover:text-gray-600'
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 min-w-[120px] px-4 py-3.5 text-xs font-semibold transition-all flex items-center justify-center gap-2 ${
+                  activeTab === tab.id 
+                    ? 'text-indigo-600 bg-white border-b-2 border-indigo-600' 
+                    : 'text-slate-500 border-b-2 border-transparent hover:text-slate-700'
                 }`}
               >
-                <span className="relative z-10 flex items-center justify-center gap-2">
-                  {tab.label}
-                  {tab.count > 0 && (
-                    <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${
-                      activeTab === tab.id ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500'
-                    }`}>
-                      {tab.count}
-                    </span>
-                  )}
-                </span>
-                {activeTab === tab.id && <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600" />}
+                {tab.label}
+                {tab.count > 0 && (
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                    activeTab === tab.id ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {tab.count}
+                  </span>
+                )}
               </button>
             ))}
           </div>
-
-          <div className="p-6 h-[400px] overflow-y-auto custom-scrollbar">
+          <div className="p-4 h-[320px] overflow-y-auto custom-scrollbar">
             {activeTab === 'attention' && (
-              <div className="space-y-4">
+              <div className="flex flex-col gap-2.5">
                 {stats.pendingComplaints === 0 && stats.pendingLeave === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full py-12 text-center">
-                    <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-500 mb-4">
-                      <CheckCircle className="w-8 h-8" />
-                    </div>
-                    <p className="text-gray-900 font-black">All Clear!</p>
-                    <p className="text-sm text-gray-400 font-medium">No pending requests or complaints.</p>
-                  </div>
+                  <EmptyState icon="🎉" title="All caught up!" sub="No pending requests or complaints to review." className="mt-8" />
                 ) : (
                   <>
                     {stats.pendingComplaints > 0 && (
-                      <Link to="/complaints" className="block p-4 bg-rose-50 border border-rose-100 rounded-2xl hover:bg-rose-100 transition-colors">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-rose-500 shadow-sm">
-                              <MessageSquare className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <p className="font-black text-gray-900 text-sm">{stats.pendingComplaints} Open Complaints</p>
-                              <p className="text-xs text-rose-600 font-bold">Action required from support</p>
-                            </div>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-rose-400" />
+                      <div onClick={() => navigate('/complaints')} className="flex items-center gap-3 p-3 rounded-xl bg-rose-50 cursor-pointer hover:bg-rose-100 transition-colors">
+                        <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center shrink-0">
+                          <MessageSquare className="w-4 h-4 text-rose-600" />
                         </div>
-                      </Link>
+                        <div className="flex-1">
+                          <div className="text-[13px] font-semibold text-slate-900">{stats.pendingComplaints} Open Complaints</div>
+                          <div className="text-xs text-rose-600 mt-0.5">Require admin response</div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-slate-400" />
+                      </div>
                     )}
                     {stats.pendingLeave > 0 && (
-                      <Link to="/leave" className="block p-4 bg-amber-50 border border-amber-100 rounded-2xl hover:bg-amber-100 transition-colors">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-amber-500 shadow-sm">
-                              <CalendarCheck className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <p className="font-black text-gray-900 text-sm">{stats.pendingLeave} Leave Requests</p>
-                              <p className="text-xs text-amber-600 font-bold">Pending administrative approval</p>
-                            </div>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-amber-400" />
+                      <div onClick={() => navigate('/leave')} className="flex items-center gap-3 p-3 rounded-xl bg-amber-50 cursor-pointer hover:bg-amber-100 transition-colors">
+                        <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center shrink-0">
+                          <CalendarCheck className="w-4 h-4 text-amber-600" />
                         </div>
-                      </Link>
+                        <div className="flex-1">
+                          <div className="text-[13px] font-semibold text-slate-900">{stats.pendingLeave} Leave Requests</div>
+                          <div className="text-xs text-amber-600 mt-0.5">Awaiting approval</div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-slate-400" />
+                      </div>
                     )}
                   </>
                 )}
               </div>
             )}
-
             {activeTab === 'recent' && (
-              <div className="space-y-3">
+              <div className="flex flex-col gap-2">
                 {recentActivity.length === 0 ? (
-                  <p className="text-center text-gray-400 py-12 italic">No recent transactions recorded.</p>
+                  <EmptyState icon="📝" title="No activity yet" sub="Recent transactions will appear here." className="mt-8" />
                 ) : (
                   recentActivity.map((item, i) => (
-                    <div key={i} className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-md transition-all">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                        item.sub === 'paid' ? 'bg-emerald-100 text-emerald-600' :
-                        'bg-amber-100 text-amber-600'
+                    <div key={i} className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-100 bg-white shadow-sm">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm ${
+                        item.sub === 'paid' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
                       }`}>
-                        {item.sub === 'paid' ? <CheckCircle className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+                        {item.sub === 'paid' ? <CheckCircle className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-black text-gray-900 text-sm truncate">{item.label}</p>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                          {item.sub} · {item.month ? formatDate(item.month) : ''}
-                        </p>
+                        <div className="text-[13px] font-semibold text-slate-900 truncate">{item.label}</div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">{item.month ? formatDate(item.month) : 'Recent'}</div>
                       </div>
-                      <span className="text-sm font-black text-gray-900 shrink-0">Rs. {Number(item.amount || 0).toLocaleString()}</span>
+                      <div className="text-right shrink-0">
+                        <div className="text-[13px] font-bold text-slate-900">Rs. {Number(item.amount || 0).toLocaleString()}</div>
+                        <Badge status={item.sub} className="mt-1" />
+                      </div>
                     </div>
                   ))
                 )}
               </div>
             )}
-
             {activeTab === 'defaulters' && (
-              <div className="flex flex-col items-center justify-center h-full py-12 text-center">
-                <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center text-rose-500 mb-4">
-                  <AlertTriangle className="w-8 h-8" />
-                </div>
-                <p className="text-gray-900 font-black">Feature Coming Soon</p>
-                <p className="text-sm text-gray-400 font-medium max-w-xs mx-auto">Detailed class-wise defaulter reports are being generated for your view.</p>
-                <Link to="/fees/invoices" className="mt-4 text-xs font-black text-indigo-600 hover:underline">View All Unpaid Invoices</Link>
-              </div>
+              <EmptyState icon="🚧" title="Coming Soon" sub="Class-wise defaulter reports are being compiled." className="mt-8" />
             )}
           </div>
-        </div>
+        </Card>
 
-        {/* Compact Quick Actions Grid */}
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
-          <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-5">Admin Shortcuts</h3>
-          <div className="grid grid-cols-2 gap-3">
+        {/* Quick Access */}
+        <Card className="p-5 flex flex-col">
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Quick Access</div>
+          <div className="grid grid-cols-2 gap-2 flex-1">
             {[
-              { to: '/students', icon: GraduationCap, label: 'Students', color: 'indigo' },
-              { to: '/attendance', icon: CalendarCheck, label: 'Attendance', color: 'emerald' },
-              { to: '/fees/invoices', icon: CreditCard, label: 'Invoices', color: 'rose' },
-              { to: '/result', icon: BarChart2, label: 'Exam Results', color: 'amber' },
-              { to: '/communication', icon: Mail, label: 'Notices', color: 'blue' },
-              { to: '/reports/master-summary', icon: FileText, label: 'Reports', color: 'slate' },
-            ].map(({ to, icon: Icon, label, color }) => (
-              <Link key={to} to={to}
-                className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-2xl hover:bg-white hover:shadow-xl hover:shadow-indigo-50 transition-all group">
-                <div className={`w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-${color}-500 mb-3 group-hover:scale-110 transition-transform`}>
-                  <Icon className="w-5 h-5" />
-                </div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-gray-600">{label}</span>
-              </Link>
+              { icon: <GraduationCap/>, label: 'Students', path: '/students' },
+              { icon: <CalendarCheck/>, label: 'Attendance', path: '/attendance' },
+              { icon: <CreditCard/>, label: 'Invoices', path: '/fees/invoices' },
+              { icon: <BarChart2/>, label: 'Results', path: '/result' },
+              { icon: <Mail/>, label: 'Notices', path: '/communication' },
+              { icon: <FileText/>, label: 'Reports', path: '/accounting' },
+            ].map(a => (
+              <div key={a.path} onClick={() => navigate(a.path)}
+                className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-slate-50 cursor-pointer border border-slate-100 hover:bg-white hover:border-slate-300 hover:shadow-sm transition-all"
+              >
+                <div className="text-indigo-500 w-5 h-5">{a.icon}</div>
+                <span className="text-[11px] font-medium text-slate-600">{a.label}</span>
+              </div>
             ))}
           </div>
-          
-          <div className="mt-6 p-4 bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl text-white">
-            <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 opacity-80 mb-1">System Health</p>
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-bold">Stable & Secured</span>
-              <ShieldCheck className="w-4 h-4 text-indigo-300" />
+
+          <div className="mt-4 p-3 rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-700 text-white shadow-md shadow-indigo-600/20">
+            <div className="text-[10px] text-indigo-200 uppercase tracking-widest mb-1 font-semibold">System Status</div>
+            <div className="text-[13px] font-bold flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4" /> All systems operational
             </div>
           </div>
-        </div>
-      </div>
-    </div>
+        </Card>
+      </motion.div>
+    </motion.div>
   );
 }

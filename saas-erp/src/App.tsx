@@ -43,6 +43,7 @@ const AccountingLayout = lazy(() => import('./pages/accounting/AccountingLayout'
 const LibraryLayout = lazy(() => import('./pages/library/LibraryLayout'));
 const FrontDeskLayout = lazy(() => import('./pages/frontdesk/FrontDeskLayout'));
 const FamilyGroups = lazy(() => import('./pages/family/FamilyGroups'));
+const CleanupDuplicates = lazy(() => import('./pages/family/CleanupDuplicates'));
 const ParentPortal = lazy(() => import('./pages/ParentPortal'));
 const StudentPortal = lazy(() => import('./pages/StudentPortal'));
 const ReportsLayout = lazy(() => import('./pages/reports/ReportsLayout'));
@@ -153,6 +154,7 @@ export default function App() {
                 <Route path="frontdesk/*" element={<FrontDeskLayout />} />
                 <Route path="reports/*" element={<ReportsLayout />} />
                 <Route path="family" element={<FamilyGroups />} />
+                <Route path="family/cleanup" element={<CleanupDuplicates />} />
                 <Route path="settings/permissions" element={<PermissionManager />} />
                 <Route path="settings/id-cards" element={<IDCardSettings />} />
                 <Route path="settings/report-cards" element={<ReportCardSettings />} />

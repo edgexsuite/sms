@@ -12,6 +12,7 @@ import ImportResult from './ImportResult';
 import TeacherMarks from './TeacherMarks';
 import GradingPolicy from './GradingPolicy';
 import AwardListGenerator from './AwardListGenerator';
+import ExamMarksConfig from './ExamMarksConfig';
 
 export default function ResultLayout() {
   return (
@@ -19,7 +20,7 @@ export default function ResultLayout() {
       <Route path="/" element={<AddExamType />} />
       <Route path="exam-types" element={<AddExamType />} />
       <Route path="schedule" element={<AddExamSchedule />} />
-      <Route path="add-result" element={<AddResult />} />
+      <Route path="add-result" element={<TeacherMarks />} />
       <Route path="consolidated" element={<ConsolidatedResult />} />
       <Route path="reporting" element={<ResultReporting />} />
       <Route path="settings" element={<ResultSetting />} />
@@ -28,6 +29,7 @@ export default function ResultLayout() {
       <Route path="grading-policy" element={<GradingPolicy />} />
       <Route path="teacher-marks" element={<TeacherMarks />} />
       <Route path="award-list" element={<AwardListGenerator />} />
+      <Route path="marks-config" element={<ExamMarksConfig />} />
       <Route path="*" element={<Navigate to="/result/exam-types" replace />} />
     </Routes>
   );

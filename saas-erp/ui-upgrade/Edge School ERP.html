@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Edge School ERP — Redesign Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body, #root { height: 100%; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #f8fafc;
+    -webkit-font-smoothing: antialiased;
+    font-size: 14px;
+    color: #111827;
+  }
+  * { scrollbar-width: thin; scrollbar-color: #e2e8f0 transparent; }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+  textarea, input, select, button { font-family: 'Inter', system-ui, sans-serif; }
+</style>
+<!-- Bundler thumbnail -->
+<template id="__bundler_thumbnail" data-bg-color="#f8fafc">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <!-- Sidebar -->
+    <rect x="0" y="0" width="200" height="800" fill="#0d1526"/>
+    <!-- Brand bar -->
+    <rect x="16" y="16" width="36" height="36" rx="9" fill="#6366f1"/>
+    <rect x="60" y="20" width="110" height="10" rx="4" fill="rgba(255,255,255,.25)"/>
+    <rect x="60" y="36" width="70" height="6" rx="3" fill="rgba(255,255,255,.12)"/>
+    <!-- Nav items -->
+    <rect x="8" y="76" width="184" height="30" rx="8" fill="rgba(99,102,241,.2)"/>
+    <rect x="10" y="76" width="3" height="30" rx="2" fill="#818cf8"/>
+    <rect x="16" y="84" width="16" height="16" rx="5" fill="rgba(99,102,241,.3)"/>
+    <rect x="40" y="88" width="80" height="8" rx="4" fill="rgba(255,255,255,.6)"/>
+    <rect x="16" y="118" width="16" height="16" rx="5" fill="rgba(255,255,255,.06)"/>
+    <rect x="40" y="122" width="64" height="8" rx="4" fill="rgba(255,255,255,.2)"/>
+    <rect x="16" y="148" width="16" height="16" rx="5" fill="rgba(255,255,255,.06)"/>
+    <rect x="40" y="152" width="72" height="8" rx="4" fill="rgba(255,255,255,.2)"/>
+    <rect x="16" y="178" width="16" height="16" rx="5" fill="rgba(255,255,255,.06)"/>
+    <rect x="40" y="182" width="56" height="8" rx="4" fill="rgba(255,255,255,.2)"/>
+    <!-- Section divider -->
+    <rect x="8" y="216" width="184" height="1" fill="rgba(255,255,255,.06)"/>
+    <rect x="16" y="228" width="48" height="6" rx="3" fill="rgba(255,255,255,.12)"/>
+    <rect x="16" y="248" width="16" height="16" rx="5" fill="rgba(255,255,255,.06)"/>
+    <rect x="40" y="252" width="80" height="8" rx="4" fill="rgba(255,255,255,.2)"/>
+    <rect x="16" y="278" width="16" height="16" rx="5" fill="rgba(255,255,255,.06)"/>
+    <rect x="40" y="282" width="60" height="8" rx="4" fill="rgba(255,255,255,.2)"/>
+    <!-- User footer -->
+    <rect x="8" y="748" width="184" height="40" rx="8" fill="rgba(255,255,255,.04)"/>
+    <rect x="16" y="756" width="24" height="24" rx="6" fill="#6366f1"/>
+    <rect x="48" y="760" width="60" height="7" rx="3" fill="rgba(255,255,255,.4)"/>
+    <rect x="48" y="772" width="40" height="5" rx="2" fill="rgba(255,255,255,.15)"/>
+
+    <!-- Topbar -->
+    <rect x="200" y="0" width="1000" height="56" fill="#ffffff"/>
+    <rect x="200" y="55" width="1000" height="1" fill="#e5e7eb"/>
+    <rect x="820" y="16" width="140" height="24" rx="7" fill="#f3f4f6"/>
+    <rect x="974" y="16" width="36" height="24" rx="7" fill="#f3f4f6"/>
+    <rect x="1020" y="16" width="80" height="24" rx="7" fill="#f3f4f6"/>
+    <rect x="1110" y="16" width="72" height="24" rx="7" fill="#fff1f2"/>
+
+    <!-- Main content -->
+    <rect x="200" y="56" width="1000" height="744" fill="#f8fafc"/>
+    <!-- Page header -->
+    <rect x="228" y="84" width="200" height="22" rx="5" fill="#111827" opacity=".85"/>
+    <rect x="228" y="114" width="280" height="12" rx="4" fill="#9ca3af" opacity=".6"/>
+    <!-- CTA buttons -->
+    <rect x="1020" y="82" width="90" height="32" rx="7" fill="#f3f4f6"/>
+    <rect x="1120" y="82" width="80" height="32" rx="7" fill="#4f46e5"/>
+    <!-- Alert pills -->
+    <rect x="228" y="148" width="130" height="24" rx="100" fill="#fef2f2"/>
+    <rect x="370" y="148" width="118" height="24" rx="100" fill="#fffbeb"/>
+    <rect x="500" y="148" width="138" height="24" rx="100" fill="#fef2f2"/>
+    <rect x="650" y="148" width="120" height="24" rx="100" fill="#ecfdf5"/>
+    <!-- Stat cards -->
+    <rect x="228" y="192" width="218" height="108" rx="12" fill="#fff" stroke="#e5e7eb" stroke-width="1"/>
+    <rect x="240" y="204" width="36" height="36" rx="9" fill="#eef2ff"/>
+    <rect x="240" y="264" width="80" height="18" rx="4" fill="#111827" opacity=".8"/>
+    <rect x="240" y="287" width="110" height="10" rx="3" fill="#9ca3af" opacity=".6"/>
+    <rect x="462" y="192" width="218" height="108" rx="12" fill="#fff" stroke="#e5e7eb" stroke-width="1"/>
+    <rect x="474" y="204" width="36" height="36" rx="9" fill="#ecfdf5"/>
+    <rect x="474" y="264" width="64" height="18" rx="4" fill="#111827" opacity=".8"/>
+    <rect x="474" y="287" width="100" height="10" rx="3" fill="#9ca3af" opacity=".6"/>
+    <rect x="696" y="192" width="218" height="108" rx="12" fill="#fff" stroke="#e5e7eb" stroke-width="1"/>
+    <rect x="708" y="204" width="36" height="36" rx="9" fill="#f5f3ff"/>
+    <rect x="708" y="264" width="90" height="18" rx="4" fill="#111827" opacity=".8"/>
+    <rect x="708" y="287" width="110" height="10" rx="3" fill="#9ca3af" opacity=".6"/>
+    <rect x="930" y="192" width="218" height="108" rx="12" fill="#fff" stroke="#e5e7eb" stroke-width="1"/>
+    <rect x="942" y="204" width="36" height="36" rx="9" fill="#fffbeb"/>
+    <rect x="942" y="264" width="80" height="18" rx="4" fill="#111827" opacity=".8"/>
+    <rect x="942" y="287" width="100" height="10" rx="3" fill="#9ca3af" opacity=".6"/>
+    <!-- Chart card -->
+    <rect x="228" y="320" width="540" height="260" rx="12" fill="#fff" stroke="#e5e7eb" stroke-width="1"/>
+    <rect x="244" y="338" width="120" height="14" rx="4" fill="#111827" opacity=".7"/>
+    <!-- Bar chart bars -->
+    <rect x="266" y="460" width="22" height="80" rx="4" fill="#6366f1"/>
+    <rect x="294" y="490" width="22" height="50" rx="4" fill="#fb7185" opacity=".85"/>
+    <rect x="336" y="430" width="22" height="110" rx="4" fill="#6366f1"/>
+    <rect x="364" y="460" width="22" height="80" rx="4" fill="#fb7185" opacity=".85"/>
+    <rect x="406" y="445" width="22" height="95" rx="4" fill="#6366f1"/>
+    <rect x="434" y="475" width="22" height="65" rx="4" fill="#fb7185" opacity=".85"/>
+    <rect x="476" y="415" width="22" height="125" rx="4" fill="#6366f1"/>
+    <rect x="504" y="445" width="22" height="95" rx="4" fill="#fb7185" opacity=".85"/>
+    <rect x="546" y="430" width="22" height="110" rx="4" fill="#6366f1"/>
+    <rect x="574" y="460" width="22" height="80" rx="4" fill="#fb7185" opacity=".85"/>
+    <rect x="616" y="435" width="22" height="105" rx="4" fill="#6366f1"/>
+    <rect x="644" y="460" width="22" height="80" rx="4" fill="#fb7185" opacity=".85"/>
+    <!-- Donut card -->
+    <rect x="782" y="320" width="366" height="260" rx="12" fill="#fff" stroke="#e5e7eb" stroke-width="1"/>
+    <rect x="798" y="338" width="100" height="14" rx="4" fill="#111827" opacity=".7"/>
+    <circle cx="965" cy="460" r="60" fill="none" stroke="#ecfdf5" stroke-width="22"/>
+    <circle cx="965" cy="460" r="60" fill="none" stroke="#059669" stroke-width="22" stroke-dasharray="239 138" stroke-dashoffset="0" transform="rotate(-90 965 460)"/>
+    <circle cx="965" cy="460" r="60" fill="none" stroke="#d97706" stroke-width="22" stroke-dasharray="99 278" stroke-dashoffset="-239" transform="rotate(-90 965 460)"/>
+    <circle cx="965" cy="460" r="60" fill="none" stroke="#dc2626" stroke-width="22" stroke-dasharray="25 352" stroke-dashoffset="-338" transform="rotate(-90 965 460)"/>
+  </svg>
+</template>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- Data + atoms -->
+<script type="text/babel" src="erp-data.jsx"></script>
+<!-- Layout: Sidebar, Topbar, Charts -->
+<script type="text/babel" src="erp-layout.jsx"></script>
+<!-- Pages -->
+<script type="text/babel" src="erp-pages.jsx"></script>
+<!-- Tweaks panel -->
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+
+<!-- Main App -->
+<script type="text/babel">
+
+const PAGE_LABELS = {
+  dashboard:'Dashboard', students:'Students', 'students-add':'Register Student',
+  attendance:'Mark Attendance', 'att-daily':'Attendance Report',
+  fees:'Fee Invoices', 'fee-criteria':'Fee Criteria', 'fee-discounts':'Discounts',
+  expenses:'Add Expense', 'exp-heads':'Expense Heads', 'exp-ledger':'Ledger',
+  payroll:'Payroll', result:'Results', accounting:'Accounting',
+  library:'Library', staff:'Staff Directory', classes:'Classes & Subjects',
+  timetable:'Timetable', parents:'Parents', ai:'AI Assistant',
+  reports:'Reports & Analytics', 'rep-financial':'Financial Report',
+  'rep-attendance':'Attendance Report', 'rep-fees':'Fee Collection Report',
+  settings:'Settings', complaints:'Complaints', leave:'Leave Requests',
+};
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "primaryColor": "#4f46e5",
+  "fontScale": 1,
+  "density": "comfortable",
+  "sidebarWidth": 220
+}/*EDITMODE-END*/;
+
+function App() {
+  const [page, setPage] = React.useState('dashboard');
+  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  // Apply primary color as CSS var
+  React.useEffect(() => {
+    if (tweaks?.primaryColor) {
+      document.documentElement.style.setProperty('--primary', tweaks.primaryColor);
+    }
+  }, [tweaks?.primaryColor]);
+
+  const renderPage = () => {
+    switch(page) {
+      case 'dashboard':    return <DashboardPage setPage={setPage} />;
+      case 'students':        return <StudentsPage setPage={setPage} />;
+      case 'attendance':      return <AttendancePage />;
+      case 'expenses':        return <ExpensesPage />;
+      case 'fees':            return <FeeInvoicesPage />;
+      case 'reports':
+      case 'rep-financial':
+      case 'rep-attendance':
+      case 'rep-fees':
+        return <ReportingPage initialTab={
+          page==='rep-financial'  ? 'financial'  :
+          page==='rep-attendance' ? 'attendance' :
+          page==='rep-fees'       ? 'fees'       : 'summary'
+        } />;
+      default:                return <PlaceholderPage title={PAGE_LABELS[page] || page} />;
+    }
+  };
+
+  const isCompact = tweaks.density === 'compact';
+  const mainPad = isCompact ? '16px 20px' : '24px 28px';
+
+  return (
+    <div style={{ display:'flex', height:'100vh', overflow:'hidden' }}>
+      {/* Sidebar */}
+      <Sidebar
+        activePage={page}
+        setPage={setPage}
+        collapsed={sidebarCollapsed}
+        setCollapsed={setSidebarCollapsed}
+      />
+
+      {/* Main */}
+      <div style={{ flex:1, display:'flex', flexDirection:'column', minWidth:0, overflow:'hidden' }}>
+        <Topbar activePage={page} setPage={setPage} />
+
+        {/* Page content */}
+        <main style={{
+          flex:1, overflowY:'auto', overflowX:'hidden',
+          padding: mainPad,
+          background:'#f8fafc',
+          fontSize: `${tweaks.fontScale}em`,
+        }}>
+          {renderPage()}
+        </main>
+      </div>
+
+      {/* Tweaks Panel */}
+      <TweaksPanel title="Tweaks">
+        <TweakSection label="Accent Color">
+          <TweakColor id="primaryColor" label="Primary" />
+        </TweakSection>
+        <TweakSection label="Density">
+          <TweakRadio id="density" options={['comfortable','compact']} />
+        </TweakSection>
+        <TweakSection label="Text Scale">
+          <TweakSlider id="fontScale" min={0.85} max={1.15} step={0.05} label="Scale" />
+        </TweakSection>
+      </TweaksPanel>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+
+<!-- Watermark -->
+<script type="text/babel">
+  // Prototype label in corner
+  const label = document.createElement('div');
+  label.innerText = 'Design Prototype · The Edge School ERP';
+  label.style.cssText = `position:fixed;bottom:12px;right:16px;font-size:10px;
+    color:rgba(0,0,0,.25);font-family:Inter,sans-serif;font-weight:500;
+    letter-spacing:.04em;pointer-events:none;z-index:9999;`;
+  document.body.appendChild(label);
+</script>
+</body>
+</html>

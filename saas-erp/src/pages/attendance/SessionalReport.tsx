@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { BarChart2, Download } from 'lucide-react';
+import { BarChart2, Download, Users, TrendingUp, AlertTriangle, Calendar, Filter } from 'lucide-react';
 import { exportToCSV } from '../../lib/exportUtils';
+import { PageHeader, Card, Btn, Badge, Select, Input, EmptyState } from '../../components/ui';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '../../lib/utils';
 
 interface StudentStat {
   student_id: string;
@@ -84,125 +87,207 @@ export default function SessionalReport() {
   const below75 = stats.filter(s => s.attendance_pct < 75).length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <BarChart2 className="w-6 h-6 text-indigo-600" /> Sessional Attendance Report
-          </h1>
-          <p className="text-gray-500 text-sm mt-1">Student-wise attendance percentage for any date range.</p>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <PageHeader
+        title="Sessional Attendance"
+        subtitle="Long-term attendance trends and student performance audits."
+        actions={
+          stats.length > 0 && (
+            <Btn 
+              variant="outline" 
+              onClick={() => exportToCSV(`sessional-${selectedClass}-${startDate}-${endDate}`, sorted, [
+                { header: 'Roll No', key: 'roll_number' }, { header: 'Student', key: 'full_name' }, { header: 'Class', key: 'class_name' },
+                { header: 'Total Days', key: 'total_days' }, { header: 'Present', key: 'present' }, { header: 'Absent', key: 'absent' },
+                { header: 'Leave', key: 'leave' }, { header: 'Late', key: 'late' }, { header: 'Attendance %', key: 'attendance_pct' },
+              ])}
+              icon={Download}
+            >
+              Export CSV
+            </Btn>
+          )
+        }
+      />
+
+      <Card className="p-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+          <Select
+            label="Class"
+            value={selectedClass}
+            onChange={e => setSelectedClass(e.target.value)}
+            icon={Users}
+          >
+            <option value="">Select class...</option>
+            {classes.map(c => <option key={c.id} value={c.id}>{c.name}-{c.section}</option>)}
+          </Select>
+          <Input
+            label="From Date"
+            type="date"
+            value={startDate}
+            onChange={e => setStartDate(e.target.value)}
+            icon={Calendar}
+          />
+          <Input
+            label="To Date"
+            type="date"
+            value={endDate}
+            onChange={e => setEndDate(e.target.value)}
+            icon={Calendar}
+          />
+          <Btn 
+            variant="primary" 
+            onClick={fetchReport} 
+            disabled={!selectedClass || loading}
+            className="w-full"
+            icon={BarChart2}
+          >
+            {loading ? 'Crunching...' : 'Generate Report'}
+          </Btn>
         </div>
-        {stats.length > 0 && (
-          <button onClick={() => exportToCSV(`sessional-${selectedClass}-${startDate}-${endDate}`, sorted, [
-            { header: 'Roll No', key: 'roll_number' }, { header: 'Student', key: 'full_name' }, { header: 'Class', key: 'class_name' },
-            { header: 'Total Days', key: 'total_days' }, { header: 'Present', key: 'present' }, { header: 'Absent', key: 'absent' },
-            { header: 'Leave', key: 'leave' }, { header: 'Late', key: 'late' }, { header: 'Attendance %', key: 'attendance_pct' },
-          ])} className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50">
-            <Download className="w-4 h-4" /> Export
-          </button>
-        )}
-      </div>
+      </Card>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-        <div className="flex flex-wrap gap-4 items-end">
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Class</label>
-            <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500">
-              <option value="">Select class...</option>
-              {classes.map(c => <option key={c.id} value={c.id}>{c.name}-{c.section}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">From</label>
-            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">To</label>
-            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500" />
-          </div>
-          <button onClick={fetchReport} disabled={!selectedClass || loading}
-            className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50">
-            {loading ? 'Generating...' : 'Generate Report'}
-          </button>
-        </div>
-      </div>
+      <AnimatePresence mode="wait">
+        {stats.length > 0 ? (
+          <motion.div
+            key="results"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="space-y-8"
+          >
+            {/* Summary Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+              <Card className="p-6 flex flex-col items-center text-center">
+                <div className={cn(
+                  "w-12 h-12 rounded-2xl flex items-center justify-center mb-4",
+                  avgPct >= 80 ? "bg-emerald-50 text-emerald-600" : avgPct >= 60 ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600"
+                )}>
+                  <TrendingUp className="w-6 h-6" />
+                </div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Class Average</p>
+                <p className={cn("text-3xl font-black mt-1", 
+                  avgPct >= 80 ? "text-emerald-600" : avgPct >= 60 ? "text-amber-600" : "text-rose-600"
+                )}>{avgPct}%</p>
+              </Card>
 
-      {stats.length > 0 && (
-        <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Class Average</p>
-              <p className={`text-2xl font-black mt-1 ${avgPct >= 80 ? 'text-green-600' : avgPct >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>{avgPct}%</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Students</p>
-              <p className="text-2xl font-black text-gray-800 mt-1">{stats.length}</p>
-            </div>
-            <div className={`rounded-xl shadow-sm border p-5 ${below75 > 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Below 75%</p>
-              <p className={`text-2xl font-black mt-1 ${below75 > 0 ? 'text-red-600' : 'text-green-600'}`}>{below75}</p>
-            </div>
-          </div>
+              <Card className="p-6 flex flex-col items-center text-center">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-4">
+                  <Users className="w-6 h-6" />
+                </div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Audited Students</p>
+                <p className="text-3xl font-black text-slate-900 mt-1">{stats.length}</p>
+              </Card>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="font-semibold text-gray-800">Student Attendance Details</h2>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">Sort by:</span>
-                <button onClick={() => setSortBy('roll')} className={`px-3 py-1 text-xs rounded-lg font-medium ${sortBy === 'roll' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>Roll No</button>
-                <button onClick={() => setSortBy('pct')} className={`px-3 py-1 text-xs rounded-lg font-medium ${sortBy === 'pct' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>Attendance %</button>
+              <Card className={cn(
+                "p-6 flex flex-col items-center text-center",
+                below75 > 0 ? "bg-rose-50/50 border-rose-100" : "bg-emerald-50/50 border-emerald-100"
+              )}>
+                <div className={cn(
+                  "w-12 h-12 rounded-2xl flex items-center justify-center mb-4",
+                  below75 > 0 ? "bg-rose-100 text-rose-600" : "bg-emerald-100 text-emerald-600"
+                )}>
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Low Attendance</p>
+                <p className={cn("text-3xl font-black mt-1", 
+                  below75 > 0 ? "text-rose-600" : "text-emerald-600"
+                )}>{below75}</p>
+                <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Students below 75%</p>
+              </Card>
+            </div>
+
+            {/* Table */}
+            <Card className="p-0 overflow-hidden border-none shadow-xl">
+              <div className="p-6 border-b border-slate-100 flex flex-wrap justify-between items-center gap-4 bg-slate-50/50">
+                <h2 className="font-black text-slate-900 uppercase tracking-tight">Student Attendance Details</h2>
+                <div className="flex items-center gap-3">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sort by:</p>
+                  <Btn 
+                    variant={sortBy === 'roll' ? 'primary' : 'outline'} 
+                    size="sm" 
+                    onClick={() => setSortBy('roll')}
+                    className="text-[10px] px-4"
+                  >
+                    Roll No
+                  </Btn>
+                  <Btn 
+                    variant={sortBy === 'pct' ? 'primary' : 'outline'} 
+                    size="sm" 
+                    onClick={() => setSortBy('pct')}
+                    className="text-[10px] px-4"
+                  >
+                    Attendance %
+                  </Btn>
+                </div>
               </div>
-            </div>
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left font-medium text-gray-500">Roll No</th>
-                  <th className="px-6 py-3 text-left font-medium text-gray-500">Student Name</th>
-                  <th className="px-6 py-3 text-center font-medium text-gray-500">Days</th>
-                  <th className="px-6 py-3 text-center font-medium text-green-600">Present</th>
-                  <th className="px-6 py-3 text-center font-medium text-red-600">Absent</th>
-                  <th className="px-6 py-3 text-center font-medium text-yellow-600">Leave</th>
-                  <th className="px-6 py-3 text-center font-medium text-blue-600">Att. %</th>
-                  <th className="px-6 py-3 text-left font-medium text-gray-500 w-40">Progress</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {sorted.map(s => (
-                  <tr key={s.student_id} className={`hover:bg-gray-50 ${s.attendance_pct < 75 && s.total_days > 0 ? 'bg-red-50' : ''}`}>
-                    <td className="px-6 py-4 font-mono text-gray-600">{s.roll_number}</td>
-                    <td className="px-6 py-4 font-medium text-gray-900">{s.full_name}</td>
-                    <td className="px-6 py-4 text-center text-gray-600">{s.total_days}</td>
-                    <td className="px-6 py-4 text-center font-medium text-green-600">{s.present}</td>
-                    <td className="px-6 py-4 text-center font-medium text-red-600">{s.absent}</td>
-                    <td className="px-6 py-4 text-center text-yellow-600">{s.leave}</td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`px-2 py-1 text-xs font-bold rounded-full ${s.attendance_pct >= 80 ? 'bg-green-100 text-green-800' : s.attendance_pct >= 60 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
-                        {s.total_days > 0 ? `${s.attendance_pct}%` : 'N/A'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className={`h-2 rounded-full ${s.attendance_pct >= 80 ? 'bg-green-500' : s.attendance_pct >= 60 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                          style={{ width: `${s.attendance_pct}%` }} />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {stats.length === 0 && !loading && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-16 text-center text-gray-400">
-          <BarChart2 className="w-12 h-12 mx-auto mb-3 text-gray-200" />
-          <p>Select a class and date range, then click Generate Report.</p>
-        </div>
-      )}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-white border-b border-slate-50">
+                      <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Roll No</th>
+                      <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Student Profile</th>
+                      <th className="p-6 text-center text-[10px] font-black uppercase tracking-widest text-slate-400">Total Days</th>
+                      <th className="p-6 text-center text-[10px] font-black uppercase tracking-widest text-emerald-600">Present</th>
+                      <th className="p-6 text-center text-[10px] font-black uppercase tracking-widest text-rose-600">Absent</th>
+                      <th className="p-6 text-center text-[10px] font-black uppercase tracking-widest text-amber-600">Leave</th>
+                      <th className="p-6 text-center text-[10px] font-black uppercase tracking-widest text-indigo-600">Att. %</th>
+                      <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400 w-48">Progress</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {sorted.map((s, i) => (
+                      <motion.tr 
+                        key={s.student_id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.02 }}
+                        className={cn(
+                          "hover:bg-slate-50 transition-all group",
+                          s.attendance_pct < 75 && s.total_days > 0 && "bg-rose-50/30"
+                        )}
+                      >
+                        <td className="p-6">
+                          <span className="bg-slate-100 px-3 py-1 rounded-lg text-xs font-black text-slate-600">{s.roll_number}</span>
+                        </td>
+                        <td className="p-6">
+                          <p className="text-sm font-black text-slate-900 uppercase tracking-tight">{s.full_name}</p>
+                        </td>
+                        <td className="p-6 text-center font-bold text-slate-500">{s.total_days}</td>
+                        <td className="p-6 text-center text-emerald-600 font-black">{s.present}</td>
+                        <td className="p-6 text-center text-rose-600 font-black">{s.absent}</td>
+                        <td className="p-6 text-center text-amber-600 font-black">{s.leave}</td>
+                        <td className="p-6 text-center">
+                          <Badge variant={s.attendance_pct >= 80 ? 'success' : s.attendance_pct >= 60 ? 'warning' : 'danger'}>
+                            {s.total_days > 0 ? `${s.attendance_pct}%` : 'N/A'}
+                          </Badge>
+                        </td>
+                        <td className="p-6">
+                          <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden shadow-inner">
+                            <motion.div 
+                              className={cn(
+                                "h-full rounded-full transition-all",
+                                s.attendance_pct >= 80 ? "bg-emerald-500" : s.attendance_pct >= 60 ? "bg-amber-500" : "bg-rose-500"
+                              )}
+                              initial={{ width: 0 }}
+                              animate={{ width: `${s.attendance_pct}%` }}
+                              transition={{ duration: 1, delay: i * 0.02 }}
+                            />
+                          </div>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </motion.div>
+        ) : !loading && (
+          <EmptyState
+            icon={BarChart2}
+            title="Ready to Audit"
+            description="Select a class and date range to generate the sessional attendance report."
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

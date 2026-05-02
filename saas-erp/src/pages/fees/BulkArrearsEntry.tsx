@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Search, Save, Users, AlertCircle, ArrowLeft, Loader2, CheckCircle2, History } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../../lib/utils';
+import { PageHeader, Card, Btn, Input, EmptyState } from '../../components/ui';
 
 interface StudentRow {
   id: string;
@@ -187,120 +188,99 @@ export default function BulkArrearsEntry() {
   }
 
   return (
-    <div className="space-y-4">
-      {/* ── Header ── */}
-      <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
-        {/* Row 1: title + save */}
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3 min-w-0">
-            <button
-              onClick={() => navigate(-1)}
-              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
-            >
-              <ArrowLeft className="w-4 h-4 text-gray-500" />
-            </button>
-            <div className="min-w-0">
-              <h1 className="text-base font-bold text-gray-900 leading-tight flex items-center gap-2">
-                <History className="w-4 h-4 text-indigo-600 shrink-0" />
-                Bulk Arrears Entry
-              </h1>
-              <p className="text-xs text-gray-400 leading-tight hidden sm:block">Opening balance migration from previous portal</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap shrink-0">
+    <div className="max-w-7xl mx-auto space-y-6">
+      <PageHeader 
+        title="Bulk Arrears Entry" 
+        subtitle="Opening balance migration from previous portal"
+        icon={History}
+        onBack={() => navigate(-1)}
+        actions={
+          <div className="flex items-center gap-2">
             {saveMsg && (
-              <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg">
+              <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg">
                 ✓ {saveMsg}
               </span>
             )}
             {dirtyCount > 0 && (
-              <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-lg">
+              <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded-lg">
                 {dirtyCount} unsaved
               </span>
             )}
-            <button
+            <Btn
               onClick={handleSave}
               disabled={saving || dirtyCount === 0}
-              className={cn(
-                'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all',
-                dirtyCount > 0
-                  ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm'
-                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              )}
+              variant={dirtyCount > 0 ? 'primary' : 'secondary'}
+              icon={saving ? undefined : Save}
+              loading={saving}
             >
-              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
               Save{dirtyCount > 0 ? ` (${dirtyCount})` : ''}
-            </button>
+            </Btn>
           </div>
-        </div>
+        }
+      />
 
-        {/* Row 2: filters + migration month */}
-        <div className="flex items-center gap-2 mt-3 flex-wrap">
-          <div className="relative flex-1 min-w-[160px]">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by name or roll…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            />
-          </div>
-          <select
-            value={selectedClass}
-            onChange={e => setSelectedClass(e.target.value)}
-            className="border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          >
-            <option value="all">All Classes</option>
-            {classes.map(c => (
-              <option key={c.id} value={c.id}>{c.name} {c.section}</option>
-            ))}
-          </select>
-          <div className="flex items-center gap-1.5 border border-amber-200 bg-amber-50 rounded-lg px-3 py-2">
-            <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-            <span className="text-xs font-medium text-amber-700 whitespace-nowrap">Arrears month:</span>
-            <input
-              type="month"
-              value={migrationMonth}
-              onChange={e => setMigrationMonth(e.target.value)}
-              className="bg-transparent border-none p-0 text-xs font-semibold text-amber-700 focus:ring-0 outline-none"
-            />
-          </div>
+      <Card className="p-4 flex flex-wrap items-center gap-3 border-b border-slate-100">
+        <div className="max-w-sm w-full">
+          <Input
+            icon={Search}
+            type="text"
+            placeholder="Search by name or roll…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
         </div>
-      </div>
+        <select
+          value={selectedClass}
+          onChange={e => setSelectedClass(e.target.value)}
+          className="border border-slate-200 bg-slate-50 rounded-xl px-3 py-2.5 text-[13px] font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+        >
+          <option value="all">All Classes</option>
+          {classes.map(c => (
+            <option key={c.id} value={c.id}>{c.name} {c.section}</option>
+          ))}
+        </select>
+        <div className="flex items-center gap-1.5 border border-amber-200 bg-amber-50/50 rounded-xl px-3 py-2.5">
+          <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+          <span className="text-[13px] font-medium text-amber-700 whitespace-nowrap">Arrears month:</span>
+          <input
+            type="month"
+            value={migrationMonth}
+            onChange={e => setMigrationMonth(e.target.value)}
+            className="bg-transparent border-none p-0 text-[13px] font-bold text-amber-700 focus:ring-0 outline-none cursor-pointer"
+          />
+        </div>
+      </Card>
 
       {/* ── Info banner ── */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 text-xs text-blue-700 space-y-1">
+      <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl px-5 py-3 text-[13px] text-indigo-800 space-y-1 shadow-sm">
         <p>
-          <strong>How it works:</strong> Each entry creates a <code className="bg-blue-100 px-1 rounded">MIG-</code> pending invoice for the selected month. It appears as <strong>"Previous Fee"</strong> on monthly challans and as an <strong>arrears row</strong> in the payment modal. Set to 0 and save to soft-delete a migration record (recoverable from Settings → Trash Bin).
+          <strong>How it works:</strong> Each entry creates a <code className="bg-white px-1.5 py-0.5 rounded border border-indigo-100 text-xs shadow-sm">MIG-</code> pending invoice for the selected month. It appears as <strong>"Previous Fee"</strong> on monthly challans and as an <strong>arrears row</strong> in the payment modal. Set to 0 and save to soft-delete a migration record (recoverable from Settings → Trash Bin).
         </p>
         {migratedCount > 0 && (
-          <p className="text-emerald-700">
+          <p className="text-emerald-700 font-medium pt-1">
             ✓ {migratedCount} students migrated · Total: Rs. {totalMigrated.toLocaleString()}
           </p>
         )}
       </div>
 
       {/* ── Table ── */}
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+      <Card>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse min-w-[520px]">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 w-12">#</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500">Student</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 hidden sm:table-cell">Class</th>
-                <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 w-40">Opening Arrears (Rs.)</th>
-                <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 w-28">Status</th>
+          <table className="w-full text-left border-collapse min-w-[520px]">
+            <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              <tr>
+                <th className="px-4 py-3 w-12">#</th>
+                <th className="px-4 py-3">Student</th>
+                <th className="px-4 py-3 hidden sm:table-cell">Class</th>
+                <th className="px-4 py-3 text-center w-40">Opening Arrears (Rs.)</th>
+                <th className="px-4 py-3 text-right w-28">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-slate-100">
               {filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-16 text-center text-gray-400">
-                    <Users className="w-10 h-10 mx-auto mb-3 opacity-20" />
-                    <p className="text-sm font-medium">No students found</p>
+                  <td colSpan={5} className="px-4 py-16 text-center text-slate-400">
+                    <EmptyState icon="Users" title="No students found" sub="Adjust your filters or search." />
                   </td>
                 </tr>
               ) : (
@@ -308,32 +288,32 @@ export default function BulkArrearsEntry() {
                   <tr
                     key={s.id}
                     className={cn(
-                      'hover:bg-gray-50 transition-colors',
-                      s.is_dirty ? 'bg-amber-50/60' : ''
+                      'hover:bg-slate-50 transition-colors',
+                      s.is_dirty ? 'bg-amber-50/30' : ''
                     )}
                   >
-                    <td className="px-3 py-2.5 text-xs text-gray-400 font-medium">{s.roll_number}</td>
+                    <td className="px-4 py-3 text-xs text-slate-400 font-medium">{s.roll_number}</td>
 
-                    <td className="px-3 py-2.5">
-                      <p className="font-semibold text-gray-800 text-sm leading-tight">{s.full_name}</p>
-                      <p className="text-xs text-gray-400 sm:hidden mt-0.5">{s.class_name} {s.class_section}</p>
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-slate-900 text-sm">{s.full_name}</p>
+                      <p className="text-xs text-slate-500 sm:hidden mt-0.5">{s.class_name} {s.class_section}</p>
                       {s.is_dirty && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600 mt-0.5">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 mt-1 uppercase tracking-wider">
                           <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse inline-block" />
                           unsaved
                         </span>
                       )}
                     </td>
 
-                    <td className="px-3 py-2.5 hidden sm:table-cell">
-                      <span className="inline-flex px-2 py-0.5 rounded-md bg-gray-100 text-xs font-medium text-gray-600">
+                    <td className="px-4 py-3 hidden sm:table-cell">
+                      <span className="inline-flex px-2 py-1 rounded-md bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-600">
                         {s.class_name} {s.class_section}
                       </span>
                     </td>
 
-                    <td className="px-3 py-2.5">
+                    <td className="px-4 py-3">
                       <div className="relative w-full max-w-[130px] mx-auto">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">Rs.</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400 pointer-events-none">Rs.</span>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -342,24 +322,24 @@ export default function BulkArrearsEntry() {
                           onChange={e => handleArrearsChange(s.id, e.target.value.replace(/[^0-9]/g, ''))}
                           placeholder="0"
                           className={cn(
-                            'w-full pl-8 pr-2 py-1.5 rounded-lg text-sm font-semibold text-center transition-all outline-none',
+                            'w-full pl-9 pr-3 py-2 rounded-xl text-[13px] font-bold text-center transition-all outline-none',
                             s.is_dirty
-                              ? 'bg-white border-2 border-amber-400 ring-2 ring-amber-100'
-                              : 'bg-gray-50 border border-gray-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100'
+                              ? 'bg-white border border-amber-300 ring-2 ring-amber-500/20 text-amber-900'
+                              : 'bg-white border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-slate-900'
                           )}
                         />
                       </div>
                     </td>
 
-                    <td className="px-3 py-2.5 text-right">
+                    <td className="px-4 py-3 text-right">
                       {s.is_dirty ? (
-                        <span className="text-[10px] font-semibold text-amber-600">unsaved</span>
+                        <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">unsaved</span>
                       ) : s.already_has_migration ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-600">
-                          <CheckCircle2 className="w-3 h-3" /> migrated
+                        <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-md uppercase tracking-wider">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> migrated
                         </span>
                       ) : (
-                        <span className="text-[10px] text-gray-300">—</span>
+                        <span className="text-slate-300">—</span>
                       )}
                     </td>
                   </tr>
@@ -370,14 +350,14 @@ export default function BulkArrearsEntry() {
         </div>
 
         {filteredStudents.length > 0 && (
-          <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50 flex items-center justify-between text-xs text-gray-500">
+          <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between text-xs font-medium text-slate-500">
             <span>{filteredStudents.length} student{filteredStudents.length !== 1 ? 's' : ''} shown</span>
             {dirtyCount > 0 && (
-              <span className="text-amber-600 font-semibold">{dirtyCount} pending save</span>
+              <span className="text-amber-600 font-bold">{dirtyCount} pending save</span>
             )}
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

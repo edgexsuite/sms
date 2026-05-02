@@ -21,11 +21,15 @@ const DB_COLUMNS = [
   { key: 'admission_date', label: 'Admission Date', aliases: ['adm date', 'date of admission', 'admission date', 'joining date'] },
   { key: 'father_name', label: 'Father Name', aliases: ['father', 'parent name', 'father name', 'guardian name'] },
   { key: 'father_contact', label: 'Father Mobile (WhatsApp)', aliases: ['father mobile', 'father whatsapp', 'father phone', 'mobile', 'phone', 'contact', 'whatsapp', 'mobile number'] },
+  { key: 'father_cnic', label: "Father's CNIC", aliases: ['father cnic', 'father id', 'f cnic', 'f id'] },
   { key: 'mother_name', label: 'Mother Name', aliases: ['mother', 'mother name'] },
   { key: 'mother_contact', label: 'Mother Mobile', aliases: ['mother mobile', 'mother phone', 'mother whatsapp'] },
   { key: 'emergency_contact', label: 'Emergency Mobile', aliases: ['emergency', 'emergency phone', 'emergency mobile', 'emergency contact'] },
   { key: 'address', label: 'Address', aliases: ['residencial address', 'home', 'address', 'current address'] },
   { key: 'fee_waiver_percentage', label: 'Waiver %', aliases: ['discount', 'waiver', 'scholarship', 'free', 'percentage', 'discount %'] },
+  { key: 'guardian_name', label: 'Guardian Name', aliases: ['guardian', 'guardian name', 'caretaker'] },
+  { key: 'guardian_cnic', label: 'Guardian CNIC', aliases: ['guardian cnic', 'guardian id', 'g cnic'] },
+  { key: 'student_unique_id', label: 'Registration Number', aliases: ['reg number', 'registration number', 'reg no', 'admission no', 'admission number'] },
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -165,7 +169,8 @@ export default function BulkEnrollment() {
           student.full_name = `Student ${student.roll_number || idx + 1}`;
         }
 
-        const famKey = student.father_contact || student.father_name || 'Individual';
+        // Family Key: Primary Phone + Father CNIC for absolute uniqueness
+        const famKey = `${student.father_contact || ''}_${student.father_cnic || ''}` || student.father_name || 'Individual';
         if (!families[famKey]) families[famKey] = [];
         families[famKey].push(student);
       });
@@ -176,53 +181,105 @@ export default function BulkEnrollment() {
       // 2. Loop & Insert
       for (const [key, siblings] of Object.entries(families)) {
         const first = siblings[0];
-        
-        // Create Master Family Group
-        const { data: fg, error: fgE } = await supabase.from('family_groups').insert({
-          school_id: userRole!.school_id,
-          family_name: `${first.father_name || first.full_name}'s Family`,
-          primary_contact: first.father_name || first.full_name,
-          primary_phone: first.father_contact || ''
-        }).select().single();
+        // 1. Find or Create Family Group
+        let familyGroupId = '';
+        let parentId = '';
 
-        if (fgE) throw fgE;
+        // Check by phone or CNIC
+        const { data: existingParents } = await supabase
+          .from('parents')
+          .select('id, family_group_id')
+          .eq('school_id', userRole!.school_id)
+          .or(`whatsapp_number.eq.${first.father_contact},father_cnic.eq.${first.father_cnic}`)
+          .maybeSingle();
 
-        // Create Parent Account
-        const fatherInit = (first.father_name || 'Parent').split(' ')[0].toLowerCase();
-        const { data: parent, error: pE } = await supabase.from('parents').insert({
-          school_id: userRole!.school_id,
-          family_number: `${fatherInit}${Math.random().toString(36).substring(7)}`,
-          auth_password: `${fatherInit}123`,
-          full_name: first.father_name || 'Parent',
-          father_name: first.father_name || '',
-          mother_name: first.mother_name || '',
-          whatsapp_number: first.father_contact || '',
-          // Using emergency_mobile as it definitely exists in your schema
-          emergency_mobile: first.emergency_contact || first.mother_contact || '',
-          address: first.address || ''
-        }).select().single();
+        if (existingParents) {
+          parentId = existingParents.id;
+          familyGroupId = existingParents.family_group_id;
+          // Update guardian info if provided
+          if (first.guardian_name || first.guardian_cnic) {
+            await supabase.from('parents').update({
+              guardian_name: first.guardian_name || undefined,
+              guardian_cnic: first.guardian_cnic || undefined,
+              is_father_guardian: (first.guardian_name === first.father_name && first.guardian_cnic === first.father_cnic)
+            }).eq('id', parentId);
+          }
+        } else {
+          // Create Master Family Group
+          const { data: fg, error: fgE } = await supabase.from('family_groups').insert({
+            school_id: userRole!.school_id,
+            family_name: `${first.father_name || first.full_name}'s Family`,
+            primary_contact: first.father_name || first.full_name,
+            primary_phone: first.father_contact || ''
+          }).select().single();
 
-        if (pE) throw pE;
+          if (fgE) throw fgE;
+          familyGroupId = fg.id;
 
-        // Insert Students
-        const studentsToInsert = siblings.map(s => {
-          const { father_name, father_contact, mother_name, mother_contact, ...remainder } = s;
+          // Create Parent Account
+          const fatherInit = (first.father_name || 'Parent').split(' ')[0].toLowerCase();
+          const { data: parent, error: pE } = await supabase.from('parents').insert({
+            school_id: userRole!.school_id,
+            family_group_id: familyGroupId,
+            family_number: `${fatherInit}${Math.random().toString(36).substring(7)}`,
+            auth_password: `${fatherInit}123`,
+            full_name: first.father_name || 'Parent',
+            father_name: first.father_name || '',
+            father_cnic: first.father_cnic || '',
+            mother_name: first.mother_name || '',
+            guardian_name: first.guardian_name || first.father_name || '',
+            guardian_cnic: first.guardian_cnic || first.father_cnic || '',
+            is_father_guardian: !first.guardian_name || (first.guardian_name === first.father_name && first.guardian_cnic === first.father_cnic),
+            whatsapp_number: first.father_contact || '',
+            emergency_mobile: first.emergency_contact || first.mother_contact || '',
+            address: first.address || ''
+          }).select().single();
+
+          if (pE) throw pE;
+          parentId = parent.id;
+        }
+
+        // 2. Insert/Upsert Students
+        for (const s of siblings) {
+          const { father_name, father_contact, father_cnic, mother_name, mother_contact, ...remainder } = s;
+          
+          // Check if student exists by Registration Number (student_unique_id)
+          if (s.student_unique_id) {
+            const { data: existingStudent } = await supabase
+              .from('students')
+              .select('id')
+              .eq('school_id', userRole!.school_id)
+              .eq('student_unique_id', s.student_unique_id)
+              .maybeSingle();
+            
+            if (existingStudent) {
+              // Update existing student
+              await supabase.from('students').update({
+                ...remainder,
+                parent_id: parentId,
+                family_group_id: familyGroupId
+              }).eq('id', existingStudent.id);
+              totalProcessed++;
+              continue;
+            }
+          }
+
+          // Insert new student
           const sNameInit = s.full_name.split(' ')[0].toLowerCase();
           const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-          return {
+          const studentUniqueId = s.student_unique_id || `${sNameInit}${s.roll_number || randomSuffix}-${Math.floor(Math.random() * 900)}`;
+
+          const { error: sE } = await supabase.from('students').insert({
             ...remainder,
-            parent_id: parent.id,
-            family_group_id: fg.id,
-            student_unique_id: `${sNameInit}${s.roll_number}-${randomSuffix}`,
+            parent_id: parentId,
+            family_group_id: familyGroupId,
+            student_unique_id: studentUniqueId,
             auth_password: `${sNameInit}123`,
             fee_waiver_percentage: s.fee_waiver_percentage || 0
-          };
-        });
-
-        const { error: sE } = await supabase.from('students').insert(studentsToInsert);
-        if (sE) throw sE;
-
-        totalProcessed += siblings.length;
+          });
+          if (sE) throw sE;
+          totalProcessed++;
+        }
         if (siblings.length > 1) siblingGroups++;
       }
 

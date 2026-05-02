@@ -79,8 +79,9 @@ export default function RegisterStudent() {
 
   // Parent/Family State
   const [parentData, setParentData] = useState({
-    father_name: '', father_occupation: '', father_qualification: '',
+    father_name: '', father_occupation: '', father_qualification: '', father_cnic: '',
     mother_name: '', mother_occupation: '', mother_qualification: '',
+    guardian_name: '', guardian_cnic: '', is_father_guardian: true,
     nationality: 'Pakistani', home_address: '',
     father_mobile: '', mother_mobile: '', emergency_mobile: '',
     home_telephone: '', office_telephone: '', email: '',
@@ -202,6 +203,7 @@ export default function RegisterStudent() {
             father_name: p.father_name || '',
             father_occupation: p.father_occupation || '',
             father_qualification: p.father_qualification || '',
+            father_cnic: p.father_cnic || '',
             mother_name: p.mother_name || '',
             mother_occupation: p.mother_occupation || '',
             mother_qualification: p.mother_qualification || '',
@@ -210,6 +212,9 @@ export default function RegisterStudent() {
             father_mobile: p.whatsapp_number || '',
             mother_mobile: p.mother_mobile || '',
             emergency_mobile: p.emergency_mobile || '',
+            guardian_name: p.guardian_name || '',
+            guardian_cnic: p.guardian_cnic || '',
+            is_father_guardian: p.is_father_guardian ?? (p.guardian_name === p.father_name && p.guardian_cnic === p.father_cnic),
             home_telephone: p.home_telephone || '',
             office_telephone: p.office_telephone || '',
             email: p.email || '',
@@ -344,8 +349,56 @@ export default function RegisterStudent() {
     }
   };
 
+  const checkExistingFamily = async (val: string, type: 'phone' | 'cnic') => {
+    if (val.length < 5 || isEditMode) return;
+    try {
+      const field = type === 'phone' ? 'whatsapp_number' : 'father_cnic';
+      const { data } = await supabase
+        .from('parents')
+        .select('id, family_group_id, full_name, father_name, whatsapp_number, address')
+        .eq('school_id', userRole?.school_id)
+        .eq(field, val)
+        .maybeSingle();
+
+      if (data) {
+        if (window.confirm(`A family already exists for this ${type === 'phone' ? 'phone number' : 'CNIC'} (${data.father_name || data.full_name}). Would you like to link this registration to the existing family?`)) {
+          setSelectedFamilyGroupId(data.family_group_id);
+          setParentData({
+            ...parentData,
+            father_name: data.father_name || '',
+            father_mobile: data.whatsapp_number || '',
+            home_address: data.address || '',
+          });
+          fetchExistingParentInfo(data.family_group_id);
+        }
+      }
+    } catch (err) {
+      console.error('Error checking existing family:', err);
+    }
+  };
+
   const handleParentChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setParentData({ ...parentData, [e.target.name]: e.target.value });
+    const { name, value, type } = e.target;
+    const val = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
+    
+    setParentData(prev => {
+      const updated = { ...prev, [name]: val };
+      
+      // If "Father as Guardian" is checked, sync guardian info
+      if (name === 'is_father_guardian' && val) {
+        updated.guardian_name = prev.father_name;
+        updated.guardian_cnic = prev.father_cnic;
+      } else if (name === 'father_name' && prev.is_father_guardian) {
+        updated.guardian_name = value;
+      } else if (name === 'father_cnic' && prev.is_father_guardian) {
+        updated.guardian_cnic = value;
+      }
+      
+      return updated;
+    });
+
+    if (name === 'father_mobile') checkExistingFamily(value, 'phone');
+    if (name === 'father_cnic') checkExistingFamily(value, 'cnic');
   };
 
   const handleParentCustomChange = (label: string, value: any) => {
@@ -469,12 +522,16 @@ export default function RegisterStudent() {
             mother_qualification: parentData.mother_qualification,
             father_occupation: parentData.father_occupation,
             mother_occupation: parentData.mother_occupation,
+            father_cnic: parentData.father_cnic,
             whatsapp_number: parentData.father_mobile, 
             emergency_mobile: parentData.emergency_mobile,
             home_telephone: parentData.home_telephone,
             office_telephone: parentData.office_telephone,
             email: parentData.email,
             address: parentData.home_address,
+            guardian_name: parentData.guardian_name,
+            guardian_cnic: parentData.guardian_cnic,
+            is_father_guardian: parentData.is_father_guardian,
             custom_data: parentData.custom_data
           }).eq('id', currentStudent.parent_id);
           if (parentUpdateErr) throw parentUpdateErr;
@@ -536,7 +593,7 @@ export default function RegisterStudent() {
           primary_phone: parentData.father_mobile,
         }]).select().single();
         
-        if (famErr) throw famErr;
+    if (famErr) throw famErr;
         finalFamilyGroupId = newFam.id;
       }
 
@@ -545,28 +602,53 @@ export default function RegisterStudent() {
       const familyNumber = `${fatherNamePart}${suffix}`;
       const parentPassword = generatePassword();
       
-      const { data: parentResult, error: parentError } = await supabase.from('parents').insert([{
-        school_id: userRole.school_id,
-        family_number: familyNumber,
-        auth_password: parentPassword,
-        full_name: parentData.father_name || parentData.mother_name || 'Parent',
-        father_name: parentData.father_name,
-        mother_name: parentData.mother_name,
-        father_qualification: parentData.father_qualification,
-        mother_qualification: parentData.mother_qualification,
-        father_occupation: parentData.father_occupation,
-        mother_occupation: parentData.mother_occupation,
-        whatsapp_number: parentData.father_mobile, 
-        emergency_mobile: parentData.emergency_mobile,
-        home_telephone: parentData.home_telephone,
-        office_telephone: parentData.office_telephone,
-        email: parentData.email,
-        address: parentData.home_address,
-        custom_data: parentData.custom_data // JSONB inject
-      }]).select().single();
+      // Only insert parent if they don't already exist in this family group
+      let parentId: string;
+      const { data: checkParent } = await supabase
+        .from('parents')
+        .select('id')
+        .eq('school_id', userRole.school_id)
+        .eq('family_group_id', finalFamilyGroupId)
+        .maybeSingle();
 
-      if (parentError) throw parentError;
-      const parentId = parentResult.id;
+      if (checkParent) {
+        parentId = checkParent.id;
+        // Optional: Update existing parent with new info?
+        await supabase.from('parents').update({
+          guardian_name: parentData.guardian_name,
+          guardian_cnic: parentData.guardian_cnic,
+          is_father_guardian: parentData.is_father_guardian,
+          father_cnic: parentData.father_cnic,
+        }).eq('id', parentId);
+      } else {
+        const { data: parentResult, error: parentError } = await supabase.from('parents').insert([{
+          school_id: userRole.school_id,
+          family_group_id: finalFamilyGroupId,
+          family_number: familyNumber,
+          auth_password: parentPassword,
+          full_name: parentData.father_name || parentData.mother_name || 'Parent',
+          father_name: parentData.father_name,
+          mother_name: parentData.mother_name,
+          father_qualification: parentData.father_qualification,
+          mother_qualification: parentData.mother_qualification,
+          father_occupation: parentData.father_occupation,
+          mother_occupation: parentData.mother_occupation,
+          father_cnic: parentData.father_cnic,
+          guardian_name: parentData.guardian_name,
+          guardian_cnic: parentData.guardian_cnic,
+          is_father_guardian: parentData.is_father_guardian,
+          whatsapp_number: parentData.father_mobile, 
+          emergency_mobile: parentData.emergency_mobile,
+          home_telephone: parentData.home_telephone,
+          office_telephone: parentData.office_telephone,
+          email: parentData.email,
+          address: parentData.home_address,
+          custom_data: parentData.custom_data // JSONB inject
+        }]).select().single();
+
+        if (parentError) throw parentError;
+        parentId = parentResult.id;
+      }
 
       const studentInserts = students.map((stu, idx) => {
         const studentNamePart = (stu.full_name || 'Student').trim().split(' ')[0];
@@ -966,11 +1048,54 @@ export default function RegisterStudent() {
 
               {/* Always show contacts */}
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Father Mobile</label><input type="text" name="father_mobile" value={parentData.father_mobile} onChange={handleParentChange} className="w-full px-3 py-2 border border-gray-300 rounded-md" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Father's CNIC</label><input type="text" name="father_cnic" value={parentData.father_cnic} onChange={handleParentChange} className="w-full px-3 py-2 border border-gray-300 rounded-md" /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Mother Mobile</label><input type="text" name="mother_mobile" value={parentData.mother_mobile} onChange={handleParentChange} className="w-full px-3 py-2 border border-gray-300 rounded-md" /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Emergency Mobile (SMS)</label><input type="text" name="emergency_mobile" value={parentData.emergency_mobile} onChange={handleParentChange} className="w-full px-3 py-2 border border-gray-300 rounded-md" /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Email</label><input type="email" name="email" value={parentData.email} onChange={handleParentChange} className="w-full px-3 py-2 border border-gray-300 rounded-md" /></div>
               
               <div className="col-span-1 md:col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Home Address</label><input type="text" name="home_address" value={parentData.home_address} onChange={handleParentChange} className="w-full px-3 py-2 border border-gray-300 rounded-md" /></div>
+
+              {/* Guardian Information */}
+              <div className="col-span-1 md:col-span-3 pt-4 border-t border-gray-100 mt-2">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Guardian Information</h3>
+                  <label className="flex items-center gap-2 text-sm font-medium text-indigo-600 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      name="is_father_guardian" 
+                      checked={parentData.is_father_guardian} 
+                      onChange={handleParentChange}
+                      className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    Father is Guardian
+                  </label>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Guardian Name</label>
+                    <input 
+                      type="text" 
+                      name="guardian_name" 
+                      value={parentData.guardian_name} 
+                      onChange={handleParentChange} 
+                      disabled={parentData.is_father_guardian}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Guardian CNIC</label>
+                    <input 
+                      type="text" 
+                      name="guardian_cnic" 
+                      value={parentData.guardian_cnic} 
+                      onChange={handleParentChange} 
+                      disabled={parentData.is_father_guardian}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500" 
+                    />
+                  </div>
+                </div>
+              </div>
 
               {/* Dynamic Parent Custom Fields */}
               {renderCustomFields('parent_info', true)}

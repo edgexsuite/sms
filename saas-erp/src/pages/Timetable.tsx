@@ -233,24 +233,36 @@ export default function Timetable() {
   /** Build a comprehensive row list covering ALL periods/breaks used across the whole school.
    *  Merges FALLBACK_ROWS, every class template, and any extra period_numbers in live slots. */
   const getSchoolRows = (): TemplateRow[] => {
+    // If we are in Matrix mode and have a specific template selected, use ONLY those rows
+    if (viewMode === 'master' && matrixTemplateId) {
+      return allTemplateRows[matrixTemplateId] || FALLBACK_ROWS;
+    }
+
+    // If we are in Individual mode, use ONLY that class's rows
+    if (viewMode === 'individual' && selectedClass) {
+      return getClassRows(selectedClass);
+    }
+
+    // Otherwise (Teacher view or Master with no template), we merge.
+    // To avoid "Ef-1" seeing "Grade 10" timings, we build a map where the key is sort_order
+    // BUT we prioritize the rows from the class the teacher is currently looking at (if any)
     const rowMap = new Map<number, TemplateRow>();
+    
+    // Start with Fallback
     FALLBACK_ROWS.forEach(r => rowMap.set(r.sort_order, r));
-    (Object.values(allTemplateRows) as TemplateRow[][]).forEach(tRows =>
-      tRows.forEach(r => { if (!rowMap.has(r.sort_order)) rowMap.set(r.sort_order, r); })
-    );
-    allSchoolSlots.forEach(s => {
-      if (!rowMap.has(s.period_number)) {
-        rowMap.set(s.period_number, {
-          id: `_dyn_${s.period_number}`,
-          template_id: '', school_id: sid || '',
-          sort_order: s.period_number,
-          label: `Period ${s.period_number}`,
-          slot_type: 'period',
-          start_time: s.start_time || '',
-          end_time: s.end_time || '',
-        });
-      }
-    });
+    
+    // If a class is selected, its template rows take absolute priority
+    if (selectedClass) {
+      getClassRows(selectedClass).forEach(r => rowMap.set(r.sort_order, r));
+    } else if (matrixTemplateId) {
+      (allTemplateRows[matrixTemplateId] || []).forEach(r => rowMap.set(r.sort_order, r));
+    } else {
+      // General merge (least accurate, used for school-wide printouts)
+      Object.values(allTemplateRows).forEach(tRows => {
+        tRows.forEach(r => rowMap.set(r.sort_order, r));
+      });
+    }
+
     return Array.from(rowMap.values()).sort((a, b) => a.sort_order - b.sort_order);
   };
 
@@ -1249,7 +1261,63 @@ export default function Timetable() {
                     </span>
                   )}
                 </button>
-                {/* ... existing copy panel code ... */}
+                {showCopyPanel && (
+                  <div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-2xl border border-slate-200 shadow-2xl z-[100] p-4 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-50">
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Copy {selectedDay} to:</h4>
+                      <button onClick={() => setShowCopyPanel(false)} className="text-slate-400 hover:text-slate-600">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-1 mb-4">
+                      {DAYS.filter(d => d !== selectedDay).map(day => (
+                        <label key={day} className={cn(
+                          "flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-colors border",
+                          copyTargetDays.has(day) 
+                            ? "bg-indigo-50 border-indigo-100 text-indigo-700" 
+                            : "bg-white border-transparent text-slate-600 hover:bg-slate-50"
+                        )}>
+                          <input
+                            type="checkbox"
+                            className="sr-only"
+                            checked={copyTargetDays.has(day)}
+                            onChange={() => {
+                              const next = new Set(copyTargetDays);
+                              if (next.has(day)) next.delete(day);
+                              else next.add(day);
+                              setCopyTargetDays(next);
+                            }}
+                          />
+                          <div className={cn(
+                            "w-4 h-4 rounded border flex items-center justify-center transition-colors",
+                            copyTargetDays.has(day) ? "bg-indigo-600 border-indigo-600" : "bg-white border-slate-200"
+                          )}>
+                            {copyTargetDays.has(day) && <Plus className="w-2.5 h-2.5 text-white" />}
+                          </div>
+                          <span className="text-sm font-bold">{day}</span>
+                        </label>
+                      ))}
+                    </div>
+
+                    <div className="space-y-2">
+                      <button
+                        onClick={handleCopyToMany}
+                        disabled={copying || copyTargetDays.size === 0}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition disabled:opacity-50 shadow-lg shadow-indigo-100"
+                      >
+                        {copying ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                        Apply Clones
+                      </button>
+                      <button
+                        onClick={() => setCopyTargetDays(new Set(DAYS.filter(d => d !== selectedDay)))}
+                        className="w-full py-1.5 text-[10px] font-black text-indigo-400 hover:text-indigo-600 uppercase tracking-widest"
+                      >
+                        Select All Working Days
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1269,9 +1337,20 @@ export default function Timetable() {
                 </div>
                 {selectedClass && (
                   <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 px-4 py-2.5 rounded-xl">
-                    <Layers className="w-4 h-4 text-indigo-500 shrink-0" />
-                    <span className="text-xs font-bold text-indigo-700">{currentTemplateName}</span>
-                    <button onClick={() => setActiveTab('assignments')} className="text-[10px] text-indigo-400 hover:text-indigo-700 underline ml-1">Change</button>
+                    <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0">
+                      <Layers className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest leading-none mb-1">Active Template</p>
+                      <p className="text-xs font-black text-indigo-900">{currentTemplateName}</p>
+                    </div>
+                    <button 
+                      onClick={() => setActiveTab('assignments')} 
+                      className="ml-4 p-2 text-indigo-400 hover:text-indigo-600 hover:bg-white rounded-lg transition"
+                      title="Change Assignment"
+                    >
+                      <Link2 className="w-4 h-4" />
+                    </button>
                   </div>
                 )}
                 <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 no-print ml-auto">

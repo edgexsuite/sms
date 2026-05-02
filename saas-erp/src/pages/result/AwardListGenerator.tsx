@@ -26,7 +26,11 @@ export default function AwardListGenerator() {
   
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedExam, setSelectedExam] = useState('');
-  const [listTitle, setListTitle] = useState('Oral Examination Marking Sheet');
+  const [selectedSubject, setSelectedSubject] = useState('custom'); // 'custom', 'all', or subjectId
+  const [listTitle, setListTitle] = useState('Examination Award List');
+  
+  const [allSubjects, setAllSubjects] = useState<any[]>([]);
+  const [marksData, setMarksData] = useState<Record<string, Record<string, number>>>({}); // studentId -> { subjectId -> marks }
   
   const [columns, setColumns] = useState<Column[]>([
     { id: '1', label: 'Rhymes', maxMarks: '30' },
@@ -43,8 +47,16 @@ export default function AwardListGenerator() {
   useEffect(() => {
     if (selectedClass) {
       fetchStudents();
+      fetchSubjects();
+      setMarksData({});
     }
   }, [selectedClass]);
+
+  useEffect(() => {
+    if (selectedClass && selectedExam) {
+      fetchMarks();
+    }
+  }, [selectedClass, selectedExam]);
 
   const fetchInitialData = async () => {
     const [{ data: school }, { data: cls }, { data: exams }] = await Promise.all([
@@ -69,15 +81,53 @@ export default function AwardListGenerator() {
     setLoading(false);
   };
 
+  const fetchSubjects = async () => {
+    const { data } = await supabase
+      .from('subjects')
+      .select('id, subject_name, total_marks')
+      .eq('class_id', selectedClass)
+      .order('subject_name');
+    if (data) setAllSubjects(data);
+  };
+
+  const fetchMarks = async () => {
+    const { data } = await supabase
+      .from('exam_results')
+      .select('student_id, subject_id, obtained_marks')
+      .eq('exam_type_id', selectedExam)
+      .eq('school_id', userRole?.school_id);
+    
+    if (data) {
+      const map: Record<string, Record<string, number>> = {};
+      data.forEach(r => {
+        if (!map[r.student_id]) map[r.student_id] = {};
+        map[r.student_id][r.subject_id] = r.obtained_marks;
+      });
+      setMarksData(map);
+    }
+  };
+
+  const handleSubjectChange = (val: string) => {
+    setSelectedSubject(val);
+    if (val === 'all') {
+      setColumns(allSubjects.map(s => ({ id: s.id, label: s.subject_name, maxMarks: String(s.total_marks || 100) })));
+      setListTitle(`Consolidated Award List — ${currentClass?.name || ''}`);
+    } else if (val !== 'custom') {
+      const sub = allSubjects.find(s => s.id === val);
+      if (sub) {
+        setColumns([{ id: sub.id, label: sub.subject_name, maxMarks: String(sub.total_marks || 100) }]);
+        setListTitle(`${sub.subject_name} Award List`);
+      }
+    }
+  };
+
   const addColumn = () => {
     const newId = Date.now().toString();
     setColumns([...columns, { id: newId, label: 'New Column', maxMarks: '100' }]);
   };
 
   const removeColumn = (id: string) => {
-    if (columns.length > 1) {
-      setColumns(columns.filter(c => c.id !== id));
-    }
+    setColumns(prev => prev.filter(c => c.id !== id));
   };
 
   const updateColumn = (id: string, field: keyof Column, value: string) => {
@@ -89,14 +139,9 @@ export default function AwardListGenerator() {
   };
 
   // ── Pagination Logic ───────────────────────────────────────────────────────
-  const CHUNK_SIZE = 25;
-  const studentChunks = [];
-  const displayStudents = students.length > 0 ? students : Array.from({ length: 25 }, (_, i) => ({ id: `blank-${i}`, full_name: '', roll_number: '' }));
+  const CHUNK_SIZE = 35; // Increased for narrow portrait copies
+  const displayStudents = students.length > 0 ? students : Array.from({ length: CHUNK_SIZE }, (_, i) => ({ id: `blank-${i}`, full_name: '', roll_number: '' }));
   
-  for (let i = 0; i < displayStudents.length; i += CHUNK_SIZE) {
-    studentChunks.push(displayStudents.slice(i, i + CHUNK_SIZE));
-  }
-
   const currentClass = classes.find(c => c.id === selectedClass);
   const currentExam = examTypes.find(e => e.id === selectedExam);
   const grandTotalMaxMarks = columns.reduce((sum, col) => sum + (Number(col.maxMarks) || 0), 0);
@@ -105,42 +150,23 @@ export default function AwardListGenerator() {
     <div className="max-w-6xl mx-auto space-y-8 pb-20">
       <style>{`
         @media print {
-          /* Hide EVERYTHING by default during print */
           body * { visibility: hidden; }
-          /* Show ONLY the print-area and its children */
           .print-area, .print-area * { visibility: visible; }
           .print-area {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            display: block !important;
+            position: absolute; left: 0; top: 0; width: 100%; display: block !important;
           }
           .no-print { display: none !important; }
-          
-          .page-break:not(:last-child) {
-            page-break-after: always;
-          }
           .page-break {
-            min-height: 297mm;
-            padding: 10mm 12mm;
-            box-sizing: border-box;
-            background: white;
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            page-break-inside: avoid;
+            page-break-after: always; padding: 5mm; box-sizing: border-box; background: white;
+            min-height: 297mm; page-break-inside: avoid;
           }
-          
           body { background: white !important; margin: 0 !important; padding: 0 !important; }
-          @page {
-            size: A4 portrait;
-            margin: 0;
+          @page { size: A4 portrait; margin: 0; }
+          .copy-divider {
+            border-left: 1.5px dashed #ccc; height: 100%; position: absolute; left: 50%; top: 0; margin-left: -0.75px;
           }
         }
-        @media screen {
-          .print-area { display: none; }
-        }
+        @media screen { .print-area { display: none; } }
       `}</style>
 
       {/* ── Dashboard UI (no-print) ── */}
@@ -155,7 +181,7 @@ export default function AwardListGenerator() {
                 <FileText className="w-8 h-8 text-indigo-600" />
                 Award List Generator
               </h1>
-              <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Generate printable examination marking sheets</p>
+              <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Generate printable dual-copy award lists</p>
             </div>
           </div>
           <button
@@ -164,12 +190,11 @@ export default function AwardListGenerator() {
             className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none flex items-center gap-2"
           >
             <Printer className="w-4 h-4" />
-            Print Marking Sheet
+            Print Award Lists
           </button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left: Configuration */}
           <div className="lg:col-span-1 space-y-6">
             <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-slate-100 space-y-6">
               <div>
@@ -197,12 +222,28 @@ export default function AwardListGenerator() {
               </div>
 
               <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Subject Selection</label>
+                <select
+                  value={selectedSubject}
+                  onChange={e => handleSubjectChange(e.target.value)}
+                  disabled={!selectedClass}
+                  className="w-full bg-slate-50 border border-transparent focus:bg-white focus:border-indigo-100 p-3.5 rounded-2xl text-sm font-bold text-slate-700 transition-all outline-none disabled:opacity-50"
+                >
+                  <option value="custom">Manual / Custom Columns</option>
+                  <option value="all">— All Subjects —</option>
+                  <optgroup label="Specific Subject">
+                    {allSubjects.map(s => <option key={s.id} value={s.id}>{s.subject_name}</option>)}
+                  </optgroup>
+                </select>
+              </div>
+
+              <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Sheet Title</label>
                 <input
                   type="text"
                   value={listTitle}
                   onChange={e => setListTitle(e.target.value)}
-                  placeholder="e.g. Oral Examination Marking Sheet"
+                  placeholder="e.g. Award List"
                   className="w-full bg-slate-50 border border-transparent focus:bg-white focus:border-indigo-100 p-3.5 rounded-2xl text-sm font-bold text-slate-700 transition-all outline-none"
                 />
               </div>
@@ -215,13 +256,12 @@ export default function AwardListGenerator() {
                 </div>
                 <div>
                   <h4 className="font-black italic uppercase tracking-tighter">Pro Tip</h4>
-                  <p className="text-[10px] text-indigo-200 font-medium leading-tight">These sheets are best printed on A4 paper. Use 'Portrait' orientation.</p>
+                  <p className="text-[10px] text-indigo-200 font-medium leading-tight">Portrait Award Lists are side-by-side. Ensure your printer is set to Portrait.</p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Right: Dynamic Columns */}
           <div className="lg:col-span-2 bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
             <div className="flex items-center justify-between mb-8">
               <div>
@@ -288,104 +328,104 @@ export default function AwardListGenerator() {
         </div>
       </div>
 
-      {/* ── Print Area (High Fidelity with Pagination) ── */}
       <div className="print-area hidden">
-        {studentChunks.map((chunk, chunkIndex) => (
-          <div key={chunkIndex} className="page-break">
-            {/* Header Section */}
-            <div className="flex items-start justify-between border-b-2 border-black pb-4 mb-6 relative">
-              <div className="w-24 h-24 shrink-0 overflow-hidden">
-                {schoolInfo?.logo_url ? (
-                  <img src={schoolInfo.logo_url} alt="logo" className="w-full h-full object-contain" />
-                ) : (
-                  <div className="w-full h-full bg-slate-100 rounded-xl flex items-center justify-center">
-                    <School className="w-10 h-10 text-slate-300" />
-                  </div>
-                )}
-              </div>
-              
-              <div className="flex-1 text-center px-4">
-                <h1 className="text-2xl font-bold uppercase tracking-tight text-black">{schoolInfo?.name || 'School Name'}</h1>
-                <p className="text-sm font-medium text-black mt-1">{schoolInfo?.address || 'School Location'}</p>
-                <h2 className="text-lg font-black uppercase tracking-widest mt-4 text-black underline underline-offset-4">{listTitle}</h2>
-                {currentExam && <p className="text-xs font-bold text-black mt-0.5">{currentExam.name} ({currentExam.session})</p>}
-              </div>
+        {(() => {
+          const subjectList = selectedSubject === 'all' 
+            ? allSubjects 
+            : [{ id: 'custom', subject_name: listTitle, total_marks: grandTotalMaxMarks }];
 
-              <div className="w-32 pt-1">
-                <div className="border border-black p-1.5 text-center bg-slate-50">
-                   <p className="text-[9px] font-bold uppercase text-black">Grade / Class</p>
-                   <p className="text-xs font-black text-black">{currentClass ? `${currentClass.name} ${currentClass.section}` : 'N/A'}</p>
-                </div>
-              </div>
-            </div>
+          return subjectList.flatMap((subject) => {
+            const subCols = selectedSubject === 'all'
+              ? [{ id: subject.id, label: subject.subject_name, maxMarks: String(subject.total_marks || 100) }]
+              : columns;
 
-            {/* Table Section */}
-            <table className="w-full border-collapse border-2 border-black text-xs font-medium">
-              <thead>
-                <tr className="bg-slate-50">
-                  <th className="border-[1.5px] border-black p-2 text-center w-12 font-bold">Sr.no.</th>
-                  <th className="border-[1.5px] border-black p-2 text-left font-bold">Student Name</th>
-                  {columns.map(col => (
-                    <th key={col.id} className="border-[1.5px] border-black p-2 text-center w-24 font-bold">
-                      {col.label} ({col.maxMarks})
-                    </th>
+            const subGrandTotal = subCols.reduce((sum, col) => sum + (Number(col.maxMarks) || 0), 0);
+            const pages = [];
+            for (let i = 0; i < displayStudents.length; i += CHUNK_SIZE) {
+              pages.push(displayStudents.slice(i, i + CHUNK_SIZE));
+            }
+
+            return pages.map((chunk, chunkIndex) => (
+              <div key={`${subject.id}-${chunkIndex}`} className="page-break relative">
+                <div className="flex gap-4 h-full">
+                  {[1, 2].map(copyNum => (
+                    <div key={copyNum} className="flex-1 flex flex-col px-2 overflow-hidden">
+                      <div className="flex items-start justify-between border-b border-black pb-1 mb-2">
+                        <div className="w-10 h-10 shrink-0">
+                          {schoolInfo?.logo_url && <img src={schoolInfo.logo_url} alt="logo" className="w-full h-full object-contain" />}
+                        </div>
+                        <div className="flex-1 text-center px-1">
+                          <h1 className="text-xs font-black uppercase text-black leading-tight tracking-tight">{schoolInfo?.name || 'School Name'}</h1>
+                          <h2 className="text-[10px] font-black uppercase mt-0.5 text-black underline underline-offset-1">
+                            {selectedSubject === 'all' ? `${subject.subject_name} Award List` : listTitle}
+                          </h2>
+                          <p className="text-[8px] font-black text-black opacity-80 mt-0.5">
+                            {copyNum === 1 ? 'OFFICE COPY' : 'AWARD LIST'} — {currentExam?.name || ''}
+                          </p>
+                        </div>
+                        <div className="text-[7px] font-bold text-black border border-black p-0.5 text-right min-w-[50px]">
+                          <p className="truncate">CLASS: {currentClass ? `${currentClass.name} ${currentClass.section}` : 'N/A'}</p>
+                          <p>MAX: {subGrandTotal}</p>
+                        </div>
+                      </div>
+
+                      <table className="w-full border-collapse border border-black text-[8px]">
+                        <thead>
+                          <tr className="bg-slate-50">
+                            <th className="border border-black p-0.5 text-center w-5">Sr.</th>
+                            <th className="border border-black p-0.5 text-left">Student Name</th>
+                            {subCols.map(col => (
+                              <th key={col.id} className="border border-black p-0.5 text-center">
+                                {selectedSubject === 'all' ? 'Marks' : col.label}
+                              </th>
+                            ))}
+                            <th className="border border-black p-0.5 text-center w-8">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {chunk.map((stu, i) => {
+                            const srNo = chunkIndex * CHUNK_SIZE + i + 1;
+                            const studentMarks = marksData[stu.id];
+                            return (
+                              <tr key={stu.id} className="h-5">
+                                <td className="border border-black p-0.5 text-center">{srNo}</td>
+                                <td className="border border-black p-0.5 font-bold uppercase truncate max-w-[80px] text-[8px]">
+                                  {stu.full_name}
+                                  {stu.roll_number && <span className="text-[6px] font-normal ml-1 opacity-50">(#{stu.roll_number})</span>}
+                                </td>
+                                {subCols.map(col => {
+                                  const score = studentMarks?.[col.id];
+                                  return (
+                                    <td key={col.id} className="border border-black text-center font-bold">
+                                      {score !== undefined ? score : ''}
+                                    </td>
+                                  );
+                                })}
+                                <td className="border border-black text-center font-bold">
+                                  {(() => {
+                                    if (!studentMarks) return '';
+                                    const sum = subCols.reduce((acc, col) => acc + (studentMarks[col.id] || 0), 0);
+                                    return sum > 0 ? sum : '';
+                                  })()}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+
+                      <div className="mt-auto pt-4 grid grid-cols-2 gap-2">
+                        <div className="border-t border-black pt-0.5 text-[7px] font-bold uppercase text-center">Teacher Sig.</div>
+                        <div className="border-t border-black pt-0.5 text-[7px] font-bold uppercase text-center">Principal</div>
+                      </div>
+                    </div>
                   ))}
-                  <th className="border-[1.5px] border-black p-2 text-center w-24 font-bold">Total Obt. Marks</th>
-                  <th className="border-[1.5px] border-black p-2 text-center w-20 font-bold">Total Marks</th>
-                </tr>
-              </thead>
-              <tbody>
-                {chunk.map((stu, i) => {
-                  const srNo = chunkIndex * CHUNK_SIZE + i + 1;
-                  return (
-                    <tr key={stu.id} className="h-8 group">
-                      <td className="border-[1.5px] border-black p-1 text-center">{srNo}</td>
-                      <td className="border-[1.5px] border-black p-1 font-bold uppercase text-[10px]">
-                        {stu.full_name} {stu.roll_number && <span className="text-[7px] font-normal text-slate-400">(#{stu.roll_number})</span>}
-                      </td>
-                      {columns.map(col => <td key={col.id} className="border-[1.5px] border-black"></td>)}
-                      <td className="border-[1.5px] border-black"></td>
-                      <td className="border-[1.5px] border-black text-center font-bold">{grandTotalMaxMarks}</td>
-                    </tr>
-                  );
-                })}
-                {/* Pad with empty rows if it's the last page and has less than 25 students */}
-                {chunkIndex === studentChunks.length - 1 && chunk.length < CHUNK_SIZE && Array.from({ length: CHUNK_SIZE - chunk.length }).map((_, i) => (
-                  <tr key={`extra-${i}`} className="h-8">
-                    <td className="border-[1.5px] border-black p-1 text-center">{chunkIndex * CHUNK_SIZE + chunk.length + i + 1}</td>
-                    <td className="border-[1.5px] border-black p-1"></td>
-                    {columns.map(col => <td key={col.id} className="border-[1.5px] border-black"></td>)}
-                    <td className="border-[1.5px] border-black"></td>
-                    <td className="border-[1.5px] border-black text-center font-bold">{grandTotalMaxMarks}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {/* Footer Section (Signatures on EVERY page) */}
-            <div className="mt-auto pt-6">
-              <div className="flex justify-between items-end px-4 mb-2">
-                <div className="text-center">
-                  <div className="w-40 border-b-2 border-black mb-1"></div>
-                  <p className="text-[10px] font-bold uppercase text-black">Teacher's Signature</p>
                 </div>
-                <div className="text-center">
-                  <div className="w-40 border-b-2 border-black mb-1"></div>
-                  <p className="text-[10px] font-bold uppercase text-black">Examination Incharge</p>
-                </div>
-                <div className="text-center">
-                  <div className="w-40 border-b-2 border-black mb-1"></div>
-                  <p className="text-[10px] font-bold uppercase text-black">Principal / Director</p>
-                </div>
+                <div className="copy-divider"></div>
               </div>
-              
-              <div className="px-4 pb-0 flex justify-between items-center text-[10px] font-black text-black uppercase tracking-widest mt-4">
-                <span>Page {chunkIndex + 1} / {studentChunks.length}</span>
-                <span className="italic opacity-40 text-[7px]">Printed by EdgeX Digital Solutions</span>
-              </div>
-            </div>
-          </div>
-        ))}
+            ));
+          });
+        })()}
       </div>
     </div>
   );

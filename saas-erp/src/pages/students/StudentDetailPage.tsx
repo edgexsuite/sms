@@ -9,6 +9,7 @@ import {
   TrendingUp, AlertCircle, Download, Plus, ChevronRight, MoreVertical, Users,
   Wallet, X as XIcon, Loader2, Tag, ExternalLink,
 } from 'lucide-react';
+import { PageHeader, Card, Btn, Badge, Input, Select, EmptyState } from '../../components/ui';
 import StudentFeeModal from '../../components/StudentFeeModal';
 import StudentFeeOverrideModal from '../../components/StudentFeeOverrideModal';
 import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, type ChallanRecord, type SchoolInfo } from '../../lib/challanUtils';
@@ -80,6 +81,8 @@ export default function StudentDetailPage() {
   const [newEntryPaid, setNewEntryPaid] = useState('');
   const [newEntryPayMode, setNewEntryPayMode] = useState('Cash');
   const [creatingEntry, setCreatingEntry] = useState(false);
+  const dueDateInputRef = useRef<HTMLInputElement>(null);
+  const paidAtInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (userRole?.school_id) {
@@ -638,45 +641,52 @@ export default function StudentDetailPage() {
         <div className="fixed inset-0 z-10" onClick={() => setShowDiscountPicker(false)} />
       )}
 
-      <div ref={printRef} className="min-h-screen bg-slate-50">
+      <div ref={printRef} className="min-h-screen bg-slate-50 pb-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+          {/* ── Page Header ── */}
+          <PageHeader
+            className="no-print"
+            title="Student Profile"
+            subtitle={`Detailed records for ${student.full_name}`}
+            actions={
+              <>
+                <Btn variant="ghost" size="sm" onClick={() => navigate(-1)} icon={ArrowLeft}>
+                  Back
+                </Btn>
+                {isReadOnly && (
+                  <Badge variant="warning" className="uppercase tracking-widest px-3 py-1">
+                    <Shield className="w-3 h-3 mr-1" /> View Only
+                  </Badge>
+                )}
+                <Btn variant="outline" size="sm" onClick={handlePrint} icon={Printer}>
+                  Print Profile
+                </Btn>
+              </>
+            }
+          />
 
-        {/* ── Sticky Back + Print Topbar ── */}
-        <div className="no-print sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-100 px-4 py-2.5 flex items-center justify-between">
-          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-xs font-black text-slate-500 hover:text-indigo-600 uppercase tracking-widest transition-all">
-            <ArrowLeft className="w-4 h-4" /> Back
-          </button>
-          <div className="flex items-center gap-3">
-            {isReadOnly && (
-              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-black uppercase tracking-widest">
-                <Shield className="w-3 h-3" /> View Only
-              </span>
-            )}
-            <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:border-indigo-300 hover:text-indigo-600 transition shadow-sm">
-              <Printer className="w-3.5 h-3.5" /> Print
-            </button>
-          </div>
-        </div>
-
-        {/* ── Ledger Summary Bar (SkoolZoom Style) ── */}
-        {showFinance && (
-          <div className="no-print bg-white border-b border-slate-200 px-6 py-3 py-print-0 flex gap-4 overflow-x-auto custom-scrollbar shadow-inner">
-            {[
-              { label: 'Total Fees', val: ledgerSummary.total, color: 'text-slate-900', icon: CreditCard },
-              { label: 'Received', val: ledgerSummary.paid, color: 'text-emerald-600', icon: CheckCircle },
-              { label: 'Total Balance', val: ledgerSummary.balance, color: 'text-rose-600', icon: AlertCircle },
-            ].map(item => (
-              <div key={item.label} className="min-w-[150px] flex items-center gap-3 px-4 py-1.5 rounded-xl border border-slate-100 bg-slate-50/50">
-                <div className={cn("p-1.5 rounded-lg bg-white shadow-sm", item.color)}>
-                  <item.icon className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none text-print-xs">{item.label}</p>
-                    <p className={cn("text-[13px] font-black mt-0.5", item.color)}>PKR {item.val.toLocaleString()}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+          {/* ── Ledger Summary Bar (SkoolZoom Style) ── */}
+          {showFinance && (
+            <div className="no-print grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+              {[
+                { label: 'Total Fees', val: ledgerSummary.total, color: 'text-slate-900', icon: CreditCard, border: 'border-slate-200' },
+                { label: 'Received', val: ledgerSummary.paid, color: 'text-emerald-600', icon: CheckCircle, border: 'border-emerald-100' },
+                { label: 'Total Balance', val: ledgerSummary.balance, color: 'text-rose-600', icon: AlertCircle, border: 'border-rose-100' },
+              ].map(item => (
+                <Card key={item.label} className={cn("p-4 border-l-4 shadow-sm", item.border === 'border-slate-200' ? 'border-l-slate-400' : item.border === 'border-emerald-100' ? 'border-l-emerald-500' : 'border-l-rose-500')}>
+                  <div className="flex items-center gap-4">
+                    <div className={cn("p-2 rounded-xl bg-slate-50", item.color)}>
+                      <item.icon className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">{item.label}</p>
+                      <p className={cn("text-lg font-black mt-1", item.color)}>PKR {item.val.toLocaleString()}</p>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
 
         {/* ── Official Print Header ── */}
         <div className="print-only mb-10 pb-8 border-b-2 border-slate-900 flex justify-between items-center text-slate-900">
@@ -701,78 +711,79 @@ export default function StudentDetailPage() {
           </div>
         </div>
 
-        {/* ── Hero Banner ── */}
-        <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 px-6 py-10 hero-banner">
-          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start sm:items-center gap-6">
-            {student.photograph_url ? (
-              <img src={student.photograph_url} alt={student.full_name}
-                className="w-28 h-28 rounded-3xl object-cover border-4 border-white/20 shadow-2xl shrink-0" />
-            ) : (
-              <div className="w-28 h-28 rounded-3xl bg-indigo-600/40 border-4 border-indigo-400/30 flex items-center justify-center text-5xl font-black text-white shadow-2xl shrink-0">
-                {student.full_name?.charAt(0)?.toUpperCase()}
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                <span className={cn('px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg text-white',
-                  student.status === 'active' ? 'bg-emerald-500 shadow-emerald-500/20' : 'bg-slate-500 shadow-slate-500/20'
-                )}>
-                  {student.status === 'active' ? 'active' : student.status}
-                </span>
-                {student.fee_waiver_percentage >= 100 && (
-                  <span className="px-3 py-1 rounded-full bg-emerald-500 text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-lg shadow-emerald-500/20 flex items-center gap-1.5 animate-pulse">
-                    <CheckCircle className="w-3 h-3" /> Free Student
-                  </span>
-                )}
-                {student.fee_waiver_percentage > 0 && student.fee_waiver_percentage < 100 && (
-                  <span className="px-3 py-1 rounded-full bg-amber-500 text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-lg shadow-amber-500/20">
-                    {student.fee_waiver_percentage}% Scholarship
-                  </span>
-                )}
-                {cls && <span className="px-3 py-1 rounded-full bg-indigo-500/30 text-indigo-200 text-xs font-bold">{cls.name} – {cls.section}</span>}
-                {student.roll_number && <span className="text-indigo-300 text-sm font-bold">Roll #{student.roll_number}</span>}
-              </div>
-              <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">{student.full_name}</h1>
-              <div className="flex flex-wrap gap-4 mt-3 text-slate-400 text-sm">
-                {student.gender && <span className="flex items-center gap-1"><User className="w-3.5 h-3.5" />{student.gender}</span>}
-                {student.dob && <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />DOB: {formatDate(student.dob)}</span>}
-                {student.admission_date && <span className="flex items-center gap-1"><BookOpen className="w-3.5 h-3.5" />Admitted: {formatDate(student.admission_date)}</span>}
-                {student.blood_group && <span className="flex items-center gap-1"><Heart className="w-3.5 h-3.5 text-red-400" />{student.blood_group}</span>}
-              </div>
-              {/* Credentials */}
-              {showFinance && student.student_unique_id && (
-                <div className="mt-4 inline-flex items-center gap-4 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5">
-                  <div>
-                    <p className="text-[9px] text-slate-500 uppercase tracking-widest">Login ID</p>
-                    <p className="text-xs font-black text-white font-mono">{student.student_unique_id}</p>
+          {/* ── Hero Banner ── */}
+          <Card className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 border-none shadow-2xl p-0 overflow-hidden mb-6">
+            <div className="px-6 py-10">
+              <div className="flex flex-col md:flex-row items-start md:items-center gap-8">
+                {student.photograph_url ? (
+                  <img src={student.photograph_url} alt={student.full_name}
+                    className="w-32 h-32 rounded-3xl object-cover border-4 border-white/20 shadow-2xl shrink-0" />
+                ) : (
+                  <div className="w-32 h-32 rounded-3xl bg-indigo-600/40 border-4 border-indigo-400/30 flex items-center justify-center text-5xl font-black text-white shadow-2xl shrink-0">
+                    {student.full_name?.charAt(0)?.toUpperCase()}
                   </div>
-                  <div className="border-l border-white/10 pl-4">
-                    <p className="text-[9px] text-slate-500 uppercase tracking-widest">Password</p>
-                    <p className="text-xs font-black text-white font-mono">{student.auth_password || '—'}</p>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-3 mb-4">
+                    <Badge variant={student.status === 'active' ? 'success' : 'secondary'} className="uppercase tracking-[0.2em] px-4 py-1.5 shadow-lg shadow-black/20 border-none">
+                      {student.status === 'active' ? 'Active' : student.status}
+                    </Badge>
+                    {student.fee_waiver_percentage >= 100 && (
+                      <Badge variant="success" className="uppercase tracking-[0.2em] px-4 py-1.5 shadow-lg shadow-emerald-500/20 animate-pulse border-none">
+                        <CheckCircle className="w-3 h-3 mr-2" /> Free Student
+                      </Badge>
+                    )}
+                    {student.fee_waiver_percentage > 0 && student.fee_waiver_percentage < 100 && (
+                      <Badge variant="warning" className="uppercase tracking-[0.2em] px-4 py-1.5 shadow-lg shadow-amber-500/20 border-none">
+                        {student.fee_waiver_percentage}% Scholarship
+                      </Badge>
+                    )}
+                    {cls && <Badge variant="secondary" className="text-indigo-200 border-indigo-500/30 bg-indigo-500/10 px-4 py-1.5">{cls.name} – {cls.section}</Badge>}
+                    {student.roll_number && <span className="text-indigo-300 text-sm font-bold bg-white/5 px-3 py-1.5 rounded-lg border border-white/10">Roll #{student.roll_number}</span>}
                   </div>
+                  <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight mb-4">{student.full_name}</h1>
+                  <div className="flex flex-wrap gap-6 text-slate-300 text-[13px] font-medium">
+                    {student.gender && <span className="flex items-center gap-2"><User className="w-4 h-4 text-indigo-400" />{student.gender}</span>}
+                    {student.dob && <span className="flex items-center gap-2"><Calendar className="w-4 h-4 text-indigo-400" />DOB: {formatDate(student.dob)}</span>}
+                    {student.admission_date && <span className="flex items-center gap-2"><BookOpen className="w-4 h-4 text-indigo-400" />Admitted: {formatDate(student.admission_date)}</span>}
+                    {student.blood_group && <span className="flex items-center gap-2"><Heart className="w-4 h-4 text-rose-400" />{student.blood_group}</span>}
+                  </div>
+                  
+                  {/* Credentials */}
+                  {showFinance && student.student_unique_id && (
+                    <div className="mt-6 inline-flex items-center gap-6 bg-white/5 border border-white/10 rounded-2xl px-5 py-3 backdrop-blur-sm">
+                      <div>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black">Login ID</p>
+                        <p className="text-sm font-black text-white font-mono mt-0.5">{student.student_unique_id}</p>
+                      </div>
+                      <div className="w-px h-8 bg-white/10" />
+                      <div>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black">Password</p>
+                        <p className="text-sm font-black text-white font-mono mt-0.5">{student.auth_password || '—'}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            {/* Quick stats */}
-            <div className="hidden sm:grid grid-cols-3 gap-3 shrink-0">
-              {[
-                { id: 'attendance', label: 'Attendance', value: attPct + '%', color: attPct >= 75 ? 'text-emerald-400' : 'text-rose-400' },
-                { id: 'fees', label: 'Outstanding', value: 'PKR ' + totalDue.toLocaleString(), color: totalDue > 0 ? 'text-rose-400' : 'text-emerald-400' },
-                { id: 'results', label: 'Results', value: results.length + ' marks', color: 'text-indigo-400' },
-              ].filter(s => showFinance || s.id !== 'fees').map(stat => (
-                <div key={stat.label} className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">{stat.label}</p>
-                  <p className={`text-sm font-black ${stat.color}`}>{stat.value}</p>
+                {/* Quick stats */}
+                <div className="hidden lg:grid grid-cols-1 gap-3 shrink-0">
+                  {[
+                    { id: 'attendance', label: 'Attendance', value: attPct + '%', color: attPct >= 75 ? 'text-emerald-400' : 'text-rose-400' },
+                    { id: 'fees', label: 'Outstanding', value: 'PKR ' + totalDue.toLocaleString(), color: totalDue > 0 ? 'text-rose-400' : 'text-emerald-400' },
+                    { id: 'results', label: 'Last Result', value: results.length ? 'Recorded' : 'N/A', color: 'text-indigo-400' },
+                  ].filter(s => showFinance || s.id !== 'fees').map(stat => (
+                    <div key={stat.label} className="bg-white/5 border border-white/10 rounded-2xl px-6 py-3 min-w-[160px]">
+                      <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black mb-1">{stat.label}</p>
+                      <p className={`text-lg font-black ${stat.color}`}>{stat.value}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
-          </div>
-        </div>
+          </Card>
 
-        {/* ── Tab Navigation ── */}
-        <div className="no-print bg-white border-b border-slate-200">
-          <div className="max-w-6xl mx-auto flex overflow-x-auto custom-scrollbar">
+          {/* ── Tab Navigation ── */}
+          <div className="no-print bg-white rounded-2xl border border-slate-200 shadow-sm mb-8 p-1.5 flex gap-1 overflow-x-auto scrollbar-hide">
             {([
               { key: 'overview', label: 'Overview', icon: User },
               { key: 'attendance', label: 'Attendance', icon: Calendar },
@@ -781,15 +792,21 @@ export default function StudentDetailPage() {
             ] as { key: DetailTab; label: string; icon: any }[])
               .filter(t => showFinance || t.key !== 'fees')
               .map(({ key, label, icon: Icon }) => (
-              <button key={key} onClick={() => setTab(key)}
-                className={cn('flex items-center gap-2 px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm whitespace-nowrap font-bold border-b-2 transition-all',
-                  tab === key ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700')}>
+              <button 
+                key={key} 
+                onClick={() => setTab(key)}
+                className={cn(
+                  'flex items-center gap-2 px-6 py-3 text-xs sm:text-[13px] whitespace-nowrap font-black uppercase tracking-tight rounded-xl transition-all',
+                  tab === key 
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' 
+                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                )}
+              >
                 <Icon className="w-4 h-4" />
                 {label}
               </button>
             ))}
           </div>
-        </div>
 
         {/* ── Tab Content ── */}
         <div className="max-w-6xl mx-auto px-6 py-8">
@@ -800,13 +817,16 @@ export default function StudentDetailPage() {
           )}
 
           {!tabLoading && tab === 'overview' && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Personal Info */}
-              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                <h2 className="text-xs font-black text-indigo-600 uppercase tracking-[0.2em] mb-5 flex items-center gap-2">
-                  <User className="w-3.5 h-3.5" /> Personal Information
+              <Card className="p-8 shadow-sm">
+                <h2 className="text-sm font-black text-indigo-600 uppercase tracking-[0.2em] mb-8 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
+                    <User className="w-4 h-4" />
+                  </div>
+                  Personal Information
                 </h2>
-                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-6 text-[13px]">
                   {[
                     { label: 'Full Name', val: student.full_name },
                     { label: 'Roll No', val: student.roll_number ? `#${student.roll_number}` : '—' },
@@ -819,23 +839,26 @@ export default function StudentDetailPage() {
                     { label: 'B-Form/CNIC', val: student.b_form_cnic || '—' },
                   ].map(({ label, val }) => (
                     <div key={label}>
-                      <dt className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</dt>
-                      <dd className="font-bold text-slate-800 mt-0.5">{val}</dd>
+                      <dt className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</dt>
+                      <dd className="font-bold text-slate-800">{val}</dd>
                     </div>
                   ))}
-                  <div className="col-span-2">
-                    <dt className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Address</dt>
-                    <dd className="font-medium text-slate-700 mt-0.5">{student.address || '—'}</dd>
+                  <div className="col-span-2 pt-4 border-t border-slate-50 mt-2">
+                    <dt className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Residential Address</dt>
+                    <dd className="font-medium text-slate-700 leading-relaxed italic">"{student.address || 'No address provided'}"</dd>
                   </div>
                 </dl>
-              </div>
+              </Card>
 
               {/* Parent / Family */}
-              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                <h2 className="text-xs font-black text-slate-600 uppercase tracking-[0.2em] mb-5 flex items-center gap-2">
-                  <Phone className="w-3.5 h-3.5" /> Parent & Family
+              <Card className="p-8 shadow-sm">
+                <h2 className="text-sm font-black text-slate-600 uppercase tracking-[0.2em] mb-8 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center">
+                    <Phone className="w-4 h-4" />
+                  </div>
+                  Parent & Family
                 </h2>
-                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-6 text-[13px]">
                   {[
                     { label: "Father's Name", val: parent?.father_name || student.father_name || '—' },
                     { label: "Mother's Name", val: parent?.mother_name || student.mother_name || '—' },
@@ -845,131 +868,128 @@ export default function StudentDetailPage() {
                     { label: 'Email', val: parent?.email || '—' },
                   ].map(({ label, val }) => (
                     <div key={label}>
-                      <dt className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</dt>
-                      <dd className="font-bold text-slate-800 mt-0.5">{val}</dd>
+                      <dt className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</dt>
+                      <dd className="font-bold text-slate-800">{val}</dd>
                     </div>
                   ))}
-                  {showFinance && parent && (
-                    <>
-                      <div className="col-span-2 mt-2 pt-4 border-t border-slate-100">
-                        <h3 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-3">Parent Login</h3>
-                        <div className="flex items-center gap-4 bg-slate-50 rounded-xl px-4 py-3">
-                          <div>
-                            <p className="text-[9px] text-slate-400 uppercase tracking-widest">Family ID</p>
-                            <p className="text-sm font-black text-slate-800 font-mono">{parent.family_number || '—'}</p>
-                          </div>
-                          <div className="border-l border-slate-200 pl-4">
-                            <p className="text-[9px] text-slate-400 uppercase tracking-widest">Password</p>
-                            <p className="text-sm font-black text-slate-800 font-mono">{parent.auth_password || '—'}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
                 </dl>
-              </div>
+              </Card>
 
               {/* Sibling Listing Card */}
               {siblings.length > 0 && (
-                <div className="bg-[#0f172a] rounded-2xl p-6 shadow-xl relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-3 opacity-10">
-                    <Users className="w-12 h-12 text-white" />
+                <Card className="bg-[#0f172a] border-none p-8 shadow-2xl relative overflow-hidden group">
+                  <div className="absolute -top-10 -right-10 opacity-5 group-hover:opacity-10 transition-opacity transform rotate-12">
+                    <Users className="w-48 h-48 text-white" />
                   </div>
-                  <h2 className="text-xs font-black text-indigo-300 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                    <Users className="w-3.5 h-3.5" /> Siblings Cross-Reference
+                  <h2 className="text-xs font-black text-indigo-300 uppercase tracking-[0.2em] mb-6 flex items-center gap-3 relative z-10">
+                    <Users className="w-4 h-4" /> Siblings Cross-Reference
                   </h2>
-                  <div className="space-y-3">
+                  <div className="space-y-4 relative z-10">
                     {siblings.map(s => (
-                      <div key={s.id} onClick={() => navigate(`/students/detail/${s.id}`)} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors cursor-pointer group">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center font-black text-indigo-300 border border-indigo-500/30">
+                      <div 
+                        key={s.id} 
+                        onClick={() => navigate(`/students/detail/${s.id}`)} 
+                        className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all cursor-pointer group/item"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center font-black text-indigo-300 border border-indigo-500/30 shadow-inner group-hover/item:scale-110 transition-transform">
                             {s.full_name?.charAt(0)}
                           </div>
                           <div>
-                            <p className="text-sm font-black text-white uppercase tracking-tight">{s.full_name}</p>
-                            <p className="text-[10px] text-indigo-300 font-bold uppercase tracking-widest">{s.classes?.name} {s.classes?.section}</p>
+                            <p className="text-[15px] font-black text-white uppercase tracking-tight">{s.full_name}</p>
+                            <p className="text-[10px] text-indigo-300 font-black uppercase tracking-[0.15em] mt-0.5">{s.classes?.name} {s.classes?.section}</p>
                           </div>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white transition-all transform group-hover:translate-x-1" />
+                        <ChevronRight className="w-5 h-5 text-white/20 group-hover/item:text-white transition-all transform group-hover/item:translate-x-1" />
                       </div>
                     ))}
                   </div>
-                </div>
+                </Card>
               )}
 
               {/* Medical */}
               {(student.medical_caution || student.emergency_doctor_name) && (
-                <div className="bg-rose-50 border border-rose-100 rounded-2xl p-6">
-                  <h2 className="text-xs font-black text-rose-600 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                    <Heart className="w-3.5 h-3.5" /> Medical & Emergency
+                <Card className="bg-rose-50 border-rose-100 p-8 shadow-sm">
+                  <h2 className="text-sm font-black text-rose-600 uppercase tracking-[0.2em] mb-8 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm">
+                      <Heart className="w-4 h-4" />
+                    </div>
+                    Medical & Emergency
                   </h2>
-                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-6 text-[13px]">
                     {[
                       { label: 'Medical Caution', val: student.medical_caution || '—' },
                       { label: 'Emergency Doctor', val: student.emergency_doctor_name || '—' },
                       { label: 'Doctor Phone', val: student.emergency_doctor_phone || '—' },
                     ].map(({ label, val }) => (
                       <div key={label}>
-                        <dt className="text-[10px] font-black text-rose-400 uppercase tracking-widest">{label}</dt>
-                        <dd className="font-bold text-slate-800 mt-0.5">{val}</dd>
+                        <dt className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">{label}</dt>
+                        <dd className="font-bold text-slate-800">{val}</dd>
                       </div>
                     ))}
                   </dl>
-                </div>
+                </Card>
               )}
 
 
 
               {/* Financial & Scholarship Status */}
               {showFinance && (
-                <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm p-6 relative overflow-hidden group hover:border-indigo-300 transition-colors">
-                  <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                    <CreditCard className="w-12 h-12 text-indigo-600" />
-                  </div>
-                  <h2 className="text-xs font-black text-indigo-600 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-                    <CreditCard className="w-3.5 h-3.5" /> Financial & Scholarship Status
+                <Card className="p-8 shadow-sm group hover:border-indigo-300 transition-colors">
+                  <h2 className="text-sm font-black text-indigo-600 uppercase tracking-[0.2em] mb-8 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
+                      <CreditCard className="w-4 h-4" />
+                    </div>
+                    Financial & Scholarship Status
                   </h2>
 
-                  <div className="space-y-6">
-
+                  <div className="space-y-8">
                     {/* ── Active Discount Rules ── */}
-                    <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest flex items-center gap-1.5">
-                          <Tag className="w-3 h-3" /> Active Discount / Scholarship Rules
+                    <div className="p-6 bg-emerald-50/50 border border-emerald-100 rounded-[2rem]">
+                      <div className="flex items-center justify-between mb-5">
+                        <p className="text-[11px] font-black text-emerald-700 uppercase tracking-widest flex items-center gap-2">
+                          <Tag className="w-4 h-4" /> Active Discount Rules
                         </p>
                         <div className="relative">
-                          <button
+                          <Btn 
+                            variant="success" 
+                            size="sm" 
                             onClick={() => setShowDiscountPicker(v => !v)}
-                            className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-emerald-700 transition-colors"
+                            icon={addingDiscount ? Loader2 : Plus}
+                            className={addingDiscount ? "animate-spin" : ""}
                           >
-                            {addingDiscount ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />} Assign
-                          </button>
+                            Assign Rule
+                          </Btn>
                           {showDiscountPicker && (
-                            <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-slate-200 rounded-xl shadow-xl min-w-[220px] overflow-hidden">
+                            <div className="absolute right-0 top-full mt-2 z-20 bg-white border border-slate-200 rounded-2xl shadow-2xl min-w-[280px] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                              <div className="px-4 py-3 bg-slate-50 border-b border-slate-100">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Available Rules</p>
+                              </div>
                               {discountRules.length === 0 ? (
-                                <p className="px-4 py-3 text-xs text-slate-400 italic">No discount rules yet. Create them in Discounts & Scholarships.</p>
-                              ) : discountRules.map(rule => {
-                                const alreadyAssigned = (student.custom_data?.discount_rule_ids || []).includes(rule.id);
-                                return (
-                                  <button
-                                    key={rule.id}
-                                    disabled={alreadyAssigned}
-                                    onClick={() => handleAssignDiscount(rule.id)}
-                                    className={cn(
-                                      "w-full flex items-center justify-between px-4 py-2.5 text-left text-sm hover:bg-emerald-50 transition-colors",
-                                      alreadyAssigned ? "opacity-40 cursor-not-allowed" : ""
-                                    )}
-                                  >
-                                    <span className="font-semibold text-slate-800">{rule.name}</span>
-                                    <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full",
-                                      rule.type === 'percentage' ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
-                                    )}>
-                                      {rule.type === 'percentage' ? `${rule.value}%` : `Rs. ${rule.value}`}
-                                    </span>
-                                  </button>
-                                );
-                              })}
+                                <p className="px-4 py-6 text-xs text-slate-400 italic text-center">No discount rules configured yet.</p>
+                              ) : (
+                                <div className="max-h-[300px] overflow-y-auto">
+                                  {discountRules.map(rule => {
+                                    const alreadyAssigned = (student.custom_data?.discount_rule_ids || []).includes(rule.id);
+                                    return (
+                                      <button
+                                        key={rule.id}
+                                        disabled={alreadyAssigned}
+                                        onClick={() => handleAssignDiscount(rule.id)}
+                                        className={cn(
+                                          "w-full flex items-center justify-between px-4 py-3 text-left text-sm hover:bg-emerald-50 transition-colors border-b border-slate-50 last:border-0",
+                                          alreadyAssigned ? "opacity-40 cursor-not-allowed bg-slate-50" : ""
+                                        )}
+                                      >
+                                        <span className="font-bold text-slate-800">{rule.name}</span>
+                                        <Badge variant={rule.type === 'percentage' ? 'success' : 'warning'} className="font-black">
+                                          {rule.type === 'percentage' ? `${rule.value}%` : `Rs. ${rule.value}`}
+                                        </Badge>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -980,23 +1000,26 @@ export default function StudentDetailPage() {
                         const activeIds: string[] = student.custom_data?.discount_rule_ids || [];
                         const activeRules = discountRules.filter(r => activeIds.includes(r.id));
                         if (activeRules.length === 0) return (
-                          <p className="text-xs text-emerald-600 italic opacity-70">No discount rules assigned yet. Click "Assign" to add one.</p>
+                          <div className="flex flex-col items-center justify-center py-6 text-center">
+                            <Tag className="w-8 h-8 text-emerald-200 mb-2" />
+                            <p className="text-xs text-emerald-600 font-medium max-w-[200px]">No discount rules assigned. Standard fees apply.</p>
+                          </div>
                         );
                         return (
-                          <div className="flex flex-wrap gap-2">
+                          <div className="flex flex-wrap gap-3">
                             {activeRules.map(rule => (
-                              <div key={rule.id} className="flex items-center gap-1.5 bg-white border border-emerald-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-emerald-800 shadow-sm">
-                                <Tag className="w-3 h-3 text-emerald-500" />
-                                {rule.name}
-                                <span className="bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full text-[10px] font-black">
+                              <div key={rule.id} className="flex items-center gap-3 bg-white border border-emerald-100 rounded-2xl px-4 py-2 text-sm font-bold text-emerald-800 shadow-sm hover:border-emerald-300 transition-colors group/rule">
+                                <Tag className="w-4 h-4 text-emerald-500" />
+                                <span>{rule.name}</span>
+                                <Badge variant="success" className="bg-emerald-100 text-emerald-700 px-2.5">
                                   {rule.type === 'percentage' ? `${rule.value}%` : `Rs. ${rule.value}`}
-                                </span>
+                                </Badge>
                                 <button
                                   onClick={() => handleRemoveDiscount(rule.id)}
-                                  className="ml-0.5 text-emerald-400 hover:text-rose-500 transition-colors"
-                                  title="Remove discount"
+                                  className="ml-1 p-1 rounded-lg text-emerald-300 hover:text-rose-500 hover:bg-rose-50 transition-all"
+                                  title="Remove rule"
                                 >
-                                  <XIcon className="w-3 h-3" />
+                                  <XIcon className="w-4 h-4" />
                                 </button>
                               </div>
                             ))}
@@ -1005,337 +1028,313 @@ export default function StudentDetailPage() {
                       })()}
                     </div>
 
-                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                      <div className="flex items-center gap-4">
-                        <div className={cn(
-                          "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
-                          student.fee_waiver_percentage >= 100 ? "bg-emerald-100 text-emerald-600" : "bg-slate-200 text-slate-500"
-                        )}>
-                          <CheckCircle className="w-5 h-5 text-current" />
+                    {/* Quick Toggles */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <div className="flex items-center justify-between p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
+                        <div className="flex items-center gap-4">
+                          <div className={cn(
+                            "w-12 h-12 rounded-2xl flex items-center justify-center transition-all",
+                            student.fee_waiver_percentage >= 100 ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "bg-slate-200 text-slate-500"
+                          )}>
+                            <Award className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Full Scholarship</p>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">100% Fee Waiver</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Full Fee Waiver</p>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mt-1">Make Student Free</p>
-                        </div>
+                        <button
+                          onClick={async () => {
+                            const newVal = student.fee_waiver_percentage >= 100 ? 0 : 100;
+                            const { error } = await supabase.from('students').update({ fee_waiver_percentage: newVal }).eq('id', student.id);
+                            if (!error) setStudent({ ...student, fee_waiver_percentage: newVal });
+                          }}
+                          className={cn(
+                            "relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none shadow-inner",
+                            student.fee_waiver_percentage >= 100 ? "bg-emerald-500" : "bg-slate-300"
+                          )}
+                        >
+                          <span className={cn(
+                            "pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out",
+                            student.fee_waiver_percentage >= 100 ? "translate-x-5" : "translate-x-0"
+                          )} />
+                        </button>
                       </div>
-                      <button
-                        onClick={async () => {
-                          const newVal = student.fee_waiver_percentage >= 100 ? 0 : 100;
-                          const { error } = await supabase.from('students').update({ fee_waiver_percentage: newVal }).eq('id', student.id);
-                          if (!error) setStudent({ ...student, fee_waiver_percentage: newVal });
-                        }}
-                        className={cn(
-                          "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
-                          student.fee_waiver_percentage >= 100 ? "bg-emerald-500" : "bg-slate-200"
-                        )}
-                      >
-                        <span className={cn(
-                          "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                          student.fee_waiver_percentage >= 100 ? "translate-x-5" : "translate-x-0"
-                        )} />
-                      </button>
-                    </div>
 
-                    <div className="pt-2">
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Override Waiver % (Manual)</label>
-                      <div className="flex items-center gap-4">
-                        <input
-                          type="range" min="0" max="100" step="1"
-                          value={student.fee_waiver_percentage || 0}
-                          onChange={async (e) => {
-                            const val = parseInt(e.target.value);
-                            setStudent({ ...student, fee_waiver_percentage: val });
-                          }}
-                          onMouseUp={async (e: any) => {
-                            const val = parseInt(e.target.value);
-                            await supabase.from('students').update({ fee_waiver_percentage: val }).eq('id', student.id);
-                          }}
-                          className="flex-1 h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                        />
-                        <div className="w-16 h-10 flex items-center justify-center bg-indigo-50 border border-indigo-100 rounded-xl font-black text-indigo-600 tracking-tighter">
-                          {student.fee_waiver_percentage || 0}%
+                      <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
+                        <div className="flex items-center justify-between mb-4">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Manual Waiver Override</p>
+                          <span className="text-sm font-black text-indigo-600 bg-white px-3 py-1 rounded-xl shadow-sm border border-slate-100">
+                            {student.fee_waiver_percentage || 0}%
+                          </span>
                         </div>
+                        <div className="flex items-center gap-4">
+                          <input
+                            type="range" min="0" max="100" step="1"
+                            value={student.fee_waiver_percentage || 0}
+                            onChange={async (e) => {
+                              const val = parseInt(e.target.value);
+                              setStudent({ ...student, fee_waiver_percentage: val });
+                            }}
+                            onMouseUp={async (e: any) => {
+                              const val = parseInt(e.target.value);
+                              await supabase.from('students').update({ fee_waiver_percentage: val }).eq('id', student.id);
+                            }}
+                            className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-4 italic leading-relaxed">
+                          Drag to override assigned rules manually.
+                        </p>
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-3 italic leading-relaxed">
-                        Assigned discount rules auto-set this %. You can also drag to set it manually. Future invoices will apply this % discount.
-                      </p>
                     </div>
                   </div>
-                </div>
+                </Card>
               )}
             </div>
           )}
 
           {!tabLoading && tab === 'attendance' && (
-            <div className="space-y-6">
+            <div className="space-y-8">
               {/* Summary Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-6">
                 {[
-                  { label: 'Present', val: attSummary.present, bg: 'bg-emerald-50 border-emerald-200', color: 'text-emerald-700' },
-                  { label: 'Absent', val: attSummary.absent, bg: 'bg-rose-50 border-rose-200', color: 'text-rose-700' },
-                  { label: 'Late', val: attSummary.late, bg: 'bg-amber-50 border-amber-200', color: 'text-amber-700' },
-                  { label: 'Leave', val: attSummary.leave, bg: 'bg-blue-50 border-blue-200', color: 'text-blue-700' },
-                  { label: 'Attendance %', val: attPct + '%', bg: attPct >= 75 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200', color: attPct >= 75 ? 'text-emerald-700' : 'text-rose-700' },
+                  { label: 'Present', val: attSummary.present, variant: 'success', icon: CheckCircle },
+                  { label: 'Absent', val: attSummary.absent, variant: 'danger', icon: XCircle },
+                  { label: 'Late', val: attSummary.late, variant: 'warning', icon: Clock },
+                  { label: 'Leave', val: attSummary.leave, variant: 'indigo', icon: Calendar },
+                  { label: 'Attendance %', val: attPct + '%', variant: attPct >= 75 ? 'success' : 'danger', icon: TrendingUp },
                 ].map(s => (
-                  <div key={s.label} className={`rounded-2xl border p-5 text-center ${s.bg}`}>
-                    <p className="text-3xl font-black mb-1 ${s.color} ">
-                      <span className={s.color}>{s.val}</span>
-                    </p>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{s.label}</p>
-                  </div>
+                  <Card key={s.label} className="p-6 text-center border-none shadow-sm relative overflow-hidden group">
+                    <div className={cn(
+                      "absolute -bottom-4 -right-4 w-16 h-16 opacity-5 group-hover:scale-110 transition-transform",
+                      s.variant === 'success' ? 'text-emerald-500' : s.variant === 'danger' ? 'text-rose-500' : s.variant === 'warning' ? 'text-amber-500' : 'text-indigo-500'
+                    )}>
+                      <s.icon className="w-full h-full" />
+                    </div>
+                    <p className={cn(
+                      "text-3xl font-black mb-1",
+                      s.variant === 'success' ? 'text-emerald-600' : s.variant === 'danger' ? 'text-rose-600' : s.variant === 'warning' ? 'text-amber-600' : 'text-indigo-600'
+                    )}>{s.val}</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{s.label}</p>
+                  </Card>
                 ))}
               </div>
 
               {/* Calendar heat map — last 90 days */}
-              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                <h3 className="text-sm font-black text-slate-700 mb-4">Last 90 Days</h3>
-                <div className="flex flex-wrap gap-1.5">
+              <Card className="p-8 shadow-sm">
+                <div className="flex items-center justify-between mb-8">
+                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                      <Calendar className="w-4 h-4" />
+                    </div>
+                    Visual Attendance History (Last 90 Days)
+                  </h3>
+                  <div className="flex items-center gap-4 no-print">
+                    {[
+                      { color: 'bg-emerald-500', label: 'Present' },
+                      { color: 'bg-rose-500', label: 'Absent' },
+                      { color: 'bg-amber-400', label: 'Late' },
+                      { color: 'bg-blue-400', label: 'Leave' },
+                      { color: 'bg-slate-100', label: 'None' },
+                    ].map(l => (
+                      <div key={l.label} className="flex items-center gap-2">
+                        <div className={cn('w-2.5 h-2.5 rounded-full', l.color)} />
+                        <span className="text-[10px] text-slate-400 font-black uppercase tracking-tighter">{l.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
                   {[...Array(90)].map((_, idx) => {
                     const d = new Date(); d.setDate(d.getDate() - (89 - idx));
                     const dateStr = d.toISOString().slice(0, 10);
                     const rec = attendance.find(r => r.date === dateStr);
                     return (
                       <div key={dateStr} title={`${dateStr}: ${rec ? rec.status : 'no record'}`}
-                        className={cn('w-5 h-5 rounded-sm cursor-default transition-transform hover:scale-125',
+                        className={cn('w-6 h-6 rounded-md cursor-default transition-all hover:scale-125 hover:shadow-md hover:z-10',
                           rec ? (STATUS_COLOR[rec.status] || 'bg-slate-300') : 'bg-slate-100')} />
                     );
                   })}
                 </div>
-                <div className="flex items-center gap-4 mt-4">
-                  {[
-                    { color: 'bg-emerald-500', label: 'Present' },
-                    { color: 'bg-rose-500', label: 'Absent' },
-                    { color: 'bg-amber-400', label: 'Late' },
-                    { color: 'bg-blue-400', label: 'Leave' },
-                    { color: 'bg-slate-100', label: 'No Record' },
-                  ].map(l => (
-                    <div key={l.label} className="flex items-center gap-1.5">
-                      <div className={cn('w-3 h-3 rounded-sm', l.color)} />
-                      <span className="text-[10px] text-slate-500 font-medium">{l.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              </Card>
 
               {/* Detail table */}
-              {attendance.length > 0 && (
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-50 border-b border-slate-100">
-                      <tr>
-                        {['Date', 'Day', 'Status', 'Arrival', 'Departure'].map(h => (
-                          <th key={h} className="text-left px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {attendance.map(r => (
-                        <tr key={r.id} className="hover:bg-slate-50/50">
-                          <td className="px-5 py-3 font-medium text-slate-700">{formatDate(r.date)}</td>
-                          <td className="px-5 py-3 text-slate-400 text-xs">
-                            {formatDate(r.date)}
-                          </td>
-                          <td className="px-5 py-3">
-                            <span className={cn('px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest',
-                              r.status === 'present' ? 'bg-emerald-100 text-emerald-700' :
-                              r.status === 'absent' ? 'bg-rose-100 text-rose-700' :
-                              r.status === 'late' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700')}>
-                              {r.status}
-                            </span>
-                          </td>
-                          <td className="px-5 py-3 text-slate-500 font-mono text-xs">{r.arrival_time || '—'}</td>
-                          <td className="px-5 py-3 text-slate-500 font-mono text-xs">{r.departure_time || '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              {attendance.length === 0 && <p className="text-center text-slate-400 py-10 italic">No attendance records found.</p>}
-            </div>
-          )}
-
-          {!tabLoading && tab === 'fees' && showFinance && (
-            <div className="space-y-6">
-
-              {/* Action bar */}
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-sm font-black text-slate-700">Fee Records</h3>
-                  <button
-                    onClick={() => navigate(`/fees/student-detail?student=${student?.id}`)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-50 border border-teal-200 text-teal-700 hover:bg-teal-100 rounded-xl text-xs font-bold transition"
-                    title="Open full fee ledger for this student"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" /> Full Ledger
-                  </button>
-                </div>
-                {!isReadOnly && (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {/* Custom fee override indicator */}
-                    {student.fee_override && (
-                      <span className="text-[10px] font-black text-violet-700 bg-violet-100 px-2 py-1 rounded-full uppercase tracking-widest">
-                        Custom Fees Active
-                      </span>
-                    )}
-                    <button
-                      onClick={() => setShowFeeOverrideModal(true)}
-                      className="flex items-center gap-1.5 px-3 py-2 border border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100 rounded-xl text-sm font-bold transition"
-                      title="Set custom fee items for this student only"
-                    >
-                      <CreditCard className="w-4 h-4" />
-                      {student.fee_override ? 'Edit Custom Fees' : 'Customize Fees'}
-                    </button>
-                    {/* One-time / historical entry (admission fee, registration, etc.) */}
-                    <button
-                      onClick={() => openNewEntry('onetime')}
-                      className="flex items-center gap-1.5 px-3 py-2 border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-xl text-sm font-bold transition"
-                      title="Add a one-time charge (admission fee, registration, etc.)"
-                    >
-                      <Plus className="w-4 h-4" /> One-Time Entry
-                    </button>
-                    {/* Monthly fee entry — preloads class fee template */}
-                    <button
-                      onClick={() => openNewEntry('monthly')}
-                      className="flex items-center gap-1.5 px-3 py-2 border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl text-sm font-bold transition"
-                      title="Add a monthly fee invoice (pre-fills from class fee template)"
-                    >
-                      <Plus className="w-4 h-4" /> Monthly Entry
-                    </button>
-                    {/* Bulk generate (original modal) */}
-                    <button
-                      onClick={() => setShowFeeModal(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition shadow-sm"
-                      title="Bulk-generate monthly invoices for multiple months"
-                    >
-                      <Plus className="w-4 h-4" /> Generate Monthly
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Summary banner */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {[
-                  { label: 'Total Paid', val: 'PKR ' + totalPaid.toLocaleString(), color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200' },
-                  { label: 'Outstanding', val: 'PKR ' + totalDue.toLocaleString(), color: totalDue > 0 ? 'text-rose-600' : 'text-slate-400', bg: totalDue > 0 ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200' },
-                  { label: 'Total Records', val: fees.length.toString(), color: 'text-indigo-600', bg: 'bg-indigo-50 border-indigo-200' },
-                ].map(s => (
-                  <div key={s.label} className={`rounded-2xl border p-5 text-center ${s.bg}`}>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{s.label}</p>
-                    <p className={`text-2xl font-black ${s.color}`}>{s.val}</p>
-                  </div>
-                ))}
-              </div>
-              {fees.length > 0 ? (
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-50 border-b border-slate-100">
-                      <tr>
-                        {['Month', 'Invoice #', 'Total', 'Paid', 'Balance', 'Status', ''].map(h => (
-                          <th key={h} className="text-left px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {fees.map(f => {
-                        const bal = Math.max(0, (f.total_amount || 0) - (f.paid_amount || 0));
-                        return (
-                          <tr key={f.id} className="hover:bg-slate-50/50">
-                            <td className="px-5 py-3 font-bold text-slate-800">
-                              {f.month_year ? formatDate(f.month_year) : '—'}
-                            </td>
-                            <td className="px-5 py-3 font-mono text-xs text-slate-400">{f.invoice_number || '—'}</td>
-                            <td className="px-5 py-3 font-medium">Rs. {(f.total_amount || 0).toLocaleString()}</td>
-                            <td className="px-5 py-3 font-medium text-emerald-600">Rs. {(f.paid_amount || 0).toLocaleString()}</td>
-                            <td className="px-5 py-3 font-bold text-rose-600">{bal > 0 ? `Rs. ${bal.toLocaleString()}` : '—'}</td>
-                            <td className="px-5 py-3">
-                              <span className={cn('px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest',
-                                f.status === 'paid' ? 'bg-emerald-100 text-emerald-700' :
-                                f.status === 'partial' ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700')}>
-                                {f.status}
-                              </span>
-                            </td>
-                            <td className="px-5 py-3">
-                              <div className="flex items-center gap-2">
-                                {!isReadOnly && f.status !== 'paid' && bal > 0 && (
-                                  <button
-                                    onClick={() => {
-                                      setCollectingFee(f);
-                                      setCollectAmount(String(bal));
-                                      setCollectMode('Cash');
-                                    }}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-bold hover:bg-emerald-100 transition"
-                                  >
-                                    <Wallet className="w-3.5 h-3.5" /> Collect
-                                  </button>
-                                )}
-                                {!isReadOnly && (
-                                  <button
-                                    onClick={() => openEditFee(f)}
-                                    className="flex items-center gap-1 text-[10px] font-black uppercase text-slate-400 hover:text-indigo-600 transition"
-                                  >
-                                    Edit
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ) : <p className="text-center text-slate-400 py-10 italic">No fee records found.</p>}
-            </div>
-          )}
-
-          {!tabLoading && tab === 'results' && (
-            <div className="space-y-8">
-              {Object.keys(groupedResults).length === 0 ? (
-                <p className="text-center text-slate-400 py-10 italic">No exam results found.</p>
-              ) : Object.entries(groupedResults).map(([examName, rows]) => {
-                const totalObt = rows.reduce((s, r) => s + (r.obtained_marks || 0), 0);
-                const totalMax = rows.reduce((s, r) => s + (r.total_marks || 0), 0);
-                const pct = totalMax > 0 ? Math.round((totalObt / totalMax) * 100) : 0;
-                return (
-                  <div key={examName} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                    <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                      <h3 className="font-black text-slate-800">{examName}</h3>
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-bold text-slate-500">{totalObt}/{totalMax} ({pct}%)</span>
-                        <span className={cn('px-3 py-1 rounded-full text-xs font-black uppercase',
-                          pct >= 50 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700')}>
-                          {gradeLabel(pct)} · {pct >= 50 ? 'PASS' : 'FAIL'}
-                        </span>
-                      </div>
-                    </div>
-                    {/* Progress bar */}
-                    <div className="h-1 bg-slate-100">
-                      <div className={cn('h-full transition-all', pct >= 50 ? 'bg-emerald-500' : 'bg-rose-500')} style={{ width: pct + '%' }} />
-                    </div>
+              {attendance.length > 0 ? (
+                <Card className="p-0 shadow-sm overflow-hidden border-none">
+                  <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-slate-50">
-                          {['Subject', 'Obtained', 'Total', '%', 'Grade'].map(h => (
-                            <th key={h} className="text-left px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">{h}</th>
+                      <thead className="bg-slate-50 border-b border-slate-100">
+                        <tr>
+                          {['Date', 'Day', 'Status', 'Arrival', 'Departure'].map(h => (
+                            <th key={h} className="text-left px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50">
-                        {rows.map(r => {
-                          const sp = r.total_marks > 0 ? Math.round((r.obtained_marks / r.total_marks) * 100) : 0;
+                        {attendance.map(r => (
+                          <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="px-6 py-4 font-bold text-slate-800">{formatDate(r.date)}</td>
+                            <td className="px-6 py-4 text-slate-500 text-xs font-medium uppercase tracking-tight">
+                              {new Date(r.date).toLocaleDateString('en-US', { weekday: 'long' })}
+                            </td>
+                            <td className="px-6 py-4">
+                              <Badge variant={
+                                r.status === 'present' ? 'success' :
+                                r.status === 'absent' ? 'danger' :
+                                r.status === 'late' ? 'warning' : 'indigo'
+                              } className="uppercase tracking-widest text-[10px] px-3">
+                                {r.status}
+                              </Badge>
+                            </td>
+                            <td className="px-6 py-4 text-slate-600 font-mono text-xs">{r.arrival_time || '—'}</td>
+                            <td className="px-6 py-4 text-slate-600 font-mono text-xs">{r.departure_time || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              ) : (
+                <EmptyState
+                  icon={Calendar}
+                  title="No Attendance Data"
+                  description="We couldn't find any attendance records for the selected period."
+                />
+              )}
+            </div>
+          )}
+
+          {!tabLoading && tab === 'fees' && showFinance && (
+            <div className="space-y-8">
+              {/* Action bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                <div>
+                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-[0.2em] flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                      <CreditCard className="w-4 h-4" />
+                    </div>
+                    Financial Ledger
+                  </h3>
+                </div>
+                {!isReadOnly && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Btn 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => navigate(`/fees/student-detail?student=${student?.id}`)} 
+                      icon={ExternalLink}
+                    >
+                      Full Ledger
+                    </Btn>
+                    <div className="w-px h-8 bg-slate-200 mx-2" />
+                    <Btn 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setShowFeeOverrideModal(true)} 
+                      icon={CreditCard}
+                    >
+                      {student.fee_override ? 'Edit Custom Fees' : 'Customize Fees'}
+                    </Btn>
+                    <Btn 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => openNewEntry('onetime')} 
+                      icon={Plus}
+                    >
+                      One-Time Entry
+                    </Btn>
+                    <Btn 
+                      variant="primary" 
+                      size="sm" 
+                      onClick={() => openNewEntry('monthly')} 
+                      icon={Plus}
+                    >
+                      Monthly Entry
+                    </Btn>
+                  </div>
+                )}
+              </div>
+
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                {[
+                  { label: 'Total Paid', val: 'PKR ' + totalPaid.toLocaleString(), variant: 'success', icon: CheckCircle },
+                  { label: 'Outstanding', val: 'PKR ' + totalDue.toLocaleString(), variant: totalDue > 0 ? 'danger' : 'success', icon: AlertCircle },
+                  { label: 'Invoices Issued', val: fees.length.toString(), variant: 'indigo', icon: CreditCard },
+                ].map(s => (
+                  <Card key={s.label} className="p-6 text-center border-none shadow-sm relative overflow-hidden group">
+                    <div className={cn(
+                      "absolute -bottom-4 -right-4 w-16 h-16 opacity-5 group-hover:scale-110 transition-transform",
+                      s.variant === 'success' ? 'text-emerald-500' : s.variant === 'danger' ? 'text-rose-500' : 'text-indigo-500'
+                    )}>
+                      <s.icon className="w-full h-full" />
+                    </div>
+                    <p className={cn(
+                      "text-2xl font-black mb-1",
+                      s.variant === 'success' ? 'text-emerald-600' : s.variant === 'danger' ? 'text-rose-600' : 'text-indigo-600'
+                    )}>{s.val}</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{s.label}</p>
+                  </Card>
+                ))}
+              </div>
+              {fees.length > 0 ? (
+                <Card className="p-0 shadow-sm overflow-hidden border-none">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 border-b border-slate-100">
+                        <tr>
+                          {['Month', 'Invoice #', 'Total', 'Paid', 'Balance', 'Status', 'Actions'].map(h => (
+                            <th key={h} className="text-left px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {fees.map(f => {
+                          const bal = Math.max(0, (f.total_amount || 0) - (f.paid_amount || 0));
                           return (
-                            <tr key={r.id} className="hover:bg-slate-50/50">
-                              <td className="px-5 py-3 font-bold text-slate-800">{r.subjects?.subject_name || '—'}</td>
-                              <td className="px-5 py-3 font-medium">{r.obtained_marks ?? '—'}</td>
-                              <td className="px-5 py-3 text-slate-400">{r.total_marks ?? '—'}</td>
-                              <td className="px-5 py-3 font-bold">{sp}%</td>
-                              <td className="px-5 py-3">
-                                <span className={cn('px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest',
-                                  sp >= 50 ? 'bg-indigo-100 text-indigo-700' : 'bg-rose-100 text-rose-700')}>
-                                  {gradeLabel(sp)}
-                                </span>
+                            <tr key={f.id} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="px-6 py-4 font-black text-slate-800">
+                                {f.month_year ? formatDate(f.month_year) : '—'}
+                              </td>
+                              <td className="px-6 py-4 font-mono text-xs text-slate-400 uppercase">{f.invoice_number || '—'}</td>
+                              <td className="px-6 py-4 font-bold text-slate-900">{(f.total_amount || 0).toLocaleString()}</td>
+                              <td className="px-6 py-4 font-bold text-emerald-600">{(f.paid_amount || 0).toLocaleString()}</td>
+                              <td className="px-6 py-4 font-black text-rose-600">{bal > 0 ? bal.toLocaleString() : '—'}</td>
+                              <td className="px-6 py-4">
+                                <Badge variant={
+                                  f.status === 'paid' ? 'success' :
+                                  f.status === 'partial' ? 'warning' : 'danger'
+                                } className="uppercase tracking-widest text-[10px] px-3">
+                                  {f.status}
+                                </Badge>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-2">
+                                  {!isReadOnly && f.status !== 'paid' && bal > 0 && (
+                                    <Btn 
+                                      variant="success" 
+                                      size="xs" 
+                                      onClick={() => {
+                                        setCollectingFee(f);
+                                        setCollectAmount(String(bal));
+                                        setCollectMode('Cash');
+                                      }}
+                                      icon={Wallet}
+                                    >
+                                      Collect
+                                    </Btn>
+                                  )}
+                                  {!isReadOnly && (
+                                    <Btn 
+                                      variant="ghost" 
+                                      size="xs" 
+                                      onClick={() => openEditFee(f)}
+                                    >
+                                      Edit
+                                    </Btn>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           );
@@ -1343,12 +1342,97 @@ export default function StudentDetailPage() {
                       </tbody>
                     </table>
                   </div>
+                </Card>
+              ) : (
+                <EmptyState
+                  icon={CreditCard}
+                  title="No Fee Records"
+                  description="This student has no fee invoices or payment history recorded yet."
+                  action={!isReadOnly ? <Btn size="sm" onClick={() => openNewEntry('monthly')} icon={Plus}>Create First Invoice</Btn> : undefined}
+                />
+              )}
+            </div>
+          )}
+
+          {!tabLoading && tab === 'results' && (
+            <div className="space-y-10">
+              {Object.keys(groupedResults).length === 0 ? (
+                <EmptyState
+                  icon={BarChart3}
+                  title="No Results Recorded"
+                  description="Examination results for this student have not been entered into the system yet."
+                />
+              ) : Object.entries(groupedResults).map(([examName, rows]) => {
+                const totalObt = rows.reduce((s, r) => s + (r.obtained_marks || 0), 0);
+                const totalMax = rows.reduce((s, r) => s + (r.total_marks || 0), 0);
+                const pct = totalMax > 0 ? Math.round((totalObt / totalMax) * 100) : 0;
+                const isPass = pct >= 50;
+                return (
+                  <Card key={examName} className="p-0 shadow-sm overflow-hidden border-none">
+                    <div className="px-8 py-6 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100">
+                      <div>
+                        <h3 className="font-black text-slate-900 uppercase tracking-tight text-lg">{examName}</h3>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Official Examination Summary</p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Aggregate</p>
+                          <p className="text-xl font-black text-slate-900 mt-1">{totalObt}<span className="text-slate-300">/{totalMax}</span></p>
+                        </div>
+                        <div className="w-px h-10 bg-slate-200" />
+                        <Badge variant={isPass ? 'success' : 'danger'} className="px-4 py-2 rounded-2xl shadow-sm text-xs font-black uppercase tracking-widest">
+                          {gradeLabel(pct)} · {isPass ? 'PASS' : 'FAIL'}
+                        </Badge>
+                      </div>
+                    </div>
+                    {/* Progress bar */}
+                    <div className="h-1.5 bg-slate-100">
+                      <div className={cn('h-full transition-all duration-1000 ease-out', isPass ? 'bg-emerald-500' : 'bg-rose-500')} style={{ width: pct + '%' }} />
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-white/50">
+                            {['Subject', 'Obtained', 'Total', 'Percentage', 'Grade'].map(h => (
+                              <th key={h} className="text-left px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {rows.map(r => {
+                            const sp = r.total_marks > 0 ? Math.round((r.obtained_marks / r.total_marks) * 100) : 0;
+                            return (
+                              <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
+                                <td className="px-8 py-4 font-black text-slate-800">{r.subjects?.subject_name || '—'}</td>
+                                <td className="px-8 py-4 font-bold text-slate-900">{r.obtained_marks ?? '—'}</td>
+                                <td className="px-8 py-4 text-slate-400 font-medium">{r.total_marks ?? '—'}</td>
+                                <td className="px-8 py-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden hidden sm:block">
+                                      <div className={cn('h-full', sp >= 50 ? 'bg-indigo-500' : 'bg-rose-500')} style={{ width: sp + '%' }} />
+                                    </div>
+                                    <span className="font-black text-slate-700">{sp}%</span>
+                                  </div>
+                                </td>
+                                <td className="px-8 py-4">
+                                   <Badge variant={sp >= 50 ? 'indigo' : 'danger'} className="font-black px-3">
+                                    {gradeLabel(sp)}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
                 );
               })}
             </div>
           )}
         </div>
       </div>
+    </div>
 
       {/* ── New Custom Fee Entry Modal ── */}
       {showNewEntry && student && (

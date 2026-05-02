@@ -10,6 +10,7 @@ import { ErrorBoundary } from '../components/ErrorBoundary';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { NAV_SECTIONS } from '../constants/navigation';
+import AiAssistant from '../components/AiAssistant';
 
 export default function DashboardLayout() {
 
@@ -32,7 +33,7 @@ export default function DashboardLayout() {
   useEffect(() => {
     if (location.pathname.startsWith('/students')) setOpenDropdown('Students');
     else if (location.pathname.startsWith('/classes')) setOpenDropdown('Classes & Subjects');
-    else if (location.pathname.startsWith('/result')) setOpenDropdown('Result Module');
+    else if (location.pathname.startsWith('/result')) setOpenDropdown('Exam and Results');
     else if (location.pathname.startsWith('/fees')) setOpenDropdown('Fee Management');
     else if (location.pathname.startsWith('/expenses')) setOpenDropdown('Expenses');
     else if (location.pathname.startsWith('/payroll')) setOpenDropdown('Payroll');
@@ -238,10 +239,10 @@ export default function DashboardLayout() {
                             to={item.path}
                             onClick={() => setIsMobileMenuOpen(false)}
                             className={cn(
-                              "flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 group relative",
+                              "flex items-center gap-3 py-2 rounded-xl transition-all duration-200 group relative",
                               isActive 
-                                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" 
-                                : "text-slate-400 hover:text-white hover:bg-white/[0.05]"
+                                ? "bg-indigo-500/20 border-l-[3px] border-indigo-400 text-indigo-100 pl-[9px] pr-3" 
+                                : "text-slate-400 hover:text-white hover:bg-white/[0.05] border-l-[3px] border-transparent pl-[9px] pr-3"
                             )}
                           >
                             <div className={cn(
@@ -362,7 +363,7 @@ export default function DashboardLayout() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden print:overflow-visible print:h-auto print:block">
         {/* Topbar */}
         <header className="aura-glass sticky top-0 h-14 border-b border-slate-200/50 flex items-center justify-between px-3 sm:px-6 z-40 shrink-0 print:hidden mx-2 sm:mx-6 mt-2 sm:mt-3 rounded-xl shadow-lg shadow-slate-200/20">
-          {/* Left: hamburger + school name (mobile) */}
+          {/* Left: hamburger + school name (mobile) / Date (desktop) */}
           <div className="flex items-center gap-2 min-w-0">
             <button
               className="md:hidden p-2 bg-slate-100 rounded-xl text-slate-600 hover:bg-slate-200 transition-all active:scale-90 shrink-0"
@@ -379,6 +380,14 @@ export default function DashboardLayout() {
                 </div>
               )}
               <span className="truncate text-slate-900 font-black text-xs uppercase tracking-wider max-w-[120px]">{schoolName}</span>
+            </div>
+            <div className="hidden md:block">
+              <div className="text-[13px] font-bold text-slate-900">
+                {new Date().toLocaleDateString('en-PK', { weekday:'short', day:'numeric', month:'long', year:'numeric' })}
+              </div>
+              <div className="text-[11px] font-medium text-slate-500">
+                {schoolName}
+              </div>
             </div>
           </div>
 
@@ -570,6 +579,9 @@ export default function DashboardLayout() {
 
       {/* Global Command Palette */}
       <CommandPalette />
+
+      {/* Global AI Assistant */}
+      <AiAssistant />
     </>
   );
 }

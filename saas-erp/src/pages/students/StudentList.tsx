@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Search, Upload, Download, Trash2, BookOpen, FileSpreadsheet, UserPlus, Eye, X, ChevronDown, Users, CheckCircle, MoreVertical, Edit, UserX, Key, GraduationCap, LogOut, Shield } from 'lucide-react';
+import { Search, Upload, Download, Trash2, BookOpen, FileSpreadsheet, UserPlus, Eye, X, ChevronDown, Users, CheckCircle, MoreVertical, Edit, UserX, Key, GraduationCap, LogOut, Shield, Filter } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import DeletePinModal from '../../components/DeletePinModal';
@@ -10,6 +10,12 @@ import { exportToExcel } from '../../lib/exportUtils';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { cn, formatDate } from '../../lib/utils';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { Card } from '../../components/ui/Card';
+import { Btn } from '../../components/ui/Btn';
+import { Input } from '../../components/ui/Input';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { Badge } from '../../components/ui/Badge';
 
 interface Student {
   id: string;
@@ -653,190 +659,175 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-8 animate-aura-in">
-      {/* Header Row */}
-      <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6"
-      >
-        <div className="flex items-center gap-3">
-          {onBack && (
-            <button onClick={onBack}
-              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors shrink-0">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-            </button>
-          )}
-          <div>
-            <h1 className="text-xl font-black text-slate-900 tracking-tight uppercase">
-              {initialClassId
-                ? (classes.find(c => c.id === initialClassId)
-                    ? `${classes.find(c => c.id === initialClassId)!.name} (${classes.find(c => c.id === initialClassId)!.section}) — Students`
-                    : 'Class Students')
-                : 'Student Directory'}
-            </h1>
-            <p className="text-slate-500 text-xs font-medium mt-0.5">
-              {initialClassId ? 'Full student management for this class.' : 'Manage and track your student enrollment across all classes.'}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-          {/* Search */}
-          <div className="relative flex-1 sm:min-w-[280px]">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Name, roll no, CNIC, father..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm font-medium shadow-sm"
-            />
-          </div>
-
-          {/* Status Tabs */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200/50">
-            {([
-              { key: 'active', label: 'Active', color: 'text-emerald-600' },
-              { key: 'left', label: 'Left', color: 'text-amber-600' },
-              { key: 'graduated', label: 'Passed Out', color: 'text-teal-600' },
-              { key: 'withdrawn', label: 'Withdrawn', color: 'text-rose-600' },
-            ] as { key: 'active'|'left'|'graduated'|'withdrawn'; label: string; color: string }[]).map(({ key, label, color }) => (
-              <button key={key} onClick={() => setStatusTab(key)}
-                className={cn('flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black whitespace-nowrap transition-all',
-                  statusTab === key ? 'bg-white shadow-sm ' + color : 'text-slate-500 hover:text-slate-700')}>
-                {label}
-                <span className={cn('px-1.5 py-0.5 rounded-md text-[10px] font-black', statusTab === key ? 'bg-slate-100' : 'bg-white/60')}>
-                  {statusCounts[key]}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          {/* Class filter — hidden when locked to a specific class */}
-          {!initialClassId && (
-            <div className="relative">
-              <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)}
-                className="appearance-none pl-4 pr-9 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs font-black text-slate-600 shadow-sm cursor-pointer uppercase tracking-widest">
-                <option value="">All Classes</option>
-                {classes.map((cls) => <option key={cls.id} value={cls.id}>{cls.name} ({cls.section})</option>)}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-            </div>
-          )}
-
-          {/* Advanced Filters Toggle */}
-          <button onClick={() => setShowAdvancedFilters(p => !p)}
-            className={cn('relative flex items-center gap-2 px-4 py-2.5 rounded-2xl border text-xs font-black uppercase tracking-widest transition-all shadow-sm',
-              showAdvancedFilters ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-200')}>
-            Filters
-            {activeFilterCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
-
-          {/* Action buttons */}
-          <div className="flex items-center gap-2">
+    <div className="max-w-7xl mx-auto space-y-6 animate-aura-in">
+      <PageHeader
+        title={initialClassId
+          ? (classes.find(c => c.id === initialClassId)
+              ? `${classes.find(c => c.id === initialClassId)!.name} (${classes.find(c => c.id === initialClassId)!.section}) — Students`
+              : 'Class Students')
+          : 'Student Directory'}
+        subtitle={initialClassId ? 'Full student management for this class.' : 'Manage and track your student enrollment across all classes.'}
+        onBack={onBack}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
             {!isStaffRole && (
               <>
-                <button onClick={handleExport} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-indigo-600 hover:border-indigo-100 transition-all shadow-sm active:scale-95" title="Export current view to Excel">
-                  <Download className="w-5 h-5" />
-                </button>
-                <button onClick={handleExportAll} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-emerald-600 hover:border-emerald-100 transition-all shadow-sm active:scale-95" title="Export ALL students (all statuses)">
-                  <Users className="w-5 h-5" />
-                </button>
-                <button onClick={handleDownloadTemplate} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-emerald-600 hover:border-emerald-100 transition-all shadow-sm active:scale-95" title="Download Template">
-                  <FileSpreadsheet className="w-5 h-5" />
-                </button>
+                <Btn variant="secondary" onClick={handleExport} title="Export current view to Excel">
+                  <Download className="w-4 h-4" />
+                </Btn>
+                <Btn variant="secondary" onClick={handleExportAll} title="Export ALL students (all statuses)">
+                  <Users className="w-4 h-4" />
+                </Btn>
+                <Btn variant="secondary" onClick={handleDownloadTemplate} title="Download Template">
+                  <FileSpreadsheet className="w-4 h-4" />
+                </Btn>
               </>
             )}
             {userRole?.role === 'admin' && (
               <>
-                <button onClick={() => setIsImportModalOpen(true)} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-indigo-600 hover:border-indigo-100 transition-all shadow-sm active:scale-95" title="Import CSV">
-                  <Upload className="w-5 h-5" />
-                </button>
-                <Link to="/students/register" className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl text-sm font-black uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all active:scale-95">
-                  <UserPlus className="w-4 h-4" /><span className="hidden sm:inline">Register</span>
-                </Link>
+                <Btn variant="secondary" onClick={() => setIsImportModalOpen(true)} title="Import CSV">
+                  <Upload className="w-4 h-4" />
+                </Btn>
+                <Btn onClick={() => navigate('/students/register')}>
+                  <UserPlus className="w-4 h-4" />
+                  <span className="hidden sm:inline">Register</span>
+                </Btn>
               </>
             )}
           </div>
+        }
+      />
+
+      <Card className="p-4 border-none shadow-sm bg-white/80 backdrop-blur-sm">
+        <div className="flex flex-col lg:flex-row gap-4 items-center">
+          <div className="flex-1 w-full">
+            <Input
+              placeholder="Search Name, roll no, CNIC, father..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full"
+              icon={<Search className="w-4 h-4 text-slate-400" />}
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/50">
+              {([
+                { key: 'active', label: 'Active', color: 'text-emerald-600' },
+                { key: 'left', label: 'Left', color: 'text-amber-600' },
+                { key: 'graduated', label: 'Passed Out', color: 'text-teal-600' },
+                { key: 'withdrawn', label: 'Withdrawn', color: 'text-rose-600' },
+              ] as { key: 'active'|'left'|'graduated'|'withdrawn'; label: string; color: string }[]).map(({ key, label, color }) => (
+                <button key={key} onClick={() => setStatusTab(key)}
+                  className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all',
+                    statusTab === key ? 'bg-white shadow-sm ' + color : 'text-slate-500 hover:text-slate-700')}>
+                  {label}
+                  <Badge variant="secondary" className="px-1.5 py-0 min-w-[1.5rem] justify-center">
+                    {statusCounts[key]}
+                  </Badge>
+                </button>
+              ))}
+            </div>
+
+            {!initialClassId && (
+              <select 
+                value={classFilter} 
+                onChange={(e) => setClassFilter(e.target.value)}
+                className="h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 shadow-sm cursor-pointer outline-none focus:ring-2 focus:ring-indigo-500/20"
+              >
+                <option value="">All Classes</option>
+                {classes.map((cls) => <option key={cls.id} value={cls.id}>{cls.name} ({cls.section})</option>)}
+              </select>
+            )}
+
+            <Btn 
+              variant={showAdvancedFilters ? 'primary' : 'secondary'}
+              onClick={() => setShowAdvancedFilters(p => !p)}
+              className="relative"
+            >
+              <Filter className="w-4 h-4" />
+              <span>Filters</span>
+              {activeFilterCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center">
+                  {activeFilterCount}
+                </span>
+              )}
+            </Btn>
+          </div>
         </div>
-      </motion.div>
+      </Card>
 
       {/* ── Advanced Filter Panel ── */}
       <AnimatePresence>
         {showAdvancedFilters && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-            className="aura-card p-5 border border-indigo-100 bg-indigo-50/30">
-            <div className="flex flex-wrap gap-4 items-end">
-              {/* Fee Status */}
-              <div>
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Fee Status</label>
-                <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200">
-                  {([{ val: 'all', label: 'All' }, { val: 'pending', label: 'Has Dues' }, { val: 'paid', label: 'Paid Up' }] as { val: FeeFilter; label: string }[]).map(({ val, label }) => (
-                    <button key={val} onClick={() => setFeeFilter(val)}
-                      className={cn('px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all',
-                        feeFilter === val ? (val === 'pending' ? 'bg-rose-500 text-white' : val === 'paid' ? 'bg-emerald-500 text-white' : 'bg-indigo-600 text-white') : 'text-slate-500 hover:text-slate-700')}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {/* Gender */}
-              <div>
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Gender</label>
-                <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200">
-                  {['', 'Male', 'Female'].map(g => (
-                    <button key={g} onClick={() => setGenderFilter(g)}
-                      className={cn('px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all',
-                        genderFilter === g ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-700')}>
-                      {g || 'All'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {/* Admission Year */}
-              <div>
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Admission Year</label>
-                <select value={admissionYearFilter} onChange={e => setAdmissionYearFilter(e.target.value)}
-                  className="appearance-none pl-4 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-600 cursor-pointer">
-                  <option value="">All Years</option>
-                  {admissionYears.map(y => <option key={y} value={y!}>{y}</option>)}
-                </select>
-              </div>
-              {/* Family Group */}
-              {familyGroups.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+            <Card className="p-5 border-indigo-100 bg-indigo-50/30">
+              <div className="flex flex-wrap gap-4 items-end">
+                {/* Fee Status */}
                 <div>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Family Group</label>
-                  <select value={familyFilter} onChange={e => setFamilyFilter(e.target.value)}
-                    className="appearance-none pl-4 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-600 cursor-pointer max-w-[180px]">
-                    <option value="">All Families</option>
-                    {familyGroups.map(f => <option key={f.id} value={f.id}>{f.family_name}</option>)}
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Fee Status</label>
+                  <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200">
+                    {([{ val: 'all', label: 'All' }, { val: 'pending', label: 'Has Dues' }, { val: 'paid', label: 'Paid Up' }] as { val: FeeFilter; label: string }[]).map(({ val, label }) => (
+                      <button key={val} onClick={() => setFeeFilter(val)}
+                        className={cn('px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all',
+                          feeFilter === val ? (val === 'pending' ? 'bg-rose-500 text-white' : val === 'paid' ? 'bg-emerald-500 text-white' : 'bg-indigo-600 text-white') : 'text-slate-500 hover:text-slate-700')}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Gender */}
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Gender</label>
+                  <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200">
+                    {['', 'Male', 'Female'].map(g => (
+                      <button key={g} onClick={() => setGenderFilter(g)}
+                        className={cn('px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all',
+                          genderFilter === g ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-700')}>
+                        {g || 'All'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Admission Year */}
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Admission Year</label>
+                  <select value={admissionYearFilter} onChange={e => setAdmissionYearFilter(e.target.value)}
+                    className="h-10 px-4 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 cursor-pointer outline-none">
+                    <option value="">All Years</option>
+                    {admissionYears.map(y => <option key={y} value={y!}>{y}</option>)}
                   </select>
                 </div>
-              )}
-              {/* Clear all */}
-              {activeFilterCount > 0 && (
-                <button onClick={() => { setFeeFilter('all'); setGenderFilter(''); setFamilyFilter(''); setAdmissionYearFilter(''); setStatusFilter('all'); }}
-                  className="px-4 py-2 text-[10px] font-black text-rose-600 border border-rose-200 bg-white rounded-xl uppercase tracking-widest hover:bg-rose-50 transition-all ml-auto">
-                  Clear All ({activeFilterCount})
-                </button>
-              )}
-              <div className="ml-auto text-right">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  {filteredStudents.length} of {students.length} students
-                </p>
+                {/* Family Group */}
+                {familyGroups.length > 0 && (
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Family Group</label>
+                    <select value={familyFilter} onChange={e => setFamilyFilter(e.target.value)}
+                      className="h-10 px-4 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 cursor-pointer max-w-[180px] outline-none">
+                      <option value="">All Families</option>
+                      {familyGroups.map(f => <option key={f.id} value={f.id}>{f.family_name}</option>)}
+                    </select>
+                  </div>
+                )}
+                {/* Clear all */}
+                {activeFilterCount > 0 && (
+                  <Btn variant="danger" onClick={() => { setFeeFilter('all'); setGenderFilter(''); setFamilyFilter(''); setAdmissionYearFilter(''); setStatusFilter('all'); }}
+                    className="ml-auto">
+                    Clear All ({activeFilterCount})
+                  </Btn>
+                )}
+                <div className="ml-auto text-right">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    {filteredStudents.length} of {students.length} students
+                  </p>
+                </div>
               </div>
-            </div>
+            </Card>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Data Table */}
-      <div className="aura-card overflow-hidden border-none shadow-xl shadow-slate-200/50">
+      <Card className="overflow-hidden border-none shadow-xl shadow-slate-200/50">
         <div className="overflow-x-auto custom-scrollbar min-h-[320px]">
           <table className="w-full text-left border-collapse">
             <thead className="sticky top-0 z-10">
@@ -867,36 +858,25 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
                   <td colSpan={8} className="py-20 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-10 h-10 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
-                      <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Synchronizing...</span>
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Synchronizing...</span>
                     </div>
                   </td>
                 </tr>
               ) : filteredStudents.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-16 text-center">
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">
-                        <Users className="w-8 h-8 text-slate-300" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-black text-slate-600 uppercase tracking-widest">
-                          {search || activeFilterCount > 0 ? 'No Matches Found' : 'No Students Yet'}
-                        </p>
-                        <p className="text-xs text-slate-400 mt-1">
-                          {search || activeFilterCount > 0
-                            ? 'Try adjusting your search or filters.'
-                            : 'Register your first student to get started.'}
-                        </p>
-                      </div>
-                      {!search && activeFilterCount === 0 && userRole?.role === 'admin' && (
-                        <Link
-                          to="/students/register"
-                          className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-lg shadow-indigo-200"
-                        >
+                    <EmptyState
+                      icon={<Users className="w-12 h-12" />}
+                      title={search || activeFilterCount > 0 ? 'No Matches Found' : 'No Students Yet'}
+                      description={search || activeFilterCount > 0
+                        ? 'Try adjusting your search or filters.'
+                        : 'Register your first student to get started.'}
+                      action={!search && activeFilterCount === 0 && userRole?.role === 'admin' && (
+                        <Btn onClick={() => navigate('/students/register')}>
                           <UserPlus className="w-4 h-4" /> Register First Student
-                        </Link>
+                        </Btn>
                       )}
-                    </div>
+                    />
                   </td>
                 </tr>
               ) : (
@@ -1099,7 +1079,7 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
             </p>
           </div>
         )}
-      </div>
+      </Card>
 
       {/* ── Student Detail Drawer (Full-Screen Side Panel) ── */}
       <AnimatePresence>

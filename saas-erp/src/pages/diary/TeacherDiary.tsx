@@ -10,6 +10,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn, formatDate } from '../../lib/utils';
 import html2canvas from 'html2canvas';
+import { PageHeader, Card, Btn, EmptyState } from '../../components/ui';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface Slot {
@@ -349,7 +350,7 @@ export default function TeacherDiary() {
   const filledCount = rows.filter(r => r.topic_covered.trim()).length;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-4">
+    <div className="max-w-7xl mx-auto space-y-6">
       <style>{`
         @media print {
           body { background: white !important; margin: 0 !important; padding: 0 !important; }
@@ -373,42 +374,36 @@ export default function TeacherDiary() {
         }
         .print-only { display: none; }
       `}</style>
-      <div className="no-print space-y-4">
+      <div className="no-print space-y-6">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <ClipboardList className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" />
-            {viewMode === 'class' ? 'Class Diary' : 'Teacher Diary'}
-          </h1>
-          <p className="text-gray-500 text-xs sm:text-sm mt-1">
-            {viewMode === 'class'
+      <PageHeader 
+        title={viewMode === 'class' ? 'Class Diary' : 'Teacher Diary'}
+        subtitle={viewMode === 'class'
               ? `Unified report for Grade ${selectedClassName || 'Selected Class'}.`
               : isTeacher ? 'Fill in your daily lesson plan.' : 'View diary entries by individual teacher.'}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto no-print">
+        actions={
+          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto no-print">
           {isAdmin && (
-            <div className="bg-slate-100 p-1 rounded-xl flex items-center">
+            <div className="bg-slate-100 p-1 rounded-xl flex items-center mr-2">
               <button onClick={() => setViewMode('teacher')} className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'teacher' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>Teacher</button>
               <button onClick={() => setViewMode('class')} className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'class' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>Class</button>
             </div>
           )}
-          <button onClick={handlePrint} disabled={(viewMode === 'teacher' ? !selectedTeacherId : !selectedClassId) || rows.length === 0}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-200 transition-all disabled:opacity-40">
+          <Btn onClick={handlePrint} disabled={(viewMode === 'teacher' ? !selectedTeacherId : !selectedClassId) || rows.length === 0}>
             <Printer className="w-4 h-4" /> Print Report
-          </button>
+          </Btn>
         </div>
-      </div>
+        }
+      />
 
       {/* ── Controls ─────────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 no-print">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+      <Card className="p-4 no-print border-b border-slate-100">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {isAdmin && viewMode === 'teacher' && (
             <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}>
-              <label className="block text-xs font-black text-gray-500 uppercase mb-1.5 flex items-center gap-1"><Users className="w-3 h-3" /> Teacher</label>
+              <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1"><Users className="w-3.5 h-3.5" /> Teacher</label>
               <select value={selectedTeacherId} onChange={e => { const t = allTeachers.find(x => x.id === e.target.value); setSelectedTeacherId(e.target.value); setSelectedTeacherName(t?.full_name || ''); }}
-                className="w-full border border-gray-300 px-3 py-2.5 rounded-lg bg-gray-50 text-sm font-medium focus:ring-2 focus:ring-indigo-100 outline-none">
+                className="w-full border border-slate-200 px-3 py-2.5 rounded-xl bg-slate-50 text-[13px] font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all">
                 <option value="">— Select Teacher —</option>
                 {allTeachers.map(t => (<option key={t.id} value={t.id}>{t.full_name}</option>))}
               </select>
@@ -416,30 +411,30 @@ export default function TeacherDiary() {
           )}
           {viewMode === 'class' && (
             <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}>
-              <label className="block text-xs font-black text-gray-500 uppercase mb-1.5 flex items-center gap-1"><BookOpen className="w-3 h-3" /> Class</label>
+              <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1"><BookOpen className="w-3.5 h-3.5" /> Class</label>
               <select value={selectedClassId} onChange={e => { const c = allClasses.find(x => x.id === e.target.value); setSelectedClassId(e.target.value); setSelectedClassName(c ? `${c.name} ${c.section}` : ''); }}
-                className="w-full border border-gray-300 px-3 py-2.5 rounded-lg bg-gray-50 text-sm font-medium focus:ring-2 focus:ring-indigo-100 outline-none">
+                className="w-full border border-slate-200 px-3 py-2.5 rounded-xl bg-slate-50 text-[13px] font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all">
                 <option value="">— Select Class —</option>
                 {allClasses.map(c => (<option key={c.id} value={c.id}>{c.name} {c.section}</option>))}
               </select>
             </motion.div>
           )}
           <div>
-            <label className="block text-xs font-black text-gray-500 uppercase mb-1.5 flex items-center gap-1"><Calendar className="w-3 h-3" /> Date</label>
+            <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> Date</label>
             <div className="flex items-center gap-1">
-              <button onClick={() => shiftDate(-1)} className="p-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 shrink-0"><ChevronLeft className="w-4 h-4" /></button>
-              <input type="date" value={viewDate} onChange={e => setViewDate(e.target.value)} className="flex-1 border border-gray-300 px-2 py-2 rounded-lg text-sm text-center font-medium min-w-0" />
-              <button onClick={() => shiftDate(1)} className="p-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 shrink-0"><ChevronRight className="w-4 h-4" /></button>
+              <button onClick={() => shiftDate(-1)} className="p-2.5 border border-slate-200 rounded-xl hover:bg-slate-50 shrink-0 transition-colors"><ChevronLeft className="w-4 h-4 text-slate-500" /></button>
+              <input type="date" value={viewDate} onChange={e => setViewDate(e.target.value)} className="flex-1 border border-slate-200 px-2 py-2.5 rounded-xl text-[13px] text-center font-bold text-slate-700 min-w-0 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer" />
+              <button onClick={() => shiftDate(1)} className="p-2.5 border border-slate-200 rounded-xl hover:bg-slate-50 shrink-0 transition-colors"><ChevronRight className="w-4 h-4 text-slate-500" /></button>
             </div>
           </div>
           <div className="sm:col-span-2 md:col-span-1 flex items-end">
             <button onClick={saveAll} disabled={(viewMode === 'teacher' ? !selectedTeacherId : !selectedClassId) || filledCount === 0}
-              className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-lg shadow disabled:opacity-40 transition text-sm">
+              className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-lg shadow-emerald-200 disabled:opacity-40 transition-all text-[13px] active:scale-95">
               <Save className="w-4 h-4" /> Save All ({filledCount} filled)
             </button>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* ── Main diary ─────────────────────────────────────────────────────── */}
       {(viewMode === 'teacher' ? selectedTeacherId : selectedClassId) && (loading ? (
@@ -464,24 +459,24 @@ export default function TeacherDiary() {
           </div>
 
           {/* Desktop: table */}
-          <div className="hidden md:block bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <Card className="hidden md:block overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-left">
                 <thead>
-                  <tr className="bg-slate-50 border-b-2 border-slate-200">
-                    <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide w-[140px]">{viewMode === 'class' ? 'Subject' : 'Class'}</th>
-                    <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide w-[130px]">{viewMode === 'class' ? 'Teacher' : 'Subject'}</th>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="px-4 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider w-[140px]">{viewMode === 'class' ? 'Subject' : 'Class'}</th>
+                    <th className="px-4 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider w-[130px]">{viewMode === 'class' ? 'Teacher' : 'Subject'}</th>
                     {schoolInfo?.diary_settings?.show_topic_covered !== false && (
-                      <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide">Topic Covered <span className="text-red-500">*</span></th>
+                      <th className="px-4 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Topic Covered <span className="text-rose-500">*</span></th>
                     )}
                     {schoolInfo?.diary_settings?.show_homework !== false && (
-                      <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide">Homework</th>
+                      <th className="px-4 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Homework</th>
                     )}
                     {schoolInfo?.diary_settings?.show_activity_notes !== false && (
-                      <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide">Activity Notes</th>
+                      <th className="px-4 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Activity Notes</th>
                     )}
                     {schoolInfo?.diary_settings?.show_next_plan !== false && (
-                      <th className="text-left px-4 py-3 text-xs font-black text-slate-600 uppercase tracking-wide">Next Plan</th>
+                      <th className="px-4 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Next Plan</th>
                     )}
                     <th className="px-3 py-3 w-[80px] no-print"></th>
                   </tr>
@@ -501,7 +496,7 @@ export default function TeacherDiary() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </Card>
 
           <div className="flex items-center gap-3 text-sm flex-wrap">
             <span className="flex items-center gap-1 text-emerald-700 font-bold"><CheckCircle2 className="w-4 h-4" />{filledCount} of {rows.length} entries filled</span>

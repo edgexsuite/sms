@@ -23,7 +23,9 @@ export default async function handler(req) {
   if (provider === 'gemini') {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return new Response(JSON.stringify({ error: 'Gemini not configured' }), { status: 500 });
-    targetUrl = `https://generativelanguage.googleapis.com/v1beta/${endpoint}?key=${apiKey}`;
+    // Gemini 2.0 uses 'streamGenerateContent' for streaming
+    const method = payload.stream ? 'streamGenerateContent' : 'generateContent';
+    targetUrl = `https://generativelanguage.googleapis.com/v1beta/models/${payload.model}:${method}?key=${apiKey}`;
     authHeader = null;
   } else if (provider === 'groq') {
     const apiKey = process.env.GROQ_API_KEY;
@@ -40,12 +42,15 @@ export default async function handler(req) {
   const response = await fetch(targetUrl, {
     method: 'POST',
     headers,
-    body: JSON.stringify(payload),
+    body: JSON.stringify(provider === 'gemini' ? (({ stream, ...rest }) => rest)(payload) : payload),
   });
 
-  const data = await response.json();
-  return new Response(JSON.stringify(data), {
+  // Proxy the stream or JSON response
+  return new Response(response.body, {
     status: response.status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': response.headers.get('Content-Type') || 'application/json',
+      ...(payload.stream ? { 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' } : {})
+    },
   });
 }

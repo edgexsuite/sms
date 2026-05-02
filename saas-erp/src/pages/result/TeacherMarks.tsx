@@ -43,6 +43,7 @@ export default function TeacherMarks() {
   const [selectedSubject, setSelectedSubject] = useState('');
 
   const [marks,   setMarks]   = useState<Record<string, string>>({});
+  const [examConfig, setExamConfig] = useState<{ total_marks: number; passing_marks: number } | null>(null);
   const [saving,  setSaving]  = useState(false);
   const [saved,   setSaved]   = useState(false);
   const [error,   setError]   = useState('');
@@ -60,16 +61,26 @@ export default function TeacherMarks() {
   useEffect(() => {
     if (selectedClass) {
       fetchSubjectsForClass();
-      fetchStudentsForClass();
       setSelectedSubject('');
-      setMarks({});
-      setSaved(false);
+      resetData();
     }
   }, [selectedClass]);
 
   useEffect(() => {
-    if (selectedExam && selectedClass && selectedSubject) loadExisting();
+    if (selectedExam && selectedClass && selectedSubject) {
+      loadExisting();
+    } else {
+      resetData();
+      if (selectedClass) fetchStudentsForClass();
+    }
   }, [selectedExam, selectedClass, selectedSubject]);
+
+  const resetData = () => {
+    setMarks({});
+    setExamConfig(null);
+    setSaved(false);
+    setError('');
+  };
 
   const init = async () => {
     setLoading(true);
@@ -177,33 +188,50 @@ export default function TeacherMarks() {
   };
 
   const loadExisting = async () => {
-    setSaved(false);
-    const { data } = await supabase
-      .from('exam_results')
-      .select('student_id, obtained_marks')
-      .eq('school_id', userRole!.school_id)
-      .eq('exam_type_id', selectedExam)
-      .eq('subject_id', selectedSubject);
-    if (data && data.length > 0) {
-      // Only pre-fill for students actually in this class
-      const studentIds = new Set(students.map(s => s.id));
-      const m: Record<string, string> = {};
-      data.forEach((r: any) => {
-        if (studentIds.has(r.student_id)) m[r.student_id] = String(r.obtained_marks);
-      });
-      setMarks(m);
-    } else {
-      setMarks({});
+    resetData();
+    
+    try {
+      // 1. Fetch Config, Results, and Students together to prevent race conditions
+      const [cfgRes, resRes, stuRes] = await Promise.all([
+        supabase.from('exam_subject_config').select('total_marks, passing_marks').eq('exam_type_id', selectedExam).eq('subject_id', selectedSubject).maybeSingle(),
+        supabase.from('exam_results').select('student_id, obtained_marks').eq('school_id', userRole!.school_id).eq('exam_type_id', selectedExam).eq('subject_id', selectedSubject),
+        supabase.from('students').select('id, full_name, roll_number, photograph_url').eq('class_id', selectedClass).eq('status', 'active').order('roll_number')
+      ]);
+
+      if (stuRes.data) setStudents(stuRes.data);
+      if (cfgRes.data) setExamConfig(cfgRes.data);
+
+      if (resRes.data && resRes.data.length > 0 && stuRes.data) {
+        const studentIds = new Set(stuRes.data.map(s => s.id));
+        const m: Record<string, string> = {};
+        resRes.data.forEach((r: any) => {
+          if (studentIds.has(r.student_id)) m[r.student_id] = String(r.obtained_marks);
+        });
+        setMarks(m);
+        setSaved(true);
+      } else {
+        setMarks({});
+      }
+    } catch (err: any) {
+      console.error('loadExisting error:', err);
     }
   };
 
   const handleSave = async () => {
     const sub = visibleSubjects.find(s => s.id === selectedSubject);
+    if (!selectedExam) {
+      setError('Please select an Exam Type before saving.');
+      setSaving(false);
+      return;
+    }
     if (!sub || !userRole?.school_id) return;
     setSaving(true); setError(''); setSaved(false);
 
     const filled = students.filter(s => marks[s.id] !== undefined && marks[s.id] !== '');
     if (filled.length === 0) { setSaving(false); return; }
+
+    const totalMarks   = examConfig?.total_marks   || sub.total_marks;
+    const passingMarks = examConfig?.passing_marks || sub.passing_marks;
 
     const inserts = filled.map(s => ({
       school_id:      userRole!.school_id,
@@ -211,8 +239,8 @@ export default function TeacherMarks() {
       exam_type_id:   selectedExam,
       subject_id:     selectedSubject,
       obtained_marks: Number(marks[s.id]),
-      total_marks:    sub.total_marks,
-      grade:          getGradeFromPolicy(Number(marks[s.id]), sub.total_marks, gradingBrackets).grade,
+      total_marks:    totalMarks,
+      grade:          getGradeFromPolicy(Number(marks[s.id]), totalMarks, gradingBrackets).grade,
     }));
 
     const { error: err } = await supabase
@@ -314,7 +342,7 @@ export default function TeacherMarks() {
             <div className="relative">
               <select
                 value={selectedExam}
-                onChange={e => { setSelectedExam(e.target.value); setSaved(false); }}
+                onChange={e => { setSelectedExam(e.target.value); resetData(); }}
                 className="w-full appearance-none px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold pr-9 focus:ring-2 focus:ring-amber-400 outline-none transition"
               >
                 <option value="">— Select —</option>
@@ -378,8 +406,11 @@ export default function TeacherMarks() {
           {selectedSub ? (
             <div className="flex flex-col justify-center gap-1 p-3 bg-amber-50 border border-amber-100 rounded-xl">
               <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Marks Info</p>
-              <p className="text-sm font-black text-amber-800">Total: {selectedSub.total_marks}</p>
-              <p className="text-xs font-bold text-amber-600">Passing: {selectedSub.passing_marks}</p>
+              <p className="text-sm font-black text-amber-800">Total: {examConfig?.total_marks || selectedSub.total_marks}</p>
+              <p className="text-xs font-bold text-amber-600">Passing: {examConfig?.passing_marks || selectedSub.passing_marks}</p>
+              {examConfig && (
+                <p className="text-[8px] font-black text-amber-400 uppercase italic">Custom for this exam</p>
+              )}
             </div>
           ) : (
             <div className="flex flex-col justify-center gap-1 p-3 bg-slate-50 border border-slate-100 rounded-xl opacity-40">
@@ -431,7 +462,7 @@ export default function TeacherMarks() {
                   <th className="text-left px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-12">Roll</th>
                   <th className="text-left px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Student</th>
                   <th className="text-center px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-36">
-                    Marks <span className="text-slate-300">/ {selectedSub.total_marks}</span>
+                    Marks <span className="text-slate-300">/ {examConfig?.total_marks || selectedSub.total_marks}</span>
                   </th>
                   <th className="text-center px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-20">Grade</th>
                   <th className="text-center px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-20">Status</th>
@@ -441,10 +472,11 @@ export default function TeacherMarks() {
                 {students.map((student, i) => {
                   const val     = marks[student.id] ?? '';
                   const num     = val === '' ? null : Number(val);
-                  const gradeRes = num !== null && !isNaN(num) ? getGradeFromPolicy(num, selectedSub.total_marks, gradingBrackets) : null;
+                  const totalMarks = examConfig?.total_marks || selectedSub.total_marks;
+                  const gradeRes = num !== null && !isNaN(num) ? getGradeFromPolicy(num, totalMarks, gradingBrackets) : null;
                   const grade    = gradeRes?.grade ?? null;
                   const isPass   = gradeRes?.status === 'Pass';
-                  const invalid  = num !== null && (isNaN(num) || num < 0 || num > selectedSub.total_marks);
+                  const invalid  = num !== null && (isNaN(num) || num < 0 || num > totalMarks);
                   return (
                     <tr
                       key={student.id}
@@ -471,11 +503,16 @@ export default function TeacherMarks() {
                       {/* Marks input */}
                       <td className="px-4 py-2.5">
                         <input
-                          type="number"
-                          min={0}
-                          max={selectedSub.total_marks}
+                          type="text"
+                          inputMode="numeric"
                           value={val}
-                          onChange={e => { setMarks(p => ({ ...p, [student.id]: e.target.value })); setSaved(false); }}
+                          onChange={e => {
+                            const raw = e.target.value.replace(/[^0-9.]/g, '');
+                            const num = parseFloat(raw);
+                            if (raw !== '' && !isNaN(num) && num > totalMarks) return; 
+                            setMarks(p => ({ ...p, [student.id]: raw }));
+                            setSaved(false);
+                          }}
                           placeholder="—"
                           className={cn(
                             'w-full text-center font-black text-sm px-2 py-1.5 rounded-lg border transition focus:outline-none focus:ring-2 focus:ring-amber-400',
@@ -518,13 +555,15 @@ export default function TeacherMarks() {
               <span className="text-emerald-600">
                 {Object.values(marks).filter(v => {
                   const n = Number(v);
-                  return v !== '' && !isNaN(n) && getGradeFromPolicy(n, selectedSub.total_marks, gradingBrackets).status === 'Pass';
+                  const t = examConfig?.total_marks || selectedSub.total_marks;
+                  return v !== '' && !isNaN(n) && getGradeFromPolicy(n, t, gradingBrackets).status === 'Pass';
                 }).length} pass
               </span>
               <span className="text-red-500">
                 {Object.values(marks).filter(v => {
                   const n = Number(v);
-                  return v !== '' && !isNaN(n) && getGradeFromPolicy(n, selectedSub.total_marks, gradingBrackets).status !== 'Pass';
+                  const t = examConfig?.total_marks || selectedSub.total_marks;
+                  return v !== '' && !isNaN(n) && getGradeFromPolicy(n, t, gradingBrackets).status !== 'Pass';
                 }).length} fail
               </span>
               <span className="text-slate-400">{students.length - filledCount} pending</span>

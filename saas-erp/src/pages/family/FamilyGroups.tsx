@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { Home, Plus, X, ChevronDown, ChevronRight, Users, Download } from 'lucide-react';
+import { Home, Plus, X, ChevronDown, ChevronRight, Users, Download, ShieldAlert } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { exportToExcel } from '../../lib/exportUtils';
 
 interface Family {
@@ -134,6 +135,10 @@ export default function FamilyGroups() {
               <Download className="w-4 h-4" /> Export
             </button>
           )}
+          <Link to="/family/cleanup"
+            className="flex items-center gap-2 px-3 py-2 border border-amber-200 bg-amber-50 text-amber-700 text-sm font-medium rounded-lg hover:bg-amber-100 transition-colors">
+            <ShieldAlert className="w-4 h-4" /> Cleanup Duplicates
+          </Link>
           <button onClick={() => setShowModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white text-sm font-medium rounded-lg hover:bg-rose-700">
             <Plus className="w-4 h-4" /> New Family

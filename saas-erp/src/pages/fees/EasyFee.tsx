@@ -12,6 +12,7 @@ import { cn } from '../../lib/utils';
 import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, type ChallanRecord, type SchoolInfo } from '../../lib/challanUtils';
 import HelpBanner from '../../components/HelpBanner';
 import { formatDate } from '../../lib/utils';
+import { PageHeader, Card, Btn, Badge, Select, Input } from '../../components/ui';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -378,9 +379,26 @@ export default function EasyFee() {
     .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
   return (
-    <div className="h-[calc(100vh-80px)] flex flex-col gap-3">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <PageHeader
+        title="Quick Fee Collection"
+        subtitle="Walk-in fee payment counter for fast processing."
+        icon={Zap}
+        actions={
+          <div className="flex items-center gap-8 bg-white/50 backdrop-blur-sm rounded-2xl px-6 py-2 border border-slate-100 shadow-sm">
+            <div className="text-right">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Today's Total</p>
+              <p className="text-lg font-black text-indigo-600 tabular-nums">Rs. {totalToday.toLocaleString()}</p>
+            </div>
+            <div className="h-10 w-px bg-slate-200" />
+            <div className="text-right">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Transactions</p>
+              <p className="text-lg font-black text-slate-900 tabular-nums">{recentTransactions.length}</p>
+            </div>
+          </div>
+        }
+      />
 
-      {/* Onboarding Help — shrinks when visible, disappears when dismissed */}
       <div className="shrink-0">
         <HelpBanner
           storageKey="help_quick_collection"
@@ -396,64 +414,32 @@ export default function EasyFee() {
         />
       </div>
 
-      {/* ── Header ───────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-6 py-3 shadow-sm shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-100">
-            <Zap className="w-5 h-5 fill-current" />
-          </div>
-          <div>
-            <h1 className="text-sm font-bold text-gray-900">Quick Collection</h1>
-            <p className="text-xs text-gray-400">Walk-in fee payment counter</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-8">
-          <div className="text-right">
-            <p className="text-xs text-gray-400 mb-0.5">Today's Total</p>
-            <p className="text-sm font-bold text-indigo-600">Rs. {totalToday.toLocaleString()}</p>
-          </div>
-          <div className="h-8 w-px bg-gray-100" />
-          <div className="text-right">
-            <p className="text-xs text-gray-400 mb-0.5">Transactions</p>
-            <p className="text-sm font-bold text-gray-900">{recentTransactions.length}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 min-h-0 flex gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
         {/* ── Left Sidebar ─────────────────────────────────────────── */}
-        <div className="w-72 flex flex-col gap-4 shrink-0">
+        <div className="lg:col-span-3 flex flex-col gap-6">
 
           {/* Search Card */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex flex-col gap-3">
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  value={query}
-                  onChange={e => setQuery(e.target.value)}
-                  placeholder="Student name or roll #..."
-                  className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  autoFocus
-                />
-                {isSearching && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <Clock className="w-4 h-4 text-indigo-400 animate-spin" />
-                  </div>
-                )}
-              </div>
-              <select
+          <Card className="p-4 flex flex-col gap-4">
+            <div className="flex flex-col gap-3">
+              <Input
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Name or roll #..."
+                icon={Search}
+                className="!py-2"
+                autoFocus
+              />
+              <Select
                 value={selectedClassId}
                 onChange={e => setSelectedClassId(e.target.value)}
-                className="w-20 text-xs border border-gray-200 rounded-lg bg-white text-gray-600 px-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                className="!py-2"
               >
-                <option value="">All</option>
+                <option value="">All Classes</option>
                 {classes.map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
-              </select>
+              </Select>
             </div>
 
             <div className="space-y-1">
@@ -461,219 +447,221 @@ export default function EasyFee() {
                 <button
                   key={s.id}
                   onClick={() => handleSelect(s)}
-                  className="w-full flex items-center gap-3 p-2.5 rounded-lg border border-transparent hover:border-indigo-100 hover:bg-indigo-50 transition-all group"
+                  className="w-full flex items-center gap-3 p-2.5 rounded-xl border border-transparent hover:border-indigo-100 hover:bg-indigo-50 transition-all group"
                 >
                   <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold shrink-0">
                     {s.full_name[0]}
                   </div>
                   <div className="flex-1 text-left min-w-0">
-                    <p className="text-sm font-semibold text-gray-800 group-hover:text-indigo-700 truncate">{s.full_name}</p>
-                    <p className="text-xs text-gray-400">{s.class?.name}-{s.class?.section} · #{s.roll_number}</p>
+                    <p className="text-sm font-black text-slate-800 group-hover:text-indigo-700 truncate">{s.full_name}</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{s.class?.name} · #{s.roll_number}</p>
                   </div>
-                  <ArrowRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-indigo-400 -translate-x-1 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all" />
+                  <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-indigo-400 -translate-x-1 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all" />
                 </button>
               ))}
               {query && searchResults.length === 0 && !isSearching && (
                 <div className="py-8 text-center">
-                  <Users className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-                  <p className="text-xs text-gray-400">No student found</p>
+                  <Users className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No student found</p>
                 </div>
               )}
             </div>
-          </div>
+          </Card>
 
           {/* Recent Collections */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex-1 flex flex-col min-h-0">
-            <div className="flex items-center justify-between mb-3 shrink-0">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recent Collections</p>
-              <History className="w-3.5 h-3.5 text-gray-300" />
+          <Card className="p-4 flex flex-col min-h-0">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">Recent Activity</p>
+              <History className="w-4 h-4 text-slate-300" />
             </div>
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+            <div className="space-y-2">
               {recentTransactions.map(t => (
                 <button 
                   key={t.id} 
                   onClick={() => setSelectedRecentTx(t)}
-                  className="w-full text-left p-2.5 rounded-lg bg-gray-50 border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/50 transition-all group"
+                  className="w-full text-left p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/50 transition-all group"
                 >
                   <div className="flex justify-between items-start mb-1">
-                    <p className="text-xs font-semibold text-gray-700 truncate max-w-[120px] group-hover:text-indigo-700">{t.student_name}</p>
-                    <p className="text-xs font-bold text-indigo-600">Rs {t.amount.toLocaleString()}</p>
+                    <p className="text-xs font-black text-slate-700 truncate max-w-[120px] group-hover:text-indigo-700">{t.student_name}</p>
+                    <p className="text-xs font-black text-indigo-600">Rs {t.amount.toLocaleString()}</p>
                   </div>
                   <div className="flex justify-between items-center">
-                    <p className="text-[10px] text-gray-400">{t.mode}</p>
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-[10px] text-gray-400">{formatDate(t.date)}</p>
-                      <ArrowRight className="w-2.5 h-2.5 text-gray-300 group-hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-all" />
-                    </div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t.mode}</p>
+                    <ArrowRight className="w-2.5 h-2.5 text-slate-300 group-hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-all" />
                   </div>
                 </button>
               ))}
               {recentTransactions.length === 0 && (
-                <div className="py-6 text-center text-xs text-gray-400">No recent activity</div>
+                <div className="py-6 text-center text-[10px] font-black text-slate-300 uppercase tracking-widest">No activity</div>
               )}
             </div>
-          </div>
+          </Card>
         </div>
 
         {/* ── Main Panel ───────────────────────────────────────────── */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="lg:col-span-9 space-y-6 min-h-0 flex flex-col">
           <AnimatePresence mode="wait">
             {selectedStudent ? (
               <motion.div
                 key={selectedStudent.id}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="h-full flex flex-col gap-4"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-6"
               >
                 {/* Student Header */}
-                <div className="bg-gradient-to-r from-indigo-600 to-violet-600 rounded-xl px-6 py-4 flex items-center gap-4 text-white shadow-md shadow-indigo-100">
-                  <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-white text-xl font-bold shrink-0">
-                    {selectedStudent.full_name[0]}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-lg font-bold text-white leading-tight">{selectedStudent.full_name}</h2>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full">Roll #{selectedStudent.roll_number}</span>
-                      <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full">{selectedStudent.class?.name}-{selectedStudent.class?.section}</span>
+                <Card className="p-4 bg-gradient-to-r from-indigo-600 to-violet-700 text-white border-none shadow-indigo-200/50">
+                  <div className="flex items-center gap-6">
+                    <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-2xl font-black border border-white/30 shrink-0">
+                      {selectedStudent.full_name[0]}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <h2 className="text-xl font-black tracking-tight truncate">{selectedStudent.full_name}</h2>
+                        <button
+                          onClick={() => setSelectedStudent(null)}
+                          className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+                        >
+                          <XIcon className="w-4 h-4 text-white" />
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 opacity-90">
+                        <p className="text-xs font-bold uppercase tracking-widest">{selectedStudent.class?.name} · Roll #{selectedStudent.roll_number}</p>
+                        <p className="text-xs font-bold uppercase tracking-widest">Father: {selectedStudent.father_name}</p>
+                      </div>
+                    </div>
+                    <div className="hidden md:block text-right">
+                      <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-0.5">Total Pending</p>
+                      <p className="text-2xl font-black tabular-nums">Rs {feeHistory.filter(f => f.status !== 'paid').reduce((s, i) => s + (Number(i.total_amount) - Number(i.paid_amount)), 0).toLocaleString()}</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setSelectedStudent(null)}
-                    className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
-                  >
-                    <XIcon className="w-4 h-4 text-white" />
-                  </button>
-                </div>
+                </Card>
 
-                <div className="flex-1 flex gap-4 min-h-0">
-                  {/* Pending Dues Table */}
-                  <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex flex-col min-h-0">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 shrink-0">Pending Dues</p>
-                    <div className="flex-1 overflow-y-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-gray-50">
-                            <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider rounded-tl-lg">Month</th>
-                            <th className="text-right px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider rounded-tr-lg">Balance</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50">
-                          {loadingDetails ? (
-                            <tr>
-                              <td colSpan={2} className="py-10 text-center text-gray-300 text-sm">Loading...</td>
-                            </tr>
-                          ) : feeHistory.filter(f => f.status !== 'paid').length === 0 ? (
-                            <tr>
-                              <td colSpan={2} className="py-10 text-center text-gray-300 text-sm">No pending dues</td>
-                            </tr>
-                          ) : feeHistory.filter(f => f.status !== 'paid').map(f => {
-                            const balance = Number(f.total_amount) - Number(f.paid_amount);
-                            return (
-                              <tr key={f.id} className="hover:bg-gray-50 transition-colors group/row">
-                                <td className="px-3 py-3">
-                                  <p className="font-medium text-gray-800 text-sm">{formatDate(f.month_year)}</p>
-                                  <span className={cn(
-                                    "inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full mt-1",
-                                    f.status === 'partial' ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
-                                  )}>
-                                    {f.status === 'partial' ? 'Partially Paid' : 'Pending'}
-                                  </span>
-                                </td>
-                                <td className="px-3 py-3 text-right">
-                                  <div className="flex flex-col items-end">
-                                    <p className="font-bold text-gray-900 text-sm">Rs {balance.toLocaleString()}</p>
-                                    <button 
-                                      onClick={(e) => { e.stopPropagation(); handleDelete(f); }}
-                                      className="opacity-0 group-hover/row:opacity-100 p-1 text-red-400 hover:text-red-600 transition-all mt-1"
-                                      title="Delete Invoice"
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                  {/* Pending Invoices */}
+                  <Card className="p-0 flex flex-col overflow-hidden h-[500px]">
+                    <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between shrink-0">
+                      <div className="flex items-center gap-2">
+                        <History className="w-4 h-4 text-slate-400" />
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Fee Ledger</p>
+                      </div>
+                      <Badge variant="secondary" className="text-[10px]">{feeHistory.length} Records</Badge>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                      {loadingDetails ? (
+                        <div className="flex flex-col items-center justify-center h-full opacity-30">
+                          <Clock className="w-10 h-10 animate-spin mb-4" />
+                          <p className="text-[10px] font-black uppercase tracking-widest">Syncing ledger...</p>
+                        </div>
+                      ) : feeHistory.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full opacity-30">
+                          <Receipt className="w-10 h-10 mb-4" />
+                          <p className="text-[10px] font-black uppercase tracking-widest">No fee history</p>
+                        </div>
+                      ) : (
+                        feeHistory.map(invoice => {
+                          const balance = Number(invoice.total_amount) - Number(invoice.paid_amount);
+                          const isPaid = invoice.status === 'paid';
+                          return (
+                            <div key={invoice.id} className="p-3 rounded-xl border border-slate-100 bg-white shadow-sm group hover:border-indigo-100 transition-all">
+                              <div className="flex justify-between items-start mb-2">
+                                <div>
+                                  <p className="text-xs font-black text-slate-800">{formatDate(invoice.month_year)}</p>
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{invoice.invoice_number || 'INV-REF'}</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {!isPaid && (
+                                    <button
+                                      onClick={() => handleDelete(invoice)}
+                                      className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
                                     >
-                                      <Trash2 className="w-3 h-3" />
+                                      <Trash2 className="w-3.5 h-3.5" />
                                     </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                                  )}
+                                  <Badge variant={isPaid ? 'success' : (Number(invoice.paid_amount) > 0 ? 'warning' : 'danger')} className="text-[9px]">
+                                    {invoice.status.toUpperCase()}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div className="flex justify-between items-end">
+                                <div className="text-[10px] font-medium text-slate-500">
+                                  Total: Rs {Number(invoice.total_amount).toLocaleString()}
+                                </div>
+                                <div className={cn("text-sm font-black", isPaid ? "text-emerald-600" : "text-slate-900")}>
+                                  {isPaid ? <div className="flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5" /> Paid</div> : `Rs ${balance.toLocaleString()}`}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
-                    <div className="pt-3 mt-3 border-t border-gray-100 flex justify-between items-center shrink-0">
-                      <p className="text-sm font-semibold text-gray-600">Total Outstanding</p>
-                      <p className="text-xl font-bold text-red-600">
-                        Rs {feeHistory.reduce((s, f) => s + (Number(f.total_amount) - Number(f.paid_amount)), 0).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
+                  </Card>
 
                   {/* Payment Form */}
-                  <div className="w-80 bg-slate-900 rounded-xl border border-slate-800 shadow-xl p-5 flex flex-col gap-4">
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Collect Payment</p>
-
-                    <form onSubmit={processPayment} className="flex flex-col gap-4">
-                      <div>
-                        <label className="block text-xs font-medium text-slate-400 mb-1.5">Amount (PKR)</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm font-medium">Rs.</span>
-                          <input
-                            required
-                            type="text"
-                            inputMode="decimal"
-                            value={payAmount}
-                            onFocus={e => e.target.select()}
-                            onChange={e => setPayAmount(e.target.value.replace(/[^0-9.]/g, ''))}
-                            className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-10 pr-4 py-3 text-xl font-bold text-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 placeholder-slate-600"
-                            placeholder="0"
-                          />
-                        </div>
+                  <Card className="p-6">
+                    <div className="flex items-center gap-2 mb-6">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                        <CreditCard className="w-4 h-4" />
                       </div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Collect Payment</p>
+                    </div>
 
-                      <div>
-                        <label className="block text-xs font-medium text-slate-400 mb-1.5">Payment Method</label>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                          {['Cash', 'JazzCash', 'EasyPaisa', 'Bank'].map(m => (
-                            <button
-                              key={m}
-                              type="button"
-                              onClick={() => setPayMode(m)}
-                              className={cn(
-                                "py-2 px-3 rounded-lg text-xs font-semibold border transition-all",
-                                payMode === m
-                                  ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-900/40"
-                                  : "bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-300"
-                              )}
-                            >
-                              {m}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+                    <form onSubmit={processPayment} className="space-y-6">
+                      <Input
+                        label="Amount to Collect"
+                        type="number"
+                        value={payAmount}
+                        onChange={e => setPayAmount(e.target.value)}
+                        placeholder="Enter amount..."
+                        icon={DollarSign}
+                        className="!text-lg font-black"
+                        required
+                      />
 
-                      <div>
-                        <label className="block text-xs font-medium text-slate-400 mb-1.5">Remarks (optional)</label>
-                        <textarea
-                          value={payRemarks}
-                          onChange={e => setPayRemarks(e.target.value)}
-                          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 h-16 resize-none placeholder-slate-600"
-                          placeholder="e.g. Discount approved by principal..."
+                      <div className="grid grid-cols-2 gap-4">
+                        <Select
+                          label="Payment Mode"
+                          value={payMode}
+                          onChange={e => setPayMode(e.target.value)}
+                        >
+                          <option value="Cash">Cash</option>
+                          <option value="Bank Transfer">Bank Transfer</option>
+                          <option value="Cheque">Cheque</option>
+                          <option value="Online">Online</option>
+                        </Select>
+                        <Input
+                          label="Payment Date"
+                          type="date"
+                          value={payDate}
+                          onChange={e => setPayDate(e.target.value)}
                         />
                       </div>
 
-                      <div className="flex flex-col gap-2 pt-2">
-                        <button
+                      <Input
+                        label="Reference / Remarks"
+                        value={payRemarks}
+                        onChange={e => setPayRemarks(e.target.value)}
+                        placeholder="Optional"
+                      />
+
+                      <div className="pt-4">
+                        <Btn
                           type="submit"
-                          disabled={isProcessing || !payAmount}
-                          className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-900 font-bold rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg shadow-emerald-900/20"
+                          variant="primary"
+                          className="w-full !py-4 text-base shadow-xl shadow-indigo-200"
+                          icon={Zap}
+                          loading={isProcessing}
+                          disabled={!payAmount || Number(payAmount) <= 0}
                         >
-                          {isProcessing ? <Clock className="w-5 h-5 animate-spin" /> : <Landmark className="w-5 h-5" />}
-                          Collect Payment
-                        </button>
-                        <button type="button" onClick={() => handlePrintReceipt(lastPayment || { student_name: selectedStudent?.full_name, amount: parseFloat(payAmount) || 0, months: 'Preview', breakdown: [] })} className="w-full py-2 text-xs font-medium text-slate-500 hover:text-slate-300 transition-colors flex items-center justify-center gap-1.5">
-                          <Printer className="w-3.5 h-3.5" /> Print Trial Receipt
-                        </button>
+                          Collect & Print Receipt
+                        </Btn>
+                        <p className="text-[10px] text-center text-slate-400 font-bold uppercase tracking-widest mt-4">
+                          Payments are applied to oldest invoices first
+                        </p>
                       </div>
                     </form>
-                  </div>
+                  </Card>
                 </div>
               </motion.div>
             ) : (
@@ -681,47 +669,57 @@ export default function EasyFee() {
                 key="empty"
                 initial={{ opacity: 0, scale: 0.97 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="flex-1 bg-white rounded-xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-center"
+                className="flex-1"
               >
                 {successMsg ? (
-                  <div className="max-w-sm">
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl shadow-emerald-50"
-                    >
-                      <CheckCircle className="w-10 h-10 text-emerald-600" />
-                    </motion.div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Payment Received</h2>
-                    <p className="text-sm text-gray-500 mb-8">{successMsg}</p>
+                  <Card className="h-full flex flex-col items-center justify-center py-20 bg-slate-50/50 border-dashed">
+                    <div className="max-w-sm w-full text-center">
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="w-20 h-20 bg-emerald-100 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-emerald-100"
+                      >
+                        <CheckCircle className="w-10 h-10 text-emerald-600" />
+                      </motion.div>
+                      <h2 className="text-2xl font-black text-slate-800 mb-2">Payment Collected</h2>
+                      <p className="text-sm font-medium text-slate-400 mb-8">{successMsg}</p>
 
-                    <div className="flex flex-col gap-3">
-                      <button
-                        onClick={() => handlePrintReceipt(lastPayment)}
-                        className="w-full py-3.5 bg-slate-900 text-white font-semibold rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
-                      >
-                        <Printer className="w-5 h-5" /> Print Receipt
-                      </button>
-                      <button
-                        onClick={() => navigate(`/fees/student-detail?student=${lastPayment?.student_id}`)}
-                        className="w-full py-2.5 text-sm font-medium text-teal-600 hover:text-teal-700 flex items-center justify-center gap-1.5 transition-colors"
-                      >
-                        <ExternalLink className="w-4 h-4" /> View Full Ledger
-                      </button>
-                      <button
-                        onClick={() => setSuccessMsg(null)}
-                        className="w-full py-2.5 text-sm font-medium text-gray-400 hover:text-indigo-600 transition-colors"
-                      >
-                        New Collection
-                      </button>
+                      <div className="flex flex-col gap-3">
+                        <Btn
+                          variant="primary"
+                          onClick={() => handlePrintReceipt(lastPayment)}
+                          className="w-full !py-4"
+                          icon={Printer}
+                        >
+                          Print Receipt
+                        </Btn>
+                        <Btn
+                          variant="secondary"
+                          onClick={() => navigate(`/fees/student-detail?student=${lastPayment?.student_id}`)}
+                          className="w-full"
+                          icon={ExternalLink}
+                        >
+                          View Full Ledger
+                        </Btn>
+                        <button
+                          onClick={() => setSuccessMsg(null)}
+                          className="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-indigo-600 transition-colors"
+                        >
+                          Back to Counter
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  </Card>
                 ) : (
-                  <div className="max-w-sm opacity-40">
-                    <Receipt className="w-16 h-16 text-indigo-400 mx-auto mb-4" />
-                    <h2 className="text-lg font-bold text-gray-900 mb-2">Fee Collection</h2>
-                    <p className="text-sm text-gray-500">Search for a student above to begin fee collection.</p>
-                  </div>
+                  <Card className="h-full flex flex-col items-center justify-center py-20 border-dashed bg-slate-50/50">
+                    <div className="w-20 h-20 rounded-3xl bg-white shadow-xl flex items-center justify-center mb-6">
+                      <Zap className="w-10 h-10 text-indigo-200" />
+                    </div>
+                    <h3 className="text-xl font-black text-slate-800 mb-2">Ready to Collect?</h3>
+                    <p className="text-sm text-slate-400 max-w-xs text-center font-medium">
+                      Search for a student using the sidebar to begin fast fee processing.
+                    </p>
+                  </Card>
                 )}
               </motion.div>
             )}

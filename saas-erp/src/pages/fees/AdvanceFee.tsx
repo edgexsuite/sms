@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { CreditCard, Plus, Search, Download, Trash2 } from 'lucide-react';
 import { exportToCSV } from '../../lib/exportUtils';
 import { formatDate } from '../../lib/utils';
+import { PageHeader, Card, Btn, Input, EmptyState, FieldLabel } from '../../components/ui';
 
 interface AdvanceRecord {
   id: string;
@@ -95,137 +96,140 @@ export default function AdvanceFee() {
   const totalAdvance = filtered.reduce((s, r) => s + r.paid_amount, 0);
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <CreditCard className="w-6 h-6 text-blue-600" /> Advance Fee
-          </h1>
-          <p className="text-gray-500 text-sm mt-1">Fees collected in advance for upcoming months.</p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => exportToCSV('advance-fees', filtered, [
-            { header: 'Student', key: (r: AdvanceRecord) => r.student?.full_name || '' },
-            { header: 'Roll No', key: (r: AdvanceRecord) => r.student?.roll_number || '' },
-            { header: 'Class', key: (r: AdvanceRecord) => r.student?.class ? `${r.student.class.name}-${r.student.class.section}` : '' },
-            { header: 'Month', key: 'month_year' },
-            { header: 'Amount', key: 'paid_amount' },
-          ])} className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50">
-            <Download className="w-4 h-4" /> Export
-          </button>
-          <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
-            <Plus className="w-4 h-4" /> Record Advance
-          </button>
-        </div>
-      </div>
+    <div className="max-w-7xl mx-auto space-y-6">
+      <PageHeader 
+        title="Advance Fee" 
+        subtitle="Fees collected in advance for upcoming months."
+        icon={CreditCard}
+        actions={
+          <>
+            <Btn variant="secondary" onClick={() => exportToCSV('advance-fees', filtered, [
+              { header: 'Student', key: (r: AdvanceRecord) => r.student?.full_name || '' },
+              { header: 'Roll No', key: (r: AdvanceRecord) => r.student?.roll_number || '' },
+              { header: 'Class', key: (r: AdvanceRecord) => r.student?.class ? `${r.student.class.name}-${r.student.class.section}` : '' },
+              { header: 'Month', key: 'month_year' },
+              { header: 'Amount', key: 'paid_amount' },
+            ])} icon={Download}>
+              Export
+            </Btn>
+            <Btn onClick={() => setIsModalOpen(true)} icon={Plus}>
+              Record Advance
+            </Btn>
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <p className="text-sm font-medium text-gray-500">Total Advance Collected</p>
-          <p className="text-3xl font-black text-blue-600 mt-1">Rs. {totalAdvance.toLocaleString()}</p>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <p className="text-sm font-medium text-gray-500">Advance Records</p>
-          <p className="text-3xl font-black text-gray-800 mt-1">{filtered.length}</p>
-        </div>
+        <Card className="p-6">
+          <p className="text-sm font-medium text-slate-500">Total Advance Collected</p>
+          <p className="text-3xl font-black text-indigo-600 mt-1">Rs. {totalAdvance.toLocaleString()}</p>
+        </Card>
+        <Card className="p-6">
+          <p className="text-sm font-medium text-slate-500">Advance Records</p>
+          <p className="text-3xl font-black text-slate-900 mt-1">{filtered.length}</p>
+        </Card>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="p-4 border-b border-gray-200">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input value={search} onChange={e => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Search by student name or roll number..." />
+      <Card>
+        <div className="p-4 border-b border-slate-100">
+          <div className="max-w-md">
+            <Input 
+              icon={Search}
+              value={search} 
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by student name or roll number..." 
+            />
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-6 py-3 text-left font-medium text-gray-500">Student</th>
-                <th className="px-6 py-3 text-left font-medium text-gray-500">Class</th>
-                <th className="px-6 py-3 text-left font-medium text-gray-500">Month</th>
-                <th className="px-6 py-3 text-right font-medium text-gray-500">Amount Paid</th>
-                <th className="px-6 py-3 text-center font-medium text-gray-500">Status</th>
-                <th className="px-6 py-3 text-right font-medium text-gray-500">Actions</th>
+                <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Student</th>
+                <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Class</th>
+                <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Month</th>
+                <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">Amount Paid</th>
+                <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-center">Status</th>
+                <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={6} className="p-8 text-center text-gray-400">Loading...</td></tr>
+                <tr><td colSpan={6} className="p-8 text-center text-slate-400">Loading...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={6} className="p-12 text-center text-gray-400">No advance fee records found.</td></tr>
+                <tr><td colSpan={6} className="p-0"><EmptyState icon="🔍" title="No advance fee records found." sub="Try adjusting your search." /></td></tr>
               ) : filtered.map(r => (
-                <tr key={r.id} className="hover:bg-gray-50">
+                <tr key={r.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4">
-                    <p className="font-medium text-gray-900">{r.student?.full_name}</p>
-                    <p className="text-xs text-gray-400">Roll #{r.student?.roll_number}</p>
+                    <p className="font-semibold text-slate-900">{r.student?.full_name}</p>
+                    <p className="text-xs text-slate-500">Roll #{r.student?.roll_number}</p>
                   </td>
-                  <td className="px-6 py-4 text-gray-600">
+                  <td className="px-6 py-4 text-sm text-slate-600">
                     {r.student?.class ? `${r.student.class.name}-${r.student.class.section}` : '-'}
                   </td>
-                  <td className="px-6 py-4 text-gray-600">{formatDate(r.month_year)}</td>
-                  <td className="px-6 py-4 text-right font-mono font-medium text-gray-900">Rs. {Number(r.paid_amount).toLocaleString()}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{formatDate(r.month_year)}</td>
+                  <td className="px-6 py-4 text-sm text-right font-mono font-semibold text-slate-900">Rs. {Number(r.paid_amount).toLocaleString()}</td>
                   <td className="px-6 py-4 text-center">
-                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">Advance</span>
+                    <span className="px-2 py-1 text-[11px] font-bold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">Advance</span>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button onClick={() => handleDelete(r.id)} className="p-1.5 text-gray-400 hover:text-red-600 transition-colors">
+                    <Btn variant="ghost" size="sm" onClick={() => handleDelete(r.id)} className="text-rose-500 hover:text-rose-600 hover:bg-rose-50">
                       <Trash2 className="w-4 h-4" />
-                    </button>
+                    </Btn>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-            <div className="flex justify-between items-center p-6 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Record Advance Payment</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <Card className="w-full max-w-md overflow-hidden">
+            <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50/50">
+              <h2 className="text-[15px] font-semibold text-slate-900">Record Advance Payment</h2>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">&times;</button>
             </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="p-5 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Student</label>
+                <FieldLabel required>Student</FieldLabel>
                 <select required value={form.student_id} onChange={e => setForm({ ...form, student_id: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] text-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none">
                   <option value="">Select student...</option>
                   {students.map(s => <option key={s.id} value={s.id}>{s.full_name} (Roll #{s.roll_number})</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Starting Month</label>
+                <FieldLabel required>Starting Month</FieldLabel>
                 <input required type="month" value={form.month_start} onChange={e => setForm({ ...form, month_start: e.target.value + '-01' })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] text-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Number of Months</label>
+                <FieldLabel>Number of Months</FieldLabel>
                 <input type="number" min="1" max="12" value={form.months} onChange={e => setForm({ ...form, months: parseInt(e.target.value) || 1 })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] text-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Amount per Month (Rs.)</label>
+                <FieldLabel required>Amount per Month (Rs.)</FieldLabel>
                 <input required type="number" min="0" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="0" />
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] text-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none" placeholder="0" />
               </div>
               {form.months > 1 && form.amount && (
-                <p className="text-sm text-gray-500 bg-blue-50 p-3 rounded-lg">
-                  Total: <strong>Rs. {(form.months * parseFloat(form.amount || '0')).toLocaleString()}</strong> for {form.months} months
-                </p>
+                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3">
+                  <p className="text-[13px] text-indigo-700">
+                    Total: <span className="font-bold">Rs. {(form.months * parseFloat(form.amount || '0')).toLocaleString()}</span> for {form.months} months
+                  </p>
+                </div>
               )}
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
-                <button type="submit" disabled={saving} className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              <div className="flex justify-end gap-2 pt-2">
+                <Btn variant="secondary" type="button" onClick={() => setIsModalOpen(false)}>Cancel</Btn>
+                <Btn type="submit" disabled={saving}>
                   {saving ? 'Saving...' : 'Record Payment'}
-                </button>
+                </Btn>
               </div>
             </form>
-          </div>
+          </Card>
         </div>
       )}
     </div>

@@ -155,7 +155,7 @@ export const NAV_SECTIONS = [
     roles: ALL_ACADEMIC,
     items: [
       {
-        name: 'Result Module',
+        name: 'Exam and Results',
         path: '/result',
         icon: FileText,
         roles: ALL_ACADEMIC,
@@ -167,6 +167,7 @@ export const NAV_SECTIONS = [
           { name: 'Award List Generator', path: '/result/award-list',     icon: Printer,      roles: ALL_ACADEMIC },
           { name: 'Report Cards',        path: '/result/reporting',      icon: LineChart,    roles: ALL_ACADEMIC },
           { name: 'Grading Policy',      path: '/result/grading-policy', icon: SettingsIcon, roles: ALL_ADMIN },
+          { name: 'Subject Marks Config',path: '/result/marks-config',   icon: Award,        roles: ALL_ADMIN },
         ],
       },
     ],

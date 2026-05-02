@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn, formatDate } from '../../lib/utils';
+import { Card, Btn, Badge, Select, Input } from '../../components/ui';
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 interface ScanLog {
@@ -97,13 +98,13 @@ function StatCard({ label, value, Icon, color, bg }: {
   color: string; bg: string;
 }) {
   return (
-    <div className={cn('border rounded-2xl p-3 bg-gradient-to-br', bg)}>
+    <Card className={cn('p-3 border-none bg-gradient-to-br', bg)}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.15em]">{label}</span>
         <Icon className={cn('w-3.5 h-3.5', color)} />
       </div>
       <p className={cn('text-2xl sm:text-3xl font-black tabular-nums', color)}>{value}</p>
-    </div>
+    </Card>
   );
 }
 
@@ -568,39 +569,36 @@ export default function QRScanner() {
 
         <div className="flex items-center gap-2 shrink-0">
           <LiveClock />
-          <button
+          <Btn
+            variant={showManual ? 'primary' : 'secondary'}
             onClick={() => setShowManual(p => !p)}
-            title="Manual Entry"
-            className={cn('p-2 rounded-xl transition-all', showManual
-              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50'
-              : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white')}
-          >
-            <Keyboard className="w-4 h-4" />
-          </button>
-          <button
+            icon={Keyboard}
+            size="sm"
+            className="!p-2"
+          />
+          <Btn
+            variant={showSettings ? 'primary' : 'secondary'}
             onClick={() => setShowSettings(p => !p)}
-            title="Settings"
-            className={cn('p-2 rounded-xl transition-all', showSettings
-              ? 'bg-violet-600 text-white shadow-lg shadow-violet-900/50'
-              : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white')}
-          >
-            <Settings className="w-4 h-4" />
-          </button>
+            icon={Settings}
+            size="sm"
+            className="!p-2"
+          />
           {cameraStatus === 'error' && (
-            <button
+            <Btn
+              variant="danger"
               onClick={() => setScannerKey(k => k + 1)}
-              title="Retry Camera"
-              className="p-2 rounded-xl bg-red-900/50 hover:bg-red-800 text-red-400 hover:text-white transition-all"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
+              icon={RefreshCw}
+              size="sm"
+              className="!p-2"
+            />
           )}
-          <button
+          <Btn
+            variant="secondary"
             onClick={toggleFullscreen}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all"
-          >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-          </button>
+            icon={isFullscreen ? Minimize2 : Maximize2}
+            size="sm"
+            className="!p-2"
+          />
         </div>
       </div>
 
@@ -655,12 +653,14 @@ export default function QRScanner() {
                 </div>
                 <p className="text-red-400 font-black text-sm mb-2 uppercase tracking-widest">Camera Unavailable</p>
                 <p className="text-slate-500 text-xs max-w-xs mb-6 leading-relaxed">{cameraError}</p>
-                <button
+                <Btn
+                  variant="primary"
                   onClick={() => setScannerKey(k => k + 1)}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black uppercase tracking-wide transition"
+                  icon={RefreshCw}
+                  className="px-8 py-4 text-sm"
                 >
-                  <RefreshCw className="w-4 h-4" /> Retry Camera
-                </button>
+                  Retry Camera
+                </Btn>
               </div>
             )}
 
@@ -776,18 +776,18 @@ export default function QRScanner() {
                     <Keyboard className="w-3 h-3" /> Manual QR Payload Entry
                   </p>
                   <form onSubmit={handleManualSubmit} className="flex gap-2">
-                    <input
+                    <Input
                       value={manualInput}
                       onChange={e => setManualInput(e.target.value)}
                       placeholder='{"type":"student_attendance","student_id":"..."}'
-                      className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white font-mono placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 transition"
+                      className="flex-1 !bg-slate-800 !border-slate-700 !text-white font-mono"
                     />
-                    <button
+                    <Btn
                       type="submit"
-                      className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black transition shrink-0"
+                      variant="primary"
                     >
                       Process
-                    </button>
+                    </Btn>
                   </form>
                 </div>
               </motion.div>
@@ -845,44 +845,38 @@ export default function QRScanner() {
 
                   {/* Camera Selector */}
                   <div>
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5 flex items-center gap-1">
-                      <Camera className="w-3 h-3 text-indigo-400" /> Camera
-                    </label>
-                    <select
+                    <Select
+                      label="Camera"
                       value={selectedCameraId}
                       onChange={e => { setSelectedCameraId(e.target.value); setScannerKey(k => k + 1); }}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 transition"
+                      className="!bg-slate-800 !border-slate-700 !text-white"
                     >
                       <option value="">Default (back / environment camera)</option>
                       {availableCameras.map(c => (
                         <option key={c.id} value={c.id}>{c.label}</option>
                       ))}
-                    </select>
+                    </Select>
                     <p className="text-[9px] text-slate-600 mt-1">Changing camera restarts the scanner</p>
                   </div>
 
                   {/* Session Name */}
                   <div>
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">
-                      Session Name
-                    </label>
-                    <input
+                    <Input
+                      label="Session Name"
                       value={sessionName}
                       onChange={e => setSessionName(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 transition"
+                      className="!bg-slate-800 !border-slate-700 !text-white"
                     />
                   </div>
 
                   {/* Late After */}
                   <div>
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5 flex items-center gap-1">
-                      <Timer className="w-3 h-3 text-orange-400" /> Late Threshold
-                    </label>
-                    <input
+                    <Input
+                      label="Late Threshold"
                       type="time"
                       value={lateAfter}
                       onChange={e => setLateAfter(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500 transition"
+                      className="!bg-slate-800 !border-slate-700 !text-white"
                     />
                     <p className="text-[9px] text-slate-600 mt-1">
                       Arrivals after this time are marked Late
@@ -960,16 +954,12 @@ export default function QRScanner() {
                       <p className="text-[10px] text-slate-500 truncate font-medium">{log.role}</p>
                     </div>
                     <div className="text-right shrink-0">
-                      <span className={cn(
-                        'text-[9px] font-black px-2 py-0.5 rounded-full',
-                        log.attendanceStatus === 'late'
-                          ? 'bg-orange-500/20 text-orange-400'
-                          : log.action === 'in'
-                          ? 'bg-emerald-500/20 text-emerald-400'
-                          : 'bg-amber-500/20 text-amber-400',
-                      )}>
+                      <Badge
+                        variant={log.attendanceStatus === 'late' ? 'danger' : log.action === 'in' ? 'success' : 'warning'}
+                        className="text-[9px]"
+                      >
                         {log.attendanceStatus === 'late' ? 'LATE' : log.action === 'in' ? 'IN' : 'OUT'}
-                      </span>
+                      </Badge>
                       <p className="text-[10px] text-slate-600 mt-0.5">{log.time}</p>
                     </div>
                   </motion.div>

@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { MessageSquare, Download, MessageCircle } from 'lucide-react';
+import { MessageSquare, Download, MessageCircle, Filter, ChevronLeft, ChevronRight, User } from 'lucide-react';
 import { openWhatsApp } from '../../lib/whatsappTemplates';
 import { exportToCSV } from '../../lib/exportUtils';
 import { formatDate } from '../../lib/utils';
+import { PageHeader, Card, Btn, Badge, Select, EmptyState } from '../../components/ui';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '../../lib/utils';
 
 interface LogEntry {
   id: string;
@@ -49,126 +52,178 @@ export default function SMSHistory() {
     setLoading(false);
   };
 
-  const statusColors: Record<string, string> = {
-    sent: 'bg-green-100 text-green-800',
-    delivered: 'bg-blue-100 text-blue-800',
-    failed: 'bg-red-100 text-red-800',
-    logged: 'bg-gray-100 text-gray-700',
-    ready: 'bg-yellow-100 text-yellow-800',
+  const getStatusVariant = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'sent':
+      case 'delivered': return 'success';
+      case 'failed': return 'danger';
+      case 'logged': return 'neutral';
+      case 'ready': return 'warning';
+      default: return 'neutral';
+    }
   };
 
-  const channelIcons: Record<string, string> = { whatsapp: '💬', sms: '📱', email: '✉️' };
+  const channelIcons: Record<string, string> = { 
+    whatsapp: '💬', 
+    sms: '📱', 
+    email: '✉️' 
+  };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <MessageSquare className="w-6 h-6 text-green-600" /> Communication History
-          </h1>
-          <p className="text-gray-500 text-sm mt-1">WhatsApp, SMS, and email messages sent to parents and staff.</p>
-        </div>
-        <button onClick={() => exportToCSV('communication-history', logs, [
-          { header: 'Date', key: 'sent_at' }, { header: 'Channel', key: 'channel' },
-          { header: 'Recipient', key: 'recipient_number' }, { header: 'Parent', key: 'parent_name' },
-          { header: 'Message', key: 'message_content' }, { header: 'Status', key: 'status' },
-        ])} className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50">
-          <Download className="w-4 h-4" /> Export
-        </button>
-      </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <PageHeader
+        title="Communication History"
+        subtitle="Audit logs for WhatsApp, SMS, and email messages sent to stakeholders."
+        actions={
+          <Btn 
+            variant="outline" 
+            onClick={() => exportToCSV('communication-history', logs, [
+              { header: 'Date', key: 'sent_at' }, { header: 'Channel', key: 'channel' },
+              { header: 'Recipient', key: 'recipient_number' }, { header: 'Parent', key: 'parent_name' },
+              { header: 'Message', key: 'message_content' }, { header: 'Status', key: 'status' },
+            ])}
+            icon={Download}
+          >
+            Export CSV
+          </Btn>
+        }
+      />
 
-      {/* Filters */}
-      <div className="flex gap-4 flex-wrap">
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Channel</label>
-          <select value={channelFilter} onChange={e => { setChannelFilter(e.target.value); setPage(0); }}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500">
+      <Card className="p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+          <Select
+            label="Channel"
+            value={channelFilter}
+            onChange={e => { setChannelFilter(e.target.value); setPage(0); }}
+            icon={Filter}
+          >
             <option value="all">All Channels</option>
             <option value="whatsapp">WhatsApp</option>
             <option value="sms">SMS</option>
             <option value="email">Email</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
-          <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(0); }}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500">
+          </Select>
+          <Select
+            label="Status"
+            value={statusFilter}
+            onChange={e => { setStatusFilter(e.target.value); setPage(0); }}
+            icon={Filter}
+          >
             <option value="all">All Status</option>
             <option value="sent">Sent</option>
             <option value="delivered">Delivered</option>
             <option value="failed">Failed</option>
             <option value="logged">Logged</option>
-          </select>
+          </Select>
         </div>
-      </div>
+      </Card>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        {loading ? (
-          <div className="p-12 text-center text-gray-400">Loading messages...</div>
-        ) : logs.length === 0 ? (
-          <div className="p-12 text-center text-gray-400">
-            <MessageSquare className="w-10 h-10 mx-auto mb-3 text-gray-200" />
-            <p>No messages found for the selected filters.</p>
-            <p className="text-xs mt-1">Messages are logged when sent from the Communication module.</p>
-          </div>
-        ) : (
-          <>
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left font-medium text-gray-500">Date & Time</th>
-                  <th className="px-6 py-3 text-left font-medium text-gray-500">Channel</th>
-                  <th className="px-6 py-3 text-left font-medium text-gray-500">Recipient</th>
-                  <th className="px-6 py-3 text-left font-medium text-gray-500">Parent</th>
-                  <th className="px-6 py-3 text-left font-medium text-gray-500 max-w-xs">Message</th>
-                  <th className="px-6 py-3 text-center font-medium text-gray-500">Status</th>
-                  <th className="px-6 py-3 text-right font-medium text-gray-500">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {logs.map(log => (
-                  <tr key={log.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-gray-500 text-xs whitespace-nowrap">
-                      {formatDate(log.sent_at)}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="flex items-center gap-1 text-gray-700">
-                        <span>{channelIcons[log.channel] || '📨'}</span>
-                        <span className="capitalize text-xs">{log.channel}</span>
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 font-mono text-xs text-gray-600">{log.recipient_number || '—'}</td>
-                    <td className="px-6 py-4 text-gray-700">{log.parent_name}</td>
-                    <td className="px-6 py-4 text-gray-600 max-w-xs">
-                      <p className="truncate">{log.message_content}</p>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${statusColors[log.status] || 'bg-gray-100 text-gray-700'}`}>
-                        {log.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button 
-                        onClick={() => openWhatsApp(log.recipient_number, log.message_content)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-colors border border-green-200 shadow-sm"
-                      >
-                        <MessageCircle className="w-3 h-3" /> Resend
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="flex justify-between items-center p-4 border-t border-gray-100">
-              <p className="text-xs text-gray-400">Showing page {page + 1} · {PAGE_SIZE} records per page</p>
-              <div className="flex gap-2">
-                <button disabled={page === 0} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 text-xs border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40">← Previous</button>
-                <button disabled={logs.length < PAGE_SIZE} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 text-xs border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40">Next →</button>
-              </div>
+      <Card className="p-0 overflow-hidden border-none shadow-xl">
+        <div className="overflow-x-auto">
+          {loading ? (
+            <div className="p-20 text-center">
+              <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="mt-4 text-slate-400 font-bold uppercase text-[10px] tracking-widest">Fetching logs...</p>
             </div>
-          </>
-        )}
-      </div>
+          ) : logs.length === 0 ? (
+            <EmptyState
+              icon={MessageSquare}
+              title="No Logs Found"
+              description="No communication logs match the selected filters."
+            />
+          ) : (
+            <>
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100">
+                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Date & Time</th>
+                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Channel</th>
+                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Recipient</th>
+                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Parent/Staff</th>
+                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Message Content</th>
+                    <th className="p-6 text-center text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
+                    <th className="p-6 text-right text-[10px] font-black uppercase tracking-widest text-slate-400">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {logs.map((log, i) => (
+                    <motion.tr 
+                      key={log.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.01 }}
+                      className="hover:bg-slate-50 transition-all group"
+                    >
+                      <td className="p-6 text-xs text-slate-400 font-bold tabular-nums">
+                        {formatDate(log.sent_at)}
+                      </td>
+                      <td className="p-6">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{channelIcons[log.channel] || '📨'}</span>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">{log.channel}</span>
+                        </div>
+                      </td>
+                      <td className="p-6 text-xs font-mono text-slate-500">{log.recipient_number || '—'}</td>
+                      <td className="p-6">
+                        <div className="flex items-center gap-2">
+                          <User className="w-3.5 h-3.5 text-slate-300" />
+                          <p className="text-sm font-black text-slate-900 uppercase tracking-tight truncate max-w-[120px]">{log.parent_name}</p>
+                        </div>
+                      </td>
+                      <td className="p-6">
+                        <p className="text-xs text-slate-500 max-w-xs truncate group-hover:whitespace-normal group-hover:line-clamp-2 transition-all">
+                          {log.message_content}
+                        </p>
+                      </td>
+                      <td className="p-6 text-center">
+                        <Badge variant={getStatusVariant(log.status)}>
+                          {log.status}
+                        </Badge>
+                      </td>
+                      <td className="p-6 text-right">
+                        <Btn 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => openWhatsApp(log.recipient_number, log.message_content)}
+                          className="text-[10px] tracking-widest px-4 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                          icon={MessageCircle}
+                        >
+                          Resend
+                        </Btn>
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="p-6 border-t border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  Showing page {page + 1} · {PAGE_SIZE} records per page
+                </p>
+                <div className="flex gap-2">
+                  <Btn 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={page === 0} 
+                    onClick={() => setPage(p => p - 1)}
+                    icon={ChevronLeft}
+                  >
+                    Prev
+                  </Btn>
+                  <Btn 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={logs.length < PAGE_SIZE} 
+                    onClick={() => setPage(p => p + 1)}
+                    className="flex-row-reverse"
+                    icon={ChevronRight}
+                  >
+                    Next
+                  </Btn>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </Card>
     </div>
   );
 }

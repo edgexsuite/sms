@@ -124,56 +124,61 @@ export async function* streamGemini(
   systemPrompt: string,
   history: { role: 'user' | 'model'; text: string }[]
 ): AsyncGenerator<string> {
-  const messages = [
-    { role: 'system', content: systemPrompt },
+  const contents = [
+    { role: 'user', parts: [{ text: systemPrompt }] },
+    { role: 'model', parts: [{ text: "Understood. I am EduBot, your AI assistant. How can I help you today?" }] },
     ...history.map(m => ({
-      role: m.role === 'model' ? 'assistant' : 'user',
-      content: m.text,
+      role: m.role === 'model' ? 'model' : 'user',
+      parts: [{ text: m.text }],
     })),
   ];
 
   const provider = 'groq';
   const endpoint = 'chat/completions';
-
   const payload = {
     model: 'llama-3.1-8b-instant',
-    messages,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      ...history.map(m => ({
+        role: m.role === 'model' ? 'assistant' : 'user',
+        content: m.text,
+      })),
+    ],
     stream: true,
     temperature: 0.4,
   };
 
   const isDev = import.meta.env.DEV;
-  const apiKey = import.meta.env.VITE_GROQ_API_KEY || (typeof process !== 'undefined' ? process.env.GROQ_API_KEY : null);
+  const apiKey = import.meta.env.VITE_GROQ_API_KEY;
 
   let targetUrl: string;
-  let authHeader: string | null;
+  let authHeader: string | null = null;
 
-  if (isDev && provider === 'groq' && apiKey) {
+  if (isDev && apiKey) {
     targetUrl = `https://api.groq.com/openai/v1/${endpoint}`;
     authHeader = `Bearer ${apiKey}`;
   } else {
     targetUrl = '/api/ai-proxy';
-    authHeader = null; // Proxy adds the header
   }
 
   const response = await fetch(targetUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(authHeader ? { 'Authorization': authHeader } : {}) },
-    body: JSON.stringify(isDev && provider === 'groq' ? payload : { provider, endpoint, payload }),
+    headers: { 
+      'Content-Type': 'application/json',
+      ...(authHeader ? { 'Authorization': authHeader } : {})
+    },
+    body: JSON.stringify(isDev && apiKey ? payload : { provider, endpoint, payload }),
   });
 
   if (!response.ok || !response.body) {
-    let errorMessage = 'Failed to get response from AI Proxy.';
+    let errorDetail = '';
     try {
-      const errorData = await response.json();
-      errorMessage = errorData?.error?.message || errorData?.error || errorMessage;
-      if (response.status === 429) {
-        errorMessage = `AI quota or rate limit hit. ${errorMessage}`;
-      }
+      const errorJson = await response.json();
+      errorDetail = errorJson.error?.message || errorJson.error || JSON.stringify(errorJson);
     } catch {
-      // Ignore JSON parse failure and use the fallback message.
+      errorDetail = `Status: ${response.status} ${response.statusText}`;
     }
-    throw new Error(errorMessage);
+    throw new Error(`AI Engine Error: ${errorDetail}`);
   }
 
   const reader = response.body.getReader();
@@ -185,27 +190,39 @@ export async function* streamGemini(
     if (done) break;
 
     buffer += decoder.decode(value, { stream: true });
-    const events = buffer.split('\n\n');
-    buffer = events.pop() || '';
-
-    for (const event of events) {
-      const lines = event
-        .split('\n')
-        .map(line => line.trim())
-        .filter(Boolean)
-        .filter(line => line.startsWith('data:'));
-
-      for (const line of lines) {
-        const data = line.slice(5).trim();
-        if (data === '[DONE]') return;
-
-        try {
-          const json = JSON.parse(data);
-          const delta = json?.choices?.[0]?.delta?.content;
-          if (delta) yield delta;
-        } catch {
-          // Ignore malformed chunks and continue streaming.
+    
+    // Gemini streaming returns a JSON array of candidates
+    // It often comes in chunks like [ { "candidates": [...] }, { ... } ]
+    // We need to parse these carefully.
+    
+    let startIdx = buffer.indexOf('{');
+    while (startIdx !== -1) {
+      let braceCount = 0;
+      let endIdx = -1;
+      
+      for (let i = startIdx; i < buffer.length; i++) {
+        if (buffer[i] === '{') braceCount++;
+        else if (buffer[i] === '}') braceCount--;
+        
+        if (braceCount === 0) {
+          endIdx = i;
+          break;
         }
+      }
+      
+      if (endIdx !== -1) {
+        const jsonStr = buffer.slice(startIdx, endIdx + 1);
+        try {
+          const json = JSON.parse(jsonStr);
+          const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) yield text;
+        } catch (e) {
+          // Incomplete or malformed JSON, skip
+        }
+        buffer = buffer.slice(endIdx + 1);
+        startIdx = buffer.indexOf('{');
+      } else {
+        break;
       }
     }
   }

@@ -4,8 +4,10 @@ import { useAuth } from '../../contexts/AuthContext';
 import QRCode from 'react-qr-code';
 import {
   Printer, QrCode, GraduationCap, Briefcase, ChevronDown,
-  Users, Search, CheckSquare, Square,
+  Users, Search, CheckSquare, Square, Download
 } from 'lucide-react';
+import { PageHeader, Card, Btn, Badge, Select, Input, EmptyState } from '../../components/ui';
+import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';
 
 type Tab = 'students' | 'staff';
@@ -84,193 +86,192 @@ export default function QRAttendanceCards() {
     JSON.stringify({ type: 'staff_attendance', staff_id: id });
 
   return (
-    <div className="space-y-4 max-w-6xl mx-auto">
-
-      {/* ── Page header ── */}
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       <style>{`
         @media print {
           body * { visibility: hidden !important; }
           #qr-cards-print, #qr-cards-print * { visibility: visible !important; }
-          #qr-cards-print { position: fixed; top: 0; left: 0; width: 100%; }
+          #qr-cards-print { 
+            position: absolute !important; 
+            top: 0 !important; 
+            left: 0 !important; 
+            width: 100% !important; 
+            background: white !important;
+            padding: 0 !important;
+          }
           .no-print { display: none !important; }
+          @page { size: portrait; margin: 10mm; }
         }
       `}</style>
 
-      <div className="no-print flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-black uppercase tracking-tight text-slate-900 flex items-center gap-2">
-            <QrCode className="w-5 h-5 text-indigo-600" /> QR Attendance Cards
-          </h1>
-          <p className="text-slate-500 text-sm mt-0.5">
-            Print QR cards to hand out — students & staff scan these at the kiosk.
-          </p>
-        </div>
-        <button
-          onClick={handlePrint}
-          className="no-print flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-black text-sm uppercase tracking-wide transition shadow-lg shadow-indigo-200"
-        >
-          <Printer className="w-4 h-4" />
-          Print {toPrint.length} Card{toPrint.length !== 1 ? 's' : ''}
-        </button>
-      </div>
-
-      {/* ── Tabs ── */}
-      <div className="no-print flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
-        {([
-          { key: 'students', label: 'Students', Icon: GraduationCap },
-          { key: 'staff',    label: 'Staff',    Icon: Briefcase },
-        ] as const).map(({ key, label, Icon }) => (
-          <button
-            key={key}
-            onClick={() => { setTab(key); setSelected(new Set()); setSearch(''); }}
-            className={cn(
-              'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-black uppercase tracking-wide transition-all',
-              tab === key
-                ? 'bg-white text-indigo-600 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700',
-            )}
+      <PageHeader
+        title="QR Attendance Cards"
+        subtitle="Generate and print secure QR identifiers for students and staff personnel."
+        actions={
+          <Btn 
+            variant="primary" 
+            onClick={handlePrint} 
+            icon={Printer}
+            className="px-8 shadow-indigo-200"
           >
-            <Icon className="w-4 h-4" /> {label}
-          </button>
-        ))}
-      </div>
+            Print {toPrint.length} Card{toPrint.length !== 1 ? 's' : ''}
+          </Btn>
+        }
+      />
 
-      {/* ── Filters ── */}
-      <div className="no-print flex flex-wrap gap-3 items-center">
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search name…"
-            className="pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 w-52"
-          />
-        </div>
-
-        {/* Class filter (students only) */}
-        {tab === 'students' && (
-          <div className="relative">
-            <select
-              value={classFilter}
-              onChange={e => { setClassFilter(e.target.value); setSelected(new Set()); }}
-              className="appearance-none pl-3 pr-8 py-2 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200"
-            >
-              <option value="all">All Classes</option>
-              {classes.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.name}{c.section ? ` (${c.section})` : ''}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-          </div>
-        )}
-
-        {/* Selection buttons */}
-        <div className="flex gap-2 ml-auto">
-          <button
-            onClick={selectAll}
-            className="flex items-center gap-1.5 text-xs font-black px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition"
-          >
-            <CheckSquare className="w-3.5 h-3.5" /> Select All
-          </button>
-          {selected.size > 0 && (
-            <button
-              onClick={selectNone}
-              className="flex items-center gap-1.5 text-xs font-black px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition"
-            >
-              <Square className="w-3.5 h-3.5" /> Clear ({selected.size})
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* ── Info strip ── */}
-      <div className="no-print flex items-center gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5">
-        <Users className="w-3.5 h-3.5 shrink-0" />
-        <span>
-          Showing <strong>{items.length}</strong> {tab}.
-          {selected.size > 0
-            ? ` ${selected.size} selected — only selected cards will print.`
-            : ' All cards will print. Select specific ones to print a subset.'}
-        </span>
-      </div>
-
-      {/* ── Card Grid (screen preview) ── */}
-      {loading ? (
-        <div className="flex items-center justify-center h-48 text-slate-400 text-sm">
-          Loading…
-        </div>
-      ) : items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-48 text-slate-400">
-          <QrCode className="w-10 h-10 mb-3 opacity-30" />
-          <p className="text-sm font-bold">No {tab} found</p>
-        </div>
-      ) : (
-        <div className="no-print grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
-          {items.map(item => {
-            const isSelected = selected.has(item.id);
-            const cls = (item.classes as any);
-            const className = cls ? `${cls.name}${cls.section ? ` · ${cls.section}` : ''}` : '';
-            return (
-              <div
-                key={item.id}
-                onClick={() => toggleSelect(item.id)}
+      <div className="no-print space-y-8">
+        <div className="flex flex-col md:flex-row gap-6 items-end">
+          <Card className="p-1 flex bg-slate-100 rounded-2xl w-fit shrink-0">
+            {([
+              { key: 'students', label: 'Students', Icon: GraduationCap },
+              { key: 'staff',    label: 'Staff',    Icon: Briefcase },
+            ] as const).map(({ key, label, Icon }) => (
+              <button
+                key={key}
+                onClick={() => { setTab(key); setSelected(new Set()); setSearch(''); }}
                 className={cn(
-                  'cursor-pointer rounded-2xl border-2 p-3 flex flex-col items-center gap-2 transition-all',
-                  isSelected
-                    ? 'border-indigo-400 bg-indigo-50 shadow-md shadow-indigo-100'
-                    : 'border-slate-200 bg-white hover:border-indigo-200 hover:shadow-sm',
+                  'flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all',
+                  tab === key
+                    ? 'bg-white text-indigo-600 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 hover:bg-white/50',
                 )}
               >
-                {/* Photo */}
-                <div className="w-14 h-14 rounded-xl overflow-hidden bg-slate-100 border border-slate-200">
-                  {item.photograph_url ? (
-                    <img src={item.photograph_url} alt={item.full_name}
-                      className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-slate-400 font-black text-xl">
-                      {item.full_name.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                </div>
-                {/* QR */}
-                <div className="bg-white p-1.5 rounded-lg border border-slate-100">
-                  <QRCode
-                    value={tab === 'students'
-                      ? studentQR(item.id, item.roll_number)
-                      : staffQR(item.id)}
-                    size={64}
-                    level="M"
-                  />
-                </div>
-                {/* Info */}
-                <div className="text-center">
-                  <p className="text-xs font-black text-slate-900 truncate max-w-[120px]">{item.full_name}</p>
-                  <p className="text-[10px] text-slate-500 truncate max-w-[120px]">
-                    {tab === 'students'
-                      ? `${className}${item.roll_number ? ` · #${item.roll_number}` : ''}`
-                      : item.role}
-                  </p>
-                </div>
-                {/* Selection indicator */}
-                <div className={cn('w-4 h-4 rounded-full border-2 transition-all', isSelected
-                  ? 'bg-indigo-600 border-indigo-600'
-                  : 'border-slate-300')} />
-              </div>
-            );
-          })}
-        </div>
-      )}
+                <Icon className="w-4 h-4" /> {label}
+              </button>
+            ))}
+          </Card>
 
-      {/* ── PRINT LAYOUT ─────────────────────────────────────────────────── */}
-      <div id="qr-cards-print" className="hidden print:block">
+          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+            <Input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by name..."
+              icon={Search}
+              className="font-bold"
+            />
+            {tab === 'students' && (
+              <Select
+                value={classFilter}
+                onChange={e => { setClassFilter(e.target.value); setSelected(new Set()); }}
+                icon={Users}
+              >
+                <option value="all">All Classes</option>
+                {classes.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} {c.section ? `(${c.section})` : ''}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </div>
+        </div>
+
+        <Card className="p-4 bg-slate-50/50 border-none shadow-inner flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Badge variant="neutral" className="px-3 py-1.5 text-[10px]">
+              <Users className="w-3.5 h-3.5 mr-2" />
+              {items.length} {tab.toUpperCase()}
+            </Badge>
+            {selected.size > 0 && (
+              <Badge variant="info" className="px-3 py-1.5 text-[10px] animate-pulse">
+                {selected.size} SELECTED FOR PRINT
+              </Badge>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Btn variant="outline" size="sm" onClick={selectAll} icon={CheckSquare} className="text-[10px] tracking-widest">
+              Select All
+            </Btn>
+            {selected.size > 0 && (
+              <Btn variant="outline" size="sm" onClick={selectNone} icon={Square} className="text-[10px] tracking-widest text-rose-600 border-rose-200 hover:bg-rose-50">
+                Clear Selection
+              </Btn>
+            )}
+          </div>
+        </Card>
+
+        {loading ? (
+          <div className="p-20 text-center">
+            <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="mt-4 text-slate-400 font-bold uppercase text-[10px] tracking-widest">Generating Card Matrix...</p>
+          </div>
+        ) : items.length === 0 ? (
+          <EmptyState
+            icon={QrCode}
+            title={`No ${tab} Found`}
+            description={`We couldn't find any ${tab} matching your current filters.`}
+          />
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-6">
+            {items.map((item, i) => {
+              const isSelected = selected.has(item.id);
+              const cls = (item.classes as any);
+              const className = cls ? `${cls.name}${cls.section ? ` · ${cls.section}` : ''}` : '';
+              return (
+                <motion.div
+                  key={item.id}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: i * 0.02 }}
+                  onClick={() => toggleSelect(item.id)}
+                  className={cn(
+                    'group cursor-pointer rounded-[2rem] border-2 p-5 flex flex-col items-center gap-4 transition-all relative',
+                    isSelected
+                      ? 'border-indigo-500 bg-white shadow-xl shadow-indigo-100 -translate-y-1'
+                      : 'border-slate-100 bg-white hover:border-indigo-200 hover:shadow-lg',
+                  )}
+                >
+                  <div className={cn(
+                    "absolute top-4 right-4 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
+                    isSelected ? "bg-indigo-600 border-indigo-600 scale-110" : "bg-white border-slate-200 group-hover:border-indigo-300"
+                  )}>
+                    {isSelected && <CheckSquare className="w-3 h-3 text-white" />}
+                  </div>
+
+                  <div className="w-20 h-20 rounded-2xl overflow-hidden bg-slate-50 border-2 border-slate-100 shadow-inner group-hover:scale-105 transition-transform duration-500">
+                    {item.photograph_url ? (
+                      <img src={item.photograph_url} alt={item.full_name}
+                        className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-200 font-black text-3xl">
+                        {item.full_name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm group-hover:shadow-md transition-shadow">
+                    <QRCode
+                      value={tab === 'students'
+                        ? studentQR(item.id, item.roll_number)
+                        : staffQR(item.id)}
+                      size={96}
+                      level="M"
+                      className="rounded-lg"
+                    />
+                  </div>
+
+                  <div className="text-center w-full">
+                    <p className="text-sm font-black text-slate-900 uppercase tracking-tight truncate px-2">{item.full_name}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 truncate px-2">
+                      {tab === 'students'
+                        ? `${className}${item.roll_number ? ` · #${item.roll_number}` : ''}`
+                        : item.role}
+                    </p>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── PRINT LAYOUT (Legacy but functional for direct window.print) ── */}
+      <div id="qr-cards-print" className="hidden">
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: '12px',
-          padding: '16px',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '15mm',
+          padding: '10mm',
         }}>
           {toPrint.map(item => {
             const cls = (item.classes as any);
@@ -279,42 +280,42 @@ export default function QRAttendanceCards() {
               <div
                 key={`print-${item.id}`}
                 style={{
-                  border: '2px solid #e2e8f0',
-                  borderRadius: 12,
-                  padding: 12,
+                  border: '2px dashed #cbd5e1',
+                  borderRadius: 24,
+                  padding: 24,
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: 8,
+                  gap: 16,
                   background: '#fff',
                   pageBreakInside: 'avoid',
+                  height: '85mm',
+                  position: 'relative',
                 }}
               >
-                {/* School badge */}
                 <div style={{
                   background: '#4f46e5',
                   color: 'white',
-                  fontSize: 8,
+                  fontSize: 10,
                   fontWeight: 900,
-                  letterSpacing: '0.12em',
+                  letterSpacing: '0.15em',
                   textTransform: 'uppercase',
-                  padding: '3px 10px',
-                  borderRadius: 20,
-                  width: '100%',
+                  padding: '6px 20px',
+                  borderRadius: 30,
+                  width: 'fit-content',
                   textAlign: 'center',
                 }}>
-                  Attendance Card
+                  Attendance Pass
                 </div>
 
-                {/* Photo */}
                 <div style={{
-                  width: 60, height: 60,
-                  borderRadius: 12,
+                  width: 80, height: 80,
+                  borderRadius: 20,
                   overflow: 'hidden',
-                  border: '2px solid #e2e8f0',
-                  background: '#f1f5f9',
+                  border: '3px solid #f1f5f9',
+                  background: '#f8fafc',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 24, fontWeight: 900, color: '#94a3b8',
+                  fontSize: 32, fontWeight: 900, color: '#e2e8f0',
                 }}>
                   {item.photograph_url ? (
                     <img src={item.photograph_url} alt={item.full_name}
@@ -324,32 +325,29 @@ export default function QRAttendanceCards() {
                   )}
                 </div>
 
-                {/* Name & details */}
                 <div style={{ textAlign: 'center', width: '100%' }}>
-                  <p style={{ fontSize: 11, fontWeight: 900, color: '#0f172a', margin: 0, lineHeight: 1.3 }}>
+                  <p style={{ fontSize: 14, fontWeight: 900, color: '#0f172a', margin: 0, textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
                     {item.full_name}
                   </p>
-                  <p style={{ fontSize: 9, color: '#64748b', margin: '2px 0 0', fontWeight: 700 }}>
+                  <p style={{ fontSize: 10, color: '#64748b', margin: '4px 0 0', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     {tab === 'students'
-                      ? `${className}${item.roll_number ? ` · Roll #${item.roll_number}` : ''}`
+                      ? `${className}${item.roll_number ? ` · #${item.roll_number}` : ''}`
                       : `${item.role}${item.department ? ` · ${item.department}` : ''}`}
                   </p>
                 </div>
 
-                {/* QR Code */}
-                <div style={{ background: '#fff', padding: 8, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                <div style={{ background: '#fff', padding: 12, borderRadius: 16, border: '1px solid #f1f5f9' }}>
                   <QRCode
                     value={tab === 'students'
                       ? studentQR(item.id, item.roll_number)
                       : staffQR(item.id)}
-                    size={88}
+                    size={120}
                     level="M"
                   />
                 </div>
 
-                {/* Instruction */}
-                <p style={{ fontSize: 8, color: '#94a3b8', textAlign: 'center', margin: 0, fontWeight: 600 }}>
-                  Scan at attendance kiosk
+                <p style={{ fontSize: 9, color: '#94a3b8', textAlign: 'center', margin: 0, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                  Electronic ID · EdgeX Suite
                 </p>
               </div>
             );
