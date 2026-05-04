@@ -8,6 +8,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import LoadingIndicator from './components/LoadingIndicator';
+import { useForceReload } from './hooks/useForceReload';
 import './i18n/config';
 
 // Lazy load layouts and pages
@@ -58,6 +59,7 @@ const TransportLayout = lazy(() => import('./pages/transport/TransportLayout'));
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { session, loading, roleNotFound, signOut } = useAuth();
+  useForceReload();
 
   if (loading) {
     return <LoadingIndicator />;

@@ -1075,6 +1075,34 @@ export default function Settings() {
                   </label>
                 </div>
 
+                {/* Push Update to All Users */}
+                <div className="border border-indigo-200 bg-indigo-50 rounded-lg p-6">
+                  <h3 className="text-lg font-bold text-indigo-900 mb-2 flex items-center gap-2">
+                    <Play className="w-5 h-5 text-indigo-600" />
+                    Push Update to All Users
+                  </h3>
+                  <p className="text-sm text-indigo-700 mb-4 font-medium">
+                    After a new deployment, click this button to instantly clear the service-worker cache and reload all currently logged-in users' browsers — ensuring everyone gets the latest version without needing to manually refresh.
+                  </p>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await supabase.channel('app-cache-clear').send({
+                          type: 'broadcast',
+                          event: 'force_reload',
+                          payload: { triggeredAt: new Date().toISOString(), triggeredBy: userRole?.user_id },
+                        });
+                        alert('Force-reload signal sent! All logged-in users will refresh momentarily.');
+                      } catch (err: any) {
+                        alert('Failed to send signal: ' + err.message);
+                      }
+                    }}
+                    className="px-6 py-2 bg-indigo-600 text-white rounded-md text-sm font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
+                  >
+                    Push Update Now
+                  </button>
+                </div>
+
                 {/* Emergency Reset Section */}
                 <div className="border border-red-200 bg-red-50 rounded-lg p-6">
                   <h3 className="text-lg font-bold text-red-900 mb-2 flex items-center gap-2">
