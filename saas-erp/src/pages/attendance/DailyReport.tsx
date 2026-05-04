@@ -253,11 +253,12 @@ export default function DailyReport() {
       }
 
       // ── HEADER (white, clean, bordered bottom) ─────────────────────────
-      // Logo box (square, 22×22)
+      // Logo box (square, 22×22) — white fill first removes any dark PNG background
       const LOGO_SIZE = 22;
       const LOGO_X = 8;
       const LOGO_Y = 6;
       if (logoB64) {
+        fill(LOGO_X, LOGO_Y, LOGO_SIZE, LOGO_SIZE, WHITE); // clear dark bg
         doc.addImage(logoB64, 'PNG', LOGO_X, LOGO_Y, LOGO_SIZE, LOGO_SIZE);
       }
 
@@ -335,8 +336,11 @@ export default function DailyReport() {
       // Row height budget: (H - y - 10) for table, 10mm footer
       // With compact padding, ~6mm/row → fits ~25 classes comfortably
 
+      // Table must be exactly W-16 wide (same as stat boxes) — columns scaled to fill
+      // Total col widths: 12+32+62+23×5+26+28 = 275 → tableWidth:281 stretches remainder
       autoTable(doc, {
         startY: y,
+        tableWidth: W - 16,   // ← forces table to same width as stat boxes
         head: [['#','Class','Teacher','Total','Present','Absent','Leave','Late','Unmarked','Att %']],
         body: displayed.map((c, i) => [
           i + 1, c.class_name, c.class_teacher || '—',
@@ -366,16 +370,16 @@ export default function DailyReport() {
         },
         alternateRowStyles: { fillColor: LGRAY },
         columnStyles: {
-          0: { cellWidth: 8,  halign: 'center' },
-          1: { cellWidth: 26, fontStyle: 'bold' },
-          2: { cellWidth: 38 },
-          3: { cellWidth: 16, halign: 'center' },
-          4: { cellWidth: 16, halign: 'center' },
-          5: { cellWidth: 16, halign: 'center' },
-          6: { cellWidth: 16, halign: 'center' },
-          7: { cellWidth: 16, halign: 'center' },
-          8: { cellWidth: 18, halign: 'center' },
-          9: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
+          0: { cellWidth: 12, halign: 'center' },   // # — wide enough for "11" on one line
+          1: { cellWidth: 32, fontStyle: 'bold' },   // Class
+          2: { cellWidth: 62 },                       // Teacher — widest, soaks remainder
+          3: { cellWidth: 23, halign: 'center' },    // Total
+          4: { cellWidth: 23, halign: 'center' },    // Present
+          5: { cellWidth: 23, halign: 'center' },    // Absent
+          6: { cellWidth: 23, halign: 'center' },    // Leave
+          7: { cellWidth: 23, halign: 'center' },    // Late
+          8: { cellWidth: 26, halign: 'center' },    // Unmarked
+          9: { cellWidth: 28, halign: 'center', fontStyle: 'bold' }, // Att %
         },
         didDrawCell: (data: any) => {
           if (data.section !== 'body') return;
