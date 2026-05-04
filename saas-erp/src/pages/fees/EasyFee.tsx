@@ -184,7 +184,7 @@ export default function EasyFee() {
       setIsSearching(true);
       let q = supabase
         .from('students')
-        .select('id, full_name, roll_number, father_name, class:class_id(name, section)')
+        .select('id, full_name, roll_number, class:class_id(name, section)')
         .eq('school_id', userRole!.school_id)
         .eq('status', 'active');
       if (selectedClassId) q = q.eq('class_id', selectedClassId);
@@ -211,7 +211,7 @@ export default function EasyFee() {
     if (!id || !userRole?.school_id) return;
     supabase
       .from('students')
-      .select('id, full_name, roll_number, father_name, class:class_id(name, section), fee_waiver_percentage')
+      .select('id, full_name, roll_number, class:class_id(name, section), fee_waiver_percentage')
       .eq('id', id)
       .eq('school_id', userRole.school_id)
       .maybeSingle()
@@ -344,7 +344,6 @@ export default function EasyFee() {
         student_id:   selectedStudent.id,
         roll_number:  selectedStudent.roll_number,
         class_name:   `${selectedStudent.class?.name || ''}-${selectedStudent.class?.section || ''}`,
-        father_name:  selectedStudent.father_name || '',
         amount,
         date:         payDate,
         mode:         payMode,
@@ -589,9 +588,6 @@ export default function EasyFee() {
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
                             <span className="text-xs font-bold text-white/80 uppercase tracking-widest">{selectedStudent.class?.name}{selectedStudent.class?.section ? ` · ${selectedStudent.class.section}` : ''}</span>
                             <span className="text-xs font-bold text-white/60">Roll #{selectedStudent.roll_number}</span>
-                            {selectedStudent.father_name && (
-                              <span className="text-xs font-bold text-white/60">S/O {selectedStudent.father_name}</span>
-                            )}
                           </div>
                         </div>
                         <button
