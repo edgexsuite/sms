@@ -207,10 +207,10 @@ export default function DailyReport() {
   const handleDownloadPDF = async () => {
     setGeneratingPDF(true);
     try {
-      const { default: jsPDF }   = await import('jspdf');
+      const { default: jsPDF }     = await import('jspdf');
       const { default: autoTable } = await import('jspdf-autotable');
 
-      // Fetch school info for branding
+      // Fetch school branding
       const { data: school } = await supabase
         .from('schools')
         .select('name, address, contact_phone, logo_url')
@@ -218,211 +218,210 @@ export default function DailyReport() {
         .maybeSingle();
 
       const doc = new (jsPDF as any)({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-      const W = 297; // A4 landscape width mm
+      const W = 297; const H = 210; // A4 landscape mm
 
-      // ── colour palette ──────────────────────────────────────────────────
-      const NAVY   : [number,number,number] = [15,  23,  42 ];
-      const INDIGO : [number,number,number] = [67,  56,  202];
-      const GREEN  : [number,number,number] = [22,  163, 74 ];
-      const RED    : [number,number,number] = [220, 38,  38 ];
-      const AMBER  : [number,number,number] = [217, 119, 6  ];
-      const BLUE   : [number,number,number] = [37,  99,  235];
-      const SLATE  : [number,number,number] = [100, 116, 139];
-      const WHITE  : [number,number,number] = [255, 255, 255];
-      const LGRAY  : [number,number,number] = [248, 250, 252];
-      const MGRAY  : [number,number,number] = [226, 232, 240];
+      // ── palette ────────────────────────────────────────────────────────
+      type RGB = [number,number,number];
+      const INDIGO : RGB = [67,  56,  202];
+      const GREEN  : RGB = [22,  163, 74 ];
+      const RED    : RGB = [220, 38,  38 ];
+      const AMBER  : RGB = [180, 100, 0  ];
+      const BLUE   : RGB = [37,  99,  235];
+      const ORANGE : RGB = [234, 88,  12 ];
+      const SLATE  : RGB = [71,  85,  105];
+      const DARK   : RGB = [15,  23,  42 ];
+      const WHITE  : RGB = [255, 255, 255];
+      const LGRAY  : RGB = [248, 250, 252];
+      const BORDER : RGB = [203, 213, 225];
 
-      // ── helper: draw filled rounded rect ──────────────────────────────
-      const fillRect = (x: number, y: number, w: number, h: number, color: [number,number,number], radius = 0) => {
-        doc.setFillColor(...color);
-        doc.roundedRect(x, y, w, h, radius, radius, 'F');
+      const fill = (x:number,y:number,w:number,h:number,c:RGB,r=0) => {
+        doc.setFillColor(...c); doc.roundedRect(x,y,w,h,r,r,'F');
       };
+      const setTxt = (c:RGB) => doc.setTextColor(...c);
 
-      let y = 8;
-
-      // ── header banner ─────────────────────────────────────────────────
-      fillRect(0, 0, W, 38, NAVY);
-
-      // Try logo
-      let logoLoaded = false;
+      // ── Logo ───────────────────────────────────────────────────────────
+      let logoB64 = '';
       if (school?.logo_url) {
         try {
-          const resp = await fetch(school.logo_url);
-          const blob = await resp.blob();
-          const b64  = await new Promise<string>(resolve => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(blob);
+          const blob = await fetch(school.logo_url).then(r => r.blob());
+          logoB64 = await new Promise<string>(res => {
+            const fr = new FileReader();
+            fr.onloadend = () => res(fr.result as string);
+            fr.readAsDataURL(blob);
           });
-          doc.addImage(b64, 'PNG', 8, 4, 28, 28);
-          logoLoaded = true;
-        } catch { /* no logo */ }
+        } catch { /* skip */ }
       }
 
-      const textX = logoLoaded ? 42 : W / 2;
-      const align = logoLoaded ? 'left' : 'center';
+      // ── HEADER (white, clean, bordered bottom) ─────────────────────────
+      // Logo box (square, 22×22)
+      const LOGO_SIZE = 22;
+      const LOGO_X = 8;
+      const LOGO_Y = 6;
+      if (logoB64) {
+        doc.addImage(logoB64, 'PNG', LOGO_X, LOGO_Y, LOGO_SIZE, LOGO_SIZE);
+      }
 
-      doc.setTextColor(...WHITE);
+      // School name + details (left of centre)
+      const nameX = logoB64 ? LOGO_X + LOGO_SIZE + 4 : 8;
+      setTxt(DARK);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(15);
-      doc.text((school?.name || 'School').toUpperCase(), textX, 16, { align });
+      doc.setFontSize(14);
+      doc.text((school?.name || 'School').toUpperCase(), nameX, 13);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
-      if (school?.address)       doc.text(school.address,       textX, 22, { align });
-      if (school?.contact_phone) doc.text(school.contact_phone, textX, 27, { align });
+      setTxt(SLATE);
+      if (school?.address)       doc.text(school.address,       nameX, 19);
+      if (school?.contact_phone) doc.text(school.contact_phone, nameX, 24);
 
-      // Report title (right-aligned in banner)
+      // Report title (right side)
+      const modeLabel = mode === 'daily' ? 'Daily' : mode === 'weekly' ? 'Weekly' : 'Date Range';
+      setTxt(INDIGO);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
-      doc.text('ATTENDANCE REPORT', W - 8, 16, { align: 'right' });
+      doc.setFontSize(13);
+      doc.text('ATTENDANCE REPORT', W - 8, 13, { align: 'right' });
+      setTxt(SLATE);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
-      doc.text(dateLabel, W - 8, 23, { align: 'right' });
-      doc.setFontSize(8);
-      const modeLabel = mode === 'daily' ? 'Daily' : mode === 'weekly' ? 'Weekly' : 'Date Range';
-      doc.text(modeLabel, W - 8, 29, { align: 'right' });
+      doc.text(dateLabel, W - 8, 20, { align: 'right' });
+      doc.setFontSize(7.5);
+      doc.text(modeLabel, W - 8, 26, { align: 'right' });
 
-      y = 44;
+      // Thin indigo rule under header
+      doc.setDrawColor(...INDIGO);
+      doc.setLineWidth(0.6);
+      doc.line(8, 31, W - 8, 31);
 
-      // ── summary stat boxes ─────────────────────────────────────────────
-      const stats = [
-        { label: 'TOTAL ENROLLED', value: T.total,        color: SLATE  },
-        { label: 'PRESENT',        value: T.present,      color: GREEN  },
-        { label: 'ABSENT',         value: T.absent,       color: RED    },
-        { label: 'LATE',           value: T.late,         color: AMBER  },
-        { label: 'ON LEAVE',       value: T.leave,        color: BLUE   },
-        { label: 'UNMARKED',       value: T.not_marked,   color: SLATE  },
-        { label: 'ATTENDANCE',     value: `${overallPct}%`,
-          color: overallPct >= 90 ? GREEN : overallPct >= 75 ? BLUE : RED },
+      let y = 35;
+
+      // ── SUMMARY STAT ROW ──────────────────────────────────────────────
+      const stats: { label: string; value: string|number; color: RGB; bg: RGB }[] = [
+        { label:'ENROLLED',  value:T.total,         color:SLATE,  bg:[241,245,249] },
+        { label:'PRESENT',   value:T.present,       color:GREEN,  bg:[220,252,231] },
+        { label:'ABSENT',    value:T.absent,        color:RED,    bg:[254,226,226] },
+        { label:'LATE',      value:T.late,          color:AMBER,  bg:[254,243,199] },
+        { label:'ON LEAVE',  value:T.leave,         color:BLUE,   bg:[219,234,254] },
+        { label:'UNMARKED',  value:T.not_marked,    color:ORANGE, bg:[255,237,213] },
+        { label:'ATT. RATE', value:`${overallPct}%`,
+          color: overallPct>=90 ? GREEN : overallPct>=75 ? BLUE : RED,
+          bg:    overallPct>=90 ? [220,252,231] : overallPct>=75 ? [219,234,254] : [254,226,226] },
       ];
 
-      const boxW  = (W - 16 - 6 * 3) / 7;
-      const boxH  = 22;
+      const gap   = 2;
+      const boxW  = (W - 16 - gap * 6) / 7;
+      const boxH  = 17;
+
       stats.forEach((s, i) => {
-        const bx = 8 + i * (boxW + 3);
-        // Coloured top bar
-        fillRect(bx, y, boxW, 3, s.color);
-        // White card
-        fillRect(bx, y + 3, boxW, boxH - 3, LGRAY, 1);
+        const bx = 8 + i * (boxW + gap);
+        // Card background
+        fill(bx, y, boxW, boxH, s.bg, 1.5);
+        // Left accent bar
+        fill(bx, y, 2.5, boxH, s.color, 1);
         // Label
-        doc.setTextColor(...SLATE);
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(6);
-        doc.text(s.label, bx + boxW / 2, y + 9, { align: 'center' });
+        doc.setFontSize(5.5);
+        setTxt(SLATE);
+        doc.text(s.label, bx + boxW / 2 + 1, y + 5.5, { align: 'center' });
         // Value
-        doc.setTextColor(...s.color);
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(13);
-        doc.text(String(s.value), bx + boxW / 2, y + 19, { align: 'center' });
+        doc.setFontSize(12);
+        setTxt(s.color);
+        doc.text(String(s.value), bx + boxW / 2 + 1, y + 13.5, { align: 'center' });
       });
 
-      y += boxH + 6;
+      y += boxH + 4;
 
-      // ── attendance table ───────────────────────────────────────────────
-      // Colour-code numeric cells using didDrawCell hook
+      // ── ATTENDANCE TABLE ───────────────────────────────────────────────
+      // Row height budget: (H - y - 10) for table, 10mm footer
+      // With compact padding, ~6mm/row → fits ~25 classes comfortably
+
       autoTable(doc, {
         startY: y,
-        head: [['#', 'Class', 'Teacher', 'Total', 'Present', 'Absent', 'Leave', 'Late', 'Unmarked', 'Att %']],
+        head: [['#','Class','Teacher','Total','Present','Absent','Leave','Late','Unmarked','Att %']],
         body: displayed.map((c, i) => [
-          i + 1,
-          c.class_name,
-          c.class_teacher || '—',
-          c.total,
-          c.present,
-          c.absent,
-          c.leave,
-          c.late,
-          c.not_marked,
+          i + 1, c.class_name, c.class_teacher || '—',
+          c.total, c.present, c.absent, c.leave, c.late, c.not_marked,
           `${c.attendance_pct}%`,
         ]),
-        foot: [['', 'GRAND TOTAL', '', T.total, T.present, T.absent, T.leave, T.late, T.not_marked, `${overallPct}%`]],
+        foot: [['','GRAND TOTAL','',T.total,T.present,T.absent,T.leave,T.late,T.not_marked,`${overallPct}%`]],
         styles: {
-          fontSize: 8,
-          cellPadding: { top: 3, bottom: 3, left: 4, right: 4 },
+          fontSize: 7.5,
+          cellPadding: { top: 2.2, bottom: 2.2, left: 3, right: 3 },
           valign: 'middle',
+          lineColor: BORDER,
+          lineWidth: 0.2,
         },
         headStyles: {
           fillColor: INDIGO,
           textColor: WHITE,
           fontStyle: 'bold',
-          fontSize: 7.5,
+          fontSize: 7,
+          cellPadding: { top: 3, bottom: 3, left: 3, right: 3 },
         },
         footStyles: {
-          fillColor: NAVY,
+          fillColor: DARK,
           textColor: WHITE,
           fontStyle: 'bold',
+          fontSize: 8,
         },
         alternateRowStyles: { fillColor: LGRAY },
         columnStyles: {
-          0: { cellWidth: 9,  halign: 'center', textColor: SLATE as any },
-          1: { cellWidth: 28, fontStyle: 'bold' },
+          0: { cellWidth: 8,  halign: 'center' },
+          1: { cellWidth: 26, fontStyle: 'bold' },
           2: { cellWidth: 38 },
-          3: { cellWidth: 18, halign: 'center' },
-          4: { cellWidth: 18, halign: 'center' },
-          5: { cellWidth: 18, halign: 'center' },
-          6: { cellWidth: 18, halign: 'center' },
-          7: { cellWidth: 18, halign: 'center' },
-          8: { cellWidth: 20, halign: 'center' },
+          3: { cellWidth: 16, halign: 'center' },
+          4: { cellWidth: 16, halign: 'center' },
+          5: { cellWidth: 16, halign: 'center' },
+          6: { cellWidth: 16, halign: 'center' },
+          7: { cellWidth: 16, halign: 'center' },
+          8: { cellWidth: 18, halign: 'center' },
           9: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
         },
-        // Colour individual data cells
         didDrawCell: (data: any) => {
           if (data.section !== 'body') return;
           const col = data.column.index;
           const row = displayed[data.row.index];
           if (!row) return;
-
           const { x, y: cy, width: cw, height: ch } = data.cell;
 
-          const paintCell = (bg: [number,number,number], fg: [number,number,number], val: string) => {
-            doc.setFillColor(...bg);
-            doc.rect(x, cy, cw, ch, 'F');
-            doc.setTextColor(...fg);
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(8);
-            doc.text(val, x + cw / 2, cy + ch / 2 + 1, { align: 'center', baseline: 'middle' });
+          const paint = (bg: RGB, fg: RGB, val: string) => {
+            doc.setFillColor(...bg); doc.rect(x, cy, cw, ch, 'F');
+            doc.setTextColor(...fg); doc.setFont('helvetica','bold'); doc.setFontSize(7.5);
+            doc.text(val, x + cw/2, cy + ch/2 + 0.8, { align:'center', baseline:'middle' });
           };
 
-          if (col === 4 && row.present > 0) {
-            paintCell([220, 252, 231], GREEN, String(row.present));
-          } else if (col === 5 && row.absent > 0) {
-            paintCell([254, 226, 226], RED, String(row.absent));
-          } else if (col === 7 && row.late > 0) {
-            paintCell([254, 243, 199], AMBER, String(row.late));
-          } else if (col === 6 && row.leave > 0) {
-            paintCell([219, 234, 254], BLUE, String(row.leave));
-          } else if (col === 8 && row.not_marked > 0) {
-            paintCell([255, 237, 213], [234, 88, 12], String(row.not_marked));
-          } else if (col === 9) {
-            const pct = row.attendance_pct;
-            const fg  = pct >= 90 ? GREEN : pct >= 75 ? BLUE : RED;
-            const bg  = pct >= 90 ? [220,252,231] : pct >= 75 ? [219,234,254] : [254,226,226];
-            paintCell(bg as [number,number,number], fg, `${pct}%`);
+          if      (col===4 && row.present    >0) paint([220,252,231], GREEN,  String(row.present));
+          else if (col===5 && row.absent     >0) paint([254,226,226], RED,    String(row.absent));
+          else if (col===6 && row.leave      >0) paint([219,234,254], BLUE,   String(row.leave));
+          else if (col===7 && row.late       >0) paint([254,243,199], AMBER,  String(row.late));
+          else if (col===8 && row.not_marked >0) paint([255,237,213], ORANGE, String(row.not_marked));
+          else if (col===9) {
+            const p=row.attendance_pct;
+            paint(
+              p>=90?[220,252,231]:p>=75?[219,234,254]:[254,226,226],
+              p>=90?GREEN:p>=75?BLUE:RED,
+              `${p}%`,
+            );
           }
         },
         margin: { left: 8, right: 8 },
       });
 
-      // ── footer ─────────────────────────────────────────────────────────
-      const pageCount = (doc as any).internal.getNumberOfPages();
-      for (let p = 1; p <= pageCount; p++) {
+      // ── FOOTER LINE ────────────────────────────────────────────────────
+      const pages = (doc as any).internal.getNumberOfPages();
+      for (let p = 1; p <= pages; p++) {
         doc.setPage(p);
-        doc.setFontSize(7);
-        doc.setTextColor(...SLATE);
-        doc.setFont('helvetica', 'normal');
-        doc.text(
-          `Generated on ${new Date().toLocaleString()} · ${school?.name || ''}`,
-          8, 207,
-        );
-        doc.text(`Page ${p} of ${pageCount}`, W - 8, 207, { align: 'right' });
-        // bottom line
-        doc.setDrawColor(...MGRAY);
+        doc.setDrawColor(...BORDER);
         doc.setLineWidth(0.3);
-        doc.line(8, 204, W - 8, 204);
+        doc.line(8, H - 8, W - 8, H - 8);
+        doc.setFontSize(6.5);
+        doc.setFont('helvetica','normal');
+        setTxt(SLATE);
+        doc.text(`Generated: ${new Date().toLocaleString()}`, 8, H - 4);
+        doc.text(`Page ${p} of ${pages}`, W - 8, H - 4, { align:'right' });
       }
 
-      doc.save(`attendance-report-${fromDate}${mode !== 'daily' ? '-to-' + toDate : ''}.pdf`);
+      doc.save(`attendance-report-${fromDate}${mode!=='daily'?`-to-${toDate}`:''}.pdf`);
     } catch (err) {
       console.error('PDF error:', err);
       alert('PDF generation failed. Please try again.');
