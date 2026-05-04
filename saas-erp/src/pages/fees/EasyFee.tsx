@@ -188,7 +188,11 @@ export default function EasyFee() {
         .eq('school_id', userRole!.school_id)
         .eq('status', 'active');
       if (selectedClassId) q = q.eq('class_id', selectedClassId);
-      q = q.or(`full_name.ilike.%${query}%,roll_number.eq.${parseInt(query) || 0}`);
+      const numericQuery = parseInt(query);
+      const orClause = !isNaN(numericQuery)
+        ? `full_name.ilike.%${query}%,roll_number.eq.${numericQuery}`
+        : `full_name.ilike.%${query}%`;
+      q = q.or(orClause);
       const { data } = await q.limit(7);
       setSearchResults(data || []);
       setIsSearching(false);
