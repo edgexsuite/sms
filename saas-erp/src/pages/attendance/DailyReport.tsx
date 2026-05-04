@@ -66,7 +66,7 @@ export default function DailyReport() {
   const fetchReport = async () => {
     setLoading(true);
     const sid = userRole!.school_id;
-    const [{ data: classes }, { data: students }, { data: attData }] = await Promise.all([
+    const [{ data: classes }, { data: students }, { data: attData }, { data: vacData }] = await Promise.all([
       supabase.from('classes').select('id, name, section, staff(full_name)').eq('school_id', sid).order('name'),
       supabase.from('students').select('id, full_name, roll_number, class_id')
         .eq('school_id', sid).eq('status', 'active').eq('is_deleted', false).order('roll_number'),
@@ -76,8 +76,8 @@ export default function DailyReport() {
     ]);
     if (!classes) { setLoading(false); return; }
 
-    const vMatch = (arguments[0] as any[]).find((v: any) => date >= v.start_date && date <= v.end_date);
-    setActiveVacation(vMatch || null);
+    const vMatch = (vacData || []).find((v: any) => date >= v.start_date && date <= v.end_date) || null;
+    setActiveVacation(vMatch);
 
     const attMap: Record<string, { status: string; arrival_time: string | null; departure_time: string | null }> = {};
     attData?.forEach(a => { attMap[a.student_id] = { status: a.status, arrival_time: a.arrival_time, departure_time: a.departure_time }; });
