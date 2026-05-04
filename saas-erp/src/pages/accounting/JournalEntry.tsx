@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { FileText, Plus, Trash2, X, Download, BookOpen } from 'lucide-react';
 import { exportToExcel } from '../../lib/exportUtils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 
 interface JournalLine {
@@ -21,6 +21,8 @@ interface Entry {
   reference_no: string;
   narration: string;
   status: string;
+  is_auto?: boolean;
+  source_transaction_id?: string;
   lines?: JournalLine[];
   total_debit?: number;
 }
@@ -32,6 +34,7 @@ export default function JournalEntry() {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'manual' | 'auto'>('all');
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ entry_date: new Date().toISOString().split('T')[0], reference_no: '', narration: '' });
   const [lines, setLines] = useState<{ id: string; account_id: string; description: string; debit: number; credit: number }[]>([
@@ -129,20 +132,39 @@ export default function JournalEntry() {
     ]);
   };
 
+  const autoCount   = entries.filter(e => e.is_auto).length;
+  const manualCount = entries.filter(e => !e.is_auto).length;
+  const visibleEntries = entries.filter(e =>
+    filter === 'all'    ? true :
+    filter === 'auto'   ? !!e.is_auto :
+                          !e.is_auto
+  );
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-start">
+      <div className="flex justify-between items-start flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <FileText className="w-6 h-6 text-violet-600" /> Journal Entries
           </h1>
-          <p className="text-gray-500 text-sm mt-1">Record double-entry bookkeeping transactions.</p>
+          <p className="text-gray-500 text-sm mt-1">Double-entry bookkeeping — auto-posted from fees &amp; expenses.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Filter tabs */}
+          <div className="flex bg-gray-100 p-0.5 rounded-lg text-xs font-medium">
+            {([['all', 'All', entries.length], ['auto', 'Auto', autoCount], ['manual', 'Manual', manualCount]] as const).map(([val, label, count]) => (
+              <button key={val} onClick={() => setFilter(val)}
+                className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1 ${filter === val ? 'bg-white text-violet-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                {label}
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${filter === val ? 'bg-violet-100 text-violet-700' : 'bg-gray-200 text-gray-500'}`}>{count}</span>
+              </button>
+            ))}
+          </div>
           {entries.length > 0 && (
-            <button onClick={() => exportToExcel('journal-entries', entries, [
+            <button onClick={() => exportToExcel('journal-entries', visibleEntries, [
               { header: 'Date', key: 'entry_date' }, { header: 'Reference', key: 'reference_no' },
               { header: 'Narration', key: 'narration' }, { header: 'Amount', key: 'total_debit' },
+              { header: 'Auto', key: (r: any) => r.is_auto ? 'Yes' : 'No' },
             ])} className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50">
               <Download className="w-4 h-4" /> Export
             </button>
@@ -154,8 +176,8 @@ export default function JournalEntry() {
         </div>
       </div>
 
-      {/* Guidance Banner - Aura Style */}
-      <motion.div 
+      {/* Info Banner */}
+      <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         className="bg-violet-600 rounded-3xl p-6 flex items-center gap-6 shadow-2xl shadow-violet-100 border border-violet-500/20"
@@ -164,10 +186,10 @@ export default function JournalEntry() {
           <BookOpen className="w-6 h-6 text-white" />
         </div>
         <div>
-          <h3 className="text-white font-black text-sm uppercase tracking-widest leading-none">Accounting Adjustment Engine</h3>
+          <h3 className="text-white font-black text-sm uppercase tracking-widest leading-none">Automated Double-Entry Ledger</h3>
           <p className="text-violet-100 text-xs font-bold mt-1.5 opacity-80 leading-relaxed">
-            Record non-cash adjustments, depreciation, and opening balances here. 
-            All real cash outflows must be logged in <span className="underline cursor-pointer" onClick={() => navigate('/expenses')}>Expenses → Daily Expenses</span> for accurate liquidity and day-book tracking.
+            Every fee payment and expense is <span className="text-white">automatically posted here</span> as a balanced journal entry (Dr/Cr).
+            Use <span className="underline cursor-pointer" onClick={() => setShowModal(true)}>New Entry</span> only for manual adjustments — depreciation, opening balances, corrections.
           </p>
         </div>
       </motion.div>
@@ -180,10 +202,13 @@ export default function JournalEntry() {
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         {loading ? <div className="p-12 text-center text-gray-400">Loading...</div>
-          : entries.length === 0 ? (
+          : visibleEntries.length === 0 ? (
             <div className="p-12 text-center text-gray-400">
               <FileText className="w-12 h-12 mx-auto mb-3 text-gray-200" />
-              <p>No journal entries yet. Click "New Entry" to post your first transaction.</p>
+              {entries.length === 0
+                ? <p>No journal entries yet. Collect a fee or add an expense and they will appear here automatically.</p>
+                : <p>No entries match the selected filter.</p>
+              }
             </div>
           ) : (
             <table className="w-full text-sm">
@@ -193,18 +218,21 @@ export default function JournalEntry() {
                   <th className="px-5 py-3 text-left font-medium text-gray-500">Reference</th>
                   <th className="px-5 py-3 text-left font-medium text-gray-500">Narration</th>
                   <th className="px-5 py-3 text-right font-medium text-gray-500">Amount (Dr)</th>
-                  <th className="px-5 py-3 text-center font-medium text-gray-500">Status</th>
+                  <th className="px-5 py-3 text-center font-medium text-gray-500">Source</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {entries.map(e => (
-                  <tr key={e.id} className="hover:bg-gray-50">
+                {visibleEntries.map(e => (
+                  <tr key={e.id} className={`hover:bg-gray-50 ${e.is_auto ? 'bg-violet-50/30' : ''}`}>
                     <td className="px-5 py-3 text-gray-600 text-xs whitespace-nowrap">{e.entry_date}</td>
                     <td className="px-5 py-3 font-mono text-xs text-gray-500">{e.reference_no || '—'}</td>
-                    <td className="px-5 py-3 text-gray-900">{e.narration}</td>
-                    <td className="px-5 py-3 text-right font-medium text-gray-900">{(e.total_debit || 0).toLocaleString()}</td>
+                    <td className="px-5 py-3 text-gray-900 max-w-xs truncate" title={e.narration}>{e.narration}</td>
+                    <td className="px-5 py-3 text-right font-medium text-gray-900">Rs. {(e.total_debit || 0).toLocaleString()}</td>
                     <td className="px-5 py-3 text-center">
-                      <span className="px-2 py-0.5 bg-green-100 text-green-800 text-xs font-medium rounded-full">Posted</span>
+                      {e.is_auto
+                        ? <span className="px-2 py-0.5 bg-violet-100 text-violet-700 text-xs font-bold rounded-full">AUTO</span>
+                        : <span className="px-2 py-0.5 bg-green-100 text-green-800 text-xs font-medium rounded-full">Manual</span>
+                      }
                     </td>
                   </tr>
                 ))}
