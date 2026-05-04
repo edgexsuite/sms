@@ -189,10 +189,13 @@ export default function EasyFee() {
         .eq('status', 'active');
       if (selectedClassId) q = q.eq('class_id', selectedClassId);
       const numericQuery = parseInt(query);
-      const orClause = !isNaN(numericQuery)
-        ? `full_name.ilike.%${query}%,roll_number.eq.${numericQuery}`
-        : `full_name.ilike.%${query}%`;
-      q = q.or(orClause);
+      if (!isNaN(numericQuery)) {
+        // numeric input → search by roll number OR name
+        q = q.or(`full_name.ilike.%${query}%,roll_number.eq.${numericQuery}`);
+      } else {
+        // text input → plain ilike, avoids or() with single condition which PostgREST rejects
+        q = q.ilike('full_name', `%${query}%`);
+      }
       const { data } = await q.limit(7);
       setSearchResults(data || []);
       setIsSearching(false);
