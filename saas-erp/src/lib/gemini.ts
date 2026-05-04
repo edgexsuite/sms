@@ -1,3 +1,4 @@
+import { GoogleGenAI } from "@google/genai";
 import { supabase } from './supabase';
 
 export interface SchoolContext {
@@ -92,12 +93,14 @@ export async function fetchSchoolContext(schoolId: string): Promise<SchoolContex
 }
 
 export function buildSystemPrompt(ctx: SchoolContext, schoolName: string): string {
+  if (!ctx) return `You are EduBot, the AI assistant for ${schoolName}.`;
+
   const attLine = ctx.attPct !== null
     ? `${ctx.attPct}% (${ctx.presentToday} present, ${ctx.absentToday} absent out of ${ctx.totalMarkedToday} marked)`
     : 'Not yet marked for today';
 
   const feeLine = ctx.collectionPct !== null
-    ? `${ctx.collectionPct}% collected — ${ctx.feeCollected.toLocaleString()} of ${ctx.feeDue.toLocaleString()} due this month`
+    ? `${ctx.collectionPct}% collected — ${(ctx.feeCollected || 0).toLocaleString()} of ${(ctx.feeDue || 0).toLocaleString()} due this month`
     : 'No fee data for current month';
 
   return `You are EduBot, the AI assistant for ${schoolName} school management system.
@@ -110,120 +113,71 @@ export function buildSystemPrompt(ctx: SchoolContext, schoolName: string): strin
 - Open complaints: ${ctx.openComplaints}
 - Pending leave requests: ${ctx.pendingLeave}
 
+== Task Execution Capabilities ==
+You can perform tasks by proposing them in your response using this EXACT format:
+[[TASK: task_name, { "param1": "value1", ... }]]
+
+Available Tasks:
+1. broadcast_notification: { "title": "string", "message": "string", "target": "all" | "teachers" | "parents" }
+   - Use this for school-wide alerts, holiday notices, or general announcements.
+2. prepare_whatsapp: { "phone": "string", "message": "string" }
+   - Use this when the user asks to "send a message" to a specific number.
+
 == Instructions ==
-- Be concise and actionable. Lead with the insight, then give context.
-- Use the real data above when answering questions about attendance, fees, students, or staff.
-- Format numbers with commas. Use percentages clearly.
-- When suggesting actions, be specific (e.g., "send a reminder to parents of the ${ctx.absentToday} absent students").
-- If something is outside the data provided, say so honestly — do not guess.
-- Keep responses under 250 words unless the user explicitly asks for more detail.
-- You can suggest follow-up questions at the end of your response.`;
+- Be concise and actionable.
+- If a user request involves an action (like "Send a notice" or "Remind parents"), ALWAYS include the [[TASK: ...]] tag at the end of your response.
+- Use the real data above when answering.
+- Keep responses under 250 words.`;
 }
 
 export async function* streamGemini(
   systemPrompt: string,
   history: { role: 'user' | 'model'; text: string }[]
 ): AsyncGenerator<string> {
-  const contents = [
-    { role: 'user', parts: [{ text: systemPrompt }] },
-    { role: 'model', parts: [{ text: "Understood. I am EduBot, your AI assistant. How can I help you today?" }] },
-    ...history.map(m => ({
-      role: m.role === 'model' ? 'model' : 'user',
-      parts: [{ text: m.text }],
-    })),
-  ];
-
-  const provider = 'groq';
-  const endpoint = 'chat/completions';
-  const payload = {
-    model: 'llama-3.1-8b-instant',
-    messages: [
-      { role: 'system', content: systemPrompt },
-      ...history.map(m => ({
-        role: m.role === 'model' ? 'assistant' : 'user',
-        content: m.text,
-      })),
-    ],
-    stream: true,
-    temperature: 0.4,
-  };
-
-  const isDev = import.meta.env.DEV;
-  const apiKey = import.meta.env.VITE_GROQ_API_KEY;
-
-  let targetUrl: string;
-  let authHeader: string | null = null;
-
-  if (isDev && apiKey) {
-    targetUrl = `https://api.groq.com/openai/v1/${endpoint}`;
-    authHeader = `Bearer ${apiKey}`;
-  } else {
-    targetUrl = '/api/ai-proxy';
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey) {
+    yield "Error: Gemini API Key (VITE_GEMINI_API_KEY) is missing in environment variables.";
+    return;
   }
 
-  const response = await fetch(targetUrl, {
-    method: 'POST',
-    headers: { 
-      'Content-Type': 'application/json',
-      ...(authHeader ? { 'Authorization': authHeader } : {})
-    },
-    body: JSON.stringify(isDev && apiKey ? payload : { provider, endpoint, payload }),
-  });
-
-  if (!response.ok || !response.body) {
-    let errorDetail = '';
-    try {
-      const errorJson = await response.json();
-      errorDetail = errorJson.error?.message || errorJson.error || JSON.stringify(errorJson);
-    } catch {
-      errorDetail = `Status: ${response.status} ${response.statusText}`;
-    }
-    throw new Error(`AI Engine Error: ${errorDetail}`);
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
+  try {
+    const ai = new GoogleGenAI({ apiKey });
     
-    // Gemini streaming returns a JSON array of candidates
-    // It often comes in chunks like [ { "candidates": [...] }, { ... } ]
-    // We need to parse these carefully.
-    
-    let startIdx = buffer.indexOf('{');
-    while (startIdx !== -1) {
-      let braceCount = 0;
-      let endIdx = -1;
-      
-      for (let i = startIdx; i < buffer.length; i++) {
-        if (buffer[i] === '{') braceCount++;
-        else if (buffer[i] === '}') braceCount--;
-        
-        if (braceCount === 0) {
-          endIdx = i;
-          break;
+    // Convert history to the format expected by SDK v1.46.0
+    // Role 'user' or 'model' is expected
+    const contents = history.map(h => ({
+      role: h.role,
+      parts: [{ text: h.text }]
+    }));
+
+    const response = await ai.models.generateContentStream({
+      model: "gemini-3-flash-preview",
+      contents,
+      system_instruction: systemPrompt,
+      config: {
+        maxOutputTokens: 1024,
+        temperature: 0.7,
+      },
+    });
+
+    for await (const chunk of response) {
+      // Robust way to get text from chunk, handling both getter and function cases
+      let text = '';
+      try {
+        if (typeof (chunk as any).text === 'function') {
+          text = (chunk as any).text();
+        } else {
+          text = chunk.text || '';
         }
+      } catch (e) {
+        // Ultimate fallback to internal structure
+        text = (chunk as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || '';
       }
       
-      if (endIdx !== -1) {
-        const jsonStr = buffer.slice(startIdx, endIdx + 1);
-        try {
-          const json = JSON.parse(jsonStr);
-          const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (text) yield text;
-        } catch (e) {
-          // Incomplete or malformed JSON, skip
-        }
-        buffer = buffer.slice(endIdx + 1);
-        startIdx = buffer.indexOf('{');
-      } else {
-        break;
-      }
+      if (text) yield text;
     }
+  } catch (err: any) {
+    console.error('Gemini SDK Error:', err);
+    throw new Error(`Gemini SDK Error: ${err.message || 'Failed to communicate with AI'}`);
   }
 }

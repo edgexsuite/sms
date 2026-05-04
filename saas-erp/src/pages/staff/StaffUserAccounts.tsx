@@ -370,6 +370,52 @@ export default function StaffUserAccounts() {
     }
   };
 
+  // ── Fix missing user_roles entry ──────────────────────────────────────────
+
+  const handleFixAccountLink = async () => {
+    if (!selected?.email || !selected?.system_role) return;
+    if (!window.confirm(`Link ${selected.full_name} to their existing auth account?\n\nThis will create the missing user_roles entry.`)) return;
+    
+    setWorking(true);
+    try {
+      // Try to find the auth user by email
+      const { data: { users }, error: listErr } = await supabase.auth.admin.listUsers();
+      if (listErr) throw new Error('Could not access auth users: ' + listErr.message);
+      
+      const authUser = users.find((u: any) => u.email?.toLowerCase() === selected.email?.toLowerCase());
+      if (!authUser) {
+        throw new Error(`No Supabase Auth account found for ${selected.email}`);
+      }
+
+      // Create the missing user_roles entry
+      const { error: roleErr } = await supabase.from('user_roles').insert({
+        user_id: authUser.id,
+        school_id: userRole!.school_id,
+        role: selected.system_role,
+        staff_id: selected.id,
+        permissions: ROLE_PRESETS[selected.system_role as SystemRole] ?? {},
+        is_active: selected.account_active !== false,
+      });
+
+      if (roleErr) {
+        if (roleErr.code === '23505') {
+          throw new Error('This user_roles entry already exists. The link might already be correct.');
+        }
+        throw new Error('Database error: ' + roleErr.message);
+      }
+
+      // Update staff record
+      await supabase.from('staff').update({ user_id: authUser.id, has_login: true }).eq('id', selected.id);
+
+      await fetchStaff();
+      alert(`✅ Account link fixed! ${selected.full_name} can now log in.`);
+      setWorking(false);
+    } catch (err: any) {
+      alert('❌ Error: ' + err.message);
+      setWorking(false);
+    }
+  };
+
   // ── Reset password ────────────────────────────────────────────────────────
 
   const handleResetPassword = async () => {
@@ -776,11 +822,27 @@ export default function StaffUserAccounts() {
                       <AlertTriangle className="w-3.5 h-3.5" /> No email on file — add email in Staff HR first.
                     </p>
                   )}
-                  <button
-                    onClick={() => { setCreateEmail(selected.email ?? ''); setCreatePass(generatePassword()); setShowCreate(true); setCreateError(''); }}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
-                    <UserPlus className="w-4 h-4" /> Grant Login Access
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                    <button
+                      onClick={() => { setCreateEmail(selected.email ?? ''); setCreatePass(generatePassword()); setShowCreate(true); setCreateError(''); }}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
+                      <UserPlus className="w-4 h-4" /> Grant Login Access
+                    </button>
+                    {selected.system_role && selected.email && (
+                      <button
+                        onClick={handleFixAccountLink}
+                        disabled={working}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-600 text-white text-sm font-semibold rounded-xl hover:bg-amber-700 transition-colors disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-4 h-4 ${working ? 'animate-spin' : ''}`} /> Fix Account Link
+                      </button>
+                    )}
+                  </div>
+                  {selected.system_role && selected.email && (
+                    <p className="text-[11px] text-amber-600 mt-3 flex items-center justify-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5" /> Already have an auth account? Click "Fix Account Link" to reconnect.
+                    </p>
+                  )}
                 </div>
               )}
 

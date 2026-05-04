@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { lazy } from 'react';
 import { Routes, Route, Navigate, NavLink } from 'react-router-dom';
-import { FileText, PieChart, BarChart3 } from 'lucide-react';
+import { FileText, PieChart, BarChart3, CreditCard, AlertCircle } from 'lucide-react';
 import MasterSummaryReport from './MasterSummaryReport';
+
+const CollectionReport = lazy(() => import('./CollectionReport'));
+const DefaulterReport = lazy(() => import('./DefaulterReport'));
 
 export default function ReportsLayout() {
   return (
@@ -14,12 +17,25 @@ export default function ReportsLayout() {
           >
             <FileText className="w-5 h-5"/> Master Summary
           </NavLink>
-          {/* Future reports can be added here */}
+          <NavLink 
+            to="/reports/collection" 
+            className={({isActive}) => `flex items-center gap-2 px-4 py-3 font-black transition whitespace-nowrap text-sm border-b-2 ${isActive ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+          >
+            <CreditCard className="w-5 h-5"/> Collection Report
+          </NavLink>
+          <NavLink 
+            to="/reports/defaulters" 
+            className={({isActive}) => `flex items-center gap-2 px-4 py-3 font-black transition whitespace-nowrap text-sm border-b-2 ${isActive ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+          >
+            <AlertCircle className="w-5 h-5"/> Defaulters
+          </NavLink>
         </div>
       </div>
 
       <Routes>
         <Route path="master-summary" element={<MasterSummaryReport />} />
+        <Route path="collection" element={<CollectionReport />} />
+        <Route path="defaulters" element={<DefaulterReport />} />
         <Route path="*" element={<Navigate to="master-summary" replace />} />
       </Routes>
     </div>

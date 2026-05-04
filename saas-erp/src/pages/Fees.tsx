@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Search, CreditCard, AlertCircle, CheckCircle, DollarSign, Download } from 'lucide-react';
+import { Plus, Search, CreditCard, AlertCircle, CheckCircle, DollarSign, Download, Printer } from 'lucide-react';
+import { downloadDailyCollectionReport } from '../lib/reportUtils';
 import { exportToCSV } from '../lib/exportUtils';
 import { formatDate } from '../lib/utils';
 
@@ -302,6 +303,14 @@ export default function Fees() {
           >
             <Download className="w-4 h-4" />
             <span className="hidden sm:inline">Export</span>
+          </button>
+
+          <button 
+            onClick={() => downloadDailyCollectionReport(userRole?.school_id!)}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            <Printer className="w-4 h-4" />
+            <span className="hidden sm:inline">Today's Collection</span>
           </button>
 
           {userRole?.role === 'admin' && (

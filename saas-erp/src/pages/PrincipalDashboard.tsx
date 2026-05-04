@@ -6,8 +6,9 @@ import {
   GraduationCap, Users, CalendarCheck, CreditCard,
   BookOpen, ChevronRight, Briefcase, ClipboardList,
   TrendingUp, AlertCircle, CheckCircle2, BarChart2,
-  MessageSquare, FileText, Award, Clock
+  MessageSquare, FileText, Award, Clock, Printer
 } from 'lucide-react';
+import { downloadDailyCollectionReport } from '../lib/reportUtils';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { formatDate } from '../lib/utils';
 
@@ -208,6 +209,12 @@ export default function PrincipalDashboard() {
             </p>
           </div>
           <div className="flex gap-3 flex-wrap">
+            <button 
+              onClick={() => downloadDailyCollectionReport(userRole?.school_id!)}
+              className="flex items-center gap-2 bg-violet-800/40 hover:bg-violet-800/60 text-white font-bold px-4 py-2 rounded-xl text-sm transition border border-violet-400/30 backdrop-blur-sm"
+            >
+              <Printer className="w-4 h-4" /> Today's Collection
+            </button>
             <Link to="/attendance/daily-report" className="flex items-center gap-2 bg-white text-violet-700 font-bold px-4 py-2 rounded-xl text-sm hover:bg-violet-50 transition shadow">
               <CalendarCheck className="w-4 h-4" /> Attendance Report
             </Link>

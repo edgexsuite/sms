@@ -6,8 +6,9 @@ import { formatDate } from '../lib/utils';
 import {
   CreditCard, Wallet, TrendingUp, BarChart2,
   DollarSign, ChevronRight, Scale, PiggyBank,
-  CalendarDays, AlertCircle, CheckCircle2, ArrowUpRight
+  CalendarDays, AlertCircle, CheckCircle2, ArrowUpRight, Printer
 } from 'lucide-react';
+import { downloadDailyCollectionReport } from '../lib/reportUtils';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, PieChart, Pie
@@ -159,6 +160,12 @@ export default function AccountantDashboard() {
             </p>
           </div>
           <div className="flex gap-3 flex-wrap">
+            <button 
+              onClick={() => downloadDailyCollectionReport(userRole?.school_id!)}
+              className="flex items-center gap-2 bg-emerald-800/40 hover:bg-emerald-800/60 text-white font-bold px-4 py-2 rounded-xl text-sm transition border border-emerald-400/30 backdrop-blur-sm"
+            >
+              <Printer className="w-4 h-4" /> Today's Collection
+            </button>
             <Link to="/fees/invoices" className="flex items-center gap-2 bg-white text-emerald-700 font-bold px-4 py-2 rounded-xl text-sm hover:bg-emerald-50 transition shadow">
               <CreditCard className="w-4 h-4" /> Fee Invoices
             </Link>

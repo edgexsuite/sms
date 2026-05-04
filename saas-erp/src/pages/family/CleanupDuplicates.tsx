@@ -168,7 +168,7 @@ export default function CleanupDuplicates() {
                     <div key={p.id} className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs">
                       <p className="font-bold text-slate-800">{p.father_name || p.full_name}</p>
                       <p className="text-[10px] text-slate-400">
-                        Joined: {new Date(p.created_at).toLocaleDateString()} · {p.students?.length || 0} Students
+                        Joined: {formatDate(p.created_at)} · {p.students?.length || 0} Students
                       </p>
                     </div>
                   ))}

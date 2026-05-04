@@ -5,8 +5,9 @@ import {
   Wallet, BookOpen, ArrowUpRight, RefreshCw, AlertTriangle,
   CheckCircle, Clock, DollarSign, UserPlus, FileText,
   MessageSquare, Mail, ChevronRight, Bell, ShieldCheck,
-  BarChart2, PiggyBank, Activity, Layers, Banknote, X
+  BarChart2, PiggyBank, Activity, Layers, Banknote, X, Printer
 } from 'lucide-react';
+import { downloadDailyCollectionReport } from '../lib/reportUtils';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -125,7 +126,7 @@ export default function Dashboard() {
         supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', sid).eq('status', 'active'),
         supabase.from('staff').select('*', { count: 'exact', head: true }).eq('school_id', sid).eq('is_active', true),
         supabase.from('classes').select('*', { count: 'exact', head: true }).eq('school_id', sid),
-        supabase.from('fee_records').select('total_amount, paid_amount, status, month_year').eq('school_id', sid),
+        supabase.from('fee_records').select('total_amount, paid_amount, status, month_year, student_id').eq('school_id', sid),
         supabase.from('attendance').select('status').eq('school_id', sid).eq('date', today),
         supabase.from('classes').select('id, name, section').eq('school_id', sid),
         supabase.from('students').select('class_id').eq('school_id', sid).eq('status', 'active'),
@@ -149,6 +150,8 @@ export default function Dashboard() {
 
       let mTarget = 0, mCollected = 0;
 
+      const studentsWithPending = new Set<string>();
+
       (fees || []).forEach(f => {
         const balance = Math.max(0, Number(f.total_amount || 0) - Number(f.paid_amount || 0));
         pendingFees += balance;
@@ -158,10 +161,17 @@ export default function Dashboard() {
           mTarget += Number(f.total_amount || 0);
           mCollected += Number(f.paid_amount || 0);
           if (f.status === 'paid') mPaid++;
-          else if (f.status === 'partially paid' || f.status === 'partial') mPartial++;
-          else mPending++;
+          else if (f.status === 'partially paid' || f.status === 'partial') {
+            mPartial++;
+            studentsWithPending.add(f.student_id);
+          } else {
+            mPending++;
+            studentsWithPending.add(f.student_id);
+          }
         }
       });
+
+      const pendingStudentCount = studentsWithPending.size;
 
       const collectionProgress = mTarget > 0 ? Math.round((mCollected / mTarget) * 100) : 0;
 
@@ -219,7 +229,12 @@ export default function Dashboard() {
       const alertList: { type: string; message: string; link: string; count: number }[] = [];
       if ((complaintsCount || 0) > 0) alertList.push({ type: 'warning', message: `${complaintsCount} open complaint${complaintsCount !== 1 ? 's' : ''} need attention`, link: '/complaints', count: complaintsCount! });
       if ((leaveCount || 0) > 0) alertList.push({ type: 'info', message: `${leaveCount} leave request${leaveCount !== 1 ? 's' : ''} pending approval`, link: '/leave', count: leaveCount! });
-      if (mPending > 0) alertList.push({ type: 'warning', message: `${mPending} fee invoice${mPending !== 1 ? 's' : ''} unpaid for ${activeMonthLabel}`, link: '/fees/invoices', count: mPending });
+      if (pendingStudentCount > 0) alertList.push({ 
+        type: 'warning', 
+        message: `${pendingStudentCount} student${pendingStudentCount !== 1 ? 's' : ''} have unpaid fees for ${activeMonthLabel}`, 
+        link: '/fees/invoices', 
+        count: pendingStudentCount 
+      });
       if ((newStudents || 0) > 0) alertList.push({ type: 'success', message: `${newStudents} new admission${newStudents !== 1 ? 's' : ''} this week`, link: '/students', count: newStudents! });
       setAlerts(alertList);
 
@@ -306,7 +321,7 @@ export default function Dashboard() {
               </h1>
               <div className="flex items-center gap-4 text-orange-50/80 font-bold text-xs tracking-tight mt-2">
                 <span className="flex items-center gap-1.5 bg-white/10 px-2 py-1 rounded-lg backdrop-blur-sm">
-                  <Clock className="w-3.5 h-3.5" /> {new Date().toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}
+                  <Clock className="w-3.5 h-3.5" /> {new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
                 </span>
                 <span className="flex items-center gap-1.5 bg-white/10 px-2 py-1 rounded-lg backdrop-blur-sm">
                   <Activity className="w-3.5 h-3.5 text-emerald-300" /> Active Session
@@ -315,13 +330,18 @@ export default function Dashboard() {
             </div>
 
             <div className="flex-1 flex flex-col sm:flex-row items-center gap-6 lg:justify-end">
-              {/* Condensed Quick Actions */}
               <div className="grid grid-cols-4 gap-2">
+                <button 
+                  onClick={() => downloadDailyCollectionReport(userRole?.school_id!)}
+                  title="Print Today's Collection"
+                  className="w-11 h-11 backdrop-blur-md border border-white/30 bg-white/10 text-white hover:scale-110 rounded-xl flex items-center justify-center transition-all group"
+                >
+                  <Printer className="w-5 h-5" />
+                </button>
                 {[
                   { label: 'Attendance', icon: CheckCircle, link: '/attendance', color: 'bg-emerald-400/20 text-emerald-100 border-emerald-400/30' },
                   { label: 'Register', icon: UserPlus, link: '/students/add', color: 'bg-blue-400/20 text-blue-100 border-blue-400/30' },
                   { label: 'Reports', icon: BarChart2, link: '/reports', color: 'bg-amber-400/20 text-amber-100 border-amber-400/30' },
-                  { label: 'Staff', icon: Users, link: '/staff', color: 'bg-purple-400/20 text-purple-100 border-purple-400/30' },
                 ].map((act, i) => (
                   <button 
                     key={i} 
@@ -358,78 +378,6 @@ export default function Dashboard() {
             </div>
           </div>
         </motion.div>
-
-        {/* Floating AI Command Strip */}
-        <AnimatePresence>
-          {showBriefing && (
-            <motion.div 
-              initial={{ y: 150, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 150, opacity: 0 }}
-              className="fixed bottom-0 left-0 right-0 z-[100] pointer-events-none px-4 pb-4"
-            >
-              <div className="max-w-6xl mx-auto pointer-events-auto">
-                <div className="bg-slate-950/95 backdrop-blur-3xl border-t border-x border-white/10 rounded-t-[2.5rem] p-5 shadow-[0_-20px_50px_rgba(0,0,0,0.3)] relative overflow-hidden group ring-1 ring-white/10">
-                  {/* AI Ambient Glow */}
-                  <div className="absolute -left-20 -top-20 w-64 h-64 bg-indigo-500/20 rounded-full blur-[100px] animate-pulse" />
-                  
-                  <button 
-                    onClick={() => setShowBriefing(false)}
-                    className="absolute top-5 right-5 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/40 hover:bg-rose-500/20 hover:text-rose-400 transition-all z-20"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-
-                  <div className="flex flex-col lg:flex-row lg:items-center gap-8">
-                    {/* Left: AI Avatar & Narrative */}
-                    <div className="flex-1 flex items-start gap-3 sm:gap-5">
-                      <div className="shrink-0 relative">
-                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30 relative z-10">
-                          <Activity className="w-5 h-5 sm:w-6 sm:h-6" />
-                        </div>
-                        <div className="absolute -inset-1 bg-indigo-500/30 rounded-xl sm:rounded-2xl blur-lg animate-pulse" />
-                      </div>
-                      
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-400">Intelligence</h4>
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-                        </div>
-                        <div className="text-[13px] sm:text-[14px] font-bold text-white/90 leading-tight sm:leading-relaxed font-mono tracking-tight">
-                          <TypewriterText 
-                            text={`Good afternoon! ${schoolName || 'The Edge School'} metrics are healthy. Collected Rs. ${(stats?.currentMonthCollection || 0).toLocaleString()} this month. Attention required: ${feeStatusData?.[2]?.value || 0} overdue accounts detected. Attendance is at ${stats?.attendanceRate || 0}% today.`} 
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Right: Actions & Pulse */}
-                    <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 border-t sm:border-t-0 sm:border-l border-white/10 pt-4 sm:pt-0 sm:pl-8 mt-2 sm:mt-0">
-                      <div className="flex flex-col items-start sm:items-end">
-                        <div className="text-sm sm:text-lg font-black text-white leading-none">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                        <div className="text-[8px] font-black uppercase text-indigo-400 tracking-widest mt-1">PKT • 32°C</div>
-                      </div>
-                      
-                      <Btn 
-                        variant="primary" 
-                        onClick={() => {
-                          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3');
-                          audio.volume = 0.2;
-                          audio.play().catch(() => {});
-                          navigate('/reports');
-                        }} 
-                        icon={ArrowUpRight}
-                        className="!rounded-xl !h-10 !px-5 !bg-white !text-slate-950 hover:!bg-indigo-50 transition-all shadow-xl !text-[10px] !font-black uppercase tracking-[0.1em]"
-                      >
-                        Launch
-                      </Btn>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
       {/* Alert Pills */}
       {alerts.length > 0 && (

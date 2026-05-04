@@ -35,7 +35,6 @@ const Timetable = lazy(() => import('./pages/Timetable'));
 const Inventory = lazy(() => import('./pages/Inventory'));
 const StationaryManagement = lazy(() => import('./pages/StationaryManagement'));
 const Complaints = lazy(() => import('./pages/Complaints'));
-const AIAssistant = lazy(() => import('./pages/AIAssistant'));
 const LeaveLayout = lazy(() => import('./pages/leave/LeaveLayout'));
 const TeacherDiary = lazy(() => import('./pages/diary/TeacherDiary'));
 const PayrollLayout = lazy(() => import('./pages/payroll/PayrollLayout'));
@@ -47,7 +46,7 @@ const CleanupDuplicates = lazy(() => import('./pages/family/CleanupDuplicates'))
 const ParentPortal = lazy(() => import('./pages/ParentPortal'));
 const StudentPortal = lazy(() => import('./pages/StudentPortal'));
 const ReportsLayout = lazy(() => import('./pages/reports/ReportsLayout'));
-const PermissionManager = lazy(() => import('./pages/settings/PermissionManager'));
+const PermissionManager = lazy(() => import('./pages/settings/PermissionManagerPage'));
 const Trashbin = lazy(() => import('./pages/settings/Trashbin'));
 const IDCardSettings = lazy(() => import('./pages/settings/IDCardSettings'));
 const ReportCardSettings = lazy(() => import('./pages/settings/ReportCardSettings'));
@@ -144,7 +143,7 @@ export default function App() {
                 <Route path="inventory" element={<Inventory />} />
                 <Route path="stationary" element={<StationaryManagement />} />
                 <Route path="complaints" element={<Complaints />} />
-                <Route path="ai-assistant" element={<AIAssistant />} />
+                <Route path="ai-assistant" element={<Navigate to="/dashboard" replace />} />
                 <Route path="leave/*" element={<LeaveLayout />} />
                 <Route path="diary" element={<TeacherDiary />} />
                 <Route path="settings" element={<Settings />} />

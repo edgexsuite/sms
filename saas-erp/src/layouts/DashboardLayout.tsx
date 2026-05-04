@@ -235,24 +235,45 @@ export default function DashboardLayout() {
                     return (
                       <div key={item.name} className="relative group/item">
                         {!hasSubItems ? (
-                          <Link
-                            to={item.path}
-                            onClick={() => setIsMobileMenuOpen(false)}
-                            className={cn(
-                              "flex items-center gap-3 py-2 rounded-xl transition-all duration-200 group relative",
-                              isActive 
-                                ? "bg-indigo-500/20 border-l-[3px] border-indigo-400 text-indigo-100 pl-[9px] pr-3" 
-                                : "text-slate-400 hover:text-white hover:bg-white/[0.05] border-l-[3px] border-transparent pl-[9px] pr-3"
-                            )}
-                          >
-                            <div className={cn(
-                              "w-8 h-8 rounded-lg flex items-center justify-center transition-all",
-                              isActive ? "bg-white/20" : "bg-white/[0.03] group-hover:bg-white/[0.08]"
-                            )}>
-                              <Icon className="w-[14px] h-[14px]" />
-                            </div>
-                            {!isSidebarCollapsed && <span className="truncate text-[13px] font-bold tracking-tight">{item.name}</span>}
-                          </Link>
+                          item.path === '/ai-assistant' ? (
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                window.dispatchEvent(new CustomEvent('toggle-ai-assistant'));
+                                setIsMobileMenuOpen(false);
+                              }}
+                              className={cn(
+                                "flex items-center gap-3 py-2 rounded-xl transition-all duration-200 group relative w-full text-left",
+                                "text-slate-400 hover:text-white hover:bg-white/[0.05] border-l-[3px] border-transparent pl-[9px] pr-3"
+                              )}
+                            >
+                              <div className={cn(
+                                "w-8 h-8 rounded-lg flex items-center justify-center transition-all bg-white/[0.03] group-hover:bg-white/[0.08]"
+                              )}>
+                                <Icon className="w-[14px] h-[14px]" />
+                              </div>
+                              {!isSidebarCollapsed && <span className="truncate text-[13px] font-bold tracking-tight">{item.name}</span>}
+                            </button>
+                          ) : (
+                            <Link
+                              to={item.path}
+                              onClick={() => setIsMobileMenuOpen(false)}
+                              className={cn(
+                                "flex items-center gap-3 py-2 rounded-xl transition-all duration-200 group relative",
+                                isActive 
+                                  ? "bg-indigo-500/20 border-l-[3px] border-indigo-400 text-indigo-100 pl-[9px] pr-3" 
+                                  : "text-slate-400 hover:text-white hover:bg-white/[0.05] border-l-[3px] border-transparent pl-[9px] pr-3"
+                              )}
+                            >
+                              <div className={cn(
+                                "w-8 h-8 rounded-lg flex items-center justify-center transition-all",
+                                isActive ? "bg-white/20" : "bg-white/[0.03] group-hover:bg-white/[0.08]"
+                              )}>
+                                <Icon className="w-[14px] h-[14px]" />
+                              </div>
+                              {!isSidebarCollapsed && <span className="truncate text-[13px] font-bold tracking-tight">{item.name}</span>}
+                            </Link>
+                          )
                         ) : (
                           <button
                             onClick={() => setOpenDropdown(isOpen ? null : item.name)}
@@ -555,6 +576,19 @@ export default function DashboardLayout() {
                   >
                     <Icon className="w-5 h-5" />
                     <span className="text-[9px] font-black uppercase tracking-wider">{label}</span>
+                  </button>
+                );
+              }
+
+              if (path === '/ai-assistant') {
+                return (
+                  <button
+                    key={path}
+                    onClick={() => window.dispatchEvent(new CustomEvent('toggle-ai-assistant'))}
+                    className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all text-slate-400 hover:text-indigo-600 active:scale-95"
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span className="text-[9px] font-black uppercase tracking-wider truncate max-w-[60px] text-center">{label}</span>
                   </button>
                 );
               }

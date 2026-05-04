@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+// Force rebuild for dynamic import fix
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Link } from 'react-router-dom';
@@ -89,7 +90,7 @@ const ROLE_ORDER = ['admin', 'director', 'principal', 'teacher', 'accountant', '
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function PermissionManager() {
+export default function PermissionManagerPage() {
   const { userRole } = useAuth();
 
   // All accounts (for dropdown)

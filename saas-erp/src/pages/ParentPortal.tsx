@@ -102,6 +102,7 @@ export default function ParentPortal() {
   });
 
   const [urduMode, setUrduMode] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Complaints
   const [myComplaints,       setMyComplaints]       = useState<any[]>([]);
@@ -611,9 +612,17 @@ export default function ParentPortal() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Top Bar */}
-      <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-30">
+      <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition text-gray-600"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
             {school.logo_url ? (
               <img src={school.logo_url} className="w-9 h-9 rounded-xl object-contain border border-gray-100" alt="" />
             ) : (
@@ -640,6 +649,58 @@ export default function ParentPortal() {
       </header>
 
       <div className="flex min-h-[calc(100vh-3.75rem)]">
+        {/* ── Mobile Menu Drawer ─────────────────────────────────────── */}
+        {mobileMenuOpen && (
+          <>
+            <div 
+              className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            <aside className="fixed left-0 top-14 bottom-0 w-64 bg-white border-r border-gray-200 z-50 overflow-y-auto shadow-lg lg:hidden">
+              <div className="px-3 py-4 flex-1 overflow-y-auto">
+                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-3 mb-3">Portal Menu</p>
+                <div className="space-y-0.5">
+                  {TABS.map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => {
+                        setActiveTab(tab.id);
+                        setMobileMenuOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all text-left ${
+                        activeTab === tab.id
+                          ? 'bg-blue-50 text-blue-700'
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      }`}
+                    >
+                      {tab.icon}
+                      <span className="truncate">{tab.label}</span>
+                      {tab.id === 'fees' && pendingCount > 0 && (
+                        <span className="ml-auto w-5 h-5 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center shrink-0">{pendingCount}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="border-t border-gray-100 px-3 py-3 shrink-0">
+                <div className="px-3 py-1.5 mb-1">
+                  <p className="text-xs font-bold text-gray-800 truncate">{parentData.full_name}</p>
+                  <p className="text-[10px] text-gray-400">Family #{parentData.family_number}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    handleLogout();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold text-red-500 hover:bg-red-50 transition"
+                >
+                  <LogOut className="w-4 h-4" /> Sign Out
+                </button>
+              </div>
+            </aside>
+          </>
+        )}
+
         {/* ── Desktop Sidebar ─────────────────────────────────────────── */}
         <aside className="hidden lg:flex flex-col w-56 shrink-0 bg-white border-r border-gray-200 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto">
           <div className="px-3 py-4 flex-1 overflow-y-auto">
@@ -840,30 +901,40 @@ export default function ParentPortal() {
         </div>
       </div>
 
-      {/* Bottom Navigation for Mobile */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 aura-glass border-t border-gray-200 px-6 py-3 flex items-center justify-between safe-area-pb no-print">
-        {[
-          { id: 'overview', icon: LayoutDashboard, label: 'Home' },
-          { id: 'fees', icon: CreditCard, label: 'Fees', badge: pendingCount > 0 },
-          { id: 'attendance', icon: CalendarCheck, label: 'Attendance' },
-          { id: 'notices', icon: Bell, label: 'Notices' },
-          { id: 'more', icon: GraduationCap, label: 'Hub' }
-        ].map((item) => (
-          <button
-            key={item.id}
-            onClick={() => item.id === 'more' ? setActiveTab('overview') : setActiveTab(item.id as Tab)}
-            className={`flex flex-col items-center gap-1 transition ${activeTab === (item.id === 'more' ? 'overview' : item.id) ? 'text-blue-600' : 'text-gray-400'}`}
-          >
-            <div className="relative">
-              <item.icon className={`w-5 h-5 ${activeTab === (item.id === 'more' ? 'overview' : item.id) ? 'stroke-[2.5px]' : 'stroke-[2px]'}`} />
-              {item.badge && (
-                <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white" />
-              )}
-            </div>
-            <span className="text-[10px] font-bold uppercase tracking-tighter">{item.label}</span>
-          </button>
-        ))}
+      {/* Bottom Navigation for Mobile - Horizontally Scrollable */}
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 aura-glass border-t border-gray-200 safe-area-pb no-print overflow-x-auto scrollbar-hide">
+        <div className="flex items-center gap-0.5 px-3 py-3 min-w-max">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition shrink-0 ${
+                activeTab === tab.id
+                  ? 'bg-blue-100 text-blue-600'
+                  : 'text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              <div className="relative">
+                {tab.icon}
+                {tab.id === 'fees' && pendingCount > 0 && (
+                  <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{pendingCount}</span>
+                )}
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-tighter whitespace-nowrap">{tab.label}</span>
+            </button>
+          ))}
+        </div>
       </nav>
+      
+      <style>{`
+        .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
       
       {/* ══════════════════════════════════════════════════════════════════
           APPLY LEAVE MODAL

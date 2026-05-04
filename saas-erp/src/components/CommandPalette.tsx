@@ -156,7 +156,12 @@ export default function CommandPalette() {
       e.preventDefault();
       setSelectedIndex(i => Math.max(i - 1, 0));
     } else if (e.key === 'Enter' && results[selectedIndex]) {
-      navigate(results[selectedIndex].path);
+      const result = results[selectedIndex];
+      if (result.path === '/ai-assistant') {
+        window.dispatchEvent(new CustomEvent('toggle-ai-assistant'));
+      } else {
+        navigate(result.path);
+      }
       setOpen(false);
     }
   };
@@ -230,7 +235,14 @@ export default function CommandPalette() {
                 <li key={r.id}>
                   <button
                     onMouseEnter={() => setSelectedIndex(i)}
-                    onClick={() => { navigate(r.path); setOpen(false); }}
+                    onClick={() => { 
+                      if (r.path === '/ai-assistant') {
+                        window.dispatchEvent(new CustomEvent('toggle-ai-assistant'));
+                      } else {
+                        navigate(r.path); 
+                      }
+                      setOpen(false); 
+                    }}
                     className={`w-full flex items-center gap-3 px-5 py-3 text-left transition-colors ${
                       i === selectedIndex ? 'bg-blue-50' : 'hover:bg-gray-50'
                     }`}

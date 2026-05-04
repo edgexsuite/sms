@@ -5,7 +5,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import {
   Zap, Search, CheckCircle, Wallet,
   ArrowRight, Printer, History, Users,
-  Receipt, Landmark, Clock, X as XIcon, Trash2, ExternalLink
+  Receipt, Landmark, Clock, X as XIcon, Trash2, ExternalLink,
+  CreditCard, DollarSign
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';

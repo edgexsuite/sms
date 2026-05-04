@@ -659,7 +659,7 @@ export default function TeacherDashboard() {
       user_id:           userRole?.user_id || null,
       type:              'query',
       category:          'Stationery Request',
-      title:             `Stationery Request — ${new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}`,
+      title:             `Stationery Request — ${formatDate(new Date())}`,
       description,
       priority:          stationeryUrgency,
       status:            'pending',
@@ -1375,7 +1375,7 @@ export default function TeacherDashboard() {
                   <div key={r.id} className="px-4 py-3 flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-gray-800 truncate">{r.title}</p>
-                      <p className="text-[10px] text-gray-400">{new Date(r.created_at).toLocaleDateString()}</p>
+                      <p className="text-[10px] text-gray-400">{formatDate(r.created_at)}</p>
                     </div>
                     <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border shrink-0 capitalize ${statusStyle}`}>
                       {r.status}

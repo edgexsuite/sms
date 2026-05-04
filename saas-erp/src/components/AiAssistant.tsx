@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { streamGemini, fetchSchoolContext, buildSystemPrompt } from '../lib/gemini';
 import { cn } from '../lib/utils';
+import { supabase } from '../lib/supabase';
 import { Btn } from './ui';
 
 export default function AiAssistant() {
@@ -24,6 +25,12 @@ export default function AiAssistant() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, isLoading]);
+
+  useEffect(() => {
+    const handleToggle = () => setIsOpen(true);
+    window.addEventListener('toggle-ai-assistant', handleToggle);
+    return () => window.removeEventListener('toggle-ai-assistant', handleToggle);
+  }, []);
 
   useEffect(() => {
     if (isOpen && !schoolContext && userRole?.school_id) {
@@ -50,7 +57,14 @@ export default function AiAssistant() {
     setIsLoading(true);
 
     try {
-      const systemPrompt = buildSystemPrompt(schoolContext, schoolInfo?.name || 'this school');
+      // Ensure we have a context, even if it's minimal
+      const currentContext = schoolContext || { 
+        studentCount: null, staffCount: null, presentToday: 0, absentToday: 0, 
+        totalMarkedToday: 0, attPct: null, feeCollected: 0, feeDue: 0, 
+        collectionPct: null, openComplaints: 0, pendingLeave: 0, date: new Date().toISOString().split('T')[0] 
+      };
+      
+      const systemPrompt = buildSystemPrompt(currentContext, schoolInfo?.name || 'this school');
       let fullResponse = '';
       
       // Add empty message for model to stream into
@@ -69,6 +83,61 @@ export default function AiAssistant() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const executeTask = async (taskName: string, params: any) => {
+    try {
+      if (taskName === 'broadcast_notification') {
+        const { error } = await supabase.from('notifications').insert([{
+          school_id: userRole?.school_id,
+          title: params.title,
+          message: params.message,
+          target_audience: params.target || 'all'
+        }]);
+        if (error) throw error;
+        setMessages(prev => [...prev, { role: 'model', text: `✅ SUCCESS: Broadcast "${params.title}" has been sent to ${params.target || 'all'}.` }]);
+      } else if (taskName === 'prepare_whatsapp') {
+        const url = `https://wa.me/${params.phone.replace(/\D/g, '')}?text=${encodeURIComponent(params.message)}`;
+        window.open(url, '_blank');
+        setMessages(prev => [...prev, { role: 'model', text: `✅ WhatsApp chat opened for ${params.phone}.` }]);
+      }
+    } catch (err: any) {
+      setMessages(prev => [...prev, { role: 'model', text: `❌ TASK FAILED: ${err.message}` }]);
+    }
+  };
+
+  const renderMessage = (text: string, role: 'user' | 'model') => {
+    // Check for task tags
+    const taskMatch = text.match(/\[\[TASK: (.*?), (.*?)\]\]/);
+    let cleanText = text;
+    let taskAction: React.ReactNode = null;
+
+    if (taskMatch) {
+      cleanText = text.replace(taskMatch[0], '').trim();
+      try {
+        const name = taskMatch[1];
+        const params = JSON.parse(taskMatch[2]);
+        taskAction = (
+          <div className="mt-3 pt-3 border-t border-white/10">
+            <button
+              onClick={() => executeTask(name, params)}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
+            >
+              <Zap className="w-3.5 h-3.5" /> Run Task: {name.replace('_', ' ')}
+            </button>
+          </div>
+        );
+      } catch (e) {
+        console.error('Failed to parse task:', e);
+      }
+    }
+
+    return (
+      <>
+        <p className="whitespace-pre-wrap">{cleanText}</p>
+        {taskAction}
+      </>
+    );
   };
 
   return (
@@ -110,7 +179,7 @@ export default function AiAssistant() {
                     EduBot AI
                     <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
                   </h3>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mt-0.5">Powered by Gemini 2.0</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mt-0.5">Automated Assistant</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -142,13 +211,13 @@ export default function AiAssistant() {
                   <div>
                     <h4 className="text-white font-black text-lg uppercase tracking-tight">Your Intelligent Copilot</h4>
                     <p className="text-slate-400 text-xs font-bold leading-relaxed max-w-[240px] mt-2">
-                      Ask anything about students, attendance, or fees. I'm connected to your live school data.
+                      I can now perform tasks like broadcasting notices or sending reminders.
                     </p>
                   </div>
                   <div className="grid grid-cols-1 gap-2 w-full">
                     {[
+                      "Draft a holiday notice for tomorrow",
                       "Summarize today's attendance",
-                      "How is fee collection this month?",
                       "What needs my attention?"
                     ].map(q => (
                       <button
@@ -184,7 +253,7 @@ export default function AiAssistant() {
                         ? "bg-indigo-600 text-white rounded-tr-none shadow-xl shadow-indigo-900/20 font-bold" 
                         : "bg-slate-900 text-slate-200 rounded-tl-none border border-white/5 shadow-2xl"
                     )}>
-                      <p className="whitespace-pre-wrap">{m.text}</p>
+                      {renderMessage(m.text, m.role)}
                     </div>
                   </motion.div>
                 ))

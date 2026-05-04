@@ -9,3 +9,4 @@ export * from './PageHeader';
 export * from './Select';
 export * from './WelcomeBanner';
 export * from './CountUp';
+export * from './SmartDateInput';

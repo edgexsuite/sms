@@ -255,6 +255,7 @@ export const NAV_SECTIONS = [
     roles: ALL_REPORTS,
     items: [
       { name: 'Master Summary',   path: '/reports/master-summary', icon: BarChart,  roles: ALL_REPORTS },
+      { name: 'Collection Report',path: '/reports/collection',     icon: CreditCard, roles: ALL_REPORTS },
       { name: 'Student Reports',  path: '/students/reports',       icon: BarChart3, roles: ALL_ADMIN   },
     ],
   },

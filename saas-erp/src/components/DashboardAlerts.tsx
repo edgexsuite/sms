@@ -48,24 +48,26 @@ export default function DashboardAlerts() {
   };
 
   const fetchAlerts = async (sid: string) => {
-    const [{ count: fees }, { count: leaves }, { count: complaints }] = await Promise.all([
-      supabase.from('fee_records').select('id', { count: 'exact', head: true })
-        .eq('school_id', sid).in('status', ['pending', 'overdue']),
-      supabase.from('leave_applications').select('id', { count: 'exact', head: true })
-        .eq('school_id', sid).eq('status', 'pending'),
-      supabase.from('complaints').select('id', { count: 'exact', head: true })
-        .eq('school_id', sid).eq('status', 'pending'),
-    ]);
+    try {
+      const [f, l, c] = await Promise.all([
+        supabase.from('fee_records').select('student_id').eq('school_id', sid).in('status', ['pending', 'overdue', 'partial', 'partially paid']),
+        supabase.from('leave_applications').select('id', { count: 'exact', head: true }).eq('school_id', sid).eq('status', 'pending'),
+        supabase.from('complaints').select('id', { count: 'exact', head: true }).eq('school_id', sid).eq('status', 'pending'),
+      ]);
 
-    const alerts = {
-      overdueFees: fees || 0,
-      pendingLeaves: leaves || 0,
-      unreadComplaints: complaints || 0,
-    };
+      const uniqueStudents = new Set(f.data?.map((r: any) => r.student_id)).size;
+      
+      const alerts = {
+        overdueFees: uniqueStudents,
+        pendingLeaves: l.count || 0,
+        unreadComplaints: c.count || 0,
+      };
 
-    // Only show if there's something to alert about
-    if (alerts.overdueFees > 0 || alerts.pendingLeaves > 0 || alerts.unreadComplaints > 0) {
-      setCounts(alerts);
+      if (alerts.overdueFees > 0 || alerts.pendingLeaves > 0 || alerts.unreadComplaints > 0) {
+        setCounts(alerts);
+      }
+    } catch (err) {
+      console.error('Error fetching alerts:', err);
     }
   };
 
