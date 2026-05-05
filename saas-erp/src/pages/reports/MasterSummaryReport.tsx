@@ -114,6 +114,11 @@ export default function MasterSummaryReport() {
   const totalExpenses = data.expenses.reduce((sum, t) => sum + Number(t.amount), 0);
   const netCashflow = totalIncome - totalExpenses;
 
+  // Cash vs Online/Bank split
+  const isCash = (mode: string | null) => !mode || mode.toLowerCase() === 'cash';
+  const cashIncome   = data.income.filter(t => isCash(t.payment_mode)).reduce((s, t) => s + Number(t.amount), 0);
+  const onlineIncome = data.income.filter(t => !isCash(t.payment_mode)).reduce((s, t) => s + Number(t.amount), 0);
+
   // Breakdown fee income by category/line-item
   const feeItemTotals = data.income
     .filter(t => t.category === 'Fee Collection' && t.remarks?.includes('—'))
@@ -550,6 +555,93 @@ export default function MasterSummaryReport() {
            )}
         </div>
       </Card>
+
+      {/* ── Closing Calculation Summary ────────────────────────────────── */}
+      {!loading && (
+        <Card className="border-slate-100 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 bg-slate-900 flex items-center gap-2">
+            <Wallet className="w-4 h-4 text-slate-400" />
+            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              Period Closing Calculation
+            </h3>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+
+            {/* Left: Income & Expense totals */}
+            <div className="p-5 space-y-3">
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Financial Summary</p>
+
+              <div className="flex justify-between items-center py-2 border-b border-slate-50">
+                <span className="text-sm font-bold text-slate-600">Total Income</span>
+                <span className="text-sm font-black text-emerald-600">Rs. {totalIncome.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-slate-50">
+                <span className="text-sm font-bold text-slate-600">Total Expenses</span>
+                <span className="text-sm font-black text-rose-500">Rs. {totalExpenses.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center py-2.5 rounded-xl px-3 bg-slate-50">
+                <span className="text-sm font-black text-slate-800">Net Cashflow</span>
+                <span className={cn("text-base font-black", netCashflow >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                  Rs. {netCashflow.toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            {/* Right: Cash vs Online split */}
+            <div className="p-5 space-y-3">
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Income by Payment Mode</p>
+
+              {/* Cash in Hand */}
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-emerald-500 flex items-center justify-center">
+                      <Wallet className="w-3 h-3 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Cash in Hand</p>
+                      <p className="text-[9px] text-emerald-500">→ Accountant</p>
+                    </div>
+                  </div>
+                  <span className="text-lg font-black text-emerald-700">Rs. {cashIncome.toLocaleString()}</span>
+                </div>
+                <div className="w-full bg-emerald-200 rounded-full h-1.5">
+                  <div className="h-1.5 rounded-full bg-emerald-500 transition-all"
+                    style={{ width: totalIncome > 0 ? `${Math.round((cashIncome / totalIncome) * 100)}%` : '0%' }} />
+                </div>
+                <p className="text-[9px] text-emerald-500 mt-1 text-right font-bold">
+                  {totalIncome > 0 ? `${Math.round((cashIncome / totalIncome) * 100)}%` : '—'} of total income
+                </p>
+              </div>
+
+              {/* Online / Bank */}
+              <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-indigo-500 flex items-center justify-center">
+                      <CreditCard className="w-3 h-3 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">Online / Bank</p>
+                      <p className="text-[9px] text-indigo-400">→ Director</p>
+                    </div>
+                  </div>
+                  <span className="text-lg font-black text-indigo-700">Rs. {onlineIncome.toLocaleString()}</span>
+                </div>
+                <div className="w-full bg-indigo-200 rounded-full h-1.5">
+                  <div className="h-1.5 rounded-full bg-indigo-500 transition-all"
+                    style={{ width: totalIncome > 0 ? `${Math.round((onlineIncome / totalIncome) * 100)}%` : '0%' }} />
+                </div>
+                <p className="text-[9px] text-indigo-400 mt-1 text-right font-bold">
+                  {totalIncome > 0 ? `${Math.round((onlineIncome / totalIncome) * 100)}%` : '—'} of total income
+                </p>
+              </div>
+            </div>
+
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

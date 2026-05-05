@@ -26,8 +26,9 @@ export const NAV_SECTIONS = [
     color: '#6366f1',
     roles: ['admin', 'teacher', 'staff', 'accountant', 'librarian', 'principal', 'director'],
     items: [
-      { name: 'Dashboard',    path: '/dashboard',    icon: LayoutDashboard, roles: ['admin', 'teacher', 'staff', 'accountant', 'librarian', 'principal', 'director'] },
-      { name: 'AI Assistant', path: '/ai-assistant', icon: Bot,             roles: ['admin', 'director', 'principal'] },
+      { name: 'Dashboard',             path: '/dashboard',             icon: LayoutDashboard, roles: ['admin', 'teacher', 'staff', 'librarian', 'principal', 'director'] },
+      { name: 'Accountant Dashboard', path: '/accountant-dashboard',  icon: Scale,           roles: ['accountant'] },
+      { name: 'AI Assistant',         path: '/ai-assistant',          icon: Bot,             roles: ['admin', 'director', 'principal'] },
     ],
   },
 
