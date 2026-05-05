@@ -40,6 +40,9 @@ export default function MasterSummaryReport() {
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [data, setData] = useState<ReportData>({ admissions: [], income: [], expenses: [] });
+  const [mtdIncome, setMtdIncome]   = useState(0);
+  const [mtdExpenses, setMtdExpenses] = useState(0);
+  const [mtdLabel, setMtdLabel]     = useState('');
   const [schoolInfo, setSchoolInfo] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'admissions' | 'income' | 'expenses'>('admissions');
   const [viewType, setViewType] = useState<'table' | 'grid'>('table');
@@ -69,11 +72,16 @@ export default function MasterSummaryReport() {
       startDate = endDate;
     }
 
+    // Month-to-date range (always 1st of current month → today)
+    const todayStr = new Date().toISOString().split('T')[0];
+    const mtdStart = `${todayStr.slice(0, 7)}-01`;
+
     try {
       const [
         { data: admissions },
         { data: transactions },
-        { data: school }
+        { data: school },
+        { data: mtdTxns },
       ] = await Promise.all([
         supabase.from('students')
           .select('*, classes(name)')
@@ -87,7 +95,12 @@ export default function MasterSummaryReport() {
           .gte('date', startDate)
           .lte('date', endDate)
           .order('date', { ascending: false }),
-        supabase.from('schools').select('*').eq('id', sid).single()
+        supabase.from('schools').select('*').eq('id', sid).single(),
+        supabase.from('financial_transactions')
+          .select('amount, type')
+          .eq('school_id', sid)
+          .gte('date', mtdStart)
+          .lte('date', todayStr),
       ]);
 
       const income = (transactions || []).filter(t => t.type === 'income');
@@ -99,6 +112,13 @@ export default function MasterSummaryReport() {
         expenses: expenses || []
       });
       setSchoolInfo(school);
+
+      // MTD totals
+      const mtdInc = (mtdTxns || []).filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
+      const mtdExp = (mtdTxns || []).filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
+      setMtdIncome(mtdInc);
+      setMtdExpenses(mtdExp);
+      setMtdLabel(`${mtdStart} → ${todayStr}`);
     } catch (err) {
       console.error('Error fetching report data:', err);
     } finally {
@@ -570,7 +590,7 @@ export default function MasterSummaryReport() {
 
             {/* Left: Income & Expense totals */}
             <div className="p-5 space-y-3">
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Financial Summary</p>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Financial Summary — Selected Period</p>
 
               <div className="flex justify-between items-center py-2 border-b border-slate-50">
                 <span className="text-sm font-bold text-slate-600">Total Income</span>
@@ -580,11 +600,34 @@ export default function MasterSummaryReport() {
                 <span className="text-sm font-bold text-slate-600">Total Expenses</span>
                 <span className="text-sm font-black text-rose-500">Rs. {totalExpenses.toLocaleString()}</span>
               </div>
-              <div className="flex justify-between items-center py-2.5 rounded-xl px-3 bg-slate-50">
+              <div className="flex justify-between items-center py-2.5 rounded-xl px-3 bg-slate-50 mb-2">
                 <span className="text-sm font-black text-slate-800">Net Cashflow</span>
                 <span className={cn("text-base font-black", netCashflow >= 0 ? "text-emerald-600" : "text-rose-600")}>
                   Rs. {netCashflow.toLocaleString()}
                 </span>
+              </div>
+
+              {/* Month-to-date divider */}
+              <div className="pt-2 border-t border-dashed border-slate-200">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400 inline-block" />
+                  Month-to-Date &nbsp;
+                  <span className="font-medium normal-case text-slate-300">{mtdLabel}</span>
+                </p>
+                <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
+                  <span className="text-xs font-bold text-slate-500">Income (MTD)</span>
+                  <span className="text-xs font-black text-emerald-600">Rs. {mtdIncome.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
+                  <span className="text-xs font-bold text-slate-500">Expenses (MTD)</span>
+                  <span className="text-xs font-black text-rose-500">Rs. {mtdExpenses.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 rounded-xl px-3 bg-sky-50 mt-1">
+                  <span className="text-xs font-black text-sky-800">Net (MTD)</span>
+                  <span className={cn("text-sm font-black", (mtdIncome - mtdExpenses) >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                    Rs. {(mtdIncome - mtdExpenses).toLocaleString()}
+                  </span>
+                </div>
               </div>
             </div>
 
