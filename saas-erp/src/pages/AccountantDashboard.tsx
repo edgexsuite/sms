@@ -40,14 +40,14 @@ export default function AccountantDashboard() {
   const fetchFeeSummary = async () => {
     const { data } = await supabase
       .from('fee_records')
-      .select('total_amount, paid_amount, status, created_at')
+      .select('total_amount, paid_amount, status, paid_at')
       .eq('school_id', userRole?.school_id);
 
     if (!data) return;
     const collected = data.reduce((s, r) => s + (r.paid_amount || 0), 0);
     const pending = data.reduce((s, r) => s + ((r.total_amount || 0) - (r.paid_amount || 0)), 0);
     const todayCollected = data
-      .filter(r => r.created_at?.startsWith(today))
+      .filter(r => r.paid_at?.startsWith(today))
       .reduce((s, r) => s + (r.paid_amount || 0), 0);
     setFeeSummary({ collected, pending: Math.max(0, pending), todayCollected, totalInvoices: data.length });
   };
@@ -85,7 +85,7 @@ export default function AccountantDashboard() {
     const startDate = `${months[0]}-01`;
 
     const [{ data: fees }, { data: expenses }] = await Promise.all([
-      supabase.from('fee_records').select('paid_amount, created_at').eq('school_id', userRole?.school_id).gte('created_at', startDate),
+      supabase.from('fee_records').select('paid_amount, paid_at').eq('school_id', userRole?.school_id).gte('paid_at', startDate),
       supabase.from('financial_transactions').select('amount, date, type').eq('school_id', userRole?.school_id).eq('type', 'expense').gte('date', startDate),
     ]);
 
@@ -94,7 +94,7 @@ export default function AccountantDashboard() {
     months.forEach(m => { incomeMap.set(m, 0); expenseMap.set(m, 0); });
 
     (fees || []).forEach((r: any) => {
-      const m = r.created_at?.slice(0, 7);
+      const m = r.paid_at?.slice(0, 7);
       if (m && incomeMap.has(m)) incomeMap.set(m, incomeMap.get(m)! + (r.paid_amount || 0));
     });
     (expenses || []).forEach((r: any) => {

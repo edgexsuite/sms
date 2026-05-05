@@ -127,7 +127,7 @@ export default function StudentFeeHistory() {
 
     let query = supabase
       .from('fee_records')
-      .select('id, student_id, invoice_number, month_year, due_date, total_amount, paid_amount, status, payment_mode, breakdown, remarks, students(full_name, roll_number, class_id, classes(name, section), parents(father_name))')
+      .select('id, student_id, invoice_number, month_year, due_date, total_amount, paid_amount, paid_at, status, payment_mode, breakdown, remarks, students(full_name, roll_number, class_id, classes(name, section), parents(father_name))')
       .eq('school_id', userRole.school_id)
       .is('deleted_at', null)
       .order('month_year', { ascending: false });
@@ -235,15 +235,33 @@ export default function StudentFeeHistory() {
     try {
       const newPaid = parseFloat(editForm.paid_amount) || 0;
       const newTotal = parseFloat(editForm.total_amount) || 0;
+      const newDate = editForm.paid_at;
       const { error } = await supabase.from('fee_records').update({
         total_amount: newTotal,
         paid_amount: newPaid,
         month_year: editForm.month_year + '-01',
-        paid_at: newPaid > 0 ? editForm.paid_at + 'T12:00:00Z' : null,
+        paid_at: newPaid > 0 ? newDate + 'T12:00:00Z' : null,
         status: newPaid >= newTotal ? 'paid' : (newPaid > 0 ? 'partial' : 'pending')
       }).eq('id', editingRecord.id);
 
       if (error) throw error;
+
+      // Propagate collection date to financial_transactions so all reports stay in sync
+      if (newPaid > 0 && newDate) {
+        const { data: linkedTxns } = await supabase
+          .from('financial_transactions')
+          .select('id')
+          .eq('fee_record_id', editingRecord.id)
+          .eq('school_id', userRole?.school_id);
+        if (linkedTxns && linkedTxns.length > 0) {
+          const txnIds = linkedTxns.map((t: any) => t.id);
+          await supabase.from('financial_transactions').update({ date: newDate }).in('id', txnIds);
+          try {
+            await supabase.from('journal_entries').update({ date: newDate }).in('source_transaction_id', txnIds);
+          } catch (_) { /* silent – journal link may not exist */ }
+        }
+      }
+
       setEditingRecord(null);
       fetchRecords();
     } catch (err: any) {

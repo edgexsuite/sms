@@ -131,7 +131,7 @@ export default function Dashboard() {
         supabase.from('classes').select('id, name, section').eq('school_id', sid),
         supabase.from('students').select('class_id').eq('school_id', sid).eq('status', 'active'),
         supabase.from('financial_transactions').select('type, amount, date, category').eq('school_id', sid).gte('date', sixMonthsAgoStr),
-        supabase.from('fee_records').select('total_amount, paid_amount, status, month_year, invoice_number').eq('school_id', sid).order('created_at', { ascending: false }).limit(5),
+        supabase.from('fee_records').select('total_amount, paid_amount, status, month_year, invoice_number, paid_at').eq('school_id', sid).neq('status', 'pending').order('paid_at', { ascending: false }).limit(5),
         supabase.from('schools').select('name').eq('id', sid).maybeSingle(),
         supabase.from('complaints').select('*', { count: 'exact', head: true }).eq('school_id', sid).eq('status', 'open'),
         supabase.from('leave_requests').select('*', { count: 'exact', head: true }).eq('school_id', sid).eq('status', 'pending'),
