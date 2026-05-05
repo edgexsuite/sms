@@ -24,7 +24,7 @@ export default function AdvanceFee() {
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ student_id: '', months: 1, month_start: '', amount: '' });
+  const [form, setForm] = useState({ student_id: '', months: 1, month_start: '', amount: '', payment_mode: 'Cash' });
 
   useEffect(() => {
     if (userRole?.school_id) { fetchRecords(); fetchStudents(); }
@@ -76,10 +76,27 @@ export default function AdvanceFee() {
         status: 'paid',
       };
     });
-    await supabase.from('fee_records').insert(rows);
+    const { data: insertedRows, error: insertError } = await supabase.from('fee_records').insert(rows).select();
+    if (insertError) { alert(insertError.message); setSaving(false); return; }
+
+    // Record financial transaction for the total amount
+    const student = students.find(s => s.id === form.student_id);
+    const totalAmount = parseFloat(form.amount) * form.months;
+    const monthsRange = rows.map(r => formatDate(r.month_year)).join(', ');
+    
+    await supabase.from('financial_transactions').insert({
+      school_id: userRole!.school_id,
+      type: 'income',
+      category: 'Fee Collection',
+      amount: totalAmount,
+      date: new Date().toISOString().split('T')[0],
+      payment_mode: form.payment_mode,
+      remarks: `Advance Fee: ${student?.full_name} — [${monthsRange}]`,
+    });
+
     setSaving(false);
     setIsModalOpen(false);
-    setForm({ student_id: '', months: 1, month_start: '', amount: '' });
+    setForm({ student_id: '', months: 1, month_start: '', amount: '', payment_mode: 'Cash' });
     fetchRecords();
   };
 
@@ -218,6 +235,13 @@ export default function AdvanceFee() {
                 <FieldLabel required>Amount per Month (Rs.)</FieldLabel>
                 <input required type="number" min="0" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })}
                   className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] text-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none" placeholder="0" />
+              </div>
+              <div>
+                <FieldLabel required>Payment Mode</FieldLabel>
+                <select required value={form.payment_mode} onChange={e => setForm({ ...form, payment_mode: e.target.value })}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] text-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none">
+                  {['Cash', 'Bank Transfer', 'Cheque', 'Online'].map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
               </div>
               {form.months > 1 && form.amount && (
                 <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3">
