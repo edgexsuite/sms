@@ -14,7 +14,13 @@ interface AdvanceRecord {
   total_amount: number;
   paid_amount: number;
   status: string;
-  student: { full_name: string; roll_number: number; class: { name: string; section: string } | null } | null;
+  student: { 
+    id: string;
+    full_name: string; 
+    roll_number: number; 
+    class: { name: string; section: string } | null;
+    parents?: { father_name: string; family_number: string; whatsapp_number: string } | null;
+  } | null;
 }
 
 export default function AdvanceFee() {
@@ -25,6 +31,7 @@ export default function AdvanceFee() {
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ student_id: '', months: 1, month_start: '', amount: '', payment_mode: 'Cash' });
   const [successData, setSuccessData] = useState<any>(null);
   const [school, setSchool] = useState<SchoolInfo>({ name: '' });
 
@@ -47,7 +54,7 @@ export default function AdvanceFee() {
     const today = new Date().toISOString().split('T')[0].slice(0, 7); // YYYY-MM
     const { data } = await supabase
       .from('fee_records')
-      .select('id, student_id, month_year, total_amount, paid_amount, status, student:student_id(full_name, roll_number, class:class_id(name, section))')
+      .select('id, student_id, month_year, total_amount, paid_amount, status, student:student_id(id, full_name, roll_number, class:class_id(name, section), parents(father_name, family_number, whatsapp_number))')
       .eq('school_id', userRole!.school_id)
       .eq('status', 'paid')
       .is('deleted_at', null)
@@ -60,7 +67,7 @@ export default function AdvanceFee() {
   const fetchStudents = async () => {
     const { data } = await supabase
       .from('students')
-      .select('id, full_name, roll_number, class:class_id(name, section, fee_structures(amount))')
+      .select('id, full_name, roll_number, class:class_id(name, section, fee_structures(amount)), parents(father_name, family_number, whatsapp_number)')
       .eq('school_id', userRole!.school_id)
       .eq('status', 'active')
       .order('full_name');
@@ -122,19 +129,23 @@ export default function AdvanceFee() {
   };
 
   const handlePrintReceipt = (r: any) => {
+    const stu = r.student || students.find(s => s.id === r.student_id);
     const record: ChallanRecord = {
       id: r.id || 'receipt',
       month_year: r.month_year || r.date,
       total_amount: r.amount || r.paid_amount,
       paid_amount: r.amount || r.paid_amount,
       status: 'paid',
-      student_name: r.student?.full_name || r.student_name,
-      roll_number: r.student?.roll_number || r.roll_number,
-      class_name: r.student?.class ? `${r.student.class.name}-${r.student.class.section}` : r.class_name,
+      student_name: stu?.full_name || r.student_name,
+      roll_number: stu?.roll_number || r.roll_number,
+      class_name: stu?.class ? `${stu.class.name}-${stu.class.section}` : r.class_name,
+      father_name: stu?.parents?.father_name || '',
+      family_number: stu?.parents?.family_number || '',
+      depositor_phone: stu?.parents?.whatsapp_number || '',
       issue_date: new Date().toISOString().split('T')[0],
       breakdown: [{ item: `Advance Fee (${r.month_year || r.months})`, amount: r.amount || r.paid_amount }]
     };
-    downloadChallanPDF([record], school, { ...DEFAULT_CHALLAN_CONFIG, copies: 1 });
+    downloadChallanPDF([record], school, { ...DEFAULT_CHALLAN_CONFIG, copies: 3 });
   };
 
   const handleDelete = async (id: string) => {
