@@ -61,9 +61,10 @@ export default function MasterSummaryReport() {
       startDate = lastWeek.toISOString().split('T')[0];
     } else if (dateType === 'month') {
       startDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-    } else if (dateType === 'custom' && customStart && customEnd) {
-      startDate = customStart;
-      endDate = customEnd;
+    } else if (dateType === 'custom') {
+      // Allow partial range: if only start is set, end defaults to today
+      startDate = customStart || endDate;
+      if (customEnd) endDate = customEnd;
     } else {
       startDate = endDate;
     }
@@ -138,64 +139,145 @@ export default function MasterSummaryReport() {
   const handleExportPDF = async () => {
     const doc = new jsPDF('p', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.width;
+    const margin = 14;
 
+    // Logo
     if (schoolInfo?.logo_url) {
       try {
         const logoBase64 = await getBase64Image(schoolInfo.logo_url);
-        doc.addImage(logoBase64, 'PNG', 14, 10, 25, 25);
+        doc.addImage(logoBase64, 'PNG', margin, 10, 22, 22);
       } catch (err) { console.warn(err); }
     }
 
-    doc.setFontSize(20);
+    // School name & address
+    doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.text(schoolInfo?.name || 'Executive Summary', pageWidth / 2, 20, { align: 'center' });
-    
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(schoolInfo?.address || '', pageWidth / 2, 28, { align: 'center' });
-    
-    doc.setFontSize(14);
-    doc.text('Master Executive Summary Report', pageWidth / 2, 40, { align: 'center' });
-    
+    doc.text(schoolInfo?.name || 'Executive Summary', pageWidth / 2, 18, { align: 'center' });
     doc.setFontSize(9);
-    doc.text(`Period: ${dateType === 'custom' ? `${customStart} to ${customEnd}` : dateType.toUpperCase()}`, 14, 48);
-    doc.text(`Generated: ${formatDateTime(new Date())}`, pageWidth - 14, 48, { align: 'right' });
-
-    // Summary Box
-    doc.setFillColor(248, 250, 252);
-    doc.rect(14, 52, pageWidth - 28, 20, 'F');
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('KEY PERFORMANCE INDICATORS', 18, 58);
     doc.setFont('helvetica', 'normal');
-    doc.text(`New Admissions: ${data.admissions.length}`, 18, 65);
-    doc.text(`Total Income: Rs. ${totalIncome.toLocaleString()}`, 70, 65);
-    doc.text(`Total Expenses: Rs. ${totalExpenses.toLocaleString()}`, 120, 65);
+    doc.text(schoolInfo?.address || '', pageWidth / 2, 24, { align: 'center' });
+
+    // Report title
+    doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
-    doc.text(`Net Cashflow: Rs. ${netCashflow.toLocaleString()}`, 170, 65, { align: 'right' });
+    doc.text('Master Executive Summary Report', pageWidth / 2, 34, { align: 'center' });
 
-    let currentY = 80;
+    // Period line
+    const periodLabel = dateType === 'custom'
+      ? `${customStart}${customEnd ? ` to ${customEnd}` : ''}`
+      : dateType.toUpperCase();
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Period: ${periodLabel}`, margin, 41);
+    doc.text(`Generated: ${formatDateTime(new Date())}`, pageWidth - margin, 41, { align: 'right' });
 
-    // Table
-    const activeData = activeTab === 'admissions' ? data.admissions : activeTab === 'income' ? data.income : data.expenses;
-    const headers = activeTab === 'admissions' 
-      ? [['#', 'Student Name', 'Roll #', 'Class', 'Date']]
-      : [['#', 'Date', 'Category', 'Description', 'Mode', 'Amount']];
-    
-    const tableBody = activeData.map((row, i) => {
-      if (activeTab === 'admissions') return [i + 1, row.full_name, row.roll_number, row.classes?.name || '—', formatDate(row.admission_date)];
-      return [i + 1, formatDate(row.date), row.category, row.remarks || '—', row.payment_mode, Number(row.amount).toLocaleString()];
+    // KPI summary box — two rows to avoid overlap
+    const boxY = 44;
+    doc.setFillColor(248, 250, 252);
+    doc.rect(margin, boxY, pageWidth - margin * 2, 22, 'F');
+    doc.setDrawColor(220, 220, 230);
+    doc.rect(margin, boxY, pageWidth - margin * 2, 22);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('KEY PERFORMANCE INDICATORS', margin + 3, boxY + 6);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    const col = (pageWidth - margin * 2) / 4;
+    const kpiY = boxY + 15;
+    [
+      { label: 'New Admissions', val: String(data.admissions.length) },
+      { label: 'Total Income', val: `Rs. ${totalIncome.toLocaleString()}` },
+      { label: 'Total Expenses', val: `Rs. ${totalExpenses.toLocaleString()}` },
+      { label: 'Net Cashflow', val: `Rs. ${netCashflow.toLocaleString()}` },
+    ].forEach(({ label, val }, i) => {
+      const x = margin + 3 + i * col;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 100, 100);
+      doc.text(label, x, kpiY - 5);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(i === 3 ? 37 : i === 1 ? 16 : i === 2 ? 220 : 30, i === 1 ? 163 : 30, i === 1 ? 70 : 30);
+      doc.text(val, x, kpiY);
     });
+    doc.setTextColor(0, 0, 0);
 
-    autoTable(doc, {
-      startY: currentY,
-      head: headers,
-      body: tableBody,
-      theme: 'grid',
-      headStyles: { fillColor: [13, 21, 38], textColor: 255 },
-      styles: { fontSize: 8 },
-      columnStyles: activeTab !== 'admissions' ? { 5: { halign: 'right' } } : {}
-    });
+    let currentY = boxY + 28;
+
+    // ── Helper: render one section ──────────────────────────────────────
+    const renderSection = (title: string, rows: any[], isTransaction: boolean) => {
+      if (rows.length === 0) return;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setFillColor(13, 21, 38);
+      doc.setTextColor(255, 255, 255);
+      doc.rect(margin, currentY, pageWidth - margin * 2, 7, 'F');
+      doc.text(`  ${title} (${rows.length} records)`, margin + 2, currentY + 5);
+      doc.setTextColor(0, 0, 0);
+      currentY += 9;
+
+      if (isTransaction) {
+        autoTable(doc, {
+          startY: currentY,
+          head: [['#', 'Date', 'Category', 'Description / Remarks', 'Mode', 'Amount']],
+          body: rows.map((r, i) => [
+            i + 1,
+            formatDate(r.date),
+            r.category || '—',
+            r.remarks || '—',
+            r.payment_mode || '—',
+            `Rs. ${Number(r.amount).toLocaleString()}`,
+          ]),
+          theme: 'grid',
+          headStyles: { fillColor: [51, 65, 85], textColor: 255, fontSize: 7, fontStyle: 'bold' },
+          styles: { fontSize: 7.5, cellPadding: 2 },
+          columnStyles: {
+            0: { cellWidth: 8, halign: 'center' },
+            1: { cellWidth: 22 },
+            2: { cellWidth: 35 },
+            3: { cellWidth: 'auto' },
+            4: { cellWidth: 22 },
+            5: { cellWidth: 28, halign: 'right' },
+          },
+          margin: { left: margin, right: margin },
+        });
+      } else {
+        autoTable(doc, {
+          startY: currentY,
+          head: [['#', 'Student Name', 'Roll #', 'Class', 'Admission Date']],
+          body: rows.map((r, i) => [i + 1, r.full_name, r.roll_number, r.classes?.name || '—', formatDate(r.admission_date)]),
+          theme: 'grid',
+          headStyles: { fillColor: [51, 65, 85], textColor: 255, fontSize: 7, fontStyle: 'bold' },
+          styles: { fontSize: 7.5, cellPadding: 2 },
+          margin: { left: margin, right: margin },
+        });
+      }
+
+      currentY = (doc as any).lastAutoTable.finalY + 8;
+    };
+
+    // Income summary footer row
+    const renderTotal = (label: string, amount: number, color: [number, number, number]) => {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(...color);
+      doc.text(`${label}: Rs. ${amount.toLocaleString()}`, pageWidth - margin, currentY, { align: 'right' });
+      doc.setTextColor(0, 0, 0);
+      currentY += 5;
+    };
+
+    renderSection('Income Transactions', data.income, true);
+    renderTotal('Total Income', totalIncome, [16, 163, 70]);
+
+    renderSection('Expense Transactions', data.expenses, true);
+    renderTotal('Total Expenses', totalExpenses, [220, 38, 38]);
+    renderTotal('Net Cashflow', netCashflow, netCashflow >= 0 ? [16, 163, 70] : [220, 38, 38]);
+
+    if (data.admissions.length > 0) {
+      currentY += 3;
+      renderSection('New Enrollments', data.admissions, false);
+    }
 
     doc.save(`Executive_Summary_${new Date().toISOString().split('T')[0]}.pdf`);
   };
@@ -267,12 +349,26 @@ export default function MasterSummaryReport() {
       {/* Custom Date Range (Conditional) */}
       {dateType === 'custom' && (
         <Card className="p-2 border-slate-100 animate-in fade-in slide-in-from-top-2">
-           <div className="flex items-center gap-3 px-2">
-              <Calendar className="w-4 h-4 text-indigo-500" />
-              <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} className="text-xs font-bold border-none bg-slate-50 rounded-lg px-3 py-1.5 focus:ring-0" />
-              <span className="text-[10px] font-black text-slate-300 uppercase">to</span>
-              <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className="text-xs font-bold border-none bg-slate-50 rounded-lg px-3 py-1.5 focus:ring-0" />
-              <Btn variant="ghost" size="xs" onClick={() => { setCustomStart(''); setCustomEnd(''); }} className="text-[9px] font-black text-slate-400">CLEAR</Btn>
+           <div className="flex flex-wrap items-center gap-3 px-2">
+              <Calendar className="w-4 h-4 text-indigo-500 shrink-0" />
+              <div className="flex items-center gap-2">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">From</label>
+                <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
+                  className="text-xs font-bold border border-slate-200 bg-slate-50 rounded-lg px-3 py-1.5 outline-none focus:border-indigo-400" />
+              </div>
+              <span className="text-[10px] font-black text-slate-300 uppercase">→</span>
+              <div className="flex items-center gap-2">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">To</label>
+                <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
+                  className="text-xs font-bold border border-slate-200 bg-slate-50 rounded-lg px-3 py-1.5 outline-none focus:border-indigo-400" />
+              </div>
+              {customStart && !customEnd && (
+                <span className="text-[9px] font-bold text-amber-500 bg-amber-50 px-2 py-1 rounded-lg">
+                  End date not set — showing up to today
+                </span>
+              )}
+              <Btn variant="ghost" size="xs" onClick={() => { setCustomStart(''); setCustomEnd(''); }}
+                className="text-[9px] font-black text-slate-400 hover:text-rose-500">CLEAR</Btn>
            </div>
         </Card>
       )}
