@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -36,8 +37,14 @@ interface ExamType   { id: string; name: string; session: string; month_year: st
 
 export default function TeacherMarks() {
   const { userRole } = useAuth();
+  const [searchParams] = useSearchParams();
   const isTeacher = ['teacher', 'staff'].includes(userRole?.role || '');
   const isAdmin   = ['admin', 'principal', 'director'].includes(userRole?.role || '');
+
+  // Deep-link params from ResultStatus page
+  const preClassId   = searchParams.get('classId')    || '';
+  const preSubjectId = searchParams.get('subjectId')  || '';
+  const preExamId    = searchParams.get('examTypeId') || '';
 
   // ── Data ──────────────────────────────────────────────────────────────────
   const [allClasses,  setAllClasses]  = useState<ClassRow[]>([]);
@@ -172,6 +179,11 @@ export default function TeacherMarks() {
       }
     }
 
+    // Apply deep-link params from ResultStatus (if any)
+    if (preExamId)    setSelectedExam(preExamId);
+    if (preClassId)   setSelectedClass(preClassId);
+    // subject is set after fetchSubjectsForClass runs (see useEffect below)
+
     setLoading(false);
   };
 
@@ -182,6 +194,10 @@ export default function TeacherMarks() {
       .eq('class_id', selectedClass)
       .order('subject_name');
     setAllSubjects(data || []);
+    // Apply deep-link subject param once subjects are loaded
+    if (preSubjectId && (data || []).some(s => s.id === preSubjectId)) {
+      setSelectedSubject(preSubjectId);
+    }
   };
 
   const fetchStudentsForClass = async () => {
