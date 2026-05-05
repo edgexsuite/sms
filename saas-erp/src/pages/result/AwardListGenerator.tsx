@@ -14,6 +14,19 @@ interface Column {
   maxMarks: string;
 }
 
+const MONTH_NAMES = [
+  'January','February','March','April','May','June',
+  'July','August','September','October','November','December',
+];
+
+function monthYearLabel(my: string | null | undefined) {
+  if (!my) return '';
+  const [y, m] = my.split('-');
+  const mIdx = parseInt(m, 10) - 1;
+  if (isNaN(mIdx) || mIdx < 0 || mIdx > 11) return my;
+  return `${MONTH_NAMES[mIdx]} ${y}`;
+}
+
 export default function AwardListGenerator() {
   const { userRole } = useAuth();
   const navigate = useNavigate();
@@ -28,6 +41,8 @@ export default function AwardListGenerator() {
   const [selectedExam, setSelectedExam] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('custom'); // 'custom', 'all', or subjectId
   const [listTitle, setListTitle] = useState('Examination Award List');
+  const [selectedMonth, setSelectedMonth] = useState(MONTH_NAMES[new Date().getMonth()]);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   
   const [allSubjects, setAllSubjects] = useState<any[]>([]);
   const [marksData, setMarksData] = useState<Record<string, Record<string, number>>>({}); // studentId -> { subjectId -> marks }
@@ -56,11 +71,20 @@ export default function AwardListGenerator() {
   useEffect(() => {
     if (selectedClass && selectedExam) {
       fetchMarks();
+      const exam = examTypes.find(e => e.id === selectedExam);
+      if (exam?.month_year) {
+        const [y, m] = exam.month_year.split('-');
+        setSelectedMonth(MONTH_NAMES[parseInt(m, 10) - 1]);
+        setSelectedYear(y);
+      } else if (exam?.name) {
+        const foundMonth = MONTH_NAMES.find(m => exam.name.toLowerCase().includes(m.toLowerCase()));
+        if (foundMonth) setSelectedMonth(foundMonth);
+      }
     }
     if (!selectedExam) {
       setSubjectTotalsFromExam({});
     }
-  }, [selectedClass, selectedExam]);
+  }, [selectedClass, selectedExam, examTypes]);
 
   // Re-run config fetch whenever subjects load OR exam changes (handles any ordering)
   useEffect(() => {
@@ -317,6 +341,29 @@ export default function AwardListGenerator() {
                   className="w-full bg-slate-50 border border-transparent focus:bg-white focus:border-indigo-100 p-3.5 rounded-2xl text-sm font-bold text-slate-700 transition-all outline-none"
                 />
               </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Month</label>
+                  <select
+                    value={selectedMonth}
+                    onChange={e => setSelectedMonth(e.target.value)}
+                    className="w-full bg-slate-50 border border-transparent focus:bg-white focus:border-indigo-100 p-3.5 rounded-2xl text-sm font-bold text-slate-700 transition-all outline-none"
+                  >
+                    {MONTH_NAMES.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Year</label>
+                  <select
+                    value={selectedYear}
+                    onChange={e => setSelectedYear(e.target.value)}
+                    className="w-full bg-slate-50 border border-transparent focus:bg-white focus:border-indigo-100 p-3.5 rounded-2xl text-sm font-bold text-slate-700 transition-all outline-none"
+                  >
+                    {[0, 1, -1].map(offset => (new Date().getFullYear() + offset).toString()).map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </div>
+              </div>
             </div>
 
             <div className="bg-indigo-900 rounded-[2.5rem] p-6 text-white space-y-4">
@@ -407,7 +454,7 @@ export default function AwardListGenerator() {
 
           return subjectList.flatMap((subject) => {
             const subCols = selectedSubject === 'all'
-              ? [{ id: subject.id, label: subject.subject_name, maxMarks: String(subject.total_marks || 100) }]
+              ? [{ id: subject.id, label: subject.subject_name, maxMarks: String(subjectTotalsFromExam[subject.id] ?? subject.total_marks ?? 100) }]
               : columns;
 
             const subGrandTotal = subCols.reduce((sum, col) => sum + (Number(col.maxMarks) || 0), 0);
@@ -431,7 +478,7 @@ export default function AwardListGenerator() {
                             {selectedSubject === 'all' ? `${subject.subject_name} Award List` : listTitle}
                           </h2>
                           <p className="text-[8px] font-black text-black opacity-80 mt-0.5">
-                            {copyNum === 1 ? 'OFFICE COPY' : 'AWARD LIST'} — {currentExam?.name || ''}
+                            {copyNum === 1 ? 'OFFICE COPY' : 'AWARD LIST'} — {currentExam?.name || ''} ({selectedMonth} {selectedYear})
                           </p>
                         </div>
                         <div className="text-[7px] font-bold text-black border border-black p-0.5 text-right min-w-[50px]">
