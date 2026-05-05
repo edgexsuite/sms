@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { CreditCard, Plus, Search, Download, Trash2 } from 'lucide-react';
+import { CreditCard, Plus, Search, Download, Trash2, Printer, CheckCircle, Zap, ExternalLink } from 'lucide-react';
 import { exportToCSV } from '../../lib/exportUtils';
 import { formatDate } from '../../lib/utils';
 import { PageHeader, Card, Btn, Input, EmptyState, FieldLabel } from '../../components/ui';
+import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, SchoolInfo, ChallanRecord } from '../../lib/challanUtils';
 
 interface AdvanceRecord {
   id: string;
@@ -24,11 +25,21 @@ export default function AdvanceFee() {
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ student_id: '', months: 1, month_start: '', amount: '', payment_mode: 'Cash' });
+  const [successData, setSuccessData] = useState<any>(null);
+  const [school, setSchool] = useState<SchoolInfo>({ name: '' });
 
   useEffect(() => {
-    if (userRole?.school_id) { fetchRecords(); fetchStudents(); }
+    if (userRole?.school_id) { 
+      fetchRecords(); 
+      fetchStudents(); 
+      fetchSchool();
+    }
   }, [userRole]);
+
+  const fetchSchool = async () => {
+    const { data } = await supabase.from('schools').select('*').eq('id', userRole?.school_id).maybeSingle();
+    if (data) setSchool(data);
+  };
 
   const fetchRecords = async () => {
     setLoading(true);
@@ -97,7 +108,33 @@ export default function AdvanceFee() {
     setSaving(false);
     setIsModalOpen(false);
     setForm({ student_id: '', months: 1, month_start: '', amount: '', payment_mode: 'Cash' });
+    setSuccessData({
+      student_id: form.student_id,
+      student_name: student?.full_name,
+      roll_number: student?.roll_number,
+      class_name: student?.class ? `${student.class.name}-${student.class.section}` : '',
+      amount: totalAmount,
+      months: monthsRange,
+      date: new Date().toISOString().split('T')[0],
+      mode: form.payment_mode
+    });
     fetchRecords();
+  };
+
+  const handlePrintReceipt = (r: any) => {
+    const record: ChallanRecord = {
+      id: r.id || 'receipt',
+      month_year: r.month_year || r.date,
+      total_amount: r.amount || r.paid_amount,
+      paid_amount: r.amount || r.paid_amount,
+      status: 'paid',
+      student_name: r.student?.full_name || r.student_name,
+      roll_number: r.student?.roll_number || r.roll_number,
+      class_name: r.student?.class ? `${r.student.class.name}-${r.student.class.section}` : r.class_name,
+      issue_date: new Date().toISOString().split('T')[0],
+      breakdown: [{ item: `Advance Fee (${r.month_year || r.months})`, amount: r.amount || r.paid_amount }]
+    };
+    downloadChallanPDF([record], school, { ...DEFAULT_CHALLAN_CONFIG, copies: 1 });
   };
 
   const handleDelete = async (id: string) => {
@@ -194,9 +231,14 @@ export default function AdvanceFee() {
                     <span className="px-2 py-1 text-[11px] font-bold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">Advance</span>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <Btn variant="ghost" size="sm" onClick={() => handleDelete(r.id)} className="text-rose-500 hover:text-rose-600 hover:bg-rose-50">
-                      <Trash2 className="w-4 h-4" />
-                    </Btn>
+                    <div className="flex justify-end gap-2">
+                      <Btn variant="ghost" size="sm" onClick={() => handlePrintReceipt(r)} className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50">
+                        <Printer className="w-4 h-4" />
+                      </Btn>
+                      <Btn variant="ghost" size="sm" onClick={() => handleDelete(r.id)} className="text-rose-500 hover:text-rose-600 hover:bg-rose-50">
+                        <Trash2 className="w-4 h-4" />
+                      </Btn>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -212,51 +254,72 @@ export default function AdvanceFee() {
               <h2 className="text-[15px] font-semibold text-slate-900">Record Advance Payment</h2>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">&times;</button>
             </div>
-            <form onSubmit={handleSubmit} className="p-5 space-y-4">
-              <div>
-                <FieldLabel required>Student</FieldLabel>
-                <select required value={form.student_id} onChange={e => setForm({ ...form, student_id: e.target.value })}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] text-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none">
-                  <option value="">Select student...</option>
-                  {students.map(s => <option key={s.id} value={s.id}>{s.full_name} (Roll #{s.roll_number})</option>)}
-                </select>
-              </div>
-              <div>
-                <FieldLabel required>Starting Month</FieldLabel>
-                <input required type="month" value={form.month_start.slice(0, 7)} onChange={e => setForm({ ...form, month_start: e.target.value })}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] text-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none" />
-              </div>
-              <div>
-                <FieldLabel>Number of Months</FieldLabel>
-                <input type="number" min="1" max="12" value={form.months} onChange={e => setForm({ ...form, months: parseInt(e.target.value) || 1 })}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] text-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none" />
-              </div>
-              <div>
-                <FieldLabel required>Amount per Month (Rs.)</FieldLabel>
-                <input required type="number" min="0" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] text-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none" placeholder="0" />
-              </div>
-              <div>
-                <FieldLabel required>Payment Mode</FieldLabel>
-                <select required value={form.payment_mode} onChange={e => setForm({ ...form, payment_mode: e.target.value })}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] text-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none">
-                  {['Cash', 'Bank Transfer', 'Cheque', 'Online'].map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
-              {form.months > 1 && form.amount && (
-                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3">
-                  <p className="text-[13px] text-indigo-700">
-                    Total: <span className="font-bold">Rs. {(form.months * parseFloat(form.amount || '0')).toLocaleString()}</span> for {form.months} months
-                  </p>
+            {successData ? (
+              <div className="p-8 flex flex-col items-center text-center">
+                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
+                  <CheckCircle className="w-8 h-8 text-emerald-600" />
                 </div>
-              )}
-              <div className="flex justify-end gap-2 pt-2">
-                <Btn variant="secondary" type="button" onClick={() => setIsModalOpen(false)}>Cancel</Btn>
-                <Btn type="submit" disabled={saving}>
-                  {saving ? 'Saving...' : 'Record Payment'}
-                </Btn>
+                <h3 className="text-xl font-bold text-slate-900 mb-1">Payment Recorded!</h3>
+                <p className="text-sm text-slate-500 mb-6">Advance fee for {successData.student_name} has been saved.</p>
+                
+                <div className="w-full bg-slate-50 rounded-xl p-4 border border-slate-100 mb-6 text-left space-y-2">
+                  <div className="flex justify-between text-xs"><span className="text-slate-500">Amount</span><span className="font-bold">Rs. {successData.amount.toLocaleString()}</span></div>
+                  <div className="flex justify-between text-xs"><span className="text-slate-500">Months</span><span className="font-bold">{successData.months}</span></div>
+                  <div className="flex justify-between text-xs"><span className="text-slate-500">Mode</span><span className="font-bold">{successData.mode}</span></div>
+                </div>
+
+                <div className="flex flex-col gap-2 w-full">
+                  <Btn variant="primary" onClick={() => handlePrintReceipt(successData)} icon={Printer}>Print Receipt</Btn>
+                  <Btn variant="secondary" onClick={() => { setSuccessData(null); setIsModalOpen(false); }}>Close</Btn>
+                </div>
               </div>
-            </form>
+            ) : (
+              <form onSubmit={handleSubmit} className="p-5 space-y-4">
+                <div>
+                  <FieldLabel required>Student</FieldLabel>
+                  <select required value={form.student_id} onChange={e => setForm({ ...form, student_id: e.target.value })}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] text-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none">
+                    <option value="">Select student...</option>
+                    {students.map(s => <option key={s.id} value={s.id}>{s.full_name} (Roll #{s.roll_number})</option>)}
+                  </select>
+                </div>
+                <div>
+                  <FieldLabel required>Starting Month</FieldLabel>
+                  <input required type="month" value={form.month_start.slice(0, 7)} onChange={e => setForm({ ...form, month_start: e.target.value })}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] text-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none" />
+                </div>
+                <div>
+                  <FieldLabel>Number of Months</FieldLabel>
+                  <input type="number" min="1" max="12" value={form.months} onChange={e => setForm({ ...form, months: parseInt(e.target.value) || 1 })}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] text-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none" />
+                </div>
+                <div>
+                  <FieldLabel required>Amount per Month (Rs.)</FieldLabel>
+                  <input required type="number" min="0" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] text-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none" placeholder="0" />
+                </div>
+                <div>
+                  <FieldLabel required>Payment Mode</FieldLabel>
+                  <select required value={form.payment_mode} onChange={e => setForm({ ...form, payment_mode: e.target.value })}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] text-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none">
+                    {['Cash', 'Bank Transfer', 'Cheque', 'Online'].map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                {form.months > 1 && form.amount && (
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3">
+                    <p className="text-[13px] text-indigo-700">
+                      Total: <span className="font-bold">Rs. {(form.months * parseFloat(form.amount || '0')).toLocaleString()}</span> for {form.months} months
+                    </p>
+                  </div>
+                )}
+                <div className="flex justify-end gap-2 pt-2">
+                  <Btn variant="secondary" type="button" onClick={() => setIsModalOpen(false)}>Cancel</Btn>
+                  <Btn type="submit" disabled={saving}>
+                    {saving ? 'Saving...' : 'Record Payment'}
+                  </Btn>
+                </div>
+              </form>
+            )}
           </Card>
         </div>
       )}
