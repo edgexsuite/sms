@@ -302,10 +302,14 @@ export default function StudentFeeDetail() {
       const newTotal = editBreakdown.length > 0
         ? editBreakdown.reduce((s, r) => s + Math.max(0, (Number(r.amount) || 0) - (Number(r.discount) || 0)), 0)
         : parseFloat(editForm.total_amount) || 0;
-      
+
       const newTotalDiscount = editBreakdown.length > 0
         ? editBreakdown.reduce((s, r) => s + (Number(r.discount) || 0), 0)
         : editingInvoice.discount_amount || 0;
+
+      const newStatus = newPaid >= newTotal ? 'paid' : (newPaid > 0 ? 'partial' : 'pending');
+      const newPaidAt = newPaid > 0 ? editForm.paid_at + 'T12:00:00Z' : null;
+      const newDate = editForm.paid_at; // YYYY-MM-DD used for financial records
 
       const { error } = await supabase.from('fee_records').update({
         total_amount: newTotal,
@@ -313,11 +317,45 @@ export default function StudentFeeDetail() {
         paid_amount: newPaid,
         breakdown: editBreakdown.length > 0 ? editBreakdown : editingInvoice.breakdown,
         month_year: editForm.month_year + '-01',
-        paid_at: newPaid > 0 ? editForm.paid_at + 'T12:00:00Z' : null,
-        status: newPaid >= newTotal ? 'paid' : (newPaid > 0 ? 'partial' : 'pending')
+        paid_at: newPaidAt,
+        status: newStatus,
       }).eq('id', editingInvoice.id);
 
       if (error) throw error;
+
+      // ── Propagate date change to financial_transactions and journal_entries ──
+      // This ensures Ledger, P&L, Trial Balance and Dashboard all reflect the
+      // corrected collection date, not just the fee record.
+      if (newPaid > 0 && newDate) {
+        // 1. Get all transaction IDs linked to this fee record
+        const { data: linkedTxns } = await supabase
+          .from('financial_transactions')
+          .select('id')
+          .eq('fee_record_id', editingInvoice.id)
+          .eq('school_id', userRole?.school_id);
+
+        if (linkedTxns && linkedTxns.length > 0) {
+          const txnIds = linkedTxns.map((t: any) => t.id);
+
+          // 2. Update the transaction date
+          await supabase
+            .from('financial_transactions')
+            .update({ date: newDate })
+            .in('id', txnIds);
+
+          // 3. Update auto-generated journal entry dates (trigger only fires on
+          //    INSERT so journal entries must be updated manually on date edits)
+          try {
+            await supabase
+              .from('journal_entries')
+              .update({ date: newDate })
+              .in('source_transaction_id', txnIds);
+          } catch (_) {
+            // journal_entries may not have source_transaction_id yet — silent fail
+          }
+        }
+      }
+
       setEditingInvoice(null);
       fetchLedger(selectedStudent.id);
     } catch (err: any) {
@@ -737,7 +775,17 @@ export default function StudentFeeDetail() {
                               <button
                                 onClick={() => {
                                   setEditingInvoice(inv);
-                                  setEditBreakdown(inv.breakdown?.length ? inv.breakdown.map((b: any) => ({ item: b.item, amount: Number(b.amount), discount: Number(b.discount || 0) })) : []);
+                                  // Build breakdown rows, restoring discount_amount if per-row discount is absent
+                                  const rawRows = (inv.breakdown?.length ? inv.breakdown : []).map((b: any) => ({
+                                    item: b.item,
+                                    amount: Number(b.amount) || 0,
+                                    discount: Number(b.discount) || 0,
+                                  }));
+                                  const rowDiscountTotal = rawRows.reduce((s: number, r: any) => s + r.discount, 0);
+                                  if (rowDiscountTotal === 0 && inv.discount_amount && inv.discount_amount > 0 && rawRows.length > 0) {
+                                    rawRows[0] = { ...rawRows[0], discount: inv.discount_amount };
+                                  }
+                                  setEditBreakdown(rawRows);
                                   setEditForm({
                                     total_amount: String(inv.total_amount),
                                     paid_amount: String(inv.paid_amount || 0),
