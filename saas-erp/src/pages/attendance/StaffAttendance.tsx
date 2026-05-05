@@ -124,7 +124,7 @@ export default function StaffAttendance() {
               </Badge>
             )}
             {vacationToday && (
-              <Badge variant="info" className="px-4 py-2 text-xs">
+              <Badge variant="indigo" className="px-4 py-2 text-xs">
                 <Umbrella className="w-4 h-4 mr-2" /> {vacationToday.name}
               </Badge>
             )}

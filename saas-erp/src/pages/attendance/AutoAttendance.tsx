@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Cpu, Save, Wifi, WifiOff, Settings as SettingsIcon, Bell, Shield, Clock } from 'lucide-react';
 import { PageHeader, Card, Btn, Badge, Input, Select, Toggle } from '../../components/ui';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 
 interface DeviceConfig {

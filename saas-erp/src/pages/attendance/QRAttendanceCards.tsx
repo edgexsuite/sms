@@ -173,7 +173,7 @@ export default function QRAttendanceCards() {
               {items.length} {tab.toUpperCase()}
             </Badge>
             {selected.size > 0 && (
-              <Badge variant="info" className="px-3 py-1.5 text-[10px] animate-pulse">
+              <Badge variant="indigo" className="px-3 py-1.5 text-[10px] animate-pulse">
                 {selected.size} SELECTED FOR PRINT
               </Badge>
             )}

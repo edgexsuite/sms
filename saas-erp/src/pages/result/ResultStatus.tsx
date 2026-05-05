@@ -5,9 +5,12 @@ import { useAuth } from '../../contexts/AuthContext';
 import {
   ClipboardCheck, CheckCircle2, AlertCircle, XCircle,
   ChevronDown, Download, RefreshCw, ExternalLink,
-  BarChart3, Users, BookOpen, Search,
+  BarChart3, Users, BookOpen, Search, FileDown,
 } from 'lucide-react';
 import { exportToCSV } from '../../lib/exportUtils';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { getBase64Image } from '../../lib/utils';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -74,18 +77,22 @@ export default function ResultStatus() {
   const [statusFilter, setStatusFilter] = useState<'all'|'pending'|'partial'|'complete'>('all');
   const [search, setSearch]             = useState('');
   const [refreshKey, setRefreshKey]     = useState(0);
+  const [schoolInfo, setSchoolInfo]     = useState<any>(null);
+  const [pdfLoading, setPdfLoading]     = useState(false);
 
   // ── Load exam types once
   useEffect(() => {
     if (!userRole?.school_id) return;
     (async () => {
       setLoadingExams(true);
-      const { data } = await supabase
-        .from('exam_types')
-        .select('id, name, month_year')
-        .eq('school_id', userRole.school_id)
-        .order('month_year', { ascending: false });
+      const [{ data }, { data: school }] = await Promise.all([
+        supabase.from('exam_types').select('id, name, month_year')
+          .eq('school_id', userRole.school_id).order('month_year', { ascending: false }),
+        supabase.from('schools').select('name, address, contact_phone, logo_url')
+          .eq('id', userRole.school_id).maybeSingle(),
+      ]);
       setExamTypes(data || []);
+      setSchoolInfo(school);
       if (data && data.length > 0) setSelectedExam(data[0].id);
       setLoadingExams(false);
     })();
@@ -200,6 +207,154 @@ export default function ResultStatus() {
     ]);
   };
 
+  const handleDownloadPDF = async () => {
+    if (!selectedExamObj) return;
+    setPdfLoading(true);
+    try {
+      const doc  = new jsPDF('l', 'mm', 'a4'); // landscape
+      const W    = doc.internal.pageSize.width;   // 297
+      const examLabel = `${selectedExamObj.name}${monthYearLabel(selectedExamObj.month_year ?? null)}`;
+      const today = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
+
+      // ── Header ──────────────────────────────────────────────────
+      const LOGO_SIZE = 18;
+      const LOGO_X    = 8;
+      const LOGO_Y    = 6;
+
+      if (schoolInfo?.logo_url) {
+        try {
+          const b64 = await getBase64Image(schoolInfo.logo_url);
+          // white background behind logo
+          doc.setFillColor(255, 255, 255);
+          doc.rect(LOGO_X, LOGO_Y, LOGO_SIZE, LOGO_SIZE, 'F');
+          doc.addImage(b64, 'PNG', LOGO_X, LOGO_Y, LOGO_SIZE, LOGO_SIZE);
+        } catch { /* skip if logo fails */ }
+      }
+
+      const textX = schoolInfo?.logo_url ? LOGO_X + LOGO_SIZE + 4 : LOGO_X;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(30, 30, 80);
+      doc.text(schoolInfo?.name || 'School', textX, 12);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 120);
+      if (schoolInfo?.address)       doc.text(schoolInfo.address,        textX, 17);
+      if (schoolInfo?.contact_phone) doc.text(schoolInfo.contact_phone,  textX, 21);
+
+      // right-side heading
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(30, 30, 80);
+      doc.text('RESULT ENTRY STATUS REPORT', W - 8, 12, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 120);
+      doc.text(`Exam: ${examLabel}`, W - 8, 17, { align: 'right' });
+      doc.text(`Generated: ${today}`, W - 8, 21, { align: 'right' });
+
+      // separator line
+      doc.setDrawColor(99, 102, 241);
+      doc.setLineWidth(0.5);
+      doc.line(8, 27, W - 8, 27);
+
+      // ── Summary boxes ────────────────────────────────────────────
+      const boxY   = 30;
+      const boxH   = 14;
+      const gap    = 3;
+      const boxW   = (W - 16 - gap * 4) / 5;
+      const stats  = [
+        { label: 'Total',      value: total,        bg: [241,245,249] as [number,number,number], accent: [99,102,241]  as [number,number,number] },
+        { label: 'Complete',   value: complete,      bg: [236,253,245] as [number,number,number], accent: [16,185,129]  as [number,number,number] },
+        { label: 'Partial',    value: partial,       bg: [255,251,235] as [number,number,number], accent: [245,158,11]  as [number,number,number] },
+        { label: 'Pending',    value: pending,       bg: [255,241,242] as [number,number,number], accent: [239,68,68]   as [number,number,number] },
+        { label: 'Completion', value: `${overallPct}%`, bg: [238,242,255] as [number,number,number], accent: [79,70,229] as [number,number,number] },
+      ];
+
+      stats.forEach((s, i) => {
+        const bx = 8 + i * (boxW + gap);
+        doc.setFillColor(...s.bg);
+        doc.roundedRect(bx, boxY, boxW, boxH, 2, 2, 'F');
+        doc.setFillColor(...s.accent);
+        doc.roundedRect(bx, boxY, 2.5, boxH, 1, 1, 'F');
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6.5);
+        doc.setTextColor(100, 100, 120);
+        doc.text(s.label.toUpperCase(), bx + 4.5, boxY + 4.5);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(...s.accent);
+        doc.text(String(s.value), bx + 4.5, boxY + 11);
+      });
+
+      // ── Table ────────────────────────────────────────────────────
+      const STATUS_COLORS: Record<string, [number,number,number]> = {
+        complete: [16,185,129],
+        partial:  [245,158,11],
+        pending:  [239,68,68],
+      };
+
+      autoTable(doc, {
+        startY: boxY + boxH + 4,
+        tableWidth: W - 16,
+        margin: { left: 8, right: 8 },
+        head: [['#', 'Class', 'Subject', 'Students', 'Entered', 'Missing', '% Done', 'Status']],
+        body: filtered.map((r, i) => [
+          i + 1,
+          r.className,
+          r.subjectName,
+          r.totalStudents,
+          r.marksEntered,
+          r.missing > 0 ? r.missing : '—',
+          `${r.pct}%`,
+          r.status.charAt(0).toUpperCase() + r.status.slice(1),
+        ]),
+        headStyles: {
+          fillColor: [30, 30, 80],
+          textColor: 255,
+          fontSize: 8,
+          fontStyle: 'bold',
+          cellPadding: 2.5,
+        },
+        styles: { fontSize: 7.5, cellPadding: 2.2 },
+        columnStyles: {
+          0: { cellWidth: 8,  halign: 'center' },
+          1: { cellWidth: 38, fontStyle: 'bold' },
+          2: { cellWidth: 42 },
+          3: { cellWidth: 22, halign: 'center' },
+          4: { cellWidth: 22, halign: 'center' },
+          5: { cellWidth: 22, halign: 'center' },
+          6: { cellWidth: 20, halign: 'center' },
+          7: { cellWidth: 30, halign: 'center' },
+        },
+        didDrawCell: (data) => {
+          if (data.section === 'body' && data.column.index === 7) {
+            const status = filtered[data.row.index]?.status;
+            if (status && STATUS_COLORS[status]) {
+              const [r2, g, b] = STATUS_COLORS[status];
+              doc.setTextColor(r2, g, b);
+              doc.setFont('helvetica', 'bold');
+              doc.text(
+                String(data.cell.text[0]),
+                data.cell.x + data.cell.width / 2,
+                data.cell.y + data.cell.height / 2 + 0.5,
+                { align: 'center', baseline: 'middle' }
+              );
+              // return early so autotable doesn't re-draw (hack: reset color)
+              doc.setTextColor(0, 0, 0);
+            }
+          }
+        },
+        alternateRowStyles: { fillColor: [250, 250, 252] },
+      });
+
+      doc.save(`Result-Status-${selectedExamObj.name.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -255,6 +410,15 @@ export default function ResultStatus() {
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-600"
           >
             <Download className="w-3.5 h-3.5" /> CSV
+          </button>
+
+          <button
+            onClick={handleDownloadPDF}
+            disabled={pdfLoading || !selectedExam}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-xs font-bold text-white shadow-sm shadow-indigo-200 transition-colors"
+          >
+            <FileDown className={`w-3.5 h-3.5 ${pdfLoading ? 'animate-bounce' : ''}`} />
+            {pdfLoading ? 'Generating…' : 'PDF'}
           </button>
         </div>
       </div>
