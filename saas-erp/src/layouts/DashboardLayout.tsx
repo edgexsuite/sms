@@ -215,14 +215,26 @@ export default function DashboardLayout() {
           }).map((section, sectionIdx) => {
             const visibleItems = section.items.filter(item => userRole?.role && item.roles.includes(userRole.role));
             if (visibleItems.length === 0) return null;
+            // Per-section accent color (falls back to indigo if section has no color)
+            const accent = (section as any).color || '#6366f1';
+            const accentBg   = `${accent}22`;   // ~13% opacity background
+            const accentBgSm = `${accent}15`;   // sub-item background
+            const accentIcon = `${accent}cc`;   // icon bg when active
 
             return (
               <div
                 key={section.title}
                 className={cn("mb-1", sectionIdx > 0 && "mt-3 pt-3 border-t border-white/[0.05]")}
               >
-                {/* Section label */}
-                {!isSidebarCollapsed && <p className="px-3 mb-1 text-[9px] font-black text-slate-600 uppercase tracking-[0.2em] select-none opacity-60">{section.title}</p>}
+                {/* Section label with colour dot */}
+                {!isSidebarCollapsed && (
+                  <div className="flex items-center gap-1.5 px-3 mb-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: accent }} />
+                    <p className="text-[9px] font-black uppercase tracking-[0.2em] select-none" style={{ color: accent, opacity: 0.75 }}>
+                      {section.title}
+                    </p>
+                  </div>
+                )}
 
                 <div className="space-y-px">
                   {visibleItems.map((item) => {
@@ -242,14 +254,9 @@ export default function DashboardLayout() {
                                 window.dispatchEvent(new CustomEvent('toggle-ai-assistant'));
                                 setIsMobileMenuOpen(false);
                               }}
-                              className={cn(
-                                "flex items-center gap-3 py-2 rounded-xl transition-all duration-200 group relative w-full text-left",
-                                "text-slate-400 hover:text-white hover:bg-white/[0.05] border-l-[3px] border-transparent pl-[9px] pr-3"
-                              )}
+                              className="flex items-center gap-3 py-2 rounded-xl transition-all duration-200 group relative w-full text-left text-slate-400 hover:text-white hover:bg-white/[0.05] border-l-[3px] border-transparent pl-[9px] pr-3"
                             >
-                              <div className={cn(
-                                "w-8 h-8 rounded-lg flex items-center justify-center transition-all bg-white/[0.03] group-hover:bg-white/[0.08]"
-                              )}>
+                              <div className="w-8 h-8 rounded-lg flex items-center justify-center transition-all bg-white/[0.03] group-hover:bg-white/[0.08]">
                                 <Icon className="w-[14px] h-[14px]" />
                               </div>
                               {!isSidebarCollapsed && <span className="truncate text-[13px] font-bold tracking-tight">{item.name}</span>}
@@ -259,16 +266,17 @@ export default function DashboardLayout() {
                               to={item.path}
                               onClick={() => setIsMobileMenuOpen(false)}
                               className={cn(
-                                "flex items-center gap-3 py-2 rounded-xl transition-all duration-200 group relative",
-                                isActive 
-                                  ? "bg-indigo-500/20 border-l-[3px] border-indigo-400 text-indigo-100 pl-[9px] pr-3" 
-                                  : "text-slate-400 hover:text-white hover:bg-white/[0.05] border-l-[3px] border-transparent pl-[9px] pr-3"
+                                "flex items-center gap-3 py-2 rounded-xl transition-all duration-200 group relative border-l-[3px] pl-[9px] pr-3",
+                                isActive
+                                  ? "text-white"
+                                  : "text-slate-400 hover:text-white hover:bg-white/[0.05] border-transparent"
                               )}
+                              style={isActive ? { backgroundColor: accentBg, borderColor: accent } : {}}
                             >
-                              <div className={cn(
-                                "w-8 h-8 rounded-lg flex items-center justify-center transition-all",
-                                isActive ? "bg-white/20" : "bg-white/[0.03] group-hover:bg-white/[0.08]"
-                              )}>
+                              <div
+                                className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
+                                style={isActive ? { backgroundColor: accentIcon } : { backgroundColor: 'rgba(255,255,255,0.03)' }}
+                              >
                                 <Icon className="w-[14px] h-[14px]" />
                               </div>
                               {!isSidebarCollapsed && <span className="truncate text-[13px] font-bold tracking-tight">{item.name}</span>}
@@ -279,14 +287,15 @@ export default function DashboardLayout() {
                             onClick={() => setOpenDropdown(isOpen ? null : item.name)}
                             className={cn(
                               "flex items-center justify-between w-full px-3 py-2 rounded-xl transition-all duration-200 group relative",
-                              isActive ? "bg-indigo-600/10 text-indigo-400" : "text-slate-400 hover:text-white hover:bg-white/[0.05]"
+                              isActive ? "text-white" : "text-slate-400 hover:text-white hover:bg-white/[0.05]"
                             )}
+                            style={isActive ? { backgroundColor: accentBg } : {}}
                           >
                             <div className="flex items-center gap-3">
-                              <div className={cn(
-                                "w-8 h-8 rounded-lg flex items-center justify-center transition-all",
-                                isActive ? "bg-indigo-600 text-white" : "bg-white/[0.03] group-hover:bg-white/[0.08]"
-                              )}>
+                              <div
+                                className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
+                                style={isActive ? { backgroundColor: accent, color: '#fff' } : { backgroundColor: 'rgba(255,255,255,0.03)' }}
+                              >
                                 <Icon className="w-[14px] h-[14px]" />
                               </div>
                               {!isSidebarCollapsed && <span className="truncate text-[13px] font-bold tracking-tight">{item.name}</span>}
@@ -306,7 +315,10 @@ export default function DashboardLayout() {
                               transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
                               className="overflow-hidden"
                             >
-                              <div className="mt-0.5 mb-1 ml-[38px] pl-3 border-l border-white/[0.07] space-y-px">
+                              <div
+                                className="mt-0.5 mb-1 ml-[38px] pl-3 space-y-px border-l"
+                                style={{ borderColor: `${accent}30` }}
+                              >
                                 {item.subItems!.filter(sub => !(sub as any).roles || (userRole?.role && (sub as any).roles.includes(userRole.role))).map((sub) => {
                                   const isSubActive = sub.exact
                                     ? location.pathname === sub.path
@@ -317,13 +329,15 @@ export default function DashboardLayout() {
                                       to={sub.path}
                                       onClick={() => setIsMobileMenuOpen(false)}
                                       className={cn(
-                                        "flex items-center gap-2 px-2 py-[5px] rounded-md text-[11.5px] transition-all duration-150 group",
-                                        isSubActive
-                                          ? "text-indigo-400 bg-indigo-500/10 font-semibold"
-                                          : "text-slate-300 hover:text-white hover:bg-white/[0.06] font-medium"
+                                        "flex items-center gap-2 px-2 py-[5px] rounded-md text-[11.5px] transition-all duration-150",
+                                        isSubActive ? "font-semibold" : "text-slate-300 hover:text-white hover:bg-white/[0.06] font-medium"
                                       )}
+                                      style={isSubActive ? { color: accent, backgroundColor: accentBgSm } : {}}
                                     >
-                                      <span className="w-1 h-1 rounded-full shrink-0 transition-all" />
+                                      <span
+                                        className="w-1 h-1 rounded-full shrink-0 transition-all"
+                                        style={isSubActive ? { backgroundColor: accent } : { backgroundColor: 'rgba(255,255,255,0.2)' }}
+                                      />
                                       <span className="truncate">{sub.name}</span>
                                     </Link>
                                   );

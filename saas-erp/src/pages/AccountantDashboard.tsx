@@ -19,7 +19,11 @@ const FEE_COLORS = ['#6366f1','#10b981','#f59e0b','#ef4444','#3b82f6','#8b5cf6',
 export default function AccountantDashboard() {
   const { userRole } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [feeSummary, setFeeSummary] = useState({ collected: 0, pending: 0, todayCollected: 0, totalInvoices: 0 });
+  const [feeSummary, setFeeSummary] = useState({
+    collected: 0, pending: 0, todayCollected: 0, totalInvoices: 0,
+    todayCash: 0, todayOnline: 0,
+    monthCash: 0, monthOnline: 0,
+  });
   const [expenseSummary, setExpenseSummary] = useState({ thisMonth: 0, topCategories: [] as { category: string; amount: number }[] });
   const [monthlyChart, setMonthlyChart] = useState<{ month: string; income: number; expense: number }[]>([]);
   const [feeTypeBreakdown, setFeeTypeBreakdown] = useState<{ item: string; amount: number }[]>([]);
@@ -38,18 +42,42 @@ export default function AccountantDashboard() {
   };
 
   const fetchFeeSummary = async () => {
-    const { data } = await supabase
-      .from('fee_records')
-      .select('total_amount, paid_amount, status, paid_at')
-      .eq('school_id', userRole?.school_id);
+    // Query financial_transactions for payment_mode breakdown (more accurate than fee_records)
+    const [{ data: allFees }, { data: txns }] = await Promise.all([
+      supabase
+        .from('fee_records')
+        .select('total_amount, paid_amount, status, paid_at')
+        .eq('school_id', userRole?.school_id),
+      supabase
+        .from('financial_transactions')
+        .select('amount, payment_mode, date, type')
+        .eq('school_id', userRole?.school_id)
+        .eq('type', 'income')
+        .gte('date', `${thisMonth}-01`),
+    ]);
 
-    if (!data) return;
-    const collected = data.reduce((s, r) => s + (r.paid_amount || 0), 0);
-    const pending = data.reduce((s, r) => s + ((r.total_amount || 0) - (r.paid_amount || 0)), 0);
-    const todayCollected = data
-      .filter(r => r.paid_at?.startsWith(today))
-      .reduce((s, r) => s + (r.paid_amount || 0), 0);
-    setFeeSummary({ collected, pending: Math.max(0, pending), todayCollected, totalInvoices: data.length });
+    if (!allFees) return;
+    const collected = allFees.reduce((s, r) => s + (r.paid_amount || 0), 0);
+    const pending   = allFees.reduce((s, r) => s + ((r.total_amount || 0) - (r.paid_amount || 0)), 0);
+    const todayRecs = allFees.filter(r => r.paid_at?.startsWith(today));
+    const todayCollected = todayRecs.reduce((s, r) => s + (r.paid_amount || 0), 0);
+
+    // Split by payment_mode from financial_transactions (authoritative source)
+    const isCash = (mode: string | null) => !mode || mode.toLowerCase() === 'cash';
+    const todayTxns   = (txns || []).filter(t => t.date === today);
+    const monthTxns   = txns || [];
+
+    const todayCash   = todayTxns.filter(t => isCash(t.payment_mode)).reduce((s, t) => s + (t.amount || 0), 0);
+    const todayOnline = todayTxns.filter(t => !isCash(t.payment_mode)).reduce((s, t) => s + (t.amount || 0), 0);
+    const monthCash   = monthTxns.filter(t => isCash(t.payment_mode)).reduce((s, t) => s + (t.amount || 0), 0);
+    const monthOnline = monthTxns.filter(t => !isCash(t.payment_mode)).reduce((s, t) => s + (t.amount || 0), 0);
+
+    setFeeSummary({
+      collected, pending: Math.max(0, pending),
+      todayCollected, totalInvoices: allFees.length,
+      todayCash, todayOnline,
+      monthCash, monthOnline,
+    });
   };
 
   const fetchExpenseSummary = async () => {
@@ -176,11 +204,11 @@ export default function AccountantDashboard() {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Primary Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: 'Total Collected', value: fmt(feeSummary.collected), icon: CheckCircle2, color: 'emerald', sub: `${feeSummary.totalInvoices} invoices` },
-          { label: 'Pending Amount', value: fmt(feeSummary.pending), icon: AlertCircle, color: 'amber', sub: 'outstanding fees' },
+          { label: 'Pending Amount',  value: fmt(feeSummary.pending),   icon: AlertCircle,  color: 'amber',   sub: 'outstanding fees' },
           { label: "Today's Collection", value: fmt(feeSummary.todayCollected), icon: TrendingUp, color: 'blue', sub: formatDate(today) },
           { label: 'This Month Expenses', value: fmt(expenseSummary.thisMonth), icon: Wallet, color: 'red', sub: thisMonth },
         ].map(({ label, value, icon: Icon, color, sub }) => (
@@ -193,6 +221,129 @@ export default function AccountantDashboard() {
             <p className="text-[10px] text-gray-400 mt-0.5">{sub}</p>
           </div>
         ))}
+      </div>
+
+      {/* Cash vs Online Breakdown ── two panels side by side */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        {/* Today's Breakdown */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Today's Collection</p>
+              <p className="text-lg font-black text-slate-900">{fmt(feeSummary.todayCollected)}</p>
+            </div>
+            <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-blue-600" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            {/* Cash */}
+            <div className="flex items-center gap-3">
+              <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
+                <Wallet className="w-3.5 h-3.5 text-emerald-600" />
+              </div>
+              <div className="flex-1">
+                <div className="flex justify-between items-center mb-0.5">
+                  <span className="text-xs font-bold text-slate-600">Cash in Hand</span>
+                  <span className="text-sm font-black text-emerald-600">{fmt(feeSummary.todayCash)}</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-1.5">
+                  <div className="h-1.5 rounded-full bg-emerald-500 transition-all"
+                    style={{ width: feeSummary.todayCollected > 0 ? `${Math.round((feeSummary.todayCash / feeSummary.todayCollected) * 100)}%` : '0%' }} />
+                </div>
+              </div>
+              <span className="text-[10px] font-black text-slate-400 w-8 text-right">
+                {feeSummary.todayCollected > 0 ? `${Math.round((feeSummary.todayCash / feeSummary.todayCollected) * 100)}%` : '—'}
+              </span>
+            </div>
+            {/* Online/Bank */}
+            <div className="flex items-center gap-3">
+              <div className="w-7 h-7 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
+                <CreditCard className="w-3.5 h-3.5 text-indigo-600" />
+              </div>
+              <div className="flex-1">
+                <div className="flex justify-between items-center mb-0.5">
+                  <span className="text-xs font-bold text-slate-600">Online / Bank</span>
+                  <span className="text-sm font-black text-indigo-600">{fmt(feeSummary.todayOnline)}</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-1.5">
+                  <div className="h-1.5 rounded-full bg-indigo-500 transition-all"
+                    style={{ width: feeSummary.todayCollected > 0 ? `${Math.round((feeSummary.todayOnline / feeSummary.todayCollected) * 100)}%` : '0%' }} />
+                </div>
+              </div>
+              <span className="text-[10px] font-black text-slate-400 w-8 text-right">
+                {feeSummary.todayCollected > 0 ? `${Math.round((feeSummary.todayOnline / feeSummary.todayCollected) * 100)}%` : '—'}
+              </span>
+            </div>
+          </div>
+          <p className="text-[9px] font-bold text-slate-300 mt-3 pt-3 border-t border-slate-50 uppercase tracking-widest">
+            Cash → Accountant &nbsp;·&nbsp; Online/Bank → Director
+          </p>
+        </div>
+
+        {/* This Month's Breakdown */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">This Month — {thisMonth}</p>
+              <p className="text-lg font-black text-slate-900">{fmt(feeSummary.monthCash + feeSummary.monthOnline)}</p>
+            </div>
+            <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            {/* Cash */}
+            <div className="flex items-center gap-3">
+              <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
+                <Wallet className="w-3.5 h-3.5 text-emerald-600" />
+              </div>
+              <div className="flex-1">
+                <div className="flex justify-between items-center mb-0.5">
+                  <span className="text-xs font-bold text-slate-600">Cash in Hand</span>
+                  <span className="text-sm font-black text-emerald-600">{fmt(feeSummary.monthCash)}</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-1.5">
+                  {(() => { const total = feeSummary.monthCash + feeSummary.monthOnline; return (
+                    <div className="h-1.5 rounded-full bg-emerald-500 transition-all"
+                      style={{ width: total > 0 ? `${Math.round((feeSummary.monthCash / total) * 100)}%` : '0%' }} />
+                  ); })()}
+                </div>
+              </div>
+              <span className="text-[10px] font-black text-slate-400 w-8 text-right">
+                {(feeSummary.monthCash + feeSummary.monthOnline) > 0
+                  ? `${Math.round((feeSummary.monthCash / (feeSummary.monthCash + feeSummary.monthOnline)) * 100)}%` : '—'}
+              </span>
+            </div>
+            {/* Online/Bank */}
+            <div className="flex items-center gap-3">
+              <div className="w-7 h-7 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
+                <CreditCard className="w-3.5 h-3.5 text-indigo-600" />
+              </div>
+              <div className="flex-1">
+                <div className="flex justify-between items-center mb-0.5">
+                  <span className="text-xs font-bold text-slate-600">Online / Bank</span>
+                  <span className="text-sm font-black text-indigo-600">{fmt(feeSummary.monthOnline)}</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-1.5">
+                  {(() => { const total = feeSummary.monthCash + feeSummary.monthOnline; return (
+                    <div className="h-1.5 rounded-full bg-indigo-500 transition-all"
+                      style={{ width: total > 0 ? `${Math.round((feeSummary.monthOnline / total) * 100)}%` : '0%' }} />
+                  ); })()}
+                </div>
+              </div>
+              <span className="text-[10px] font-black text-slate-400 w-8 text-right">
+                {(feeSummary.monthCash + feeSummary.monthOnline) > 0
+                  ? `${Math.round((feeSummary.monthOnline / (feeSummary.monthCash + feeSummary.monthOnline)) * 100)}%` : '—'}
+              </span>
+            </div>
+          </div>
+          <p className="text-[9px] font-bold text-slate-300 mt-3 pt-3 border-t border-slate-50 uppercase tracking-widest">
+            Cash → Accountant &nbsp;·&nbsp; Online/Bank → Director
+          </p>
+        </div>
+
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

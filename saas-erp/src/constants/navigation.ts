@@ -23,6 +23,7 @@ export const NAV_SECTIONS = [
   {
     title: 'Overview',
     id: 'dashboard',
+    color: '#6366f1',
     roles: ['admin', 'teacher', 'staff', 'accountant', 'librarian', 'principal', 'director'],
     items: [
       { name: 'Dashboard',    path: '/dashboard',    icon: LayoutDashboard, roles: ['admin', 'teacher', 'staff', 'accountant', 'librarian', 'principal', 'director'] },
@@ -36,6 +37,7 @@ export const NAV_SECTIONS = [
   {
     title: 'People & Enrollment',
     id: 'students',
+    color: '#3b82f6',
     roles: ['admin', 'teacher', 'staff', 'principal', 'director'],
     items: [
       {
@@ -73,11 +75,12 @@ export const NAV_SECTIONS = [
   },
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 3. ACADEMIC  (was "Curriculum" — now includes Teacher Diary)
+  // 3. ACADEMIC
   // ──────────────────────────────────────────────────────────────────────────
   {
     title: 'Academic',
     id: 'academic',
+    color: '#8b5cf6',
     roles: ALL_ACADEMIC,
     items: [
       {
@@ -98,11 +101,12 @@ export const NAV_SECTIONS = [
   },
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 4. ATTENDANCE  (pure attendance — SMS History removed, Diary removed)
+  // 4. ATTENDANCE  (merged Leave & Discipline here — logically grouped)
   // ──────────────────────────────────────────────────────────────────────────
   {
-    title: 'Attendance',
+    title: 'Attendance & Leave',
     id: 'attendance',
+    color: '#14b8a6',
     roles: ALL_ACADEMIC,
     items: [
       {
@@ -119,19 +123,9 @@ export const NAV_SECTIONS = [
           { name: 'Staff Attendance',     path: '/attendance/staff',                     icon: Briefcase,     roles: ALL_ADMIN    },
           { name: 'Staff Report',         path: '/attendance/staff-report',              icon: LineChart,     roles: ALL_ADMIN    },
           { name: 'QR Attendance Kiosk',  path: '/attendance/scanner',                   icon: Wifi,          roles: ALL_STAFF    },
+          { name: 'SMS History',          path: '/attendance/sms-history',               icon: Radio,         roles: ALL_STAFF    },
         ],
       },
-    ],
-  },
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // 5. LEAVE & DISCIPLINE  (new section — was scattered in Attendance & Leave)
-  // ──────────────────────────────────────────────────────────────────────────
-  {
-    title: 'Leave & Discipline',
-    id: 'leave',
-    roles: ALL_ACADEMIC,
-    items: [
       {
         name: 'Leave Management',
         path: '/leave',
@@ -147,11 +141,12 @@ export const NAV_SECTIONS = [
   },
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 6. EXAMS & RESULTS  (unchanged)
+  // 5. EXAMS & RESULTS
   // ──────────────────────────────────────────────────────────────────────────
   {
     title: 'Exams & Results',
     id: 'exams',
+    color: '#f59e0b',
     roles: ALL_ACADEMIC,
     items: [
       {
@@ -160,26 +155,27 @@ export const NAV_SECTIONS = [
         icon: FileText,
         roles: ALL_ACADEMIC,
         subItems: [
-          { name: 'Exam Types',          path: '/result/exam-types',     icon: SettingsIcon,    roles: ALL_ADMIN },
-          { name: 'Result Status',       path: '/result/status',         icon: ClipboardCheck,  roles: ALL_ADMIN },
-          { name: 'Admin Results Entry', path: '/result/add-result',     icon: Star,            roles: ALL_ADMIN },
-          { name: 'Import from Excel',   path: '/result/import',         icon: Upload,          roles: ALL_STAFF },
-          { name: 'Teacher Mark Entry',  path: '/result/teacher-marks',  icon: Star,            roles: ['admin', 'principal', 'director', 'teacher', 'staff'] },
-          { name: 'Award List Generator', path: '/result/award-list',     icon: Printer,      roles: ALL_ACADEMIC },
-          { name: 'Report Cards',        path: '/result/reporting',      icon: LineChart,    roles: ALL_ACADEMIC },
-          { name: 'Grading Policy',      path: '/result/grading-policy', icon: SettingsIcon, roles: ALL_ADMIN },
-          { name: 'Subject Marks Config',path: '/result/marks-config',   icon: Award,        roles: ALL_ADMIN },
+          { name: 'Exam Types',           path: '/result/exam-types',     icon: SettingsIcon,   roles: ALL_ADMIN },
+          { name: 'Result Status',        path: '/result/status',         icon: ClipboardCheck, roles: ALL_ADMIN },
+          { name: 'Admin Results Entry',  path: '/result/add-result',     icon: Star,           roles: ALL_ADMIN },
+          { name: 'Import from Excel',    path: '/result/import',         icon: Upload,         roles: ALL_STAFF },
+          { name: 'Teacher Mark Entry',   path: '/result/teacher-marks',  icon: Star,           roles: ['admin', 'principal', 'director', 'teacher', 'staff'] },
+          { name: 'Award List Generator', path: '/result/award-list',     icon: Printer,        roles: ALL_ACADEMIC },
+          { name: 'Report Cards',         path: '/result/reporting',      icon: LineChart,      roles: ALL_ACADEMIC },
+          { name: 'Grading Policy',       path: '/result/grading-policy', icon: SettingsIcon,   roles: ALL_ADMIN },
+          { name: 'Subject Marks Config', path: '/result/marks-config',   icon: Award,          roles: ALL_ADMIN },
         ],
       },
     ],
   },
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 7. FINANCE  (unchanged)
+  // 6. FINANCE
   // ──────────────────────────────────────────────────────────────────────────
   {
     title: 'Finance',
     id: 'finance',
+    color: '#10b981',
     roles: ALL_FINANCE,
     items: [
       {
@@ -199,7 +195,6 @@ export const NAV_SECTIONS = [
           { name: 'Challan Settings',         path: '/fees/challan-settings',icon: Palette,     roles: ALL_ADMIN },
           { name: 'Bulk Discount Entry',      path: '/fees/bulk-discount',   icon: Tag,         roles: ALL_ADMIN },
           { name: 'Bulk Arrears Entry',       path: '/fees/bulk-arrears',    icon: History,     roles: ALL_ADMIN },
-          { name: 'Invoice Report',           path: '/fees/invoice-report',  icon: BarChart3,   roles: ALL_FINANCE },
         ],
       },
       {
@@ -248,41 +243,42 @@ export const NAV_SECTIONS = [
   },
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 8. REPORTS & ANALYTICS  (was "Reports" alone — renamed, ready to grow)
+  // 7. REPORTS & ANALYTICS  (Invoice Report promoted here from Finance)
   // ──────────────────────────────────────────────────────────────────────────
   {
     title: 'Reports & Analytics',
     id: 'reports',
+    color: '#0ea5e9',
     roles: ALL_REPORTS,
     items: [
-      { name: 'Master Summary',   path: '/reports/master-summary', icon: BarChart,  roles: ALL_REPORTS },
-      { name: 'Collection Report',path: '/reports/collection',     icon: CreditCard, roles: ALL_REPORTS },
-      { name: 'Student Reports',  path: '/students/reports',       icon: BarChart3, roles: ALL_ADMIN   },
+      { name: 'Master Summary',    path: '/reports/master-summary', icon: BarChart,   roles: ALL_REPORTS },
+      { name: 'Collection Report', path: '/reports/collection',     icon: CreditCard, roles: ALL_REPORTS },
+      { name: 'Invoice Report',    path: '/fees/invoice-report',    icon: Receipt,    roles: ALL_FINANCE },
+      { name: 'Student Reports',   path: '/students/reports',       icon: BarChart3,  roles: ALL_ADMIN   },
     ],
   },
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 9. COMMUNICATION  (promoted — was buried in School Services)
-  //    SMS History moved here from Attendance
-  //    Front Desk moved here (reception = communication touchpoint)
+  // 8. COMMUNICATION  (SMS History moved to Attendance; Front Desk stays)
   // ──────────────────────────────────────────────────────────────────────────
   {
     title: 'Communication',
     id: 'communication',
+    color: '#ec4899',
     roles: ['admin', 'teacher', 'staff', 'principal', 'director'],
     items: [
-      { name: 'Broadcast & Messaging', path: '/communication',          icon: MessageSquare, roles: ALL_ADMIN  },
-      { name: 'SMS History',           path: '/attendance/sms-history', icon: Radio,         roles: ALL_STAFF  },
-      { name: 'Front Desk',            path: '/frontdesk',              icon: Home,          roles: ALL_STAFF  },
+      { name: 'Broadcast & Messaging', path: '/communication', icon: MessageSquare, roles: ALL_ADMIN },
+      { name: 'Front Desk',            path: '/frontdesk',     icon: Home,          roles: ALL_STAFF },
     ],
   },
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 10. SCHOOL SERVICES  (trimmed — Front Desk & Communication promoted out)
+  // 9. SCHOOL SERVICES
   // ──────────────────────────────────────────────────────────────────────────
   {
     title: 'School Services',
     id: 'services',
+    color: '#f97316',
     roles: ['admin', 'staff', 'librarian', 'principal', 'director'],
     items: [
       { name: 'Library',    path: '/library',    icon: Library, roles: ['admin', 'staff', 'librarian'] },
@@ -298,26 +294,26 @@ export const NAV_SECTIONS = [
           { name: 'Student Allocation', path: '/transport/students',             icon: Users,  roles: ALL_STAFF },
         ],
       },
-      { name: 'Inventory',  path: '/inventory',  icon: Package, roles: ALL_STAFF },
-      { name: 'Stationery', path: '/stationary', icon: Box,     roles: ALL_STAFF },
+      { name: 'Inventory & Stationery', path: '/inventory', icon: Package, roles: ALL_STAFF },
     ],
   },
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 11. SYSTEM  (unchanged)
+  // 10. SYSTEM
   // ──────────────────────────────────────────────────────────────────────────
   {
     title: 'System',
     id: 'settings',
+    color: '#94a3b8',
     roles: ALL_ADMIN,
     items: [
-      { name: 'Settings',            path: '/settings',             icon: SettingsIcon, roles: ALL_ADMIN         },
-      { name: 'Permission Manager',  path: '/settings/permissions', icon: Key,          roles: ALL_ADMIN         },
-      { name: 'ID Card Designer',    path: '/settings/id-cards',    icon: Palette,      roles: ALL_ADMIN         },
-      { name: 'Report Card Designer',path: '/settings/report-cards',icon: LineChart,    roles: ALL_ADMIN         },
-      { name: 'Credential Dispatch', path: '/credentials',          icon: ShieldCheck,  roles: ALL_ADMIN         },
-      { name: 'Help & Support',      path: '/help-support',         icon: LifeBuoy,     roles: ALL_ADMIN         },
-      { name: 'Trashbin',            path: '/settings/trashbin',    icon: Trash2,       roles: ['admin']         },
+      { name: 'Settings',             path: '/settings',             icon: SettingsIcon, roles: ALL_ADMIN },
+      { name: 'Permission Manager',   path: '/settings/permissions', icon: Key,          roles: ALL_ADMIN },
+      { name: 'ID Card Designer',     path: '/settings/id-cards',    icon: Palette,      roles: ALL_ADMIN },
+      { name: 'Report Card Designer', path: '/settings/report-cards',icon: LineChart,    roles: ALL_ADMIN },
+      { name: 'Credential Dispatch',  path: '/credentials',          icon: ShieldCheck,  roles: ALL_ADMIN },
+      { name: 'Help & Support',       path: '/help-support',         icon: LifeBuoy,     roles: ALL_ADMIN },
+      { name: 'Trashbin',             path: '/settings/trashbin',    icon: Trash2,       roles: ['admin'] },
     ],
   },
 ];
