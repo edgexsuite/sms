@@ -60,7 +60,11 @@ export default function AdvanceFee() {
     e.preventDefault();
     if (!form.student_id || !form.month_start || !form.amount) return;
     setSaving(true);
-    const startDate = new Date(form.month_start);
+    // Ensure month_start has -01 suffix for Date processing if it doesn't already
+    const baseDate = form.month_start.includes('-') && form.month_start.split('-').length === 2 
+      ? `${form.month_start}-01` 
+      : form.month_start;
+    const startDate = new Date(baseDate);
     const rows = Array.from({ length: form.months }, (_, i) => {
       const d = new Date(startDate.getFullYear(), startDate.getMonth() + i, 1);
       return {
@@ -202,7 +206,7 @@ export default function AdvanceFee() {
               </div>
               <div>
                 <FieldLabel required>Starting Month</FieldLabel>
-                <input required type="month" value={form.month_start} onChange={e => setForm({ ...form, month_start: e.target.value + '-01' })}
+                <input required type="month" value={form.month_start.slice(0, 7)} onChange={e => setForm({ ...form, month_start: e.target.value })}
                   className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] text-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none" />
               </div>
               <div>
