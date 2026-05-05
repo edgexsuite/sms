@@ -31,6 +31,7 @@ export default function AwardListGenerator() {
   
   const [allSubjects, setAllSubjects] = useState<any[]>([]);
   const [marksData, setMarksData] = useState<Record<string, Record<string, number>>>({}); // studentId -> { subjectId -> marks }
+  const [subjectTotalsFromExam, setSubjectTotalsFromExam] = useState<Record<string, number>>({}); // subjectId -> total_marks from exam_results
   
   const [columns, setColumns] = useState<Column[]>([
     { id: '1', label: 'Rhymes', maxMarks: '30' },
@@ -56,7 +57,38 @@ export default function AwardListGenerator() {
     if (selectedClass && selectedExam) {
       fetchMarks();
     }
+    if (!selectedExam) {
+      setSubjectTotalsFromExam({});
+    }
   }, [selectedClass, selectedExam]);
+
+  // Re-run config fetch whenever subjects load OR exam changes (handles any ordering)
+  useEffect(() => {
+    if (selectedExam && allSubjects.length > 0) {
+      fetchExamSubjectConfig();
+    }
+  }, [selectedExam, allSubjects]);
+
+  // When exam totals arrive, refresh columns if a non-custom mode is active
+  useEffect(() => {
+    if (Object.keys(subjectTotalsFromExam).length === 0) return;
+    if (selectedSubject === 'all') {
+      setColumns(allSubjects.map(s => ({
+        id: s.id,
+        label: s.subject_name,
+        maxMarks: String(subjectTotalsFromExam[s.id] ?? s.total_marks ?? 100),
+      })));
+    } else if (selectedSubject !== 'custom') {
+      const sub = allSubjects.find(s => s.id === selectedSubject);
+      if (sub) {
+        setColumns([{
+          id: sub.id,
+          label: sub.subject_name,
+          maxMarks: String(subjectTotalsFromExam[sub.id] ?? sub.total_marks ?? 100),
+        }]);
+      }
+    }
+  }, [subjectTotalsFromExam]);
 
   const fetchInitialData = async () => {
     const [{ data: school }, { data: cls }, { data: exams }] = await Promise.all([
@@ -96,7 +128,7 @@ export default function AwardListGenerator() {
       .select('student_id, subject_id, obtained_marks')
       .eq('exam_type_id', selectedExam)
       .eq('school_id', userRole?.school_id);
-    
+
     if (data) {
       const map: Record<string, Record<string, number>> = {};
       data.forEach(r => {
@@ -107,15 +139,53 @@ export default function AwardListGenerator() {
     }
   };
 
+  // Single authoritative source for per-exam total marks:
+  //   1st priority: exam_subject_config (admin configured)
+  //   2nd priority: subjects.total_marks (subject default)
+  //   3rd priority: 100
+  const fetchExamSubjectConfig = async () => {
+    if (!selectedExam || allSubjects.length === 0) return;
+
+    const subjectIds = allSubjects.map(s => s.id);
+
+    const { data: configRows } = await supabase
+      .from('exam_subject_config')
+      .select('subject_id, total_marks')
+      .eq('exam_type_id', selectedExam)
+      .in('subject_id', subjectIds);
+
+    const configMap: Record<string, number> = {};
+    (configRows || []).forEach(c => {
+      if (c.total_marks != null) configMap[c.subject_id] = Number(c.total_marks);
+    });
+
+    // Build final totals map: config → subjects fallback → 100
+    const finalTotals: Record<string, number> = {};
+    allSubjects.forEach(s => {
+      finalTotals[s.id] = configMap[s.id] ?? (s.total_marks != null ? Number(s.total_marks) : 100);
+    });
+
+    setSubjectTotalsFromExam(finalTotals);
+  };
+
   const handleSubjectChange = (val: string) => {
     setSelectedSubject(val);
     if (val === 'all') {
-      setColumns(allSubjects.map(s => ({ id: s.id, label: s.subject_name, maxMarks: String(s.total_marks || 100) })));
+      // Prefer exam-specific total_marks; fall back to subjects table total_marks, then 100
+      setColumns(allSubjects.map(s => ({
+        id: s.id,
+        label: s.subject_name,
+        maxMarks: String(subjectTotalsFromExam[s.id] ?? s.total_marks ?? 100),
+      })));
       setListTitle(`Consolidated Award List — ${currentClass?.name || ''}`);
     } else if (val !== 'custom') {
       const sub = allSubjects.find(s => s.id === val);
       if (sub) {
-        setColumns([{ id: sub.id, label: sub.subject_name, maxMarks: String(sub.total_marks || 100) }]);
+        setColumns([{
+          id: sub.id,
+          label: sub.subject_name,
+          maxMarks: String(subjectTotalsFromExam[sub.id] ?? sub.total_marks ?? 100),
+        }]);
         setListTitle(`${sub.subject_name} Award List`);
       }
     }
@@ -198,18 +268,6 @@ export default function AwardListGenerator() {
           <div className="lg:col-span-1 space-y-6">
             <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-slate-100 space-y-6">
               <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Class Context</label>
-                <select
-                  value={selectedClass}
-                  onChange={e => setSelectedClass(e.target.value)}
-                  className="w-full bg-slate-50 border border-transparent focus:bg-white focus:border-indigo-100 p-3.5 rounded-2xl text-sm font-bold text-slate-700 transition-all outline-none"
-                >
-                  <option value="">Select Class</option>
-                  {classes.map(c => <option key={c.id} value={c.id}>{c.name} {c.section}</option>)}
-                </select>
-              </div>
-
-              <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Examination</label>
                 <select
                   value={selectedExam}
@@ -218,6 +276,18 @@ export default function AwardListGenerator() {
                 >
                   <option value="">Select Exam (Optional)</option>
                   {examTypes.map(e => <option key={e.id} value={e.id}>{e.name} ({e.session})</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Class</label>
+                <select
+                  value={selectedClass}
+                  onChange={e => setSelectedClass(e.target.value)}
+                  className="w-full bg-slate-50 border border-transparent focus:bg-white focus:border-indigo-100 p-3.5 rounded-2xl text-sm font-bold text-slate-700 transition-all outline-none"
+                >
+                  <option value="">Select Class</option>
+                  {classes.map(c => <option key={c.id} value={c.id}>{c.name} {c.section}</option>)}
                 </select>
               </div>
 
@@ -322,6 +392,7 @@ export default function AwardListGenerator() {
                   ))}
                   <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-bold uppercase">Total Marks</span>
                   <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-bold uppercase">Obtained Marks</span>
+                  <span className="px-3 py-1 bg-amber-50 text-amber-700 rounded-lg text-[10px] font-bold uppercase">Remarks</span>
                </div>
             </div>
           </div>
@@ -380,6 +451,7 @@ export default function AwardListGenerator() {
                               </th>
                             ))}
                             <th className="border border-black p-0.5 text-center w-8">Total</th>
+                            <th className="border border-black p-0.5 text-center w-12">Remarks</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -408,6 +480,7 @@ export default function AwardListGenerator() {
                                     return sum > 0 ? sum : '';
                                   })()}
                                 </td>
+                                <td className="border border-black p-0.5">&nbsp;</td>
                               </tr>
                             );
                           })}

@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { useAuth } from '../../contexts/AuthContext';
 import { cn, formatDate } from '../../lib/utils';
 import {
   ArrowLeft, Printer, User, Calendar, CreditCard,

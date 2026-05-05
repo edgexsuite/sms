@@ -740,7 +740,7 @@ export default function ParentPortal() {
         </aside>
 
         {/* ── Main Content ─────────────────────────────────────────────── */}
-        <div className="flex-1 min-w-0 px-4 py-6 space-y-5 portal-content-padding lg:pb-6">
+        <div className="flex-1 min-w-0 px-4 pt-6 pb-24 sm:pb-6 space-y-5">
         {loadingData ? (
           <div className="text-center py-20">
             <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />

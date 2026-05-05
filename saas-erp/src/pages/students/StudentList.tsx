@@ -94,7 +94,7 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-  
+
   // Bulk Selection States
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isBulkStatusOpen, setIsBulkStatusOpen] = useState(false);
@@ -172,7 +172,7 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
         .from('students')
         .update({ status: newStatus })
         .eq('id', studentId);
-      
+
       if (error) throw error;
       setStudents(prev => prev.map(s => s.id === studentId ? { ...s, status: newStatus } : s));
       setOpenMenu(null);
@@ -557,7 +557,7 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
       if (bulkUpdateField === 'fee_waiver_percentage') {
         value = Number(value);
       }
-      
+
       const { error } = await supabase
         .from('students')
         .update({ [bulkUpdateField]: value })
@@ -663,9 +663,9 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
       <PageHeader
         title={initialClassId
           ? (classes.find(c => c.id === initialClassId)
-              ? `${classes.find(c => c.id === initialClassId)!.name} (${classes.find(c => c.id === initialClassId)!.section}) — Students`
-              : 'Class Students')
-          : 'Student Directory'}
+            ? `${classes.find(c => c.id === initialClassId)!.name} (${classes.find(c => c.id === initialClassId)!.section}) — Students`
+            : 'Class Students')
+          : 'Student List'}
         subtitle={initialClassId ? 'Full student management for this class.' : 'Manage and track your student enrollment across all classes.'}
         onBack={onBack}
         actions={
@@ -717,7 +717,7 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
                 { key: 'left', label: 'Left', color: 'text-amber-600' },
                 { key: 'graduated', label: 'Passed Out', color: 'text-teal-600' },
                 { key: 'withdrawn', label: 'Withdrawn', color: 'text-rose-600' },
-              ] as { key: 'active'|'left'|'graduated'|'withdrawn'; label: string; color: string }[]).map(({ key, label, color }) => (
+              ] as { key: 'active' | 'left' | 'graduated' | 'withdrawn'; label: string; color: string }[]).map(({ key, label, color }) => (
                 <button key={key} onClick={() => setStatusTab(key)}
                   className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all',
                     statusTab === key ? 'bg-white shadow-sm ' + color : 'text-slate-500 hover:text-slate-700')}>
@@ -730,8 +730,8 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
             </div>
 
             {!initialClassId && (
-              <select 
-                value={classFilter} 
+              <select
+                value={classFilter}
                 onChange={(e) => setClassFilter(e.target.value)}
                 className="h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 shadow-sm cursor-pointer outline-none focus:ring-2 focus:ring-indigo-500/20"
               >
@@ -740,7 +740,7 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
               </select>
             )}
 
-            <Btn 
+            <Btn
               variant={showAdvancedFilters ? 'primary' : 'secondary'}
               onClick={() => setShowAdvancedFilters(p => !p)}
               className="relative"
@@ -889,17 +889,17 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
                     className={cn('hover:bg-indigo-50/30 transition-all group', selectedIds.includes(student.id) ? 'bg-indigo-50/50' : '')}
                   >
                     <td className="px-4 py-2 text-center" onClick={(e) => e.stopPropagation()}>
-                       {!isStaffRole && (
-                         <input
-                           type="checkbox"
-                           checked={selectedIds.includes(student.id)}
-                           onChange={(e) => {
-                             if (e.target.checked) setSelectedIds([...selectedIds, student.id]);
-                             else setSelectedIds(selectedIds.filter(id => id !== student.id));
-                           }}
-                           className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                         />
-                       )}
+                      {!isStaffRole && (
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(student.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedIds([...selectedIds, student.id]);
+                            else setSelectedIds(selectedIds.filter(id => id !== student.id));
+                          }}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                      )}
                     </td>
                     <td className="px-4 py-2">
                       <span className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-lg text-xs font-black text-slate-600 group-hover:bg-white group-hover:shadow-sm transition-all border border-transparent group-hover:border-slate-100">
@@ -926,10 +926,10 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
                         className={cn(
                           'px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest',
                           student.status === 'active' ? 'bg-emerald-500 text-white' :
-                          student.status === 'left' ? 'bg-amber-500 text-white' :
-                          student.status === 'graduated' ? 'bg-teal-500 text-white' :
-                          student.status === 'withdrawn' ? 'bg-rose-600 text-white' :
-                          'bg-slate-400 text-white'
+                            student.status === 'left' ? 'bg-amber-500 text-white' :
+                              student.status === 'graduated' ? 'bg-teal-500 text-white' :
+                                student.status === 'withdrawn' ? 'bg-rose-600 text-white' :
+                                  'bg-slate-400 text-white'
                         )}
                       >
                         {student.status === 'graduated' ? 'Passed' : student.status}
@@ -964,7 +964,7 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        
+
                         {/* Administrative Action Menu - hidden for staff roles */}
                         {!isStaffRole && (
                           <div className="relative dropdown-container">
@@ -1083,473 +1083,473 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
 
       {/* ── Student Detail Drawer (Full-Screen Side Panel) ── */}
       <AnimatePresence>
-      {selectedStudent && (
-        <>
-          {/* Backdrop */}
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={() => setSelectedStudent(null)}
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50" />
-          {/* Drawer */}
-          <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-3xl bg-white shadow-2xl flex flex-col overflow-hidden">
+        {selectedStudent && (
+          <>
+            {/* Backdrop */}
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setSelectedStudent(null)}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50" />
+            {/* Drawer */}
+            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-3xl bg-white shadow-2xl flex flex-col overflow-hidden">
 
-            {/* Drawer Header */}
-            <div className="shrink-0 bg-gradient-to-br from-slate-900 to-indigo-900 px-6 py-6">
-              <div className="flex items-start gap-5">
-                {selectedStudent.photograph_url ? (
-                  <img src={selectedStudent.photograph_url} alt={selectedStudent.full_name}
-                    className="w-20 h-20 rounded-2xl object-cover border-2 border-white/20 shadow-xl shrink-0" />
-                ) : (
-                  <div className="w-20 h-20 rounded-2xl bg-indigo-600/40 border-2 border-indigo-400/30 flex items-center justify-center text-3xl font-black text-white shadow-xl shrink-0">
-                    {selectedStudent.full_name?.charAt(0)?.toUpperCase()}
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-xl font-black text-white uppercase tracking-tight">{selectedStudent.full_name}</h2>
-                  <div className="flex flex-wrap items-center gap-2 mt-2">
-                    <span className="text-xs text-indigo-300 font-bold bg-indigo-500/20 px-2.5 py-1 rounded-lg">
-                      {selectedStudent.classes ? `${selectedStudent.classes.name} (${selectedStudent.classes.section})` : 'Unassigned'}
-                    </span>
-                    {selectedStudent.roll_number && <span className="text-xs text-slate-400">Roll #{selectedStudent.roll_number}</span>}
-                    <span className={cn('px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest',
-                      selectedStudent.status === 'active' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white')}>
-                      {selectedStudent.status}
-                    </span>
-                  </div>
-                  {/* Credentials */}
-                  {selectedStudent.student_unique_id && (
-                    <div className="mt-3 flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
-                      <div>
-                        <p className="text-[9px] text-slate-500 uppercase tracking-widest">Login</p>
-                        <p className="text-xs font-black text-white font-mono">{selectedStudent.student_unique_id}</p>
-                      </div>
-                      <div className="border-l border-white/10 pl-3">
-                        <p className="text-[9px] text-slate-500 uppercase tracking-widest">Password</p>
-                        <p className="text-xs font-black text-white font-mono">
-                          {selectedStudent.auth_password ? '••••••••' : 'Not set'}
-                        </p>
-                      </div>
+              {/* Drawer Header */}
+              <div className="shrink-0 bg-gradient-to-br from-slate-900 to-indigo-900 px-6 py-6">
+                <div className="flex items-start gap-5">
+                  {selectedStudent.photograph_url ? (
+                    <img src={selectedStudent.photograph_url} alt={selectedStudent.full_name}
+                      className="w-20 h-20 rounded-2xl object-cover border-2 border-white/20 shadow-xl shrink-0" />
+                  ) : (
+                    <div className="w-20 h-20 rounded-2xl bg-indigo-600/40 border-2 border-indigo-400/30 flex items-center justify-center text-3xl font-black text-white shadow-xl shrink-0">
+                      {selectedStudent.full_name?.charAt(0)?.toUpperCase()}
                     </div>
                   )}
-                </div>
-                <button onClick={() => setSelectedStudent(null)}
-                  className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition text-white shrink-0">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Tab Nav */}
-            <div className="flex border-b border-slate-100 bg-slate-50/50 shrink-0">
-              {(['overview', 'attendance', 'fees', 'results'] as DetailTab[]).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => switchDetailTab(tab)}
-                  className={cn(
-                    'flex-1 px-4 py-4 text-xs font-black uppercase tracking-widest transition-all border-b-2',
-                    detailTab === tab
-                      ? 'border-indigo-600 text-indigo-600 bg-white'
-                      : 'border-transparent text-slate-400 hover:text-slate-700 hover:bg-slate-100/50'
-                  )}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
-
-            {/* Tab Content */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
-
-              {/* ── Overview Tab ─────────────────────────────────────────── */}
-              {detailTab === 'overview' && (
-                <div className="space-y-8">
-                  {/* Personal Info */}
-                  <div>
-                    <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] mb-4">
-                      Personal Information
-                    </h4>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-5 text-sm">
-                      {[
-                        { label: 'Full Name', val: selectedStudent.full_name },
-                        { label: 'Roll Number', val: selectedStudent.roll_number ? `#${selectedStudent.roll_number}` : '-' },
-                        { label: 'Date of Birth', val: formatDate(selectedStudent.dob) },
-                        { label: 'Gender', val: selectedStudent.gender || '-' },
-                        { label: 'Religion', val: selectedStudent.religion || '-' },
-                        { label: 'Nationality', val: selectedStudent.nationality || '-' },
-                        { label: 'Blood Group', val: selectedStudent.blood_group || '-' },
-                        { label: 'Admission Date', val: formatDate(selectedStudent.admission_date) },
-                        { label: 'B-Form / CNIC', val: selectedStudent.b_form_cnic || '-' },
-                      ].map(({ label, val }) => (
-                        <div key={label} className="flex flex-col gap-1">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
-                          <span className="font-bold text-slate-800">{val}</span>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-xl font-black text-white uppercase tracking-tight">{selectedStudent.full_name}</h2>
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      <span className="text-xs text-indigo-300 font-bold bg-indigo-500/20 px-2.5 py-1 rounded-lg">
+                        {selectedStudent.classes ? `${selectedStudent.classes.name} (${selectedStudent.classes.section})` : 'Unassigned'}
+                      </span>
+                      {selectedStudent.roll_number && <span className="text-xs text-slate-400">Roll #{selectedStudent.roll_number}</span>}
+                      <span className={cn('px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest',
+                        selectedStudent.status === 'active' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white')}>
+                        {selectedStudent.status}
+                      </span>
+                    </div>
+                    {/* Credentials */}
+                    {selectedStudent.student_unique_id && (
+                      <div className="mt-3 flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+                        <div>
+                          <p className="text-[9px] text-slate-500 uppercase tracking-widest">Login</p>
+                          <p className="text-xs font-black text-white font-mono">{selectedStudent.student_unique_id}</p>
                         </div>
-                      ))}
-                      <div className="col-span-2 md:col-span-3 flex flex-col gap-1">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Address</span>
-                        <span className="font-medium text-slate-700 italic">
-                          "{selectedStudent.address || 'No address provided'}"
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Medical */}
-                  {(selectedStudent.medical_caution || selectedStudent.emergency_doctor_name) && (
-                    <div>
-                      <h4 className="text-[10px] font-black text-rose-600 uppercase tracking-[0.2em] mb-4">
-                        Medical & Emergency
-                      </h4>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-5 text-sm">
-                        {[
-                          { label: 'Medical Caution', val: selectedStudent.medical_caution || '-' },
-                          { label: 'Emergency Doctor', val: selectedStudent.emergency_doctor_name || '-' },
-                          { label: 'Doctor Phone', val: selectedStudent.emergency_doctor_phone || '-' },
-                        ].map(({ label, val }) => (
-                          <div key={label} className="flex flex-col gap-1">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
-                            <span className="font-bold text-slate-800">{val}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Admin: status edit */}
-                  {userRole?.role === 'admin' && (
-                    <div>
-                      <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3">
-                        Academic Status
-                      </h4>
-                      <select
-                        value={selectedStudent.status}
-                        onChange={async (e) => {
-                          const newStatus = e.target.value;
-                          try {
-                            const { error } = await supabase
-                              .from('students')
-                              .update({ status: newStatus })
-                              .eq('id', selectedStudent.id);
-                            if (error) throw error;
-                            setSelectedStudent({ ...selectedStudent, status: newStatus });
-                            fetchStudents();
-                          } catch (err: any) {
-                            alert('Error updating status: ' + err.message);
-                          }
-                        }}
-                        className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold capitalize focus:ring-2 focus:ring-indigo-500 outline-none"
-                      >
-                        <option value="active">Active</option>
-                        <option value="left">Left</option>
-                        <option value="graduated">Graduated</option>
-                        <option value="withdrawn">Withdrawn</option>
-                      </select>
-                    </div>
-                  )}
-
-                  {/* Parent / Family */}
-                  <div>
-                    <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] mb-4">
-                      Parent & Family
-                    </h4>
-                    {detailParent ? (
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-5 text-sm">
-                        {[
-                          { label: "Father's Name", val: detailParent.father_name || selectedStudent.father_name || '-' },
-                          { label: "Mother's Name", val: detailParent.mother_name || selectedStudent.mother_name || '-' },
-                          { label: 'WhatsApp', val: detailParent.whatsapp_number || '-' },
-                          { label: 'Primary Contact', val: detailParent.father_contact || selectedStudent.father_contact || '-' },
-                          { label: 'Secondary Contact', val: detailParent.mother_contact || selectedStudent.mother_contact || '-' },
-                          { label: 'Email', val: detailParent.email || '-' },
-                        ].map(({ label, val }) => (
-                          <div key={label} className="flex flex-col gap-1">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
-                            <span className="font-bold text-slate-800">{val}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-5 text-sm">
-                        {[
-                          { label: "Father's Name", val: selectedStudent.father_name || '-' },
-                          { label: "Mother's Name", val: selectedStudent.mother_name || '-' },
-                          { label: 'Primary Contact', val: selectedStudent.father_contact || '-' },
-                          { label: 'Secondary Contact', val: selectedStudent.mother_contact || '-' },
-                        ].map(({ label, val }) => (
-                          <div key={label} className="flex flex-col gap-1">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
-                            <span className="font-bold text-slate-800">{val}</span>
-                          </div>
-                        ))}
+                        <div className="border-l border-white/10 pl-3">
+                          <p className="text-[9px] text-slate-500 uppercase tracking-widest">Password</p>
+                          <p className="text-xs font-black text-white font-mono">
+                            {selectedStudent.auth_password ? '••••••••' : 'Not set'}
+                          </p>
+                        </div>
                       </div>
                     )}
                   </div>
+                  <button onClick={() => setSelectedStudent(null)}
+                    className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition text-white shrink-0">
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
-              )}
+              </div>
 
-              {/* ── Attendance Tab ────────────────────────────────────────── */}
-              {detailTab === 'attendance' && (
-                <div className="space-y-6">
-                  {/* Summary row */}
-                  <div className="grid grid-cols-3 gap-4">
-                    {[
-                      { label: 'Present', count: attSummary.present, color: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
-                      { label: 'Absent', count: attSummary.absent, color: 'bg-rose-50 border-rose-200 text-rose-700' },
-                      { label: 'Late', count: attSummary.late, color: 'bg-amber-50 border-amber-200 text-amber-700' },
-                    ].map(({ label, count, color }) => (
-                      <div key={label} className={cn('rounded-2xl border p-4 text-center', color)}>
-                        <div className="text-3xl font-black">{count}</div>
-                        <div className="text-[10px] font-black uppercase tracking-widest mt-1">{label}</div>
-                      </div>
-                    ))}
-                  </div>
+              {/* Tab Nav */}
+              <div className="flex border-b border-slate-100 bg-slate-50/50 shrink-0">
+                {(['overview', 'attendance', 'fees', 'results'] as DetailTab[]).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => switchDetailTab(tab)}
+                    className={cn(
+                      'flex-1 px-4 py-4 text-xs font-black uppercase tracking-widest transition-all border-b-2',
+                      detailTab === tab
+                        ? 'border-indigo-600 text-indigo-600 bg-white'
+                        : 'border-transparent text-slate-400 hover:text-slate-700 hover:bg-slate-100/50'
+                    )}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
 
-                  {/* Dot strip */}
-                  {detailAttendance.length > 0 && (
+              {/* Tab Content */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+
+                {/* ── Overview Tab ─────────────────────────────────────────── */}
+                {detailTab === 'overview' && (
+                  <div className="space-y-8">
+                    {/* Personal Info */}
                     <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Last 30 Days</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {[...Array(30)].map((_, idx) => {
-                          const d = new Date();
-                          d.setDate(d.getDate() - (29 - idx));
-                          const dateStr = d.toISOString().slice(0, 10);
-                          const rec = detailAttendance.find(r => r.date === dateStr);
-                          return (
-                            <div
-                              key={dateStr}
-                              title={`${dateStr}: ${rec ? rec.status : 'no record'}`}
-                              className={cn(
-                                'w-6 h-6 rounded-md',
-                                rec ? attendanceDotColor(rec.status) : 'bg-slate-100'
-                              )}
-                            />
-                          );
-                        })}
-                      </div>
-                      <div className="flex items-center gap-4 mt-3">
+                      <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] mb-4">
+                        Personal Information
+                      </h4>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-5 text-sm">
                         {[
-                          { color: 'bg-emerald-500', label: 'Present' },
-                          { color: 'bg-rose-500', label: 'Absent' },
-                          { color: 'bg-amber-400', label: 'Late' },
-                          { color: 'bg-slate-100', label: 'No Record' },
-                        ].map(({ color, label }) => (
-                          <div key={label} className="flex items-center gap-1.5">
-                            <div className={cn('w-3 h-3 rounded-sm', color)} />
-                            <span className="text-[10px] font-bold text-slate-500">{label}</span>
+                          { label: 'Full Name', val: selectedStudent.full_name },
+                          { label: 'Roll Number', val: selectedStudent.roll_number ? `#${selectedStudent.roll_number}` : '-' },
+                          { label: 'Date of Birth', val: formatDate(selectedStudent.dob) },
+                          { label: 'Gender', val: selectedStudent.gender || '-' },
+                          { label: 'Religion', val: selectedStudent.religion || '-' },
+                          { label: 'Nationality', val: selectedStudent.nationality || '-' },
+                          { label: 'Blood Group', val: selectedStudent.blood_group || '-' },
+                          { label: 'Admission Date', val: formatDate(selectedStudent.admission_date) },
+                          { label: 'B-Form / CNIC', val: selectedStudent.b_form_cnic || '-' },
+                        ].map(({ label, val }) => (
+                          <div key={label} className="flex flex-col gap-1">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
+                            <span className="font-bold text-slate-800">{val}</span>
                           </div>
                         ))}
+                        <div className="col-span-2 md:col-span-3 flex flex-col gap-1">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Address</span>
+                          <span className="font-medium text-slate-700 italic">
+                            "{selectedStudent.address || 'No address provided'}"
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  )}
 
-                  {/* Attendance list */}
-                  {detailAttendance.length === 0 ? (
-                    <p className="text-center text-slate-400 italic py-8">No attendance records in the last 30 days.</p>
-                  ) : (
-                    <div className="overflow-hidden rounded-2xl border border-slate-100">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-slate-50 border-b border-slate-100">
-                            <th className="text-left px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-                            <th className="text-left px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                            <th className="text-left px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Arrival</th>
-                            <th className="text-left px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Departure</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {detailAttendance.map((rec) => (
-                            <tr key={rec.id} className="hover:bg-slate-50/50">
-                              <td className="px-5 py-3 font-medium text-slate-700">{formatDate(rec.date)}</td>
-                              <td className="px-5 py-3">
+                    {/* Medical */}
+                    {(selectedStudent.medical_caution || selectedStudent.emergency_doctor_name) && (
+                      <div>
+                        <h4 className="text-[10px] font-black text-rose-600 uppercase tracking-[0.2em] mb-4">
+                          Medical & Emergency
+                        </h4>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-5 text-sm">
+                          {[
+                            { label: 'Medical Caution', val: selectedStudent.medical_caution || '-' },
+                            { label: 'Emergency Doctor', val: selectedStudent.emergency_doctor_name || '-' },
+                            { label: 'Doctor Phone', val: selectedStudent.emergency_doctor_phone || '-' },
+                          ].map(({ label, val }) => (
+                            <div key={label} className="flex flex-col gap-1">
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
+                              <span className="font-bold text-slate-800">{val}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Admin: status edit */}
+                    {userRole?.role === 'admin' && (
+                      <div>
+                        <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3">
+                          Academic Status
+                        </h4>
+                        <select
+                          value={selectedStudent.status}
+                          onChange={async (e) => {
+                            const newStatus = e.target.value;
+                            try {
+                              const { error } = await supabase
+                                .from('students')
+                                .update({ status: newStatus })
+                                .eq('id', selectedStudent.id);
+                              if (error) throw error;
+                              setSelectedStudent({ ...selectedStudent, status: newStatus });
+                              fetchStudents();
+                            } catch (err: any) {
+                              alert('Error updating status: ' + err.message);
+                            }
+                          }}
+                          className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold capitalize focus:ring-2 focus:ring-indigo-500 outline-none"
+                        >
+                          <option value="active">Active</option>
+                          <option value="left">Left</option>
+                          <option value="graduated">Graduated</option>
+                          <option value="withdrawn">Withdrawn</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Parent / Family */}
+                    <div>
+                      <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] mb-4">
+                        Parent & Family
+                      </h4>
+                      {detailParent ? (
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-5 text-sm">
+                          {[
+                            { label: "Father's Name", val: detailParent.father_name || selectedStudent.father_name || '-' },
+                            { label: "Mother's Name", val: detailParent.mother_name || selectedStudent.mother_name || '-' },
+                            { label: 'WhatsApp', val: detailParent.whatsapp_number || '-' },
+                            { label: 'Primary Contact', val: detailParent.father_contact || selectedStudent.father_contact || '-' },
+                            { label: 'Secondary Contact', val: detailParent.mother_contact || selectedStudent.mother_contact || '-' },
+                            { label: 'Email', val: detailParent.email || '-' },
+                          ].map(({ label, val }) => (
+                            <div key={label} className="flex flex-col gap-1">
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
+                              <span className="font-bold text-slate-800">{val}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-5 text-sm">
+                          {[
+                            { label: "Father's Name", val: selectedStudent.father_name || '-' },
+                            { label: "Mother's Name", val: selectedStudent.mother_name || '-' },
+                            { label: 'Primary Contact', val: selectedStudent.father_contact || '-' },
+                            { label: 'Secondary Contact', val: selectedStudent.mother_contact || '-' },
+                          ].map(({ label, val }) => (
+                            <div key={label} className="flex flex-col gap-1">
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
+                              <span className="font-bold text-slate-800">{val}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Attendance Tab ────────────────────────────────────────── */}
+                {detailTab === 'attendance' && (
+                  <div className="space-y-6">
+                    {/* Summary row */}
+                    <div className="grid grid-cols-3 gap-4">
+                      {[
+                        { label: 'Present', count: attSummary.present, color: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
+                        { label: 'Absent', count: attSummary.absent, color: 'bg-rose-50 border-rose-200 text-rose-700' },
+                        { label: 'Late', count: attSummary.late, color: 'bg-amber-50 border-amber-200 text-amber-700' },
+                      ].map(({ label, count, color }) => (
+                        <div key={label} className={cn('rounded-2xl border p-4 text-center', color)}>
+                          <div className="text-3xl font-black">{count}</div>
+                          <div className="text-[10px] font-black uppercase tracking-widest mt-1">{label}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Dot strip */}
+                    {detailAttendance.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Last 30 Days</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[...Array(30)].map((_, idx) => {
+                            const d = new Date();
+                            d.setDate(d.getDate() - (29 - idx));
+                            const dateStr = d.toISOString().slice(0, 10);
+                            const rec = detailAttendance.find(r => r.date === dateStr);
+                            return (
+                              <div
+                                key={dateStr}
+                                title={`${dateStr}: ${rec ? rec.status : 'no record'}`}
+                                className={cn(
+                                  'w-6 h-6 rounded-md',
+                                  rec ? attendanceDotColor(rec.status) : 'bg-slate-100'
+                                )}
+                              />
+                            );
+                          })}
+                        </div>
+                        <div className="flex items-center gap-4 mt-3">
+                          {[
+                            { color: 'bg-emerald-500', label: 'Present' },
+                            { color: 'bg-rose-500', label: 'Absent' },
+                            { color: 'bg-amber-400', label: 'Late' },
+                            { color: 'bg-slate-100', label: 'No Record' },
+                          ].map(({ color, label }) => (
+                            <div key={label} className="flex items-center gap-1.5">
+                              <div className={cn('w-3 h-3 rounded-sm', color)} />
+                              <span className="text-[10px] font-bold text-slate-500">{label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Attendance list */}
+                    {detailAttendance.length === 0 ? (
+                      <p className="text-center text-slate-400 italic py-8">No attendance records in the last 30 days.</p>
+                    ) : (
+                      <div className="overflow-hidden rounded-2xl border border-slate-100">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-100">
+                              <th className="text-left px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                              <th className="text-left px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                              <th className="text-left px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Arrival</th>
+                              <th className="text-left px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Departure</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {detailAttendance.map((rec) => (
+                              <tr key={rec.id} className="hover:bg-slate-50/50">
+                                <td className="px-5 py-3 font-medium text-slate-700">{formatDate(rec.date)}</td>
+                                <td className="px-5 py-3">
+                                  <span
+                                    className={cn(
+                                      'px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest',
+                                      rec.status === 'present'
+                                        ? 'bg-emerald-100 text-emerald-700'
+                                        : rec.status === 'absent'
+                                          ? 'bg-rose-100 text-rose-700'
+                                          : 'bg-amber-100 text-amber-700'
+                                    )}
+                                  >
+                                    {rec.status}
+                                  </span>
+                                </td>
+                                <td className="px-5 py-3 text-slate-500">{rec.arrival_time || '-'}</td>
+                                <td className="px-5 py-3 text-slate-500">{rec.departure_time || '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Fees Tab ──────────────────────────────────────────────── */}
+                {detailTab === 'fees' && (
+                  <div className="space-y-6">
+                    {/* Outstanding banner */}
+                    <div
+                      className={cn(
+                        'rounded-2xl p-5 flex items-center justify-between',
+                        totalOutstanding > 0 ? 'bg-rose-50 border border-rose-200' : 'bg-emerald-50 border border-emerald-200'
+                      )}
+                    >
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Total Outstanding</p>
+                        <p
+                          className={cn(
+                            'text-3xl font-black',
+                            totalOutstanding > 0 ? 'text-rose-600' : 'text-emerald-600'
+                          )}
+                        >
+                          {totalOutstanding.toLocaleString()} PKR
+                        </p>
+                      </div>
+                      {totalOutstanding === 0 && (
+                        <span className="px-4 py-2 bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-widest">
+                          All Clear
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Fee records table */}
+                    {detailFees.length === 0 ? (
+                      <p className="text-center text-slate-400 italic py-8">No fee records found.</p>
+                    ) : (
+                      <div className="overflow-hidden rounded-2xl border border-slate-100">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-100">
+                              {['Month', 'Invoice #', 'Total', 'Paid', 'Balance', 'Status'].map((h) => (
+                                <th key={h} className="text-left px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                  {h}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {detailFees.map((fee) => {
+                              const balance = (fee.total_amount || 0) - (fee.paid_amount || 0);
+                              return (
+                                <tr key={fee.id} className="hover:bg-slate-50/50">
+                                  <td className="px-5 py-3 font-bold text-slate-800">
+                                    {fee.month_year ? formatDate(fee.month_year) : '—'}
+                                  </td>
+                                  <td className="px-5 py-3 text-slate-500 font-mono text-xs">{fee.invoice_number || '-'}</td>
+                                  <td className="px-5 py-3 font-medium">{(fee.total_amount || 0).toLocaleString()}</td>
+                                  <td className="px-5 py-3 font-medium text-emerald-600">{(fee.paid_amount || 0).toLocaleString()}</td>
+                                  <td className="px-5 py-3 font-bold text-rose-600">{balance > 0 ? balance.toLocaleString() : '0'}</td>
+                                  <td className="px-5 py-3">
+                                    <span className={cn('px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest', feeStatusColor(fee.status))}>
+                                      {fee.status}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Results Tab ───────────────────────────────────────────── */}
+                {detailTab === 'results' && (
+                  <div className="space-y-8">
+                    {Object.keys(groupedResults).length === 0 ? (
+                      <p className="text-center text-slate-400 italic py-8">No exam results found.</p>
+                    ) : (
+                      Object.entries(groupedResults).map(([examName, rows]) => {
+                        const totalMarks = rows.reduce((s, r) => s + (r.obtained_marks || 0), 0);
+                        const totalMax = rows.reduce((s, r) => s + (r.total_marks || 0), 0);
+                        const overallPct = totalMax > 0 ? Math.round((totalMarks / totalMax) * 100) : 0;
+                        const passed = overallPct >= 50;
+                        return (
+                          <div key={examName}>
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight">{examName}</h4>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-slate-500">
+                                  {totalMarks}/{totalMax} ({overallPct}%)
+                                </span>
                                 <span
                                   className={cn(
                                     'px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest',
-                                    rec.status === 'present'
-                                      ? 'bg-emerald-100 text-emerald-700'
-                                      : rec.status === 'absent'
-                                      ? 'bg-rose-100 text-rose-700'
-                                      : 'bg-amber-100 text-amber-700'
+                                    passed ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
                                   )}
                                 >
-                                  {rec.status}
+                                  {passed ? 'Pass' : 'Fail'}
                                 </span>
-                              </td>
-                              <td className="px-5 py-3 text-slate-500">{rec.arrival_time || '-'}</td>
-                              <td className="px-5 py-3 text-slate-500">{rec.departure_time || '-'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* ── Fees Tab ──────────────────────────────────────────────── */}
-              {detailTab === 'fees' && (
-                <div className="space-y-6">
-                  {/* Outstanding banner */}
-                  <div
-                    className={cn(
-                      'rounded-2xl p-5 flex items-center justify-between',
-                      totalOutstanding > 0 ? 'bg-rose-50 border border-rose-200' : 'bg-emerald-50 border border-emerald-200'
-                    )}
-                  >
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Total Outstanding</p>
-                      <p
-                        className={cn(
-                          'text-3xl font-black',
-                          totalOutstanding > 0 ? 'text-rose-600' : 'text-emerald-600'
-                        )}
-                      >
-                        {totalOutstanding.toLocaleString()} PKR
-                      </p>
-                    </div>
-                    {totalOutstanding === 0 && (
-                      <span className="px-4 py-2 bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-widest">
-                        All Clear
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Fee records table */}
-                  {detailFees.length === 0 ? (
-                    <p className="text-center text-slate-400 italic py-8">No fee records found.</p>
-                  ) : (
-                    <div className="overflow-hidden rounded-2xl border border-slate-100">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-slate-50 border-b border-slate-100">
-                            {['Month', 'Invoice #', 'Total', 'Paid', 'Balance', 'Status'].map((h) => (
-                              <th key={h} className="text-left px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                {h}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {detailFees.map((fee) => {
-                            const balance = (fee.total_amount || 0) - (fee.paid_amount || 0);
-                            return (
-                              <tr key={fee.id} className="hover:bg-slate-50/50">
-                                <td className="px-5 py-3 font-bold text-slate-800">
-                                  {fee.month_year ? formatDate(fee.month_year) : '—'}
-                                </td>
-                                <td className="px-5 py-3 text-slate-500 font-mono text-xs">{fee.invoice_number || '-'}</td>
-                                <td className="px-5 py-3 font-medium">{(fee.total_amount || 0).toLocaleString()}</td>
-                                <td className="px-5 py-3 font-medium text-emerald-600">{(fee.paid_amount || 0).toLocaleString()}</td>
-                                <td className="px-5 py-3 font-bold text-rose-600">{balance > 0 ? balance.toLocaleString() : '0'}</td>
-                                <td className="px-5 py-3">
-                                  <span className={cn('px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest', feeStatusColor(fee.status))}>
-                                    {fee.status}
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* ── Results Tab ───────────────────────────────────────────── */}
-              {detailTab === 'results' && (
-                <div className="space-y-8">
-                  {Object.keys(groupedResults).length === 0 ? (
-                    <p className="text-center text-slate-400 italic py-8">No exam results found.</p>
-                  ) : (
-                    Object.entries(groupedResults).map(([examName, rows]) => {
-                      const totalMarks = rows.reduce((s, r) => s + (r.obtained_marks || 0), 0);
-                      const totalMax = rows.reduce((s, r) => s + (r.total_marks || 0), 0);
-                      const overallPct = totalMax > 0 ? Math.round((totalMarks / totalMax) * 100) : 0;
-                      const passed = overallPct >= 50;
-                      return (
-                        <div key={examName}>
-                          <div className="flex items-center justify-between mb-3">
-                            <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight">{examName}</h4>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-slate-500">
-                                {totalMarks}/{totalMax} ({overallPct}%)
-                              </span>
-                              <span
-                                className={cn(
-                                  'px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest',
-                                  passed ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
-                                )}
-                              >
-                                {passed ? 'Pass' : 'Fail'}
-                              </span>
+                              </div>
+                            </div>
+                            <div className="overflow-hidden rounded-2xl border border-slate-100">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="bg-slate-50 border-b border-slate-100">
+                                    {['Subject', 'Marks', 'Total', '%', 'Grade'].map((h) => (
+                                      <th key={h} className="text-left px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                        {h}
+                                      </th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                  {rows.map((r) => {
+                                    const pct = r.total_marks > 0 ? Math.round((r.obtained_marks / r.total_marks) * 100) : 0;
+                                    const grade = gradeLabel(pct);
+                                    const subjectPass = pct >= 50;
+                                    return (
+                                      <tr key={r.id} className="hover:bg-slate-50/50">
+                                        <td className="px-5 py-3 font-bold text-slate-800">
+                                          {r.subjects?.subject_name || '-'}
+                                        </td>
+                                        <td className="px-5 py-3 font-medium">{r.obtained_marks ?? '-'}</td>
+                                        <td className="px-5 py-3 text-slate-500">{r.total_marks ?? '-'}</td>
+                                        <td className="px-5 py-3 font-bold">{pct}%</td>
+                                        <td className="px-5 py-3">
+                                          <span
+                                            className={cn(
+                                              'px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest',
+                                              subjectPass ? 'bg-indigo-100 text-indigo-700' : 'bg-rose-100 text-rose-700'
+                                            )}
+                                          >
+                                            {grade}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
                             </div>
                           </div>
-                          <div className="overflow-hidden rounded-2xl border border-slate-100">
-                            <table className="w-full text-sm">
-                              <thead>
-                                <tr className="bg-slate-50 border-b border-slate-100">
-                                  {['Subject', 'Marks', 'Total', '%', 'Grade'].map((h) => (
-                                    <th key={h} className="text-left px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                      {h}
-                                    </th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-50">
-                                {rows.map((r) => {
-                                  const pct = r.total_marks > 0 ? Math.round((r.obtained_marks / r.total_marks) * 100) : 0;
-                                  const grade = gradeLabel(pct);
-                                  const subjectPass = pct >= 50;
-                                  return (
-                                    <tr key={r.id} className="hover:bg-slate-50/50">
-                                      <td className="px-5 py-3 font-bold text-slate-800">
-                                        {r.subjects?.subject_name || '-'}
-                                      </td>
-                                      <td className="px-5 py-3 font-medium">{r.obtained_marks ?? '-'}</td>
-                                      <td className="px-5 py-3 text-slate-500">{r.total_marks ?? '-'}</td>
-                                      <td className="px-5 py-3 font-bold">{pct}%</td>
-                                      <td className="px-5 py-3">
-                                        <span
-                                          className={cn(
-                                            'px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest',
-                                            subjectPass ? 'bg-indigo-100 text-indigo-700' : 'bg-rose-100 text-rose-700'
-                                          )}
-                                        >
-                                          {grade}
-                                        </span>
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              )}
-            </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
 
-            {/* Drawer Footer */}
-            <div className="px-6 py-4 border-t border-slate-100 flex justify-between items-center shrink-0 bg-slate-50">
-              {!isStaffRole ? (
-                <Link to={`/students/register?edit=${selectedStudent.id}`} className="text-xs font-black text-indigo-600 hover:text-indigo-800 uppercase tracking-widest transition-colors">
-                  Edit Student Profile →
-                </Link>
-              ) : (
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">View Only</span>
-              )}
-              <button onClick={() => setSelectedStudent(null)}
-                className="px-6 py-2.5 text-xs font-black text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-xl uppercase tracking-widest transition-colors">
-                Close
-              </button>
-            </div>
-          </motion.div>
-        </>
-      )}
+              {/* Drawer Footer */}
+              <div className="px-6 py-4 border-t border-slate-100 flex justify-between items-center shrink-0 bg-slate-50">
+                {!isStaffRole ? (
+                  <Link to={`/students/register?edit=${selectedStudent.id}`} className="text-xs font-black text-indigo-600 hover:text-indigo-800 uppercase tracking-widest transition-colors">
+                    Edit Student Profile →
+                  </Link>
+                ) : (
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">View Only</span>
+                )}
+                <button onClick={() => setSelectedStudent(null)}
+                  className="px-6 py-2.5 text-xs font-black text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-xl uppercase tracking-widest transition-colors">
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
       </AnimatePresence>
 
       {/* ── Import Modal ──────────────────────────────────────────────────── */}
@@ -1687,12 +1687,12 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
             <div className="p-8 space-y-6">
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Field to Update</label>
-                <select 
-                  value={bulkUpdateField} 
+                <select
+                  value={bulkUpdateField}
                   onChange={(e) => {
                     setBulkUpdateField(e.target.value);
                     setBulkUpdateValue(''); // reset value when field changes
-                  }} 
+                  }}
                   className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-bold focus:ring-4 focus:ring-indigo-100 outline-none transition-all shadow-inner"
                 >
                   <option value="">Select Field...</option>
@@ -1702,11 +1702,11 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
                   <option value="fee_waiver_percentage">Fee Waiver (%)</option>
                 </select>
               </div>
-              
+
               {bulkUpdateField && (
                 <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">New Value</label>
-                  
+
                   {bulkUpdateField === 'gender' ? (
                     <select value={bulkUpdateValue} onChange={(e) => setBulkUpdateValue(e.target.value)} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-bold focus:ring-4 focus:ring-indigo-100 outline-none transition-all shadow-inner">
                       <option value="">Select Gender...</option>
@@ -1729,14 +1729,14 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
                       ))}
                     </select>
                   ) : bulkUpdateField === 'fee_waiver_percentage' ? (
-                    <input 
-                      type="number" 
-                      min="0" 
-                      max="100" 
-                      placeholder="Enter percentage (0-100)" 
-                      value={bulkUpdateValue} 
-                      onChange={(e) => setBulkUpdateValue(e.target.value)} 
-                      className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-bold focus:ring-4 focus:ring-indigo-100 outline-none transition-all shadow-inner" 
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      placeholder="Enter percentage (0-100)"
+                      value={bulkUpdateValue}
+                      onChange={(e) => setBulkUpdateValue(e.target.value)}
+                      className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-bold focus:ring-4 focus:ring-indigo-100 outline-none transition-all shadow-inner"
                     />
                   ) : null}
                 </div>
@@ -1799,9 +1799,9 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
             <div className="p-8 space-y-6">
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Select Destination Class</label>
-                <select 
-                  value={bulkTargetClass} 
-                  onChange={(e) => setBulkTargetClass(e.target.value)} 
+                <select
+                  value={bulkTargetClass}
+                  onChange={(e) => setBulkTargetClass(e.target.value)}
                   className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-bold focus:ring-4 focus:ring-indigo-100 outline-none transition-all shadow-inner"
                 >
                   <option value="">Choose Class & Section...</option>
@@ -1825,7 +1825,7 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
 
       {/* Bulk Delete Confirmation */}
       {isBulkDeleteModalOpen && (
-        <DeletePinModal 
+        <DeletePinModal
           isOpen={isBulkDeleteModalOpen}
           schoolId={userRole?.school_id || ''}
           onConfirm={handleBulkDelete}
@@ -1840,8 +1840,8 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
             <h3 className="text-base font-black text-slate-900 mb-1">
               {statusModal.targetStatus === 'left' ? 'Mark as Left' :
-               statusModal.targetStatus === 'graduated' ? 'Mark as Passed Out' :
-               'Admission Withdrawn'}
+                statusModal.targetStatus === 'graduated' ? 'Mark as Passed Out' :
+                  'Admission Withdrawn'}
             </h3>
             <p className="text-sm text-slate-500 mb-4">
               Student: <strong>{statusModal.studentName}</strong>
@@ -1854,8 +1854,8 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
                 onChange={e => setStatusReason(e.target.value)}
                 placeholder={
                   statusModal.targetStatus === 'left' ? 'e.g. Family relocated...' :
-                  statusModal.targetStatus === 'graduated' ? 'e.g. Completed Grade 10...' :
-                  'e.g. Fee non-payment, disciplinary action...'
+                    statusModal.targetStatus === 'graduated' ? 'e.g. Completed Grade 10...' :
+                      'e.g. Fee non-payment, disciplinary action...'
                 }
                 className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
               />
@@ -1863,12 +1863,12 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
             <div className={cn(
               'text-xs font-bold px-3 py-2 rounded-lg mb-4',
               statusModal.targetStatus === 'left' ? 'bg-amber-50 text-amber-700' :
-              statusModal.targetStatus === 'graduated' ? 'bg-teal-50 text-teal-700' :
-              'bg-rose-50 text-rose-700'
+                statusModal.targetStatus === 'graduated' ? 'bg-teal-50 text-teal-700' :
+                  'bg-rose-50 text-rose-700'
             )}>
               ⚠ This student will be moved to the "{
                 statusModal.targetStatus === 'graduated' ? 'Passed Out' :
-                statusModal.targetStatus.charAt(0).toUpperCase() + statusModal.targetStatus.slice(1)
+                  statusModal.targetStatus.charAt(0).toUpperCase() + statusModal.targetStatus.slice(1)
               }" tab.
             </div>
             <div className="flex gap-3">
@@ -1879,8 +1879,8 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
               <button onClick={confirmStatusChange} disabled={savingStatus}
                 className={cn('flex-1 px-4 py-2.5 rounded-xl text-sm font-black text-white transition-all disabled:opacity-50',
                   statusModal.targetStatus === 'left' ? 'bg-amber-500 hover:bg-amber-600' :
-                  statusModal.targetStatus === 'graduated' ? 'bg-teal-500 hover:bg-teal-600' :
-                  'bg-rose-500 hover:bg-rose-600'
+                    statusModal.targetStatus === 'graduated' ? 'bg-teal-500 hover:bg-teal-600' :
+                      'bg-rose-500 hover:bg-rose-600'
                 )}>
                 {savingStatus ? 'Saving...' : 'Confirm'}
               </button>

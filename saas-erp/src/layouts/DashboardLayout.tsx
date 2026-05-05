@@ -8,7 +8,7 @@ import CommandPalette from '../components/CommandPalette';
 import DashboardAlerts from '../components/DashboardAlerts';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { supabase } from '../lib/supabase';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { NAV_SECTIONS } from '../constants/navigation';
 import AiAssistant from '../components/AiAssistant';
 
@@ -519,18 +519,17 @@ export default function DashboardLayout() {
         )}
 
         {/* Page Content */}
-        <main className="theme-shell flex-1 relative p-6 print:p-0 overflow-auto print:overflow-visible print:block portal-content-padding md:pb-6" data-density={densityCompact ? 'compact' : 'comfortable'}>
+        <main className="theme-shell flex-1 relative px-6 pt-6 pb-24 md:pb-6 print:p-0 overflow-auto print:overflow-visible print:block" data-density={densityCompact ? 'compact' : 'comfortable'}>
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
               initial={{ opacity: 0, y: 15, filter: 'blur(8px)' }}
               animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
               exit={{ opacity: 0, y: -15, filter: 'blur(8px)' }}
-              transition={{ 
-                duration: 0.4, 
-                ease: [0.22, 1, 0.36, 1] 
+              transition={{
+                duration: 0.4,
+                ease: [0.22, 1, 0.36, 1]
               }}
-              className="h-full"
             >
               <ErrorBoundary>
                 <Outlet />

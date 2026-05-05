@@ -151,10 +151,10 @@ export async function* streamGemini(
     }));
 
     const response = await ai.models.generateContentStream({
-      model: "gemini-3-flash-preview",
+      model: "gemini-1.5-flash",
       contents,
-      system_instruction: systemPrompt,
       config: {
+        systemInstruction: systemPrompt,
         maxOutputTokens: 1024,
         temperature: 0.7,
       },

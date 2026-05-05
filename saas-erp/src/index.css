@@ -70,9 +70,13 @@ h1, h2, h3, h4, .font-display {
   background: linear-gradient(135deg, hsl(var(--aura-bg)), hsl(var(--aura-surface)));
 }
 
-/* Tab Bar / Bottom Nav Offset */
-.portal-content-padding {
-  padding-bottom: calc(96px + env(safe-area-inset-bottom)); /* Increased space for mobile bottom nav + safe area */
+/* Tab Bar / Bottom Nav Offset — kept for backwards compatibility.
+   Prefer using Tailwind utility `pb-24 md:pb-6` directly on elements
+   to avoid cascade-layer conflicts with Tailwind v4. */
+@layer utilities {
+  .portal-content-padding {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
 }
 
 .safe-area-pb {

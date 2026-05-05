@@ -413,7 +413,7 @@ export default function StudentPortal() {
             <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
-          <div className="portal-content-padding">
+          <div className="pb-24">
             {activeTab !== 'overview' && (
               <button 
                 onClick={() => setActiveTab('overview')}
@@ -488,7 +488,7 @@ function OverviewTab({ studentData, className, attendanceRate, pendingFees, resu
       </div>
 
       {/* Portal Content Area */}
-      <div className="portal-content-padding">
+      <div className="pb-24">
         <div className="space-y-6">
           {/* Primary Stats Grid */}
           <div className="grid grid-cols-2 gap-4">
