@@ -307,7 +307,7 @@ export default function TeacherMarks() {
     acc[et.name].push(et);
     return acc;
   }, {});
-  Object.values(examGroups).forEach(arr =>
+  (Object.values(examGroups) as ExamType[][]).forEach(arr =>
     arr.sort((a, b) => (b.month_year || '').localeCompare(a.month_year || '')),
   );
 
@@ -422,7 +422,7 @@ export default function TeacherMarks() {
                 className="w-full appearance-none px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold pr-9 focus:ring-2 focus:ring-amber-400 outline-none transition"
               >
                 <option value="">— Select Exam —</option>
-                {Object.entries(examGroups).map(([groupName, items]) =>
+                {(Object.entries(examGroups) as [string, ExamType[]][]).map(([groupName, items]) =>
                   items.length === 1 && !items[0].month_year ? (
                     // Single instance, no month — show flat
                     <option key={items[0].id} value={items[0].id}>

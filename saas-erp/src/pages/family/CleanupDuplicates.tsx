@@ -6,7 +6,7 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { Card } from '../../components/ui/Card';
 import { Btn } from '../../components/ui/Btn';
 import { Badge } from '../../components/ui/Badge';
-import { cn } from '../../lib/utils';
+import { cn, formatDate } from '../../lib/utils';
 
 interface DuplicateGroup {
   key: string; // phone_cnic

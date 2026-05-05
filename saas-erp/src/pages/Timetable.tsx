@@ -258,7 +258,7 @@ export default function Timetable() {
       (allTemplateRows[matrixTemplateId] || []).forEach(r => rowMap.set(r.sort_order, r));
     } else {
       // General merge (least accurate, used for school-wide printouts)
-      Object.values(allTemplateRows).forEach(tRows => {
+      (Object.values(allTemplateRows) as TemplateRow[][]).forEach(tRows => {
         tRows.forEach(r => rowMap.set(r.sort_order, r));
       });
     }

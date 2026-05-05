@@ -108,7 +108,7 @@ export default function ResultStatus() {
         supabase.from('subjects').select('id, subject_name, class_id').eq('school_id', sid),
         supabase.from('students').select('id, class_id').eq('school_id', sid).eq('status', 'active'),
         supabase.from('exam_results')
-          .select('student_id, subject_id, class_id')
+          .select('student_id, subject_id')
           .eq('school_id', sid)
           .eq('exam_type_id', selectedExam),
       ]);
@@ -118,19 +118,21 @@ export default function ResultStatus() {
       const stds = students || [];
       const res  = results  || [];
 
-      // Build a Set for fast lookup: "classId|subjectId|studentId"
-      const enteredSet = new Set(res.map(r => `${r.class_id}|${r.subject_id}|${r.student_id}`));
+      // Key = "subjectId|studentId" — deliberately excludes class_id because
+      // older records have class_id = NULL (column was added later via migration).
+      // Student-class membership is already enforced via the students table.
+      const enteredSet = new Set(res.map((r: any) => `${r.subject_id}|${r.student_id}`));
 
       const built: RowData[] = [];
 
       cls.forEach(c => {
-        const classSubs    = subs.filter(s => s.class_id === c.id);
+        const classSubs     = subs.filter(s => s.class_id === c.id);
         const classStudents = stds.filter(s => s.class_id === c.id);
         const totalStudents = classStudents.length;
 
         classSubs.forEach(sub => {
           const marksEntered = classStudents.filter(st =>
-            enteredSet.has(`${c.id}|${sub.id}|${st.id}`)
+            enteredSet.has(`${sub.id}|${st.id}`)
           ).length;
           const missing = totalStudents - marksEntered;
           const pct     = totalStudents > 0 ? Math.round((marksEntered / totalStudents) * 100) : 0;

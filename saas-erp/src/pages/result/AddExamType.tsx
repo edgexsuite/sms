@@ -267,7 +267,7 @@ export default function AddExamType() {
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
-            {Object.entries(grouped).map(([groupName, items]) => (
+            {(Object.entries(grouped) as [string, any[]][]).map(([groupName, items]) => (
               <div key={groupName}>
                 {/* Group header (only shown if >1 instance or has month) */}
                 {(items.length > 1 || items.some(i => i.month_year)) && (
