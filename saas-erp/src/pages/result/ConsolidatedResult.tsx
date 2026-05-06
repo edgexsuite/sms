@@ -20,6 +20,7 @@ const GRADE_COLORS: Record<string, { bg: string; text: string; print: string }> 
 
 export default function ConsolidatedResult() {
   const { userRole } = useAuth();
+  const sid = userRole?.school_id ?? '';
 
   const [examTypes,       setExamTypes]       = useState<any[]>([]);
   const [classes,         setClasses]         = useState<any[]>([]);
@@ -39,8 +40,7 @@ export default function ConsolidatedResult() {
 
   // ── Init ───────────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!userRole?.school_id) return;
-    const sid = userRole.school_id;
+    if (!sid) return;
     Promise.all([
       supabase.from('exam_types').select('*').eq('school_id', sid).order('created_at'),
       supabase.from('classes').select('id, name, section').eq('school_id', sid).order('name'),
@@ -52,14 +52,14 @@ export default function ConsolidatedResult() {
       if (sch) setSchoolName((sch as any).name || '');
       setGradingBrackets(brackets);
     });
-  }, [userRole]);
+  }, [sid]);
 
   // ── Fetch class data when class changes ───────────────────────────────────
   useEffect(() => {
     if (!selectedClass) return;
     Promise.all([
-      supabase.from('subjects').select('id, subject_name, total_marks, passing_marks').eq('class_id', selectedClass).order('subject_name'),
-      supabase.from('students').select('id, full_name, roll_number').eq('class_id', selectedClass).eq('status', 'active').order('roll_number'),
+      supabase.from('subjects').select('id, subject_name, total_marks, passing_marks').eq('school_id', sid).eq('class_id', selectedClass).order('subject_name'),
+      supabase.from('students').select('id, full_name, roll_number').eq('school_id', sid).eq('class_id', selectedClass).eq('status', 'active').order('roll_number'),
     ]).then(([{ data: subs }, { data: stus }]) => {
       if (subs) setSubjects(subs);
       if (stus) setStudents(stus);
@@ -74,6 +74,7 @@ export default function ConsolidatedResult() {
     supabase
       .from('exam_subject_config')
       .select('subject_id, total_marks, passing_marks')
+      .eq('school_id', sid)
       .eq('exam_type_id', selectedExamType)
       .in('subject_id', subjects.map(s => s.id))
       .then(({ data }) => {
@@ -85,12 +86,14 @@ export default function ConsolidatedResult() {
 
   // ── Fetch results when both exam + class selected ─────────────────────────
   useEffect(() => {
-    if (!selectedExamType || students.length === 0) return;
+    if (!selectedExamType || students.length === 0 || !selectedClass) return;
     setLoading(true);
     const ids = students.map(s => s.id);
+
     supabase
       .from('exam_results')
       .select('student_id, subject_id, obtained_marks, total_marks, is_absent')
+      .eq('school_id', sid)
       .eq('exam_type_id', selectedExamType)
       .in('student_id', ids)
       .then(({ data, error }) => {
@@ -98,7 +101,8 @@ export default function ConsolidatedResult() {
         setResults(data || []);
         setLoading(false);
       });
-  }, [selectedExamType, students]);
+  }, [selectedExamType, students, selectedClass]);
+
 
   // ── Effective marks: exam config takes priority, subject defaults as fallback ─
   const effectiveMarks = (subj: any) => {
@@ -125,7 +129,7 @@ export default function ConsolidatedResult() {
       // No row at all — not yet entered
       if (!r) return { subject: subj, maxMarks, passMarks, obtained: null, absent: false, pass: false };
 
-      // Absent — Policy A: exclude from grade calc (don't add to grandTotal or totalObtained)
+      // Absent — Policy A: exclude from grade calc
       if (r.is_absent) return { subject: subj, maxMarks, passMarks, obtained: null, absent: true, pass: false };
 
       // Has marks — include in calculation

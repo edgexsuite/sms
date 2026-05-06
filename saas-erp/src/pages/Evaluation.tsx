@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Star, Search, TrendingUp, Award, Plus, Save, X,
   Calendar, UserCheck, ChevronDown, CheckCircle2,
@@ -484,10 +485,10 @@ export default function Evaluation() {
       {/* ════════════════════════════════════════════════════════════════════
           Single Evaluation Modal
       ════════════════════════════════════════════════════════════════════ */}
-      {modalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+      {modalOpen && createPortal(
+        <div className="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
-            <div className="bg-indigo-600 px-6 py-5 flex justify-between items-center text-white">
+            <div className="bg-indigo-600 px-6 py-5 flex justify-between items-center text-white shrink-0">
               <div>
                 <h3 className="text-lg font-black">{editId ? 'Edit Evaluation' : 'New Student Review'}</h3>
                 <p className="text-indigo-200 text-[10px] mt-0.5 uppercase tracking-widest">Character Assessment</p>
@@ -573,22 +574,22 @@ export default function Evaluation() {
               </div>
             </form>
 
-            <div className="p-4 bg-white border-t border-gray-100 flex gap-3">
+            <div className="p-4 bg-white border-t border-gray-100 flex gap-3 shrink-0">
               <button onClick={() => setModalOpen(false)} className="flex-1 py-2.5 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-all">Cancel</button>
               <button onClick={handleSaveSingle} disabled={saving} className="flex-[2] py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all flex items-center justify-center gap-2">
                 <Save className="w-4 h-4" />{saving ? 'Saving…' : editId ? 'Save Changes' : 'Post Evaluation'}
               </button>
             </div>
           </div>
-        </div>
+        </div>, document.body
       )}
 
       {/* ════════════════════════════════════════════════════════════════════
           Batch Class Evaluation Modal
       ════════════════════════════════════════════════════════════════════ */}
-      {batchOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+      {batchOpen && createPortal(
+        <div className="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-2 sm:p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh]">
             <div className="bg-amber-500 px-6 py-5 flex justify-between items-center text-white shrink-0">
               <div>
                 <h3 className="text-lg font-black">Batch Class Evaluation</h3>
@@ -598,7 +599,7 @@ export default function Evaluation() {
             </div>
 
             {/* Batch settings bar */}
-            <div className="px-6 py-3 border-b border-gray-100 bg-gray-50/50 flex flex-wrap gap-3 items-center shrink-0">
+            <div className="px-4 py-3 sm:px-6 border-b border-gray-100 bg-gray-50/50 flex flex-wrap gap-3 items-center shrink-0">
               <div>
                 <label className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Class</label>
                 <select
@@ -627,14 +628,14 @@ export default function Evaluation() {
                   className="border border-gray-200 bg-white rounded-lg px-3 py-1.5 text-xs font-bold outline-none"
                 />
               </div>
-              <div className="ml-auto text-[10px] font-bold text-gray-400">
+              <div className="ml-auto text-[10px] font-bold text-gray-400 hidden sm:block">
                 {batchStudents.filter(s => RATING_KEYS.every(k => batchRatings[s.id]?.[k])).length}/{batchStudents.length} ready
               </div>
             </div>
 
-            {/* Category header row */}
+            {/* Category header row - Hidden on mobile */}
             {batchStudents.length > 0 && (
-              <div className="grid grid-cols-[180px_1fr_1fr_1fr_1fr_160px] gap-2 px-6 py-2 border-b border-gray-100 bg-gray-50 shrink-0 text-[9px] font-black text-gray-400 uppercase tracking-widest">
+              <div className="hidden lg:grid grid-cols-[180px_1fr_1fr_1fr_1fr_160px] gap-2 px-6 py-2 border-b border-gray-100 bg-gray-50 shrink-0 text-[9px] font-black text-gray-400 uppercase tracking-widest">
                 <span>Student</span>
                 {RATING_KEYS.map(k => <span key={k}>{k}</span>)}
                 <span>Feedback</span>
@@ -642,7 +643,7 @@ export default function Evaluation() {
             )}
 
             {/* Student rows */}
-            <div className="overflow-y-auto flex-1">
+            <div className="overflow-y-auto flex-1 bg-gray-50/30">
               {!batchClassId ? (
                 <div className="p-12 text-center text-gray-300 font-bold">Select a class above.</div>
               ) : batchStudents.length === 0 ? (
@@ -653,31 +654,41 @@ export default function Evaluation() {
                 const existing = evalByStudent.has(stu.id);
                 return (
                   <div key={stu.id} className={cn(
-                    'grid grid-cols-[180px_1fr_1fr_1fr_1fr_160px] gap-2 px-6 py-3 border-b border-gray-50 items-center hover:bg-gray-50 transition-colors',
-                    complete ? 'bg-emerald-50/30' : ''
+                    'flex flex-col lg:grid lg:grid-cols-[180px_1fr_1fr_1fr_1fr_160px] gap-4 lg:gap-2 px-4 sm:px-6 py-4 lg:py-3 border-b border-gray-100 items-start lg:items-center hover:bg-gray-50 transition-colors bg-white lg:bg-transparent',
+                    complete ? 'bg-emerald-50/50' : ''
                   )}>
-                    <div className="min-w-0">
+                    <div className="min-w-0 w-full lg:w-auto">
                       <p className="text-xs font-bold text-gray-800 truncate">{stu.full_name}</p>
                       <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="text-[9px] text-gray-400">Roll {stu.roll_number}</span>
-                        {existing && <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">Prev. eval</span>}
+                        <span className="text-[9px] text-gray-400 font-bold">Roll {stu.roll_number}</span>
+                        {existing && <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full uppercase">Previous eval found</span>}
                       </div>
                     </div>
-                    {RATING_KEYS.map(ratingKey => (
-                      <StarRating
-                        key={ratingKey}
-                        value={Number(r[ratingKey] ?? 0)}
-                        onChange={v => setBatchStar(stu.id, ratingKey, v)}
-                        size="sm"
+                    
+                    {/* Ratings container for mobile */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:contents gap-4 w-full">
+                      {RATING_KEYS.map(ratingKey => (
+                        <div key={ratingKey} className="flex flex-col gap-1 lg:block">
+                          <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest lg:hidden">{ratingKey}</span>
+                          <StarRating
+                            value={Number(r[ratingKey] ?? 0)}
+                            onChange={v => setBatchStar(stu.id, ratingKey, v)}
+                            size="sm"
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="w-full lg:w-auto mt-2 lg:mt-0">
+                      <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest lg:hidden block mb-1">Observations</span>
+                      <input
+                        type="text"
+                        placeholder="Optional note…"
+                        value={batchFeedback[stu.id] ?? ''}
+                        onChange={e => setBatchFeedback(p => ({ ...p, [stu.id]: e.target.value }))}
+                        className="text-[10px] border border-gray-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-amber-300 bg-white w-full font-medium"
                       />
-                    ))}
-                    <input
-                      type="text"
-                      placeholder="Optional note…"
-                      value={batchFeedback[stu.id] ?? ''}
-                      onChange={e => setBatchFeedback(p => ({ ...p, [stu.id]: e.target.value }))}
-                      className="text-[10px] border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:ring-1 focus:ring-amber-300 bg-white w-full"
-                    />
+                    </div>
                   </div>
                 );
               })}
@@ -689,11 +700,14 @@ export default function Evaluation() {
                 onClick={handleSaveBatch} disabled={batchSaving || !batchClassId}
                 className="flex-[2] py-2.5 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 shadow-lg shadow-amber-100 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                <Save className="w-4 h-4" />{batchSaving ? 'Saving…' : `Save ${batchStudents.filter(s => RATING_KEYS.every(k => batchRatings[s.id]?.[k])).length} Evaluations`}
+                <Save className="w-4 h-4" />
+                <span className="truncate">
+                  {batchSaving ? 'Saving…' : `Save ${batchStudents.filter(s => RATING_KEYS.every(k => batchRatings[s.id]?.[k])).length} Evaluations`}
+                </span>
               </button>
             </div>
           </div>
-        </div>
+        </div>, document.body
       )}
     </div>
   );

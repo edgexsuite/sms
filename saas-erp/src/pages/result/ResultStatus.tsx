@@ -140,8 +140,10 @@ export default function ResultStatus() {
 
       // Separate sets: one for marks entries, one for absent-marked
       // Key = "subjectId|studentId"
+      // is_absent is now a proper boolean column
       const marksSet  = new Set(res.filter((r: any) => !r.is_absent).map((r: any) => `${r.subject_id}|${r.student_id}`));
       const absentSet = new Set(res.filter((r: any) =>  r.is_absent).map((r: any) => `${r.subject_id}|${r.student_id}`));
+
 
       const built: RowData[] = [];
 

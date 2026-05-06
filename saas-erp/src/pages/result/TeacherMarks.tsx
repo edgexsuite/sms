@@ -248,6 +248,7 @@ export default function TeacherMarks() {
         const absMap: Record<string, boolean> = {};
         resRes.data.forEach((r: any) => {
           if (!studentIds.has(r.student_id)) return;
+          // Detect absent by is_absent column
           if (r.is_absent) {
             absMap[r.student_id] = true;
           } else {

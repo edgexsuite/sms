@@ -73,6 +73,7 @@ export default function AddResult() {
       const m: Record<string, string> = {};
       const ab: Record<string, boolean> = {};
       data.forEach(r => {
+        // Detect absent by is_absent column
         if (r.is_absent) {
           ab[r.student_id] = true;
         } else {
@@ -94,6 +95,7 @@ export default function AddResult() {
   };
 
   const handleSave = async () => {
+    if (!userRole?.school_id) { alert('Session not ready. Please refresh and try again.'); return; }
     setSaving(true);
     try {
       // Only save students who have marks entered OR are marked absent
@@ -103,14 +105,15 @@ export default function AddResult() {
           const isAbsent = absent[stu.id] ?? false;
           const obtained = isAbsent ? 0 : parseFloat(marks[stu.id] || '0');
           return {
-            school_id: userRole?.school_id,
-            exam_type_id: selectedExamType,
-            student_id: stu.id,
-            subject_id: selectedSubject,
+            school_id:      userRole!.school_id,
+            exam_type_id:   selectedExamType,
+            student_id:     stu.id,
+            subject_id:     selectedSubject,
+            class_id:       selectedClass,
             obtained_marks: obtained,
-            total_marks: totalMarks,
-            grade: isAbsent ? 'Ab' : getGrade(obtained, totalMarks),
-            is_absent: isAbsent,
+            total_marks:    totalMarks,
+            grade:          isAbsent ? 'Ab' : getGrade(obtained, totalMarks),
+            is_absent:      isAbsent,
           };
         });
 
