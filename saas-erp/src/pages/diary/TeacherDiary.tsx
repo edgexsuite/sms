@@ -3,9 +3,9 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   ClipboardList, Save, Calendar, Users, Printer,
-  ChevronLeft, ChevronRight, BookOpen, CheckCircle2, 
-  AlertCircle, Calculator, FlaskConical, PenTool, 
-  Book, Globe, Cpu, Palette
+  ChevronLeft, ChevronRight, BookOpen, CheckCircle2,
+  AlertCircle, Calculator, FlaskConical, PenTool,
+  Book, Globe, Cpu, Palette, CalendarDays
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn, formatDate } from '../../lib/utils';
@@ -71,7 +71,8 @@ export default function TeacherDiary() {
   const [viewDate, setViewDate] = useState(new Date().toISOString().split('T')[0]);
   const [rows, setRows] = useState<DiaryRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [schoolInfo, setSchoolInfo] = useState<{ 
+  const [scheduleActive, setScheduleActive] = useState(false); // true when diary_schedule filters apply
+  const [schoolInfo, setSchoolInfo] = useState<{
     name: string; 
     address: string; 
     logo_url?: string;
@@ -241,6 +242,54 @@ export default function TeacherDiary() {
 
   const buildRows = async () => {
     setLoading(true);
+
+    // ── Diary Schedule filter ──────────────────────────────────────────────
+    // If a diary_schedule is configured for this class+day, show ONLY those
+    // subjects (in slot order). Otherwise fall back to all assignedSlots.
+    const DAYS_EN = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const dayOfWeek = DAYS_EN[new Date(viewDate).getDay()];
+
+    // Determine which class to query for the schedule
+    const scheduleClassId = viewMode === 'class' ? selectedClassId
+      : (assignedSlots.length > 0 ? assignedSlots[0].class_id : '');
+
+    let slotsToUse: Slot[] = assignedSlots;
+
+    if (scheduleClassId) {
+      const { data: schedRows } = await supabase
+        .from('diary_schedule')
+        .select('subject_id, slot_order, subjects(subject_name)')
+        .eq('class_id', scheduleClassId)
+        .eq('school_id', userRole?.school_id)
+        .eq('day_of_week', dayOfWeek)
+        .order('slot_order');
+
+      if (schedRows && schedRows.length > 0) {
+        setScheduleActive(true);
+        // Build slots from schedule, inheriting teacher_id from timetable where possible
+        slotsToUse = schedRows.map((r: any) => {
+          const existing = assignedSlots.find(s =>
+            s.subject_id === r.subject_id && s.class_id === scheduleClassId
+          );
+          const cls = allClasses.find((c: any) => c.id === scheduleClassId);
+          return {
+            class_id:     scheduleClassId,
+            class_name:   cls?.name || '',
+            section:      cls?.section || '',
+            subject_id:   r.subject_id,
+            subject_name: (r.subjects as any)?.subject_name || existing?.subject_name || '—',
+            teacher_id:   existing?.teacher_id,
+            teacher_name: existing?.teacher_name || 'Unassigned',
+          };
+        });
+      } else {
+        setScheduleActive(false);
+      }
+    } else {
+      setScheduleActive(false);
+    }
+
+    // ── Fetch existing diary entries for this date ─────────────────────────
     let query = supabase
       .from('teacher_diary')
       .select('*, staff(full_name)')
@@ -259,7 +308,7 @@ export default function TeacherDiary() {
       existingMap.set(`${e.class_id}__${e.subject_id}`, e);
     });
 
-    const newRows: DiaryRow[] = assignedSlots.map(slot => {
+    const newRows: DiaryRow[] = slotsToUse.map(slot => {
       const key = `${slot.class_id}__${slot.subject_id}`;
       const found = existingMap.get(key);
       return {
@@ -388,6 +437,23 @@ export default function TeacherDiary() {
               <button onClick={() => setViewMode('teacher')} className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'teacher' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>Teacher</button>
               <button onClick={() => setViewMode('class')} className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'class' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>Class</button>
             </div>
+          )}
+          {isAdmin && (
+            <a
+              href="/diary/schedule"
+              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl text-xs font-bold hover:bg-emerald-100 transition"
+            >
+              <CalendarDays className="w-3.5 h-3.5" /> Manage Schedule
+            </a>
+          )}
+          {rows.length > 0 && (
+            <span className={`flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1.5 rounded-full ${
+              scheduleActive
+                ? 'bg-emerald-100 text-emerald-700'
+                : 'bg-amber-50 text-amber-600'
+            }`}>
+              {scheduleActive ? '📅 Schedule Active' : '⚠️ No schedule — all subjects'}
+            </span>
           )}
           <Btn onClick={handlePrint} disabled={(viewMode === 'teacher' ? !selectedTeacherId : !selectedClassId) || rows.length === 0}>
             <Printer className="w-4 h-4" /> Print Report

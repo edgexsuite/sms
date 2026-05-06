@@ -38,6 +38,7 @@ const StationaryManagement = lazy(() => import('./pages/StationaryManagement'));
 const Complaints = lazy(() => import('./pages/Complaints'));
 const LeaveLayout = lazy(() => import('./pages/leave/LeaveLayout'));
 const TeacherDiary = lazy(() => import('./pages/diary/TeacherDiary'));
+const DiarySchedule = lazy(() => import('./pages/diary/DiarySchedule'));
 const PayrollLayout = lazy(() => import('./pages/payroll/PayrollLayout'));
 const AccountingLayout = lazy(() => import('./pages/accounting/AccountingLayout'));
 const LibraryLayout = lazy(() => import('./pages/library/LibraryLayout'));
@@ -150,6 +151,7 @@ export default function App() {
                 <Route path="ai-assistant" element={<Navigate to="/dashboard" replace />} />
                 <Route path="leave/*" element={<LeaveLayout />} />
                 <Route path="diary" element={<TeacherDiary />} />
+                <Route path="diary/schedule" element={<DiarySchedule />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="payroll/*" element={<PayrollLayout />} />
                 <Route path="accounting/*" element={<AccountingLayout />} />
