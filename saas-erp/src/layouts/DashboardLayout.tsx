@@ -1,5 +1,5 @@
 import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { LogOut, GraduationCap, Users, BookOpen, LayoutDashboard, CreditCard, CalendarCheck, FileText, Settings as SettingsIcon, Star, MessageSquare, Calendar, CalendarOff, Package, AlertTriangle, Bot, Briefcase, ClipboardList, ChevronRight, ChevronLeft, UserPlus, Upload, ShieldCheck, Award, LineChart, Menu, X, Wallet, Key, PiggyBank, BarChart3, Banknote, TrendingUp, UserX, ClipboardCheck, BarChart2, Wifi, Ticket, Search, DollarSign, Scale, Library, Home, Bell, Palette, School, Shield, Trash2, Clock, Box } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -19,7 +19,10 @@ export default function DashboardLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  // manualDropdown: set when the user explicitly clicks a parent nav item.
+  // Cleared on every route change so the auto-computed value takes over.
+  const [manualDropdown, setManualDropdown] = useState<string | null>(null);
+  const prevPathRef = useRef(location.pathname);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [densityCompact, setDensityCompact] = useState<boolean>(() => localStorage.getItem('density') === 'compact');
 
@@ -29,19 +32,35 @@ export default function DashboardLayout() {
     localStorage.setItem('density', next ? 'compact' : 'comfortable');
   };
 
-  // Initialize dropdown based on current route
+  // Clear manual override whenever the user navigates to a new path
   useEffect(() => {
-    if (location.pathname.startsWith('/students')) setOpenDropdown('Students');
-    else if (location.pathname.startsWith('/classes')) setOpenDropdown('Classes & Subjects');
-    else if (location.pathname.startsWith('/result')) setOpenDropdown('Exam and Results');
-    else if (location.pathname.startsWith('/fees')) setOpenDropdown('Fee Management');
-    else if (location.pathname.startsWith('/expenses')) setOpenDropdown('Expenses');
-    else if (location.pathname.startsWith('/payroll')) setOpenDropdown('Payroll');
-    else if (location.pathname.startsWith('/accounting')) setOpenDropdown('Accounting');
-    else if (location.pathname.startsWith('/library')) setOpenDropdown('Library');
-    else if (location.pathname.startsWith('/frontdesk')) setOpenDropdown('Front Desk');
-    else if (location.pathname.startsWith('/transport')) setOpenDropdown('Transport');
+    if (location.pathname !== prevPathRef.current) {
+      prevPathRef.current = location.pathname;
+      setManualDropdown(null);
+    }
   }, [location.pathname]);
+
+  // Derived — which section should auto-expand based on the current URL
+  const autoDropdown = useMemo(() => {
+    const p = location.pathname;
+    if (p.startsWith('/students'))   return 'Students';
+    if (p.startsWith('/classes'))    return 'Classes & Subjects';
+    if (p.startsWith('/result'))     return 'Exam and Results';
+    if (p.startsWith('/fees'))       return 'Fee Management';
+    if (p.startsWith('/expenses'))   return 'Expenses';
+    if (p.startsWith('/payroll'))    return 'Payroll';
+    if (p.startsWith('/accounting')) return 'Accounting';
+    if (p.startsWith('/library'))    return 'Library';
+    if (p.startsWith('/frontdesk'))  return 'Front Desk';
+    if (p.startsWith('/transport'))  return 'Transport';
+    if (p.startsWith('/leave'))      return 'Leave Management';
+    if (p.startsWith('/attendance')) return 'Attendance';
+    return null;
+  }, [location.pathname]);
+
+  // Effective open dropdown: manual choice wins, else auto
+  const openDropdown   = manualDropdown ?? autoDropdown;
+  const setOpenDropdown = (name: string | null) => setManualDropdown(name);
 
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -55,24 +74,36 @@ export default function DashboardLayout() {
     }
   }, [userRole]);
 
+  const BRAND_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+
   const fetchSchoolBrand = async () => {
     if (!userRole?.school_id) return;
+
+    // Serve from localStorage cache if fresh (avoids a round-trip on every mount)
+    const cacheKey = `schoolBrand_${userRole.school_id}`;
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const { brand, ts } = JSON.parse(cached);
+        if (Date.now() - ts < BRAND_CACHE_TTL) {
+          setSchoolBrand(brand);
+          return;
+        }
+      }
+    } catch { /* corrupt cache — ignore, re-fetch */ }
+
     const { data, error } = await supabase
       .from('schools')
       .select('name, logo_url')
       .eq('id', userRole.school_id)
       .maybeSingle();
 
-    if (error) {
-      console.error('Error fetching school branding:', error);
-      return;
-    }
+    if (error) { console.error('Error fetching school branding:', error); return; }
 
     if (data) {
-      setSchoolBrand({
-        name: data.name || 'School Dashboard',
-        logo_url: data.logo_url || null,
-      });
+      const brand = { name: data.name || 'School Dashboard', logo_url: data.logo_url || null };
+      setSchoolBrand(brand);
+      localStorage.setItem(cacheKey, JSON.stringify({ brand, ts: Date.now() }));
     }
   };
 
@@ -83,7 +114,7 @@ export default function DashboardLayout() {
     if (userRole.role === 'teacher' || userRole.role === 'staff') {
        query = query.in('target_audience', ['all', 'teachers']);
     } else if (userRole.role === 'parent') {
-       const { data: parentData } = await supabase.from('parents').select('id').eq('user_id', userRole.user_id).single();
+       const { data: parentData } = await supabase.from('parents').select('id').eq('user_id', userRole.user_id).maybeSingle();
        let classIds: string[] = [];
        if (parentData) {
           const { data: students } = await supabase.from('students').select('class_id').eq('parent_id', parentData.id);
@@ -127,12 +158,6 @@ export default function DashboardLayout() {
     await signOut();
     navigate('/login');
   };
-
-  const ALL_ADMIN = ['admin', 'principal', 'director'];
-  const ALL_STAFF = ['admin', 'principal', 'director', 'staff'];
-  const ALL_ACADEMIC = ['admin', 'principal', 'director', 'teacher', 'staff'];
-  const ALL_FINANCE = ['admin', 'staff', 'accountant', 'principal', 'director'];
-  const ALL_REPORTS = ['admin', 'staff', 'accountant', 'principal', 'director'];
 
   const navSections = NAV_SECTIONS;
 

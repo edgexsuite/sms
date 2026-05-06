@@ -83,7 +83,6 @@ const timeAgo = (dt: string) => {
   return `${Math.floor(hrs / 24)}d ago`;
 };
 
-const uid = () => Math.random().toString(36).slice(2);
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 
@@ -153,19 +152,52 @@ export default function Complaints() {
     if (role === 'parent' && userRole?.user_id) {
       q = q.eq('user_id', userRole.user_id);
     }
-    if (typeFilter   !== 'all') q = q.eq('type',     typeFilter);
-    if (statusFilter !== 'all') q = q.eq('status',   statusFilter);
+    if (typeFilter     !== 'all') q = q.eq('type',     typeFilter);
+    if (statusFilter   !== 'all') q = q.eq('status',   statusFilter);
     if (priorityFilter !== 'all') q = q.eq('priority', priorityFilter);
 
-    const { data } = await q;
-    const rows = (data || []).map(r => ({
-      ...r,
-      responses: Array.isArray(r.responses) ? r.responses : [],
-      type:     r.type     || 'complaint',
-      priority: r.priority || 'normal',
-      submitted_by_type: r.submitted_by_type || 'staff',
-      submitted_by_name: r.submitted_by_name || 'Unknown',
-    })) as Complaint[];
+    const { data: complaintData } = await q;
+    if (!complaintData) { setLoading(false); return; }
+
+    // Fetch all responses from the new table for these complaints in one query
+    const complaintIds = complaintData.map(c => c.id);
+    const { data: newResponses } = complaintIds.length > 0
+      ? await supabase
+          .from('complaint_responses')
+          .select('*')
+          .in('complaint_id', complaintIds)
+          .order('created_at', { ascending: true })
+      : { data: [] as any[] };
+
+    const responsesByComplaint: Record<string, any[]> = {};
+    (newResponses || []).forEach(r => {
+      if (!responsesByComplaint[r.complaint_id]) responsesByComplaint[r.complaint_id] = [];
+      responsesByComplaint[r.complaint_id].push({
+        id:          r.id,
+        author_name: r.author_name,
+        author_role: r.author_role,
+        message:     r.message,
+        timestamp:   r.created_at,
+        is_internal: r.is_internal,
+      });
+    });
+
+    const rows = complaintData.map(r => {
+      // Merge legacy JSONB responses + new table responses, sorted by timestamp
+      const legacyResponses: any[] = Array.isArray(r.responses) ? r.responses : [];
+      const tableResponses:  any[] = responsesByComplaint[r.id] || [];
+      const merged = [...legacyResponses, ...tableResponses]
+        .sort((a, b) => (a.timestamp || '').localeCompare(b.timestamp || ''));
+      return {
+        ...r,
+        responses: merged,
+        type:              r.type              || 'complaint',
+        priority:          r.priority          || 'normal',
+        submitted_by_type: r.submitted_by_type || 'staff',
+        submitted_by_name: r.submitted_by_name || 'Unknown',
+      };
+    }) as Complaint[];
+
     setItems(rows);
     // Refresh selected ticket if open
     if (selected) {
@@ -195,7 +227,6 @@ export default function Complaints() {
       status:            'pending',
       submitted_by_type: role as any,
       submitted_by_name: submitterName,
-      responses:         [],
     };
 
     const { error } = await supabase.from('complaints').insert([payload]);
@@ -215,22 +246,24 @@ export default function Complaints() {
     if (!replyText.trim() || !selected) return;
     setSendingReply(true);
     const authorName = user?.user_metadata?.full_name || user?.email || role;
-    const newResponse = {
-      id:          uid(),
-      author_name: authorName,
-      author_role: role,
-      message:     replyText.trim(),
-      timestamp:   new Date().toISOString(),
-      is_internal: replyInternal,
-    };
-    const updated = [...(selected.responses || []), newResponse];
     const newStatus = selected.status === 'pending' ? 'in_progress' : selected.status;
 
-    const { error } = await supabase.from('complaints')
-      .update({ responses: updated, status: newStatus })
-      .eq('id', selected.id);
+    // Insert response into dedicated table (no JSONB append — safe for concurrent writes)
+    const { error: respErr } = await supabase.from('complaint_responses').insert([{
+      complaint_id: selected.id,
+      school_id:    userRole!.school_id,
+      author_name:  authorName,
+      author_role:  role,
+      message:      replyText.trim(),
+      is_internal:  replyInternal,
+    }]);
 
-    if (!error) {
+    // Update complaint status if needed (separate from response write)
+    if (!respErr && newStatus !== selected.status) {
+      await supabase.from('complaints').update({ status: newStatus }).eq('id', selected.id);
+    }
+
+    if (!respErr) {
       setReplyText('');
       setReplyInternal(false);
       fetchItems();
@@ -244,21 +277,25 @@ export default function Complaints() {
     if (!forwardTo || !selected) return;
     setForwarding(true);
     const authorName = user?.user_metadata?.full_name || user?.email || role;
-    const forwardMsg = {
-      id:          uid(),
-      author_name: authorName,
-      author_role: role,
-      message:     `🔀 Forwarded to **${forwardTo}**${forwardNote ? `: ${forwardNote}` : ''}`,
-      timestamp:   new Date().toISOString(),
-      is_internal: true,
-    };
-    const updated = [...(selected.responses || []), forwardMsg];
 
-    const { error } = await supabase.from('complaints')
-      .update({ responses: updated, status: 'forwarded', forwarded_to_role: forwardTo })
-      .eq('id', selected.id);
+    // Insert system message into the responses table
+    const { error: respErr } = await supabase.from('complaint_responses').insert([{
+      complaint_id: selected.id,
+      school_id:    userRole!.school_id,
+      author_name:  authorName,
+      author_role:  role,
+      message:      `🔀 Forwarded to **${forwardTo}**${forwardNote ? `: ${forwardNote}` : ''}`,
+      is_internal:  true,
+    }]);
 
-    if (!error) {
+    // Update complaint status + forwarded_to_role
+    if (!respErr) {
+      await supabase.from('complaints')
+        .update({ status: 'forwarded', forwarded_to_role: forwardTo })
+        .eq('id', selected.id);
+    }
+
+    if (!respErr) {
       setShowForward(false);
       setForwardTo('');
       setForwardNote('');
@@ -273,21 +310,21 @@ export default function Complaints() {
     if (!selected) return;
     setResolving(true);
     const authorName = user?.user_metadata?.full_name || user?.email || role;
-    const resolveMsg = resolveNote.trim() ? {
-      id:          uid(),
-      author_name: authorName,
-      author_role: role,
-      message:     `✅ Resolved: ${resolveNote}`,
-      timestamp:   new Date().toISOString(),
-      is_internal: false,
-    } : null;
-    const updated = resolveMsg
-      ? [...(selected.responses || []), resolveMsg]
-      : (selected.responses || []);
+
+    // Insert resolution note as a response if provided
+    if (resolveNote.trim()) {
+      await supabase.from('complaint_responses').insert([{
+        complaint_id: selected.id,
+        school_id:    userRole!.school_id,
+        author_name:  authorName,
+        author_role:  role,
+        message:      `✅ Resolved: ${resolveNote}`,
+        is_internal:  false,
+      }]);
+    }
 
     const { error } = await supabase.from('complaints')
       .update({
-        responses:        updated,
         status:           'resolved',
         resolution_notes: resolveNote || null,
         resolved_at:      new Date().toISOString(),
