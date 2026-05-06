@@ -12,10 +12,11 @@ import {
 } from 'lucide-react';
 import { calculateLateFine, getFineRules, FineRule } from '../../lib/fineUtils';
 import { cn, formatDate } from '../../lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   downloadChallanPDF,
   DEFAULT_CHALLAN_CONFIG,
+  type ChallanConfig,
   type ChallanRecord,
   type SchoolInfo,
 } from '../../lib/challanUtils';
@@ -64,7 +65,8 @@ export default function StudentFeeDetail() {
   const [editSaving, setEditSaving] = useState(false);
   const [editForm, setEditForm] = useState({ total_amount: '', paid_amount: '', month_year: '', paid_at: '' });
   const [editBreakdown, setEditBreakdown] = useState<BreakdownRow[]>([]);
-  const [school, setSchool] = useState<any>(null);
+  const [school, setSchool]             = useState<any>(null);
+  const [challanConfig, setChallanConfig] = useState<ChallanConfig>(DEFAULT_CHALLAN_CONFIG);
 
   // Discount State
   const [discountRules, setDiscountRules] = useState<any[]>([]);
@@ -83,6 +85,8 @@ export default function StudentFeeDetail() {
       supabase.from('schools').select('*').eq('id', userRole.school_id).maybeSingle().then(({ data }) => setSchool(data));
       supabase.from('form_settings').select('sections_config').eq('school_id', userRole.school_id).eq('form_name', 'discount_rules').maybeSingle()
         .then(({ data }) => setDiscountRules(data?.sections_config?.rules ?? []));
+      supabase.from('form_settings').select('sections_config').eq('school_id', userRole.school_id).eq('form_name', 'challan_settings').maybeSingle()
+        .then(({ data }) => { if (data?.sections_config) setChallanConfig({ ...DEFAULT_CHALLAN_CONFIG, ...data.sections_config }); });
     }
   }, [userRole?.school_id]);
 
@@ -422,7 +426,36 @@ export default function StudentFeeDetail() {
       contact_phone: school?.contact_phone || school?.phone || undefined,
       logo_url: school?.logo_url || undefined,
     };
-    downloadChallanPDF([record], schoolInfo, DEFAULT_CHALLAN_CONFIG);
+    downloadChallanPDF([record], schoolInfo, challanConfig);
+  };
+
+  // ── Print all invoices for selected student as batch challan ──────────────
+  const handlePrintAllChallans = () => {
+    if (!selectedStudent || invoices.length === 0) return;
+    const className = selectedStudent.classes
+      ? `${selectedStudent.classes.name}${selectedStudent.classes.section ? ' - ' + selectedStudent.classes.section : ''}`
+      : '';
+    const schoolInfo: SchoolInfo = {
+      name: school?.name || 'School',
+      address: school?.address || undefined,
+      contact_phone: school?.contact_phone || school?.phone || undefined,
+      logo_url: school?.logo_url || undefined,
+    };
+    const records: ChallanRecord[] = invoices.map(inv => ({
+      id: inv.id,
+      invoice_number: inv.invoice_number,
+      month_year: inv.month_year,
+      total_amount: inv.total_amount,
+      paid_amount: inv.paid_amount || 0,
+      status: inv.status,
+      breakdown: (inv.breakdown || []).map((b: any) => ({ item: b.item, amount: Number(b.amount) })),
+      discount_amount: (inv as any).discount_amount ?? 0,
+      student_name: selectedStudent.full_name,
+      roll_number: selectedStudent.roll_number,
+      class_name: className,
+      issue_date: new Date().toISOString().split('T')[0],
+    }));
+    downloadChallanPDF(records, schoolInfo, challanConfig);
   };
 
   const calculateTotalDue = () => {
@@ -608,10 +641,11 @@ export default function StudentFeeDetail() {
                   <Plus className="w-3.5 h-3.5" /> New Invoice
                 </button>
                 <button
-                  onClick={() => window.print()}
+                  onClick={handlePrintAllChallans}
                   className="flex items-center gap-1.5 px-3 py-2 text-xs text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  title="Print all challans for this student"
                 >
-                  <Printer className="w-3.5 h-3.5" /> Print
+                  <Printer className="w-3.5 h-3.5" /> Print All
                 </button>
               </div>
             </div>

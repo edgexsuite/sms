@@ -81,6 +81,19 @@ export default function StaffLeave() {
     if (formData.to_date < formData.from_date) return alert('End date cannot be before start date.');
     setSaving(true);
     try {
+      // Compute total_days (inclusive, min 1; half-day counts as 0.5)
+      const msPerDay = 86400000;
+      const from = new Date(formData.from_date);
+      const to   = new Date(formData.to_date);
+      const diffDays = Math.round((to.getTime() - from.getTime()) / msPerDay) + 1;
+      const total_days = formData.is_half_day ? 0.5 : diffDays;
+
+      // Route to next approver based on submitter's actual role (lowercase)
+      const role = userRole?.role ?? '';
+      const pending_with_role = role === 'principal' || role === 'director' ? 'admin'
+                              : role === 'vice_principal' || role === 'campus_coordinator' || role === 'academic_coordinator' || role === 'section_coordinator' ? 'principal'
+                              : 'vice_principal';
+
       const { error } = await supabase.from('leave_applications').insert([{
         school_id: userRole?.school_id,
         applicant_type: 'staff',
@@ -88,11 +101,11 @@ export default function StaffLeave() {
         leave_type: formData.leave_type,
         from_date: formData.from_date,
         to_date: formData.to_date,
+        total_days,
         is_half_day: formData.is_half_day,
         reason: formData.reason,
         status: 'pending',
-        pending_with_role: userRole?.role === 'Principal' ? 'director' : 
-                          userRole?.role === 'Coordinator' ? 'principal' : 'coordinator'
+        pending_with_role,
       }]);
       if (error) throw error;
       setShowForm(false);

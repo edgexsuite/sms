@@ -7,7 +7,7 @@ import {
   ChevronLeft, CheckCircle2, XCircle, AlertCircle, TrendingUp, Users, ClipboardList,
   CalendarOff, Plus, X, Save, RefreshCw, Flag, Send, MessageSquare, CheckCircle, User
 } from 'lucide-react';
-import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, ChallanRecord, SchoolInfo } from '../lib/challanUtils';
+import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, type ChallanConfig, ChallanRecord, SchoolInfo } from '../lib/challanUtils';
 import ChatInterface from '../components/ChatInterface';
 import { formatDate } from '../lib/utils';
 
@@ -70,7 +70,8 @@ export default function ParentPortal() {
   const [loginError, setLoginError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
 
-  const [school, setSchool] = useState<SchoolInfo & { diary_settings?: any }>({ name: '' });
+  const [school, setSchool]             = useState<SchoolInfo & { diary_settings?: any }>({ name: '' });
+  const [challanConfig, setChallanConfig] = useState<ChallanConfig>(DEFAULT_CHALLAN_CONFIG);
   const [children, setChildren] = useState<ChildData[]>([]);
   const [activeChildId, setActiveChildId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<Tab>('overview');
@@ -125,12 +126,12 @@ export default function ParentPortal() {
     if (!parentData) return;
     setLoadingData(true);
     try {
-      const { data: schoolData } = await supabase
-        .from('schools')
-        .select('name, address, contact_phone, logo_url, diary_settings')
-        .eq('id', parentData.school_id)
-        .maybeSingle();
+      const [{ data: schoolData }, { data: cfgData }] = await Promise.all([
+        supabase.from('schools').select('name, address, contact_phone, logo_url, diary_settings').eq('id', parentData.school_id).maybeSingle(),
+        supabase.from('form_settings').select('sections_config').eq('school_id', parentData.school_id).eq('form_name', 'challan_settings').maybeSingle(),
+      ]);
       if (schoolData) setSchool(schoolData);
+      if (cfgData?.sections_config) setChallanConfig({ ...DEFAULT_CHALLAN_CONFIG, ...cfgData.sections_config });
 
       const { data: childData } = await supabase
         .from('students')
@@ -394,7 +395,7 @@ export default function ParentPortal() {
       fine_amount: 0,
     };
 
-    await downloadChallanPDF([record], school, { ...DEFAULT_CHALLAN_CONFIG, copies: 1, show_depositor_info: false });
+    await downloadChallanPDF([record], school, { ...challanConfig, show_depositor_info: false });
   };
 
   const handleShareWhatsApp = (fee: any) => {

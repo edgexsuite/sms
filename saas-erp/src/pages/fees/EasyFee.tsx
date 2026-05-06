@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatDate } from '../../lib/utils';
-import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, type ChallanRecord, type SchoolInfo } from '../../lib/challanUtils';
+import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, type ChallanConfig, type ChallanRecord, type SchoolInfo } from '../../lib/challanUtils';
 import HelpBanner from '../../components/HelpBanner';
 import { PageHeader, Card, Btn, Badge, Select, Input } from '../../components/ui';
 
@@ -103,8 +103,9 @@ export default function EasyFee() {
   const [lastPayment, setLastPayment]   = useState<any>(null);
 
   // ── Meta
-  const [classes, setClasses] = useState<any[]>([]);
-  const [school, setSchool]   = useState<any>(null);
+  const [classes, setClasses]           = useState<any[]>([]);
+  const [school, setSchool]             = useState<any>(null);
+  const [challanConfig, setChallanConfig] = useState<ChallanConfig>(DEFAULT_CHALLAN_CONFIG);
   const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([]);
   const [selectedRecentTx, setSelectedRecentTx]     = useState<RecentTransaction | null>(null);
 
@@ -142,12 +143,14 @@ export default function EasyFee() {
 
   const fetchMetadata = useCallback(async () => {
     if (!userRole?.school_id) return;
-    const [{ data: sch }, { data: cls }] = await Promise.all([
+    const [{ data: sch }, { data: cls }, { data: cfg }] = await Promise.all([
       supabase.from('schools').select('*').eq('id', userRole.school_id).maybeSingle(),
       supabase.from('classes').select('id, name, section').eq('school_id', userRole.school_id).order('name'),
+      supabase.from('form_settings').select('sections_config').eq('school_id', userRole.school_id).eq('form_name', 'challan_settings').maybeSingle(),
     ]);
     if (sch) setSchool(sch);
     if (cls) setClasses(cls);
+    if (cfg?.sections_config) setChallanConfig({ ...DEFAULT_CHALLAN_CONFIG, ...cfg.sections_config });
   }, [userRole?.school_id]);
 
   const fetchRecentActivity = useCallback(async () => {
@@ -463,7 +466,7 @@ export default function EasyFee() {
       class_name: payment.class_name, issue_date: new Date().toISOString().split('T')[0],
     };
     const schoolInfo: SchoolInfo = { name: school?.name || 'School', address: school?.address, contact_phone: school?.contact_phone, logo_url: school?.logo_url };
-    downloadChallanPDF([record], schoolInfo, { ...DEFAULT_CHALLAN_CONFIG, copies: 1 });
+    downloadChallanPDF([record], schoolInfo, challanConfig);
   };
 
   // ─────────────────────────────────────────────────────────────────────────
