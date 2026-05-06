@@ -58,6 +58,7 @@ const PrincipalDashboard = lazy(() => import('./pages/PrincipalDashboard'));
 const CoordinatorDashboard = lazy(() => import('./pages/CoordinatorDashboard'));
 const HelpSupport = lazy(() => import('./pages/HelpSupport'));
 const TransportLayout = lazy(() => import('./pages/transport/TransportLayout'));
+const AutoTimetable = lazy(() => import('./pages/AutoTimetable'));
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { session, loading, roleNotFound, signOut } = useAuth();
@@ -142,6 +143,7 @@ export default function App() {
                 <Route path="fees/*" element={<FeesLayout />} />
                 <Route path="expenses/*" element={<ExpensesLayout />} />
                 <Route path="timetable" element={<Timetable />} />
+                <Route path="auto-timetable" element={<AutoTimetable />} />
                 <Route path="evaluation" element={<Evaluation />} />
                 <Route path="credentials" element={<CredentialDispatch />} />
                 <Route path="communication" element={<Communication />} />

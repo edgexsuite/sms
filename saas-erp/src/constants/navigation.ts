@@ -6,7 +6,7 @@ import {
   Banknote, DollarSign, Scale, BarChart3, BarChart2, ClipboardCheck, UserX,
   LineChart, Library, Home, Bell, Key, Trash2, Box, Package, Clock, Palette,
   Receipt, Layers, BookMarked, Landmark, BarChart, LifeBuoy, Users2, Bus, MapPin, Truck,
-  Radio, Inbox, Tag, History, Printer
+  Radio, Inbox, Tag, History, Printer, Wand2
 } from 'lucide-react';
 
 export const ALL_ADMIN    = ['admin', 'principal', 'director', 'vice_principal'];
@@ -95,7 +95,8 @@ export const NAV_SECTIONS = [
           { name: 'Class Students',        path: '/classes/students',              icon: Users2     },
         ],
       },
-      { name: 'Timetable',     path: '/timetable',  icon: Calendar,     roles: ALL_ACADEMIC },
+      { name: 'Timetable',          path: '/timetable',       icon: Calendar,  roles: ALL_ACADEMIC },
+      { name: 'Auto Timetable',     path: '/auto-timetable',   icon: Wand2,     roles: ALL_ADMIN    },
       { name: 'Teacher Diary', path: '/diary',       icon: ClipboardList,roles: ALL_ACADEMIC },
       { name: 'Evaluation',    path: '/evaluation',  icon: Star,         roles: ALL_ACADEMIC },
     ],

@@ -37,9 +37,13 @@ export default function DiarySchedule() {
   const [saved,         setSaved]         = useState(false);
 
   // Copy-day modal
-  const [showCopy,     setShowCopy]     = useState(false);
-  const [copyTargets,  setCopyTargets]  = useState<Set<Day>>(new Set());
-  const [copying,      setCopying]      = useState(false);
+  const [showCopy,        setShowCopy]        = useState(false);
+  const [copyTargets,     setCopyTargets]     = useState<Set<Day>>(new Set());
+  const [copying,         setCopying]         = useState(false);
+
+  // Copy-class modal (copy one class's full week to other classes)
+  const [showCopyClass,   setShowCopyClass]   = useState<string | null>(null); // source class_id
+  const [copyClassTargets, setCopyClassTargets] = useState<Set<string>>(new Set());
 
   // ─── Load everything once ─────────────────────────────────────────────────
   const loadAll = useCallback(async () => {
@@ -128,6 +132,41 @@ export default function DiarySchedule() {
     setCopying(false);
     setShowCopy(false);
     setCopyTargets(new Set());
+  };
+
+  // ─── Copy entire class schedule (all days) to other classes ─────────────
+  const handleCopyClassSchedule = () => {
+    const sourceClassId = showCopyClass;
+    if (!sourceClassId || copyClassTargets.size === 0) return;
+    const sourceSubs = subsByClass[sourceClassId] || [];
+
+    setEnabled(prev => {
+      const next = { ...prev };
+      DAYS.forEach(day => {
+        // Collect names of subjects checked for this source class+day
+        const checkedNames = new Set(
+          sourceSubs
+            .filter(s => prev[makeKey(sourceClassId, day, s.id)])
+            .map(s => (s.subject_name as string).toLowerCase().trim())
+        );
+        copyClassTargets.forEach(targetClassId => {
+          const targetSubs = subsByClass[targetClassId] || [];
+          // First clear all existing selections for target+day
+          targetSubs.forEach(s => { next[makeKey(targetClassId, day, s.id)] = false; });
+          // Then enable subjects whose names match (case-insensitive)
+          targetSubs.forEach(s => {
+            if (checkedNames.has(s.subject_name.toLowerCase().trim())) {
+              next[makeKey(targetClassId, day, s.id)] = true;
+            }
+          });
+        });
+      });
+      return next;
+    });
+
+    setSaved(false);
+    setShowCopyClass(null);
+    setCopyClassTargets(new Set());
   };
 
   // ─── Save all to DB ────────────────────────────────────────────────────────
@@ -339,19 +378,29 @@ export default function DiarySchedule() {
                         {checkedCount}/{subs.length} subjects on {activeDay.slice(0, 3)}
                       </p>
                     </div>
-                    {/* Select All toggle */}
-                    <button
-                      onClick={() => setClassDay(cls.id, activeDay, !allChecked)}
-                      className={cn(
-                        'text-[10px] font-black px-2.5 py-1 rounded-lg transition',
-                        allChecked
-                          ? 'bg-white/20 text-white hover:bg-white/30'
-                          : 'bg-white/10 text-white/70 hover:bg-white/20'
-                      )}
-                      title={allChecked ? 'Clear all' : 'Select all'}
-                    >
-                      {allChecked ? '✓ All' : someChecked ? '− Some' : '+ All'}
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      {/* Copy this class schedule to others */}
+                      <button
+                        onClick={() => { setShowCopyClass(cls.id); setCopyClassTargets(new Set()); }}
+                        className="p-1.5 bg-white/10 hover:bg-white/25 text-white/70 hover:text-white rounded-lg transition"
+                        title="Copy this class's full week schedule to other classes"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                      {/* Select All toggle */}
+                      <button
+                        onClick={() => setClassDay(cls.id, activeDay, !allChecked)}
+                        className={cn(
+                          'text-[10px] font-black px-2.5 py-1 rounded-lg transition',
+                          allChecked
+                            ? 'bg-white/20 text-white hover:bg-white/30'
+                            : 'bg-white/10 text-white/70 hover:bg-white/20'
+                        )}
+                        title={allChecked ? 'Clear all' : 'Select all'}
+                      >
+                        {allChecked ? '✓ All' : someChecked ? '− Some' : '+ All'}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Subject Checkboxes */}
@@ -432,6 +481,113 @@ export default function DiarySchedule() {
           </div>
         </>
       )}
+
+      {/* ── Copy Class Schedule Modal ───────────────────────────────────── */}
+      {showCopyClass && (() => {
+        const srcCls = classes.find(c => c.id === showCopyClass);
+        const srcName = srcCls ? `${srcCls.name}${srcCls.section ? ' ' + srcCls.section : ''}` : '';
+        const srcSubs = subsByClass[showCopyClass] || [];
+        // Show how many total slots the source has
+        const totalSrcSlots = DAYS.reduce((acc, d) =>
+          acc + srcSubs.filter(s => enabled[makeKey(showCopyClass, d, s.id)]).length, 0);
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="w-9 h-9 bg-indigo-100 rounded-xl flex items-center justify-center">
+                  <Copy className="w-4 h-4 text-indigo-600" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900">Copy Class Schedule</h3>
+                  <p className="text-xs text-slate-500">
+                    <strong>{srcName}</strong> → {totalSrcSlots} homework slots across the week
+                  </p>
+                </div>
+              </div>
+              <p className="text-xs text-slate-400 mb-1 mt-3 font-medium">
+                Subjects will be matched by name. Subjects that don't exist in the target class will be skipped.
+              </p>
+              <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-4">
+                ⚠️ This will overwrite the target classes' existing schedule.
+              </p>
+
+              {/* Quick-select buttons */}
+              <div className="flex gap-2 mb-3">
+                <button
+                  onClick={() => {
+                    const all = new Set(classes.filter(c => c.id !== showCopyClass).map(c => c.id));
+                    setCopyClassTargets(all);
+                  }}
+                  className="text-[10px] font-black px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition"
+                >
+                  Select All
+                </button>
+                <button
+                  onClick={() => setCopyClassTargets(new Set())}
+                  className="text-[10px] font-black px-3 py-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition"
+                >
+                  Clear
+                </button>
+              </div>
+
+              <div className="space-y-1 max-h-64 overflow-y-auto mb-4 border border-slate-100 rounded-xl p-2">
+                {classes.filter(c => c.id !== showCopyClass).map(c => {
+                  const cName = `${c.name}${c.section ? ' ' + c.section : ''}`;
+                  const checked = copyClassTargets.has(c.id);
+                  const cSubs = subsByClass[c.id] || [];
+                  // Count how many source subjects will match
+                  const srcNames = new Set(srcSubs.map(s => s.subject_name.toLowerCase().trim()));
+                  const matchCount = cSubs.filter(s => srcNames.has(s.subject_name.toLowerCase().trim())).length;
+                  return (
+                    <label key={c.id} className={cn(
+                      'flex items-center gap-3 p-2.5 rounded-xl cursor-pointer border transition',
+                      checked ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-transparent hover:bg-slate-50'
+                    )}>
+                      <input type="checkbox" className="sr-only" checked={checked}
+                        onChange={() => {
+                          const s = new Set(copyClassTargets);
+                          s.has(c.id) ? s.delete(c.id) : s.add(c.id);
+                          setCopyClassTargets(s);
+                        }}
+                      />
+                      <div className={cn(
+                        'w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors',
+                        checked ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'
+                      )}>
+                        {checked && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>}
+                      </div>
+                      <span className="text-sm font-bold flex-1">{cName}</span>
+                      <span className={cn(
+                        'text-[10px] font-bold px-2 py-0.5 rounded-full',
+                        matchCount > 0 ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400'
+                      )}>
+                        {matchCount > 0 ? `${matchCount} match` : 'no match'}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowCopyClass(null); setCopyClassTargets(new Set()); }}
+                  className="flex-1 py-2.5 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-200 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCopyClassSchedule}
+                  disabled={copyClassTargets.size === 0}
+                  className="flex-[2] flex items-center justify-center gap-2 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-black hover:bg-indigo-700 transition disabled:opacity-50 shadow-lg shadow-indigo-100"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                  Copy to {copyClassTargets.size} class{copyClassTargets.size !== 1 ? 'es' : ''}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Copy Day Modal ───────────────────────────────────────────────── */}
       {showCopy && (
