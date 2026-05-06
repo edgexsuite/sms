@@ -102,9 +102,17 @@ export default function Timetable() {
   // ── Grid ──────────────────────────────────────────────────────────────────
   const [selectedClass,    setSelectedClass]    = useState('');
   const [selectedDay,      setSelectedDay]      = useState('Monday');
-  const [viewMode,         setViewMode]         = useState<'individual' | 'master' | 'teacher'>(isTeacher ? 'teacher' : 'individual');
+  const [viewMode,         setViewMode]         = useState<'individual' | 'master' | 'teacher' | 'assign'>(isTeacher ? 'teacher' : 'individual');
   const [matrixTemplateId, setMatrixTemplateId] = useState('');
   const [slots,            setSlots]            = useState<any[]>([]);
+
+  // ── Teacher Schedule browse (admin) ─────────────────────────────────────
+  const [browseTeacherId, setBrowseTeacherId] = useState('');
+
+  // ── Teacher Assignment view ──────────────────────────────────────────────
+  const [assignDay,            setAssignDay]            = useState('Monday');
+  const [teacherAssignChanges, setTeacherAssignChanges] = useState<Record<string, string>>({}); // key: `${classId}::${periodNum}` value: teacher_id | ''
+  const [savingTeacherAssign,  setSavingTeacherAssign]  = useState(false);
 
   // ── Day copy panel ───────────────────────────────────────────────────────
   const [showCopyPanel,  setShowCopyPanel]  = useState(false);
@@ -506,6 +514,33 @@ export default function Timetable() {
       fetchAll();
     } catch (err: any) { alert(err.message); }
     setCopying(false);
+  };
+
+  // ── Teacher Assignment: bulk save ────────────────────────────────────────
+
+  const handleSaveTeacherAssignments = async () => {
+    if (!sid) return;
+    const entries = Object.entries(teacherAssignChanges);
+    if (entries.length === 0) return;
+    setSavingTeacherAssign(true);
+    try {
+      for (const [key, teacherId] of entries) {
+        const [classId, periodNumStr] = key.split('::');
+        const periodNum = Number(periodNumStr);
+        const existing = allSchoolSlots.find(
+          s => s.class_id === classId && s.day_of_week === assignDay && s.period_number === periodNum
+        );
+        if (!existing) continue; // can't assign teacher to a slot with no subject
+        const { error } = await supabase
+          .from('timetable_slots')
+          .update({ teacher_id: teacherId || null })
+          .eq('id', existing.id);
+        if (error) throw error;
+      }
+      setTeacherAssignChanges({});
+      await fetchAll();
+    } catch (err: any) { alert(err.message); }
+    setSavingTeacherAssign(false);
   };
 
   const handleCopyToMany = async () => {
@@ -1228,6 +1263,15 @@ export default function Timetable() {
                     className={`px-4 py-2 rounded-lg text-xs font-bold transition ${viewMode === 'master' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
                     Master Matrix
                   </button>
+                  <button onClick={() => setViewMode('teacher')}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition ${viewMode === 'teacher' ? 'bg-violet-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+                    <User className="w-3.5 h-3.5" /> Teacher Schedule
+                  </button>
+                  <button
+                    onClick={() => { setViewMode('assign'); setTeacherAssignChanges({}); }}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition ${viewMode === 'assign' ? 'bg-emerald-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+                    <Users className="w-3.5 h-3.5" /> Assign Teachers
+                  </button>
                 </>
               )}
             </div>
@@ -1404,43 +1448,88 @@ export default function Timetable() {
           )}
 
           {/* ── Teacher Schedule View: rows = periods, cols = days ── */}
-          {viewMode === 'teacher' && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="bg-slate-900 text-white">
-                      <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest sticky left-0 bg-slate-900 z-20 w-44">Time Slot</th>
-                      {DAYS.map(day => (
-                        <th key={day} className={`px-3 py-3 text-center text-[10px] font-black uppercase tracking-widest border-l border-slate-800 ${day === selectedDay ? 'bg-indigo-700' : ''}`}>
-                          {day.slice(0, 3)}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {getSchoolRows().map(row => {
-                      if (row.slot_type !== 'period') {
-                        return renderBreakBanner(row, DAYS.length, false);
-                      }
-                      return (
-                        <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-50/50">
-                          <td className="px-4 py-3 sticky left-0 bg-white z-10 border-r border-slate-100">
-                            <p className="text-xs font-black text-slate-900">{row.label}</p>
-                            <p className="text-[10px] font-bold text-slate-400 mt-0.5 tabular-nums">{row.start_time} – {row.end_time}</p>
-                          </td>
-                          {DAYS.map(day => {
-                            const slot = allSchoolSlots.find(s => s.teacher_id === staffId && s.day_of_week === day && s.period_number === row.sort_order);
-                            return renderSlotCell(row, day, slot?.class_id || '', day === selectedDay);
+          {viewMode === 'teacher' && (() => {
+            // Admin browses any teacher; teacher sees own schedule
+            const viewTeacherId = isTeacher ? (staffId || '') : browseTeacherId;
+            const viewTeacher = teachers.find(t => t.id === viewTeacherId);
+            const teacherSlots = allSchoolSlots.filter(s => s.teacher_id === viewTeacherId);
+            const totalPeriods = teacherSlots.length;
+            const periodsToday = teacherSlots.filter(s => s.day_of_week === selectedDay).length;
+
+            return (
+              <div className="space-y-3">
+                {/* Teacher picker (admin only) */}
+                {!isTeacher && (
+                  <div className="no-print flex flex-wrap items-center gap-4 bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                    <div className="flex-1 min-w-[200px]">
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Select Teacher</label>
+                      <select value={browseTeacherId} onChange={e => setBrowseTeacherId(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-violet-500 outline-none">
+                        <option value="">Choose teacher…</option>
+                        {teachers.map(t => <option key={t.id} value={t.id}>{t.full_name}{t.role ? ` (${t.role})` : ''}</option>)}
+                      </select>
+                    </div>
+                    {viewTeacher && (
+                      <div className="flex items-center gap-3 bg-violet-50 border border-violet-100 px-4 py-2.5 rounded-xl">
+                        <div className="w-8 h-8 bg-violet-600 rounded-full flex items-center justify-center text-white font-black text-xs">
+                          {viewTeacher.full_name.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="text-xs font-black text-violet-900">{viewTeacher.full_name}</p>
+                          <p className="text-[10px] font-bold text-violet-500">{totalPeriods} total periods &bull; {periodsToday} today ({selectedDay.slice(0,3)})</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {viewTeacherId ? (
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="bg-slate-900 text-white">
+                            <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest sticky left-0 bg-slate-900 z-20 w-44">Time Slot</th>
+                            {DAYS.map(day => (
+                              <th key={day} className={`px-3 py-3 text-center text-[10px] font-black uppercase tracking-widest border-l border-slate-800 ${day === selectedDay ? 'bg-violet-700' : ''}`}>
+                                {day.slice(0, 3)}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {getSchoolRows().map(row => {
+                            if (row.slot_type !== 'period') {
+                              return renderBreakBanner(row, DAYS.length, false);
+                            }
+                            return (
+                              <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-50/50">
+                                <td className="px-4 py-3 sticky left-0 bg-white z-10 border-r border-slate-100">
+                                  <p className="text-xs font-black text-slate-900">{row.label}</p>
+                                  <p className="text-[10px] font-bold text-slate-400 mt-0.5 tabular-nums">{row.start_time} – {row.end_time}</p>
+                                </td>
+                                {DAYS.map(day => {
+                                  const slot = allSchoolSlots.find(s => s.teacher_id === viewTeacherId && s.day_of_week === day && s.period_number === row.sort_order);
+                                  return renderSlotCell(row, day, slot?.class_id || '', day === selectedDay);
+                                })}
+                              </tr>
+                            );
                           })}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm">
+                    <div className="text-center">
+                      <User className="w-14 h-14 text-slate-100 mx-auto mb-3" />
+                      <p className="text-slate-300 font-bold">Select a teacher above to view their schedule</p>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
           {viewMode === 'master' && (
             <div className="space-y-3">
               <div className="no-print flex flex-wrap items-center gap-4 bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
@@ -1514,6 +1603,195 @@ export default function Timetable() {
               </div>
             </div>
           )}
+
+          {/* ── Teacher Assignment view ── */}
+          {viewMode === 'assign' && (() => {
+            // Build the period rows from the first available template or fallback
+            const assignRows = matrixTemplateId
+              ? (allTemplateRows[matrixTemplateId] || FALLBACK_ROWS)
+              : (Object.values(allTemplateRows)[0] as TemplateRow[] | undefined) || FALLBACK_ROWS;
+            const periodRows = assignRows.filter(r => r.slot_type === 'period');
+            const changeCount = Object.keys(teacherAssignChanges).length;
+
+            // Helper: get current teacher_id for a cell (pending change takes priority)
+            const getCellTeacher = (classId: string, periodNum: number): string => {
+              const key = `${classId}::${periodNum}`;
+              if (key in teacherAssignChanges) return teacherAssignChanges[key];
+              const slot = allSchoolSlots.find(
+                s => s.class_id === classId && s.day_of_week === assignDay && s.period_number === periodNum
+              );
+              return slot?.teacher_id || '';
+            };
+
+            // Helper: detect conflict — teacher already in another class this period/day
+            const hasConflict = (classId: string, periodNum: number, teacherId: string): boolean => {
+              if (!teacherId) return false;
+              return allSchoolSlots.some(
+                s => s.teacher_id === teacherId &&
+                     s.day_of_week === assignDay &&
+                     s.period_number === periodNum &&
+                     s.class_id !== classId
+              ) || Object.entries(teacherAssignChanges).some(([k, v]) => {
+                const [kClass, kPeriod] = k.split('::');
+                return v === teacherId && kClass !== classId && Number(kPeriod) === periodNum;
+              });
+            };
+
+            return (
+              <div className="space-y-3">
+                {/* Toolbar */}
+                <div className="no-print flex flex-wrap items-center gap-3 bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Day</p>
+                    <div className="flex gap-1 flex-wrap">
+                      {DAYS.map(d => (
+                        <button key={d}
+                          onClick={() => { setAssignDay(d); setTeacherAssignChanges({}); }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${assignDay === d ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                          {d.slice(0, 3)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="ml-auto flex items-center gap-3">
+                    {changeCount > 0 && (
+                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg">
+                        {changeCount} unsaved change{changeCount !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                    <button
+                      onClick={handleSaveTeacherAssignments}
+                      disabled={savingTeacherAssign || changeCount === 0}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition disabled:opacity-40 shadow-lg shadow-emerald-100"
+                    >
+                      {savingTeacherAssign ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                      Save Assignments
+                    </button>
+                  </div>
+                </div>
+
+                {/* Legend */}
+                <div className="flex flex-wrap gap-4 text-[10px] font-bold text-slate-400 px-1">
+                  <span><span className="inline-block w-3 h-3 rounded bg-emerald-100 border border-emerald-300 mr-1" />Changed</span>
+                  <span><span className="inline-block w-3 h-3 rounded bg-rose-100 border border-rose-300 mr-1" />Conflict</span>
+                  <span><span className="inline-block w-3 h-3 rounded bg-slate-100 border border-slate-200 mr-1" />No subject (skip)</span>
+                </div>
+
+                {/* Assignment matrix */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="bg-slate-900 text-white">
+                          <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest sticky left-0 bg-slate-900 z-20 w-40 whitespace-nowrap">Period</th>
+                          {classes.map(cls => (
+                            <th key={cls.id} className="px-2 py-3 text-center text-[10px] font-black uppercase tracking-widest border-l border-slate-800 min-w-[140px]">
+                              <span className="block">{cls.name}</span>
+                              <span className="text-white/50 text-[8px] font-bold">{cls.section}</span>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {assignRows.map(row => {
+                          // Break / assembly rows — render spanning banner
+                          if (row.slot_type !== 'period') {
+                            const isBreak = row.slot_type === 'break';
+                            const bg  = isBreak ? 'bg-amber-50 border-amber-100' : 'bg-indigo-50 border-indigo-100';
+                            const txt = isBreak ? 'text-amber-600' : 'text-indigo-600';
+                            const sub = isBreak ? 'text-amber-400' : 'text-indigo-400';
+                            const icon = isBreak ? '☕' : '🎒';
+                            return (
+                              <tr key={row.id} className={bg}>
+                                <td className={`px-4 py-2 sticky left-0 z-10 border-y ${bg}`}>
+                                  <p className={`text-[10px] font-black ${txt}`}>{icon} {row.label}</p>
+                                  <p className={`text-[9px] ${sub} tabular-nums`}>{row.start_time} – {row.end_time}</p>
+                                </td>
+                                <td colSpan={classes.length} className={`border-y ${bg}`}>
+                                  <div className="h-5 flex items-center justify-center">
+                                    <span className={`text-[9px] font-bold ${sub} opacity-50 uppercase tracking-widest`}>{row.label}</span>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          }
+
+                          return (
+                            <tr key={row.id} className="border-b border-slate-100">
+                              <td className="px-4 py-3 sticky left-0 bg-white z-10 border-r border-slate-100 whitespace-nowrap">
+                                <p className="text-xs font-black text-slate-900">{row.label}</p>
+                                <p className="text-[10px] font-bold text-slate-400 tabular-nums">{row.start_time} – {row.end_time}</p>
+                              </td>
+                              {classes.map(cls => {
+                                const slot = allSchoolSlots.find(
+                                  s => s.class_id === cls.id && s.day_of_week === assignDay && s.period_number === row.sort_order
+                                );
+                                const key = `${cls.id}::${row.sort_order}`;
+                                const currentTeacher = getCellTeacher(cls.id, row.sort_order);
+                                const pending = key in teacherAssignChanges;
+                                const conflict = hasConflict(cls.id, row.sort_order, currentTeacher);
+
+                                if (!slot) {
+                                  return (
+                                    <td key={cls.id} className="p-2 border-r border-slate-50">
+                                      <div className="flex items-center justify-center min-h-[52px] rounded-xl bg-slate-50 border border-slate-100">
+                                        <span className="text-[9px] font-bold text-slate-300">No subject</span>
+                                      </div>
+                                    </td>
+                                  );
+                                }
+
+                                return (
+                                  <td key={cls.id} className="p-2 border-r border-slate-50">
+                                    <div className={`p-2 rounded-xl border-2 min-h-[52px] flex flex-col justify-between gap-1.5 transition-all ${
+                                      conflict  ? 'bg-rose-50 border-rose-300' :
+                                      pending   ? 'bg-emerald-50 border-emerald-300' :
+                                                  'bg-slate-50 border-slate-100'
+                                    }`}>
+                                      <p className="text-[10px] font-black text-slate-800 uppercase leading-tight truncate">
+                                        {slot.subjects?.subject_name || '—'}
+                                      </p>
+                                      <select
+                                        value={currentTeacher}
+                                        onChange={e => {
+                                          setTeacherAssignChanges(prev => ({ ...prev, [key]: e.target.value }));
+                                        }}
+                                        className={`w-full text-[10px] font-bold rounded-lg border px-1.5 py-1 outline-none focus:ring-1 focus:ring-emerald-400 truncate ${
+                                          conflict ? 'border-rose-300 bg-rose-50 text-rose-700' :
+                                          pending  ? 'border-emerald-300 bg-white text-emerald-800' :
+                                                     'border-slate-200 bg-white text-slate-600'
+                                        }`}
+                                      >
+                                        <option value="">Unassigned</option>
+                                        {teachers.map(t => (
+                                          <option key={t.id} value={t.id}>{t.full_name}</option>
+                                        ))}
+                                      </select>
+                                      {conflict && (
+                                        <p className="text-[8px] font-black text-rose-600 uppercase tracking-wide flex items-center gap-0.5">
+                                          <AlertTriangle className="w-2.5 h-2.5 shrink-0" /> Clash
+                                        </p>
+                                      )}
+                                    </div>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {classes.length === 0 && (
+                  <div className="flex items-center justify-center py-16 text-slate-300 font-bold">
+                    No classes found. Add classes first.
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
