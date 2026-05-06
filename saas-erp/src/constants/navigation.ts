@@ -317,6 +317,7 @@ export const NAV_SECTIONS = [
       { name: 'Report Card Designer', path: '/settings/report-cards',icon: LineChart,    roles: ALL_ADMIN },
       { name: 'Credential Dispatch',  path: '/credentials',          icon: ShieldCheck,  roles: ALL_ADMIN },
       { name: 'Help & Support',       path: '/help-support',         icon: LifeBuoy,     roles: ALL_ADMIN },
+      { name: 'Audit Log',            path: '/audit-log',            icon: History,      roles: ALL_ADMIN },
       { name: 'Trashbin',             path: '/settings/trashbin',    icon: Trash2,       roles: ['admin'] },
     ],
   },

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { logActivity } from '../lib/auditLog';
 
 export interface PermissionSet {
   modules: Record<string, boolean>;
@@ -148,6 +149,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .update({ last_login: new Date().toISOString() })
         .eq('user_id', userId)
         .then(() => {/* ignore result */});
+
+      // Audit log: login event
+      logActivity({
+        school_id:   data.school_id,
+        user_id:     userId,
+        user_role:   data.role,
+        action:      'LOGIN',
+        module:      'Auth',
+        description: `${data.role} signed in`,
+      });
 
     } catch (err: any) {
       // Unexpected error — log and leave loading=false to avoid hang

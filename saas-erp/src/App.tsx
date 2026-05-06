@@ -59,6 +59,7 @@ const CoordinatorDashboard = lazy(() => import('./pages/CoordinatorDashboard'));
 const HelpSupport = lazy(() => import('./pages/HelpSupport'));
 const TransportLayout = lazy(() => import('./pages/transport/TransportLayout'));
 const AutoTimetable = lazy(() => import('./pages/AutoTimetable'));
+const AuditLog = lazy(() => import('./pages/AuditLog'));
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { session, loading, roleNotFound, signOut } = useAuth();
@@ -168,6 +169,7 @@ export default function App() {
                 <Route path="settings/trashbin" element={<Trashbin />} />
                 <Route path="transport/*" element={<TransportLayout />} />
                 <Route path="help-support" element={<HelpSupport />} />
+                <Route path="audit-log" element={<AuditLog />} />
               </Route>
             </Routes>
           </Suspense>
