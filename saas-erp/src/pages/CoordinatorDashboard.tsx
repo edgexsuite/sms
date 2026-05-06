@@ -175,10 +175,10 @@ export default function CoordinatorDashboard() {
         supabase.from('students').select('id, class_id').eq('school_id', sid).eq('status', 'active'),
         supabase.from('attendance').select('student_id, status').eq('school_id', sid).eq('date', today),
         supabase.from('teacher_diary')
-          .select('teacher_id, topic_covered, subjects(subject_name), classes(name, section)')
+          .select('staff_id, topic_covered, subjects(subject_name), classes(name, section)')
           .eq('school_id', sid).eq('diary_date', today),
         supabase.from('timetable_slots')
-          .select('teacher_id, class_id, staff(full_name), classes(name, section), subjects(subject_name)')
+          .select('staff_id, class_id, staff(full_name), classes(name, section), subjects(subject_name)')
           .eq('school_id', sid),
         supabase.from('timetable_slots')
           .select('day_of_week, period_number, start_time, end_time, staff(full_name), classes(name, section), subjects(subject_name)')
@@ -243,31 +243,31 @@ export default function CoordinatorDashboard() {
       setClassAtt(classAttData);
 
       // ── Diary status: who submitted today vs who teaches today ───────────
-      // timetable_slots uses teacher_id; teacher_diary uses teacher_id
+      // timetable_slots uses staff_id; teacher_diary uses staff_id
       const diarySubmitted = diaryRes.data ?? [];
       const allTeacherSlots = allStaffDiaryRes.data ?? [];
-      // Build a map: teacher_id → { name, class_name, subject_name }
+      // Build a map: staff_id → { name, class_name, subject_name }
       const teacherMap: Record<string, { name: string; class_name: string; subject_name: string }> = {};
       allTeacherSlots.forEach((slot: any) => {
-        if (!slot.teacher_id || !slot.staff?.full_name) return;
-        if (!teacherMap[slot.teacher_id]) {
-          teacherMap[slot.teacher_id] = {
+        if (!slot.staff_id || !slot.staff?.full_name) return;
+        if (!teacherMap[slot.staff_id]) {
+          teacherMap[slot.staff_id] = {
             name:         slot.staff.full_name,
             class_name:   (slot.classes as any)?.name ?? '—',
             subject_name: (slot.subjects as any)?.subject_name ?? '—',
           };
         }
       });
-      const submittedIds = new Set(diarySubmitted.map((d: any) => d.teacher_id));
-      const diaryData: DiaryRow[] = Object.entries(teacherMap).map(([teacherId, info]) => {
-        const entry = diarySubmitted.find((d: any) => d.teacher_id === teacherId);
+      const submittedIds = new Set(diarySubmitted.map((d: any) => d.staff_id));
+      const diaryData: DiaryRow[] = Object.entries(teacherMap).map(([staffId, info]) => {
+        const entry = diarySubmitted.find((d: any) => d.staff_id === staffId);
         return {
-          staff_id:     teacherId,
+          staff_id:     staffId,
           staff_name:   info.name,
           class_name:   (entry?.classes as any)?.name   ?? info.class_name,
           subject_name: (entry?.subjects as any)?.subject_name ?? info.subject_name,
           topic:        entry?.topic_covered    ?? null,
-          submitted:    submittedIds.has(teacherId),
+          submitted:    submittedIds.has(staffId),
         };
       });
       setDiaryRows(diaryData.sort((a, b) =>

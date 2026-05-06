@@ -22,6 +22,8 @@ interface StaffPayroll {
 
   absent_deduction: number;
   advance_deduction: number;
+  custom_deduction_pct: number;
+  custom_deduction_amount: number;
   net_salary: number;
   status: 'pending' | 'paid';
   payroll_id?: string;
@@ -126,16 +128,19 @@ export default function Payroll() {
       
       const existing = payrollMap.get(s.id);
       if (existing) {
+        const customDed = (existing.deductions || []).find((d: any) => d.name === 'Custom Deduction');
         return {
           staff_id: s.id, full_name: s.full_name, designation: designation,
           employment_type: s.employment_type || 'full-time', payment_basis: s.payment_basis || 'monthly',
           base_salary: base,
           allowances: (existing.allowances || []).reduce((sum: number, a: any) => sum + (a.amount || 0), 0),
-          deductions: (existing.deductions || []).reduce((sum: number, d: any) => sum + (d.amount || 0), 0),
+          deductions: (existing.deductions || []).filter((d: any) => d.name !== 'Custom Deduction').reduce((sum: number, d: any) => sum + (d.amount || 0), 0),
           absent_days: existing.absent_days || 0,
           half_leaves: halfCount, present_days: presentCount, delivered_lectures: automatedLecturesCount,
           absent_deduction: existing.absent_deduction || 0,
           advance_deduction: existing.advance_deduction || 0,
+          custom_deduction_pct: customDed?.percentage || 0,
+          custom_deduction_amount: customDed?.amount || 0,
           net_salary: existing.net_salary || 0,
           status: existing.status,
           payroll_id: existing.id,
@@ -171,6 +176,8 @@ export default function Payroll() {
         absent_days: calculatedAbsentDays, half_leaves: halfCount, present_days: presentCount, delivered_lectures: automatedLecturesCount,
         absent_deduction: absentDed,
         advance_deduction: advDed,
+        custom_deduction_pct: 0,
+        custom_deduction_amount: 0,
         net_salary: Math.max(0, gross + allowTotal - dedTotal - absentDed - advDed),
         status: 'pending',
       };
@@ -187,14 +194,28 @@ export default function Payroll() {
       if (s.employment_type === 'visiting') {
          if (s.payment_basis === 'per-lecture' && lecturesOverride !== undefined) {
              const gross = lecturesOverride * s.base_salary;
-             return { ...s, delivered_lectures: lecturesOverride, net_salary: Math.max(0, gross + s.allowances - s.deductions) };
+             return { ...s, delivered_lectures: lecturesOverride, net_salary: Math.max(0, gross + s.allowances - s.deductions - s.custom_deduction_amount) };
          }
          return s; // Per-day is purely based on physical attendance logs
       } else {
          const perDay = Math.round(s.base_salary / 26);
          const absDed = perDay * Math.max(0, days);
-         return { ...s, absent_days: days, absent_deduction: absDed, net_salary: Math.max(0, s.base_salary + s.allowances - s.deductions - absDed - s.advance_deduction) };
+         return { ...s, absent_days: days, absent_deduction: absDed, net_salary: Math.max(0, s.base_salary + s.allowances - s.deductions - absDed - s.advance_deduction - s.custom_deduction_amount) };
       }
+    }));
+  };
+
+  const updateCustomDeduction = (staffId: string, pct: number) => {
+    setStaff(prev => prev.map(s => {
+      if (s.staff_id !== staffId) return s;
+      const customAmt = Math.round(s.base_salary * pct / 100);
+      
+      let gross = s.base_salary;
+      if (s.employment_type === 'visiting') {
+         if (s.payment_basis === 'per-day') gross = s.present_days * s.base_salary;
+         if (s.payment_basis === 'per-lecture') gross = s.delivered_lectures * s.base_salary;
+      }
+      return { ...s, custom_deduction_pct: pct, custom_deduction_amount: customAmt, net_salary: Math.max(0, gross + s.allowances - s.deductions - s.absent_deduction - s.advance_deduction - customAmt) };
     }));
   };
 
@@ -211,11 +232,14 @@ export default function Payroll() {
          if (s.payment_basis === 'per-lecture') gross = s.delivered_lectures * s.base_salary;
       }
 
+      const standardDeductions = dedComps.map(c => ({ name: c.name, amount: c.calculation_type === 'percentage' ? Math.round(s.base_salary * c.percentage / 100) : c.amount }));
+      const customDed = s.custom_deduction_pct > 0 ? [{ name: 'Custom Deduction', percentage: s.custom_deduction_pct, amount: s.custom_deduction_amount }] : [];
+
       return {
         school_id: sid, staff_id: s.staff_id, month_year: selectedMonth + '-01',
         base_salary: s.base_salary,
         allowances: allowComps.map(c => ({ name: c.name, amount: c.calculation_type === 'percentage' ? Math.round(s.base_salary * c.percentage / 100) : c.amount })),
-        deductions: dedComps.map(c => ({ name: c.name, amount: c.calculation_type === 'percentage' ? Math.round(s.base_salary * c.percentage / 100) : c.amount })),
+        deductions: [...standardDeductions, ...customDed],
         gross_salary: gross + s.allowances,
         absent_days: s.absent_days, per_day_salary: Math.round(s.base_salary / 26),
         absent_deduction: s.absent_deduction,
@@ -331,7 +355,8 @@ export default function Payroll() {
   const cols = [
     { header: 'Staff', key: 'full_name' }, { header: 'Designation', key: 'designation' },
     { header: 'Base Salary', key: 'base_salary' }, { header: 'Allowances', key: 'allowances' },
-    { header: 'Deductions', key: 'deductions' }, { header: 'Absent Days', key: 'absent_days' },
+    { header: 'Deductions', key: 'deductions' }, { header: 'Cust. Ded (%)', key: 'custom_deduction_pct' },
+    { header: 'Absent Days', key: 'absent_days' },
     { header: 'Absent Deduction', key: 'absent_deduction' }, { header: 'Net Salary', key: 'net_salary' },
     { header: 'Status', key: 'status' },
   ];
@@ -419,6 +444,7 @@ export default function Payroll() {
                   <th className="px-4 py-2 text-right font-medium text-gray-500">Base</th>
                   <th className="px-4 py-2 text-right font-medium text-green-600">+Allow.</th>
                   <th className="px-4 py-2 text-right font-medium text-red-500">−Deduct.</th>
+                  <th className="px-4 py-2 text-center font-medium text-red-500">Cust. Ded (%)</th>
                   <th className="px-4 py-2 text-center font-medium text-gray-500">Absent</th>
                   <th className="px-4 py-2 text-right font-medium text-amber-600">−Advance</th>
                   <th className="px-4 py-2 text-right font-medium text-gray-500">Net Salary</th>
@@ -436,6 +462,17 @@ export default function Payroll() {
                     <td className="px-4 py-2 text-right text-gray-700">{s.base_salary.toLocaleString()}</td>
                     <td className="px-4 py-2 text-right text-green-600">+{s.allowances.toLocaleString()}</td>
                     <td className="px-4 py-2 text-right text-red-500">−{(s.deductions + s.absent_deduction).toLocaleString()}</td>
+                    <td className="px-4 py-2 text-center">
+                      {!isProcessed ? (
+                        <div className="flex flex-col items-center gap-1">
+                          <input type="number" min="0" max="100" value={s.custom_deduction_pct || ''} placeholder="0" title="Custom Deduction %"
+                            onChange={e => updateCustomDeduction(s.staff_id, parseFloat(e.target.value) || 0)}
+                            className="w-16 border border-slate-200 bg-white rounded-lg text-center text-sm focus:ring-2 focus:ring-red-500 outline-none" />
+                        </div>
+                      ) : (
+                        <span className={s.custom_deduction_pct > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}>{s.custom_deduction_pct}%</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2 text-center">
                       {!isProcessed ? (
                         <>
@@ -488,7 +525,7 @@ export default function Payroll() {
               </tbody>
               <tfoot className="bg-gray-50 border-t-2 border-gray-300">
                 <tr>
-                  <td className="px-4 py-2 font-bold text-gray-800" colSpan={6}>Total</td>
+                  <td className="px-4 py-2 font-bold text-gray-800" colSpan={7}>Total</td>
                   <td className="px-4 py-2 text-right font-bold text-gray-900 text-base">{totalNet.toLocaleString()}</td>
                   <td colSpan={isProcessed ? 2 : 1} />
                 </tr>

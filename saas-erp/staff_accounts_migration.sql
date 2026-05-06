@@ -18,10 +18,14 @@ ALTER TABLE staff
   ADD COLUMN IF NOT EXISTS has_login  BOOLEAN  DEFAULT FALSE,
   ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN  DEFAULT FALSE;
 
--- 3. Widen role enum to include accountant + librarian
+-- 3. Widen role enum to include all system roles
 ALTER TABLE user_roles DROP CONSTRAINT IF EXISTS user_roles_role_check;
 ALTER TABLE user_roles ADD CONSTRAINT user_roles_role_check
-  CHECK (role IN ('admin','teacher','staff','accountant','librarian','parent'));
+  CHECK (role IN (
+    'admin','teacher','staff','accountant','librarian','parent',
+    'director','principal','vice_principal',
+    'campus_coordinator','academic_coordinator','section_coordinator'
+  ));
 
 -- 4. Index for fast staff ↔ user_roles lookups
 CREATE INDEX IF NOT EXISTS idx_user_roles_staff_id  ON user_roles(staff_id);
