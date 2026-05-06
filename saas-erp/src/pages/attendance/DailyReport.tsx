@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { exportToCSV } from '../../lib/exportUtils';
 import { cn } from '../../lib/utils';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 
 // ── types ─────────────────────────────────────────────────────────────────────
 interface ClassSummary {

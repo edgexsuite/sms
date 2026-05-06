@@ -8,7 +8,7 @@ import {
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { cn } from '../../lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 // ── Types & Constants ────────────────────────────────────────────────────────
 

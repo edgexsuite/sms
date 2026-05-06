@@ -8,7 +8,7 @@ import {
   MessageSquare, Upload, FileSpreadsheet
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatDate } from '../lib/utils';
 import DeletePinModal from '../components/DeletePinModal';
 import ImportStaffModal from '../components/ImportStaffModal';

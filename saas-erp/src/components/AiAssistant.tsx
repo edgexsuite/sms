@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Sparkles, X, Send, Bot, User, Maximize2, Minimize2, 
   RefreshCw, MessageSquare, Brain, Zap, Activity

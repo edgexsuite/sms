@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Briefcase, CalendarCheck, CheckCircle, XCircle, Clock, Save, Hash, Umbrella, Coffee, Sun, Calendar } from 'lucide-react';
 import { PageHeader, Card, Btn, Badge, Input, EmptyState } from '../../components/ui';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 
 export default function StaffAttendance() {

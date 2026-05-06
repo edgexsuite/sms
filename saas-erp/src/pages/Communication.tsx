@@ -201,7 +201,16 @@ export default function Communication() {
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim() || recipientCount === 0) return;
-    
+
+    // Guard: warn if message still contains unsubstituted template placeholders
+    const unfilledPlaceholders = message.match(/\{\{[^}]+\}\}/g);
+    if (unfilledPlaceholders) {
+      const ok = window.confirm(
+        `Your message contains unfilled placeholders: ${unfilledPlaceholders.join(', ')}\n\nThese will be sent as-is. Replace them with real values before sending.\n\nContinue anyway?`
+      );
+      if (!ok) return;
+    }
+
     setSending(true);
     const sid = userRole?.school_id;
 
@@ -209,18 +218,18 @@ export default function Communication() {
       // Handle In-App Broadcast first (bypasses standard logs)
       if (channel === 'in-app') {
         if (!title.trim()) { alert('Title is required for in-app notifications.'); setSending(false); return; }
-        
+
         const { error: notificationError } = await supabase.from('notifications').insert([{
-           school_id: sid,
-           target_audience: recipientScope,
-           class_id: recipientScope === 'class' ? selectedClassId : null,
-           title: title,
-           message: message
+          school_id:       sid,
+          target_audience: recipientScope,
+          class_id:        recipientScope === 'class' ? selectedClassId : null,
+          title:           title,
+          message:         message,
         }]);
-        
+
         if (notificationError) throw notificationError;
         alert('App notification successfully broadcasted to dashboard!');
-        setSendResult({ sent: recipients.length, failed: 0 }); // Artificial success indicator since broadcast hits all immediately
+        setSendResult({ sent: recipients.length, failed: 0 });
         setTitle('');
         setMessage('');
         setSending(false);
@@ -229,32 +238,38 @@ export default function Communication() {
 
       // 1. Prepare log entries
       const logs = recipients.map(r => ({
-        school_id: sid,
-        parent_id: recipientScope === 'teachers' ? null : r.id,
-        channel: channel,
+        school_id:        sid,
+        parent_id:        recipientScope === 'teachers' ? null : r.id,
+        channel:          channel,
         recipient_number: r.whatsapp_number || '',
-        message_content: message,
-        status: channel === 'whatsapp' ? 'ready' : 'logged' // 'ready' means we need external trigger
+        message_content:  message,
+        status:           'queued',
       }));
 
       // 2. Insert into DB
       const { error } = await supabase.from('communication_logs').insert(logs);
       if (error) throw error;
 
-      // 3. Channel-specific sending
+      // 3. Channel-specific dispatch
       if (channel === 'whatsapp') {
-        if (recipientCount === 1) {
-           const num = recipients[0].whatsapp_number || '';
-           if (num) templatesLib.openWhatsApp(num, message);
+        const withNum = recipients.filter(r => r.whatsapp_number);
+        const skipped = recipients.length - withNum.length;
+        if (withNum.length === 0) {
+          alert('No recipients have a WhatsApp number on file.');
         } else {
-           alert(`Logged ${recipientCount} WhatsApp messages. Use the 'Send Now' buttons in the history table to open WhatsApp for each recipient.`);
+          // Open WhatsApp for each recipient staggered (600ms apart to avoid popup blocker)
+          withNum.forEach((r, i) => {
+            const url = templatesLib.buildWhatsAppLink(r.whatsapp_number, message);
+            setTimeout(() => window.open(url, '_blank'), i * 600);
+          });
+          setSendResult({ sent: withNum.length, failed: skipped });
         }
       } else if (channel === 'sms' || channel === 'email') {
         // Call Supabase Edge Function for real sending
         const edgeRecipients = recipients.map(r => ({
           number: r.whatsapp_number || '',
-          email: r.email || '',
-          name: r.father_name || r.full_name || '',
+          email:  r.email || '',
+          name:   r.father_name || r.full_name || '',
         }));
         try {
           const { data: result, error: fnError } = await supabase.functions.invoke('send-message', {
@@ -263,7 +278,6 @@ export default function Communication() {
           if (fnError) throw fnError;
           setSendResult({ sent: result?.sent ?? 0, failed: result?.failed ?? 0 });
         } catch (fnErr: any) {
-          // Non-fatal: logs are already inserted; show error but don't block
           setSendResult({ sent: 0, failed: recipientCount });
           console.error('Edge function error:', fnErr.message);
         }

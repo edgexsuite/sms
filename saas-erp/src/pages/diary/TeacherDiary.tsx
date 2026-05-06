@@ -7,7 +7,7 @@ import {
   AlertCircle, Calculator, FlaskConical, PenTool,
   Book, Globe, Cpu, Palette, CalendarDays
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatDate } from '../../lib/utils';
 import html2canvas from 'html2canvas';
 import { PageHeader, Card, Btn, EmptyState } from '../../components/ui';

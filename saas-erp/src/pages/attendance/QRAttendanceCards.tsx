@@ -7,7 +7,7 @@ import {
   Users, Search, CheckSquare, Square, Download
 } from 'lucide-react';
 import { PageHeader, Card, Btn, Badge, Select, Input, EmptyState } from '../../components/ui';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 
 type Tab = 'students' | 'staff';

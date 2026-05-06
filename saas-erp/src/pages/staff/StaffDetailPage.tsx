@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import JoiningLetter from '../../components/JoiningLetter';
 import ExperienceCertificate from '../../components/ExperienceCertificate';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import * as templatesLib from '../../lib/whatsappTemplates';
 
 export default function StaffDetailPage() {

@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Printer, Grid, RefreshCw, Calendar, Users, Filter, Download, Umbrella } from 'lucide-react';
 import { formatDate, cn } from '../../lib/utils';
 import { PageHeader, Card, Btn, Select, Input, EmptyState } from '../../components/ui';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function MonthlyReport() {
   const { userRole, schoolInfo } = useAuth();

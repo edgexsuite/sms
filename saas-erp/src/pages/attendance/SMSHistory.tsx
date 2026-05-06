@@ -6,7 +6,7 @@ import { openWhatsApp } from '../../lib/whatsappTemplates';
 import { exportToCSV } from '../../lib/exportUtils';
 import { formatDate } from '../../lib/utils';
 import { PageHeader, Card, Btn, Badge, Select, EmptyState } from '../../components/ui';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 
 interface LogEntry {

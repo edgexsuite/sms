@@ -2,17 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Star, Save, CheckCircle, UserX } from 'lucide-react';
-
-const getGrade = (obtained: number, total: number): string => {
-  if (total === 0) return '—';
-  const pct = (obtained / total) * 100;
-  if (pct >= 90) return 'A+';
-  if (pct >= 80) return 'A';
-  if (pct >= 70) return 'B';
-  if (pct >= 60) return 'C';
-  if (pct >= 50) return 'D';
-  return 'F';
-};
+import { fetchGradingPolicy, getGradeFromPolicy, type GradingBracket } from '../../lib/gradingUtils';
 
 const GRADE_COLORS: Record<string, string> = {
   'A+': 'text-emerald-700 bg-emerald-50', 'A': 'text-green-700 bg-green-50',
@@ -39,8 +29,14 @@ export default function AddResult() {
   const [passingMarks, setPassingMarks] = useState(33);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [gradingBrackets, setGradingBrackets] = useState<GradingBracket[]>([]);
 
-  useEffect(() => { if (userRole?.school_id) fetchInit(); }, [userRole]);
+  useEffect(() => {
+    if (userRole?.school_id) {
+      fetchInit();
+      fetchGradingPolicy(userRole.school_id).then(setGradingBrackets);
+    }
+  }, [userRole]);
   useEffect(() => { if (selectedClass) { fetchSubjects(); fetchStudents(); } }, [selectedClass]);
   useEffect(() => { if (selectedExamType && selectedClass && selectedSubject) loadExistingResults(); }, [selectedExamType, selectedClass, selectedSubject]);
 
@@ -112,7 +108,7 @@ export default function AddResult() {
             class_id:       selectedClass,
             obtained_marks: obtained,
             total_marks:    totalMarks,
-            grade:          isAbsent ? 'Ab' : getGrade(obtained, totalMarks),
+            grade:          isAbsent ? 'Ab' : getGradeFromPolicy(obtained, totalMarks, gradingBrackets).grade,
             is_absent:      isAbsent,
           };
         });
@@ -238,7 +234,7 @@ export default function AddResult() {
             {students.map((stu, idx) => {
               const isAbsent = absent[stu.id] ?? false;
               const obtained = parseFloat(marks[stu.id] || '');
-              const grade = isNaN(obtained) ? '—' : getGrade(obtained, totalMarks);
+              const grade = isNaN(obtained) ? '—' : getGradeFromPolicy(obtained, totalMarks, gradingBrackets).grade;
               const isPassing = !isNaN(obtained) && obtained >= passingMarks;
 
               // Row background: absent → orange tint, fail → red tint, default → white

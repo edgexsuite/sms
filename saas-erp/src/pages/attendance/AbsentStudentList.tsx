@@ -5,7 +5,7 @@ import { UserX, Download, Calendar, Filter, Phone, Search } from 'lucide-react';
 import { exportToCSV } from '../../lib/exportUtils';
 import { formatDate } from '../../lib/utils';
 import { PageHeader, Card, Btn, Select, Input, Badge, EmptyState } from '../../components/ui';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 
 interface AbsentRecord {
   student_id: string;

@@ -19,7 +19,7 @@ import {
   Pencil, MessageSquare, FlaskConical, ArrowRight,
   Download, Search, Users, AlertTriangle, Loader2, BookOpen,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { formatDate } from '../../lib/utils';
 
 /* ─── Types ────────────────────────────────────────────────────────────── */

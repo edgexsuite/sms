@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import FeeBreakdownEditor, { type BreakdownRow } from '../../components/FeeBreakdownEditor';
 import HelpBanner from '../../components/HelpBanner';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, ChallanConfig, ChallanRecord, SchoolInfo } from '../../lib/challanUtils';
 import * as templatesLib from '../../lib/whatsappTemplates';

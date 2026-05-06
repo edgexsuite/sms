@@ -7,7 +7,7 @@ import {
   Save, Trash2, X 
 } from 'lucide-react';
 import DeletePinModal from '../../components/DeletePinModal';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { formatDate } from '../../lib/utils';
 
 export default function AddDailyExpenses() {

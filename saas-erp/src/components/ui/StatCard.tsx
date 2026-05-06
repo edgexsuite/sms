@@ -1,7 +1,7 @@
 import React, { ElementType } from 'react';
 import { cn } from '../../lib/utils';
 import { CountUp } from './CountUp';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 
 interface StatCardProps {
   label: string;

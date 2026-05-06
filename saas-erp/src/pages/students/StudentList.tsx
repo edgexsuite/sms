@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Search, Upload, Download, Trash2, BookOpen, FileSpreadsheet, UserPlus, Eye, X, ChevronDown, Users, CheckCircle, MoreVertical, Edit, UserX, Key, GraduationCap, LogOut, Shield, Filter } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
 import DeletePinModal from '../../components/DeletePinModal';
 import Papa from 'papaparse';

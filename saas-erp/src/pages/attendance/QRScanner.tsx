@@ -6,7 +6,7 @@ import {
   Maximize2, Minimize2, Camera, Keyboard, Wifi, GraduationCap,
   Briefcase, RefreshCw, Settings, Shield, Timer, QrCode,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatDate } from '../../lib/utils';
 import { Card, Btn, Badge, Select, Input } from '../../components/ui';
 

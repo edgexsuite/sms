@@ -17,9 +17,18 @@ import {
 } from 'recharts';
 import { formatDate, cn } from '../lib/utils';
 import { PageHeader, Card, Btn, Badge, EmptyState, StatCard, WelcomeBanner, CountUp } from '../components/ui';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#6366f1'];
+
+// Single shared Audio instance — avoids creating a new object + network request per character
+const _typingAudio = (() => {
+  try {
+    const a = new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
+    a.volume = 0.05;
+    return a;
+  } catch { return null; }
+})();
 
 const TypewriterText = ({ text, delay = 25 }: { text: string; delay?: number }) => {
   const [displayedText, setDisplayedText] = useState('');
@@ -28,11 +37,11 @@ const TypewriterText = ({ text, delay = 25 }: { text: string; delay?: number }) 
   useEffect(() => {
     if (currentIndex < text.length) {
       const timeout = setTimeout(() => {
-        // Play subtle typing sound
-        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
-        audio.volume = 0.05;
-        audio.play().catch(() => {}); // Catch browser policy blocks
-
+        // Play subtle typing sound using the shared Audio instance
+        if (_typingAudio) {
+          _typingAudio.currentTime = 0;
+          _typingAudio.play().catch(() => {});
+        }
         setDisplayedText(prev => prev + text[currentIndex]);
         setCurrentIndex(prev => prev + 1);
       }, delay);
@@ -334,7 +343,7 @@ export default function Dashboard() {
             </div>
 
             <div className="flex-1 flex flex-col sm:flex-row items-center gap-6 lg:justify-end">
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <button 
                   onClick={() => downloadDailyCollectionReport(userRole?.school_id!)}
                   title="Print Today's Collection"

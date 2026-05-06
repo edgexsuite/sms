@@ -13,7 +13,7 @@ import {
   Plus, X, Briefcase, FileText, TrendingUp, MessageCircle, ChevronLeft, Flag, Send, Search,
   Star, Package, ShoppingCart, Trash2,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import ChatInterface from '../components/ChatInterface';
 
 // ── Types ─────────────────────────────────────────────────────────────────────

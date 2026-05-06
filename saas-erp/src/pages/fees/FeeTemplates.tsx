@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Layout, Plus, Trash2, Save, ChevronDown, ChevronUp, Tag, X, MoreVertical, CreditCard, Calendar, ArrowRight } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import HelpBanner from '../../components/HelpBanner';
 
 interface FeeItem { item: string; amount: number; }

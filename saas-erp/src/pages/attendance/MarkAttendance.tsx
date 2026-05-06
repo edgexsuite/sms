@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { 
-  CalendarCheck, Search, CheckCircle, XCircle, Clock, Save, 
+import {
+  CalendarCheck, Search, CheckCircle, XCircle, Clock, Save,
   MessageSquare, AlertTriangle, Users, Calendar, Filter,
   ChevronRight, AlertCircle, Send, Check, Umbrella
 } from 'lucide-react';
 import { PageHeader, Card, Btn, Badge, Select, Input, EmptyState } from '../../components/ui';
 import { cn } from '../../lib/utils';
+import { absenceAlertTemplate, cleanWhatsAppNumber, buildWhatsAppLink } from '../../lib/whatsappTemplates';
 
 export default function MarkAttendance() {
   const { userRole, user } = useAuth();
@@ -26,11 +27,14 @@ export default function MarkAttendance() {
   const [notifying, setNotifying] = useState(false);
   const [vacations, setVacations] = useState<any[]>([]);
   const [activeVacation, setActiveVacation] = useState<any>(null);
+  const [schoolName, setSchoolName] = useState('');
 
   useEffect(() => {
     if (userRole?.school_id) {
       fetchClasses();
       fetchVacations();
+      supabase.from('schools').select('name').eq('id', userRole.school_id).maybeSingle()
+        .then(({ data }) => { if (data) setSchoolName(data.name); });
     }
   }, [userRole]);
 
@@ -155,26 +159,57 @@ export default function MarkAttendance() {
   };
 
   const notifyAbsentees = async () => {
-    if (!window.confirm(`Dispatch WhatsApp absent alerts to ${absentees.length} parents?`)) return;
+    // Partition absentees by whether they have a valid WA number
+    const withNumber   = absentees.filter(s => s.parents?.whatsapp_number);
+    const withoutNumber = absentees.filter(s => !s.parents?.whatsapp_number);
+
+    if (withNumber.length === 0) {
+      alert(`None of the ${absentees.length} absent students have a WhatsApp number on file. Add parent numbers in the Students module.`);
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Send WhatsApp alerts to ${withNumber.length} parent(s)?${withoutNumber.length > 0 ? `\n(${withoutNumber.length} skipped — no number on file)` : ''}\n\nWhatsApp will open in new tabs. Allow popups if prompted.`
+    );
+    if (!confirmed) return;
+
     setNotifying(true);
     try {
+      // 1. Log to communication_logs (status = queued — not yet delivered)
       const logs = absentees.map(s => ({
-        school_id: userRole?.school_id,
+        school_id:      userRole?.school_id,
         recipient_type: 'parent',
-        recipient_id: null,
+        recipient_id:   null,
         recipient_name: `Parent of ${s.full_name}`,
-        phone_number: s.parents?.whatsapp_number || 'UNKNOWN',
-        message: `ALERT: Your child ${s.full_name} is marked ABSENT today (${date}). Please contact administration.`,
-        status: 'sent',
-        channel: 'whatsapp'
+        phone_number:   s.parents?.whatsapp_number || null,
+        message:        absenceAlertTemplate({
+                          studentName:    s.full_name,
+                          attendanceDate: date,
+                          schoolName:     schoolName || 'School Management',
+                        }),
+        status:  s.parents?.whatsapp_number ? 'queued' : 'failed',
+        channel: 'whatsapp',
       }));
 
       const { error } = await supabase.from('communication_logs').insert(logs);
       if (error) throw error;
-      
-      alert(`Successfully dispatched ${absentees.length} WhatsApp absent notifications!`);
-      setAbsentees([]); // clear button
-    } catch(err:any) { alert(err.message); }
+
+      // 2. Open WhatsApp for each parent with a valid number (staggered to avoid popup blocker)
+      withNumber.forEach((s, i) => {
+        const msg = absenceAlertTemplate({
+          studentName:    s.full_name,
+          attendanceDate: date,
+          schoolName:     schoolName || 'School Management',
+        });
+        const url = buildWhatsAppLink(s.parents.whatsapp_number, msg);
+        setTimeout(() => window.open(url, '_blank'), i * 600);
+      });
+
+      setAbsentees([]);
+      if (withoutNumber.length > 0) {
+        alert(`WhatsApp opened for ${withNumber.length} parent(s). ${withoutNumber.length} skipped — no number on file.`);
+      }
+    } catch (err: any) { alert(err.message); }
     setNotifying(false);
   };
 
@@ -327,26 +362,26 @@ export default function MarkAttendance() {
                         </div>
                       </div>
                       
-                      <div className="flex flex-wrap gap-2 lg:bg-white lg:p-1.5 lg:rounded-2xl lg:border lg:border-slate-100 lg:shadow-inner">
+                      <div className="flex flex-wrap gap-2 bg-white p-1.5 rounded-2xl border border-slate-100 shadow-inner">
                         {[
-                          { key: 'present', label: 'Present', icon: CheckCircle, activeClass: 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' },
-                          { key: 'absent', label: 'Absent', icon: XCircle, activeClass: 'bg-rose-600 text-white shadow-lg shadow-rose-600/20' },
-                          { key: 'late', label: 'Late', icon: Clock, activeClass: 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' },
-                          { key: 'leave', label: 'Leave', icon: CalendarCheck, activeClass: 'bg-slate-600 text-white shadow-lg shadow-slate-600/20' },
-                          { key: 'vacation', label: 'Vacation', icon: Umbrella, activeClass: 'bg-sky-600 text-white shadow-lg shadow-sky-600/20' },
+                          { key: 'present',  label: 'Present',  icon: CheckCircle, activeClass: 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' },
+                          { key: 'absent',   label: 'Absent',   icon: XCircle,     activeClass: 'bg-rose-600 text-white shadow-lg shadow-rose-600/20'    },
+                          { key: 'late',     label: 'Late',     icon: Clock,       activeClass: 'bg-amber-500 text-white shadow-lg shadow-amber-500/20'   },
+                          { key: 'leave',    label: 'Leave',    icon: CalendarCheck,activeClass: 'bg-slate-600 text-white shadow-lg shadow-slate-600/20'  },
+                          { key: 'vacation', label: 'Holiday',  icon: Umbrella,    activeClass: 'bg-sky-600 text-white shadow-lg shadow-sky-600/20'       },
                         ].map((s) => (
-                          <button 
+                          <button
                             key={s.key}
                             onClick={() => setAttendance({...attendance, [stu.id]: s.key})}
                             className={cn(
-                              "flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-tight transition-all duration-300 group",
-                              currentStatus === s.key 
+                              "flex-1 min-w-[60px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-tight transition-all duration-200 group",
+                              currentStatus === s.key
                                 ? s.activeClass
                                 : "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
                             )}
                           >
-                            <s.icon className={cn("w-4 h-4", currentStatus === s.key ? "text-white" : "text-slate-300 group-hover:text-slate-400")} />
-                            {s.label}
+                            <s.icon className={cn("w-3.5 h-3.5", currentStatus === s.key ? "text-white" : "text-slate-300 group-hover:text-slate-400")} />
+                            <span className="hidden sm:inline">{s.label}</span>
                           </button>
                         ))}
                       </div>

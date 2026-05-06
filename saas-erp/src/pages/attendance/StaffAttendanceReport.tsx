@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { exportToExcel } from '../../lib/exportUtils';
 import { PageHeader, Card, Btn, Badge, Select, Input, EmptyState } from '../../components/ui';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 
 export default function StaffAttendanceReport() {

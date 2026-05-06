@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Upload, AlertCircle, CheckCircle, ArrowRight, Save, FileSpreadsheet, TrendingDown, ChevronLeft } from 'lucide-react';
 import Papa from 'papaparse';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 
 export default function BulkExpenseImport() {
   const { userRole } = useAuth();
