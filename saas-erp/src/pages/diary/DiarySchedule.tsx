@@ -1,254 +1,236 @@
 /**
  * DiarySchedule.tsx
- * Admin page — build the weekly homework diary schedule per class.
- * Teachers see only the scheduled subjects on each day in TeacherDiary.
+ * Admin page — build the weekly homework diary schedule for ALL classes at once.
+ * Day tabs across the top; under each day every class shows its subjects as checkboxes.
+ * Teachers only see the checked subjects on that day when filling in the diary.
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
-  CalendarDays, Save, Trash2, Plus, Copy, Printer,
-  CheckCircle2, AlertTriangle, RefreshCw, BookOpen, ChevronRight,
+  CalendarDays, Save, CheckCircle2, RefreshCw, BookOpen,
+  AlertTriangle, Copy, ChevronRight, Printer, Info,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const MAX_SLOTS = 6;
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
+type Day = typeof DAYS[number];
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface DaySlots {
-  [day: string]: string[]; // subject_ids ordered by slot_order
-}
+// Key format: `classId__day__subjectId`
+const makeKey = (classId: string, day: string, subjectId: string) =>
+  `${classId}__${day}__${subjectId}`;
 
 export default function DiarySchedule() {
   const { userRole } = useAuth();
   const sid = userRole?.school_id;
 
-  const [classes,    setClasses]    = useState<any[]>([]);
-  const [subjects,   setSubjects]   = useState<any[]>([]);
-  const [teachers,   setTeachers]   = useState<any[]>([]);
-  const [schoolInfo, setSchoolInfo] = useState<any>(null);
+  const [classes,       setClasses]       = useState<any[]>([]);
+  const [subsByClass,   setSubsByClass]   = useState<Record<string, any[]>>({});
+  const [enabled,       setEnabled]       = useState<Record<string, boolean>>({});
+  const [original,      setOriginal]      = useState<Record<string, boolean>>({});
+  const [schoolInfo,    setSchoolInfo]    = useState<any>(null);
+  const [activeDay,     setActiveDay]     = useState<Day>('Monday');
+  const [loading,       setLoading]       = useState(true);
+  const [saving,        setSaving]        = useState(false);
+  const [saved,         setSaved]         = useState(false);
 
-  const [selectedClass,  setSelectedClass]  = useState('');
-  const [schedule,       setSchedule]       = useState<DaySlots>({});
-  const [loading,        setLoading]        = useState(false);
-  const [saving,         setSaving]         = useState(false);
-  const [saved,          setSaved]          = useState(false);
-
-  // Copy-to modal
+  // Copy-day modal
   const [showCopy,     setShowCopy]     = useState(false);
-  const [copyTargets,  setCopyTargets]  = useState<Set<string>>(new Set());
+  const [copyTargets,  setCopyTargets]  = useState<Set<Day>>(new Set());
   const [copying,      setCopying]      = useState(false);
 
-  // ─── Fetch master data ───────────────────────────────────────────────────
-  useEffect(() => {
+  // ─── Load everything once ─────────────────────────────────────────────────
+  const loadAll = useCallback(async () => {
     if (!sid) return;
-    Promise.all([
-      supabase.from('classes').select('id,name,section').eq('school_id', sid).order('name').order('section'),
-      supabase.from('schools').select('name,logo_url,address,contact_phone').eq('id', sid).maybeSingle(),
-      supabase.from('staff').select('id,full_name').eq('school_id', sid).eq('is_active', true).order('full_name'),
-    ]).then(([{ data: cls }, { data: sch }, { data: tchr }]) => {
-      if (cls) setClasses(cls);
-      if (sch) setSchoolInfo(sch);
-      if (tchr) setTeachers(tchr);
-    });
+    setLoading(true);
+    try {
+      const [
+        { data: cls },
+        { data: school },
+      ] = await Promise.all([
+        supabase.from('classes').select('id,name,section').eq('school_id', sid).order('name').order('section'),
+        supabase.from('schools').select('name,logo_url,address,contact_phone').eq('id', sid).maybeSingle(),
+      ]);
+
+      const classList = cls || [];
+      setClasses(classList);
+      if (school) setSchoolInfo(school);
+
+      if (classList.length === 0) { setLoading(false); return; }
+
+      const classIds = classList.map((c: any) => c.id);
+
+      const [{ data: subs }, { data: existing }] = await Promise.all([
+        supabase.from('subjects').select('id,subject_name,class_id').in('class_id', classIds).order('subject_name'),
+        supabase.from('diary_schedule').select('class_id,day_of_week,subject_id').eq('school_id', sid),
+      ]);
+
+      // Group subjects by class
+      const grouped: Record<string, any[]> = {};
+      (subs || []).forEach((s: any) => {
+        if (!grouped[s.class_id]) grouped[s.class_id] = [];
+        grouped[s.class_id].push(s);
+      });
+      setSubsByClass(grouped);
+
+      // Build enabled map
+      const map: Record<string, boolean> = {};
+      (existing || []).forEach((r: any) => {
+        map[makeKey(r.class_id, r.day_of_week, r.subject_id)] = true;
+      });
+      setEnabled(map);
+      setOriginal(map);
+    } finally {
+      setLoading(false);
+    }
   }, [sid]);
 
-  // ─── Fetch subjects for selected class ───────────────────────────────────
-  useEffect(() => {
-    if (!selectedClass || !sid) { setSubjects([]); setSchedule({}); return; }
-    setLoading(true);
-    Promise.all([
-      supabase.from('subjects').select('id,subject_name').eq('class_id', selectedClass).order('subject_name'),
-      supabase.from('diary_schedule').select('day_of_week,subject_id,slot_order')
-        .eq('class_id', selectedClass).eq('school_id', sid).order('slot_order'),
-    ]).then(([{ data: subs }, { data: existing }]) => {
-      if (subs) setSubjects(subs);
+  useEffect(() => { loadAll(); }, [loadAll]);
 
-      // Build local schedule map from DB rows
-      const map: DaySlots = {};
-      DAYS.forEach(d => { map[d] = []; });
-      (existing || []).forEach((r: any) => {
-        if (!map[r.day_of_week]) map[r.day_of_week] = [];
-        map[r.day_of_week][r.slot_order - 1] = r.subject_id;
-      });
-      // Clean up undefined holes
-      DAYS.forEach(d => { map[d] = (map[d] || []).filter(Boolean); });
-      setSchedule(map);
-      setLoading(false);
-    });
-  }, [selectedClass, sid]);
-
-  // ─── Slot helpers ─────────────────────────────────────────────────────────
-  const addSlot = (day: string) => {
-    if ((schedule[day] || []).length >= MAX_SLOTS) return;
-    setSchedule(prev => ({ ...prev, [day]: [...(prev[day] || []), ''] }));
+  // ─── Toggle a single subject checkbox ────────────────────────────────────
+  const toggle = (classId: string, day: string, subjectId: string) => {
+    const key = makeKey(classId, day, subjectId);
+    setEnabled(prev => ({ ...prev, [key]: !prev[key] }));
     setSaved(false);
   };
 
-  const removeSlot = (day: string, idx: number) => {
-    setSchedule(prev => {
-      const slots = [...(prev[day] || [])];
-      slots.splice(idx, 1);
-      return { ...prev, [day]: slots };
+  // ─── Select all / Clear all for a class on a day ─────────────────────────
+  const setClassDay = (classId: string, day: string, value: boolean) => {
+    const subs = subsByClass[classId] || [];
+    setEnabled(prev => {
+      const next = { ...prev };
+      subs.forEach((s: any) => { next[makeKey(classId, day, s.id)] = value; });
+      return next;
     });
     setSaved(false);
   };
 
-  const setSlot = (day: string, idx: number, subjectId: string) => {
-    setSchedule(prev => {
-      const slots = [...(prev[day] || [])];
-      slots[idx] = subjectId;
-      return { ...prev, [day]: slots };
-    });
-    setSaved(false);
-  };
-
-  // ─── Save ─────────────────────────────────────────────────────────────────
-  const handleSave = async (targetClassId?: string) => {
-    const classId = targetClassId || selectedClass;
-    if (!classId || !sid) return;
-    setSaving(true);
-    try {
-      // Delete existing rows for this class
-      await supabase.from('diary_schedule').delete()
-        .eq('class_id', classId).eq('school_id', sid);
-
-      // Build insert rows
-      const inserts: any[] = [];
-      DAYS.forEach(day => {
-        (schedule[day] || []).forEach((subId, idx) => {
-          if (subId) inserts.push({
-            school_id:  sid,
-            class_id:   classId,
-            day_of_week: day,
-            subject_id: subId,
-            slot_order: idx + 1,
+  // ─── Copy current day's selections to other days ─────────────────────────
+  const handleCopyDay = () => {
+    if (copyTargets.size === 0) return;
+    setCopying(true);
+    setEnabled(prev => {
+      const next = { ...prev };
+      classes.forEach(cls => {
+        const subs = subsByClass[cls.id] || [];
+        subs.forEach((s: any) => {
+          const srcKey = makeKey(cls.id, activeDay, s.id);
+          copyTargets.forEach(targetDay => {
+            next[makeKey(cls.id, targetDay, s.id)] = !!next[srcKey];
           });
         });
+      });
+      return next;
+    });
+    setSaved(false);
+    setCopying(false);
+    setShowCopy(false);
+    setCopyTargets(new Set());
+  };
+
+  // ─── Save all to DB ────────────────────────────────────────────────────────
+  const handleSave = async () => {
+    if (!sid) return;
+    setSaving(true);
+    try {
+      // Delete all existing schedule for this school
+      await supabase.from('diary_schedule').delete().eq('school_id', sid);
+
+      // Build insert rows from enabled keys
+      const inserts: any[] = [];
+      Object.entries(enabled).forEach(([key, val]) => {
+        if (!val) return;
+        const [classId, day, subjectId] = key.split('__');
+        // slot_order: index of subject in class subject list
+        const subs = subsByClass[classId] || [];
+        const slotOrder = subs.findIndex((s: any) => s.id === subjectId) + 1;
+        inserts.push({ school_id: sid, class_id: classId, day_of_week: day, subject_id: subjectId, slot_order: slotOrder || 1 });
       });
 
       if (inserts.length > 0) {
         const { error } = await supabase.from('diary_schedule').insert(inserts);
         if (error) throw error;
       }
+
+      setOriginal({ ...enabled });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err: any) { alert(err.message); }
     setSaving(false);
   };
 
-  // ─── Copy to other classes ────────────────────────────────────────────────
-  const handleCopy = async () => {
-    if (copyTargets.size === 0) return;
-    setCopying(true);
-    for (const cid of copyTargets) {
-      await handleSave(cid);
-    }
-    setCopying(false);
-    setCopyTargets(new Set());
-    setShowCopy(false);
-  };
+  // ─── Count helpers ────────────────────────────────────────────────────────
+  const countForDay = (day: string) =>
+    Object.entries(enabled).filter(([k, v]) => v && k.split('__')[1] === day).length;
 
-  // ─── Subject name helper ──────────────────────────────────────────────────
-  const subjectName = (id: string) =>
-    subjects.find(s => s.id === id)?.subject_name || '—';
+  const countForClassDay = (classId: string, day: string) =>
+    (subsByClass[classId] || []).filter((s: any) => enabled[makeKey(classId, day, s.id)]).length;
 
-  // ─── Subject coverage counts ──────────────────────────────────────────────
-  const coverageCounts = useCallback(() => {
-    const counts: Record<string, number> = {};
-    DAYS.forEach(d => {
-      (schedule[d] || []).forEach(id => {
-        if (id) counts[id] = (counts[id] || 0) + 1;
-      });
-    });
-    return counts;
-  }, [schedule]);
+  const hasChanges = Object.keys({ ...enabled, ...original }).some(
+    k => !!enabled[k] !== !!original[k]
+  );
 
-  // ─── PDF Print ────────────────────────────────────────────────────────────
+  // ─── PDF print (all days, all classes) ────────────────────────────────────
   const handlePrint = () => {
-    if (!selectedClass) return;
-    const cls = classes.find(c => c.id === selectedClass);
-    const clsName = cls ? `${cls.name}${cls.section ? ' ' + cls.section : ''}` : 'Class';
-    const counts = coverageCounts();
-
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     const pageW = doc.internal.pageSize.getWidth();
-
-    // ── Header ──
     let y = 14;
-    if (schoolInfo?.logo_url) {
-      try {
-        doc.addImage(schoolInfo.logo_url, 'JPEG', 14, y, 22, 22);
-      } catch (_) { /* skip if image fails */ }
-    }
-    doc.setFontSize(16).setFont('helvetica', 'bold').setTextColor(26, 54, 93);
-    doc.text((schoolInfo?.name || 'School').toUpperCase(), pageW / 2, y + 6, { align: 'center' });
-    doc.setFontSize(10).setFont('helvetica', 'italic').setTextColor(100, 100, 100);
-    doc.text('Weekly Homework Diary Schedule', pageW / 2, y + 13, { align: 'center' });
-    doc.setDrawColor(26, 54, 93);
-    doc.setLineWidth(0.5);
-    doc.line(14, y + 18, pageW - 14, y + 18);
-    y += 26;
 
-    // ── Class title ──
-    doc.setFillColor(26, 54, 93);
-    doc.roundedRect(14, y, pageW - 28, 10, 2, 2, 'F');
-    doc.setFontSize(12).setFont('helvetica', 'bold').setTextColor(255, 255, 255);
-    doc.text(`${clsName} — Weekly Diary Schedule`, pageW / 2, y + 7, { align: 'center' });
+    // Header
+    doc.setFontSize(16).setFont('helvetica', 'bold').setTextColor(26, 54, 93);
+    doc.text((schoolInfo?.name || 'School').toUpperCase(), pageW / 2, y, { align: 'center' });
+    doc.setFontSize(10).setFont('helvetica', 'italic').setTextColor(100, 100, 100);
+    doc.text('Weekly Homework Diary Schedule — All Classes', pageW / 2, y + 7, { align: 'center' });
+    doc.setDrawColor(26, 54, 93).setLineWidth(0.4).line(14, y + 11, pageW - 14, y + 11);
     y += 16;
 
-    // ── Find max columns ──
-    const maxCols = Math.max(...DAYS.map(d => (schedule[d] || []).filter(Boolean).length), 1);
-    const hwHeaders = Array.from({ length: maxCols }, (_, i) => `HW ${i + 1}`);
+    // Table: rows = classes, columns = days, cells = checked subjects
+    const classesWithSubs = classes.filter(c => (subsByClass[c.id] || []).length > 0);
 
-    const tableBody = DAYS.map(day => {
-      const slots = (schedule[day] || []).filter(Boolean);
-      const row: any[] = [{ content: day, styles: { fontStyle: 'bold', fillColor: [240, 244, 255], textColor: [26, 54, 93] } }];
-      for (let i = 0; i < maxCols; i++) {
-        row.push(slots[i] ? subjectName(slots[i]) : '');
-      }
-      return row;
+    const head = [['Class', ...DAYS]];
+    const body = classesWithSubs.map(cls => {
+      const clsName = `${cls.name}${cls.section ? ' ' + cls.section : ''}`;
+      const subs = subsByClass[cls.id] || [];
+      const dayCells = DAYS.map(day => {
+        const checked = subs.filter((s: any) => enabled[makeKey(cls.id, day, s.id)]);
+        return checked.length > 0 ? checked.map((s: any) => s.subject_name).join('\n') : '—';
+      });
+      return [clsName, ...dayCells];
     });
 
     autoTable(doc, {
       startY: y,
-      head: [['Day', ...hwHeaders]],
-      body: tableBody,
+      head,
+      body,
       theme: 'grid',
-      headStyles: { fillColor: [26, 54, 93], textColor: 255, fontStyle: 'bold', fontSize: 10 },
-      styles: { fontSize: 10, cellPadding: 3, valign: 'middle' },
-      columnStyles: { 0: { cellWidth: 28, fontStyle: 'bold' } },
+      headStyles: { fillColor: [26, 54, 93], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+      styles: { fontSize: 8, cellPadding: 2, valign: 'top' },
+      columnStyles: { 0: { cellWidth: 28, fontStyle: 'bold', fillColor: [240, 244, 255], textColor: [26, 54, 93] } },
     });
 
-    // ── Coverage summary ──
-    const coverageY = (doc as any).lastAutoTable.finalY + 6;
-    const entries = Object.entries(counts).filter(([id]) => id);
-    if (entries.length > 0) {
-      const summaryText = entries
-        .sort((a, b) => (b[1] as number) - (a[1] as number))
-        .map(([id, n]) => `${subjectName(id)} ×${n}`)
-        .join(' · ');
-      doc.setFontSize(8).setFont('helvetica', 'italic').setTextColor(120, 120, 120);
-      doc.text(`Subject Coverage: ${summaryText}`, 14, coverageY);
-    }
-
-    // ── Footer motto ──
-    const mottoY = doc.internal.pageSize.getHeight() - 12;
-    doc.setFontSize(10).setFont('helvetica', 'bold').setTextColor(26, 54, 93);
+    const mottoY = doc.internal.pageSize.getHeight() - 8;
+    doc.setFontSize(9).setFont('helvetica', 'bold').setTextColor(26, 54, 93);
     doc.text('LEARN. LEAD. ACHIEVE.', pageW / 2, mottoY, { align: 'center' });
 
-    doc.save(`diary-schedule-${clsName.replace(/\s+/g, '-')}.pdf`);
+    doc.save(`diary-schedule-all-classes.pdf`);
   };
 
-  // ─── Totals ───────────────────────────────────────────────────────────────
-  const totalSlots = DAYS.reduce((acc, d) => acc + (schedule[d] || []).filter(Boolean).length, 0);
-  const cls = classes.find(c => c.id === selectedClass);
+  // ─── Render ───────────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <RefreshCw className="w-6 h-6 text-indigo-400 animate-spin" />
+      </div>
+    );
+  }
+
+  const classesWithSubs = classes.filter(c => (subsByClass[c.id] || []).length > 0);
+  const classesWithoutSubs = classes.filter(c => !(subsByClass[c.id] || []).length);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-5">
 
       {/* ── Page Header ─────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -258,222 +240,237 @@ export default function DiarySchedule() {
             Diary Schedule
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Define which subjects are assigned for homework on each day of the week per class.
-            Teachers will only see scheduled subjects when filling in the diary.
+            Tick which subjects get homework each day. Teachers only see ticked subjects when filling the diary.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {selectedClass && (
-            <>
-              <button
-                onClick={() => { setShowCopy(true); setCopyTargets(new Set()); }}
-                className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 transition"
-              >
-                <Copy className="w-4 h-4" /> Copy to Classes
-              </button>
-              <button
-                onClick={handlePrint}
-                className="flex items-center gap-2 px-4 py-2 border border-indigo-200 bg-indigo-50 text-indigo-700 rounded-xl text-sm font-bold hover:bg-indigo-100 transition"
-              >
-                <Printer className="w-4 h-4" /> Print PDF
-              </button>
-              <button
-                onClick={() => handleSave()}
-                disabled={saving}
-                className="flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black shadow transition disabled:opacity-50"
-              >
-                {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : saved ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-                {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Schedule'}
-              </button>
-            </>
-          )}
+          <button
+            onClick={() => { setShowCopy(true); setCopyTargets(new Set()); }}
+            className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 transition"
+          >
+            <Copy className="w-4 h-4" /> Copy {activeDay} →
+          </button>
+          <button
+            onClick={handlePrint}
+            className="flex items-center gap-2 px-4 py-2 border border-indigo-200 bg-indigo-50 text-indigo-700 rounded-xl text-sm font-bold hover:bg-indigo-100 transition"
+          >
+            <Printer className="w-4 h-4" /> Print PDF
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || !hasChanges}
+            className={cn(
+              "flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-black shadow transition disabled:opacity-50",
+              hasChanges ? "bg-indigo-600 hover:bg-indigo-700 text-white" : "bg-slate-100 text-slate-400"
+            )}
+          >
+            {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : saved ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+            {saving ? 'Saving…' : saved ? 'Saved!' : 'Save All'}
+          </button>
         </div>
       </div>
 
-      {/* ── Class Picker ────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Select Class</label>
-            <select
-              value={selectedClass}
-              onChange={e => setSelectedClass(e.target.value)}
-              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-            >
-              <option value="">Choose a class…</option>
-              {classes.map(c => (
-                <option key={c.id} value={c.id}>{c.name}{c.section ? ` — ${c.section}` : ''}</option>
-              ))}
-            </select>
-          </div>
-          {selectedClass && (
-            <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-100 px-4 py-2.5 rounded-xl">
-              <BookOpen className="w-5 h-5 text-indigo-500 shrink-0" />
-              <div>
-                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Schedule Status</p>
-                <p className="text-xs font-black text-indigo-900">
-                  {totalSlots > 0 ? `${totalSlots} homework slots across the week` : 'No schedule yet — add subjects below'}
-                </p>
-              </div>
-            </div>
-          )}
+      {/* ── No classes warning ───────────────────────────────────────────── */}
+      {classes.length === 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+          <p className="text-sm text-amber-700 font-medium">No classes found. Add classes in the Classes module first.</p>
         </div>
-      </div>
+      )}
 
-      {/* ── Schedule Grid ───────────────────────────────────────────────── */}
-      {selectedClass && !loading && (
-        <div className="space-y-3">
-          {subjects.length === 0 ? (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex items-center gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
-              <p className="text-sm text-amber-700 font-medium">
-                No subjects found for this class. <a href="/classes" className="underline font-bold">Add subjects</a> in the Classes module first.
-              </p>
-            </div>
-          ) : (
-            DAYS.map(day => {
-              const slots = schedule[day] || [];
-              const canAdd = slots.length < MAX_SLOTS;
+      {classesWithoutSubs.length > 0 && (
+        <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-2.5 flex items-center gap-2 text-xs text-sky-700 font-medium">
+          <Info className="w-4 h-4 shrink-0 text-sky-400" />
+          {classesWithoutSubs.map(c => `${c.name}${c.section ? ' ' + c.section : ''}`).join(', ')} — no subjects added yet (hidden below)
+        </div>
+      )}
+
+      {/* ── Day Tabs ─────────────────────────────────────────────────────── */}
+      {classesWithSubs.length > 0 && (
+        <>
+          <div className="flex gap-1.5 flex-wrap bg-white border border-slate-200 rounded-2xl p-2 shadow-sm">
+            {DAYS.map(day => {
+              const count = countForDay(day);
               return (
-                <div key={day} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="flex items-center justify-between px-5 py-3 bg-slate-900">
-                    <h3 className="text-sm font-black text-white uppercase tracking-widest">{day}</h3>
-                    <span className="text-[10px] font-bold text-slate-400">
-                      {slots.filter(Boolean).length} homework slot{slots.filter(Boolean).length !== 1 ? 's' : ''}
-                    </span>
+                <button
+                  key={day}
+                  onClick={() => setActiveDay(day)}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black transition-all',
+                    activeDay === day
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100'
+                      : 'text-slate-500 hover:bg-slate-100'
+                  )}
+                >
+                  {day.slice(0, 3)}
+                  <span className={cn(
+                    'text-[10px] px-1.5 py-0.5 rounded-full font-black',
+                    activeDay === day
+                      ? 'bg-indigo-400 text-white'
+                      : count > 0 ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'
+                  )}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* ── Class Cards Grid ───────────────────────────────────────────── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {classesWithSubs.map(cls => {
+              const subs = subsByClass[cls.id] || [];
+              const checkedCount = countForClassDay(cls.id, activeDay);
+              const allChecked = checkedCount === subs.length;
+              const someChecked = checkedCount > 0 && !allChecked;
+
+              return (
+                <div key={cls.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  {/* Card Header */}
+                  <div className={cn(
+                    'px-4 py-3 flex items-center justify-between',
+                    checkedCount > 0 ? 'bg-indigo-600' : 'bg-slate-700'
+                  )}>
+                    <div>
+                      <p className="text-sm font-black text-white">
+                        {cls.name}{cls.section ? ` — ${cls.section}` : ''}
+                      </p>
+                      <p className="text-[10px] text-white/60">
+                        {checkedCount}/{subs.length} subjects on {activeDay.slice(0, 3)}
+                      </p>
+                    </div>
+                    {/* Select All toggle */}
+                    <button
+                      onClick={() => setClassDay(cls.id, activeDay, !allChecked)}
+                      className={cn(
+                        'text-[10px] font-black px-2.5 py-1 rounded-lg transition',
+                        allChecked
+                          ? 'bg-white/20 text-white hover:bg-white/30'
+                          : 'bg-white/10 text-white/70 hover:bg-white/20'
+                      )}
+                      title={allChecked ? 'Clear all' : 'Select all'}
+                    >
+                      {allChecked ? '✓ All' : someChecked ? '− Some' : '+ All'}
+                    </button>
                   </div>
 
-                  <div className="p-4">
-                    {slots.length === 0 ? (
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-slate-300 italic">No homework scheduled — click + to add</p>
-                        <button
-                          onClick={() => addSlot(day)}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-100 transition"
+                  {/* Subject Checkboxes */}
+                  <div className="p-3 space-y-1">
+                    {subs.map((sub: any) => {
+                      const key = makeKey(cls.id, activeDay, sub.id);
+                      const checked = !!enabled[key];
+                      return (
+                        <label
+                          key={sub.id}
+                          className={cn(
+                            'flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition select-none',
+                            checked
+                              ? 'bg-indigo-50 border border-indigo-100'
+                              : 'hover:bg-slate-50 border border-transparent'
+                          )}
                         >
-                          <Plus className="w-3.5 h-3.5" /> Add Slot
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex flex-wrap items-center gap-3">
-                        {slots.map((subId, idx) => (
-                          <div key={idx} className="flex items-center gap-1.5">
-                            <span className="flex items-center justify-center w-6 h-6 bg-indigo-100 text-indigo-700 text-[10px] font-black rounded-full shrink-0">
-                              {idx + 1}
-                            </span>
-                            <select
-                              value={subId}
-                              onChange={e => setSlot(day, idx, e.target.value)}
-                              className={cn(
-                                'px-3 py-2 text-sm font-bold border rounded-xl outline-none focus:ring-2 focus:ring-indigo-400 transition min-w-[140px]',
-                                subId ? 'bg-white border-slate-200 text-slate-800' : 'bg-amber-50 border-amber-200 text-amber-700'
-                              )}
-                            >
-                              <option value="">Choose subject…</option>
-                              {subjects.map(s => (
-                                <option key={s.id} value={s.id}>{s.subject_name}</option>
-                              ))}
-                            </select>
-                            {idx > 0 && (
-                              <button
-                                onClick={() => removeSlot(day, idx)}
-                                className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                          {/* Custom checkbox */}
+                          <span
+                            className={cn(
+                              'w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors',
+                              checked
+                                ? 'bg-indigo-600 border-indigo-600'
+                                : 'border-slate-300 bg-white'
                             )}
-                            {idx === slots.length - 1 && canAdd && (
-                              <button
-                                onClick={() => addSlot(day)}
-                                className="flex items-center gap-1 px-2.5 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-100 transition"
-                              >
-                                <Plus className="w-3 h-3" />
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                        {slots.length > 0 && (
-                          <button
-                            onClick={() => removeSlot(day, slots.length - 1)}
-                            className="ml-auto flex items-center gap-1 px-3 py-1.5 bg-rose-50 text-rose-500 rounded-lg text-xs font-bold hover:bg-rose-100 transition"
+                            onClick={() => toggle(cls.id, activeDay, sub.id)}
                           >
-                            <Trash2 className="w-3 h-3" /> Remove Last
-                          </button>
-                        )}
-                      </div>
-                    )}
+                            {checked && (
+                              <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </span>
+                          <span
+                            className={cn(
+                              'text-sm font-bold flex-1',
+                              checked ? 'text-indigo-800' : 'text-slate-600'
+                            )}
+                            onClick={() => toggle(cls.id, activeDay, sub.id)}
+                          >
+                            {sub.subject_name}
+                          </span>
+                          {checked && (
+                            <BookOpen className="w-3 h-3 text-indigo-400 shrink-0" />
+                          )}
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
               );
-            })
-          )}
+            })}
+          </div>
 
-          {/* ── Subject Coverage Summary ──────────────────────────────── */}
-          {totalSlots > 0 && (
-            <div className="bg-slate-50 rounded-2xl border border-slate-200 p-5">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Subject Coverage This Week</p>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(coverageCounts())
-                  .sort((a, b) => (b[1] as number) - (a[1] as number))
-                  .map(([id, count]) => (
-                    <span key={id} className="flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-full text-xs font-bold text-slate-700 shadow-sm">
-                      <BookOpen className="w-3 h-3 text-indigo-400" />
-                      {subjectName(id)}
-                      <span className="bg-indigo-100 text-indigo-700 text-[9px] font-black px-1.5 py-0.5 rounded-full">×{count}</span>
-                    </span>
-                  ))}
-              </div>
+          {/* ── Weekly summary strip ──────────────────────────────────────── */}
+          <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Weekly Overview — total homework subjects per day</p>
             </div>
-          )}
-        </div>
+            <div className="grid grid-cols-3 sm:grid-cols-6 divide-x divide-slate-100">
+              {DAYS.map(day => (
+                <button
+                  key={day}
+                  onClick={() => setActiveDay(day)}
+                  className={cn(
+                    'py-3 text-center transition',
+                    activeDay === day ? 'bg-indigo-50' : 'hover:bg-slate-50'
+                  )}
+                >
+                  <p className={cn('text-[10px] font-black uppercase tracking-widest', activeDay === day ? 'text-indigo-600' : 'text-slate-400')}>{day.slice(0, 3)}</p>
+                  <p className={cn('text-xl font-black mt-0.5', activeDay === day ? 'text-indigo-700' : countForDay(day) > 0 ? 'text-slate-700' : 'text-slate-200')}>
+                    {countForDay(day)}
+                  </p>
+                  <p className="text-[9px] text-slate-300 font-medium">subjects</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
       )}
 
-      {loading && (
-        <div className="flex items-center justify-center py-16">
-          <RefreshCw className="w-6 h-6 text-indigo-400 animate-spin" />
-        </div>
-      )}
-
-      {!selectedClass && (
-        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm">
-          <CalendarDays className="w-16 h-16 text-slate-100 mb-4" />
-          <p className="text-slate-300 font-bold">Select a class to manage its diary schedule</p>
-        </div>
-      )}
-
-      {/* ── Copy-to Modal ────────────────────────────────────────────────── */}
+      {/* ── Copy Day Modal ───────────────────────────────────────────────── */}
       {showCopy && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-            <h3 className="font-black text-slate-900 mb-1">Copy Schedule</h3>
+            <h3 className="font-black text-slate-900 mb-1">Copy {activeDay}'s Schedule</h3>
             <p className="text-xs text-slate-500 mb-4">
-              Apply <strong>{cls?.name} {cls?.section}</strong>'s schedule to:
+              Copy all class selections from <strong>{activeDay}</strong> to:
             </p>
-            <div className="space-y-1 max-h-64 overflow-y-auto mb-4">
-              {classes.filter(c => c.id !== selectedClass).map(c => (
-                <label key={c.id} className={cn(
+            <div className="space-y-1 mb-4">
+              {DAYS.filter(d => d !== activeDay).map(day => (
+                <label key={day} className={cn(
                   'flex items-center gap-3 p-2.5 rounded-xl cursor-pointer border transition',
-                  copyTargets.has(c.id)
+                  copyTargets.has(day)
                     ? 'bg-indigo-50 border-indigo-200 text-indigo-800'
                     : 'bg-white border-transparent text-slate-700 hover:bg-slate-50'
                 )}>
                   <input
                     type="checkbox"
                     className="sr-only"
-                    checked={copyTargets.has(c.id)}
+                    checked={copyTargets.has(day)}
                     onChange={() => {
                       const s = new Set(copyTargets);
-                      s.has(c.id) ? s.delete(c.id) : s.add(c.id);
+                      s.has(day) ? s.delete(day) : s.add(day);
                       setCopyTargets(s);
                     }}
                   />
                   <div className={cn(
-                    'w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0',
-                    copyTargets.has(c.id) ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'
+                    'w-4 h-4 rounded border-2 flex items-center justify-center shrink-0',
+                    copyTargets.has(day) ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'
                   )}>
-                    {copyTargets.has(c.id) && <CheckCircle2 className="w-3 h-3 text-white" />}
+                    {copyTargets.has(day) && (
+                      <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
                   </div>
-                  <span className="text-sm font-bold">{c.name} {c.section}</span>
+                  <span className="text-sm font-bold">{day}</span>
+                  <span className="ml-auto text-[10px] text-slate-400 font-medium">{countForDay(day)} subjects</span>
                 </label>
               ))}
             </div>
@@ -485,12 +482,12 @@ export default function DiarySchedule() {
                 Cancel
               </button>
               <button
-                onClick={handleCopy}
-                disabled={copying || copyTargets.size === 0}
+                onClick={handleCopyDay}
+                disabled={copyTargets.size === 0 || copying}
                 className="flex-[2] flex items-center justify-center gap-2 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-black hover:bg-indigo-700 transition disabled:opacity-50 shadow-lg shadow-indigo-100"
               >
-                {copying ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
-                Copy to {copyTargets.size} class{copyTargets.size !== 1 ? 'es' : ''}
+                <ChevronRight className="w-4 h-4" />
+                Copy to {copyTargets.size} day{copyTargets.size !== 1 ? 's' : ''}
               </button>
             </div>
           </div>

@@ -2,12 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
-  FileText, 
-  Users, 
-  ArrowDownCircle, 
-  ArrowUpCircle, 
-  Wallet, 
-  Calendar, 
+  FileText,
+  Users,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  Wallet,
+  Calendar,
   Download,
   Search,
   ChevronRight,
@@ -19,7 +19,8 @@ import {
   List,
   TrendingUp,
   Activity,
-  CreditCard
+  CreditCard,
+  Trash2,
 } from 'lucide-react';
 import { exportToCSV } from '../../lib/exportUtils';
 import { formatDate, formatDateTime, cn, getBase64Image } from '../../lib/utils';
@@ -129,6 +130,14 @@ export default function MasterSummaryReport() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const handleDeleteTx = async (row: any) => {
+    const label = row.category || row.description || 'transaction';
+    if (!window.confirm(`Delete this ${row.type} entry?\n"${label}" — Rs. ${Number(row.amount).toLocaleString()}\n\nThis cannot be undone.`)) return;
+    const { error } = await supabase.from('financial_transactions').delete().eq('id', row.id);
+    if (error) { alert(error.message); return; }
+    fetchData();
+  };
 
   const totalIncome = data.income.reduce((sum, t) => sum + Number(t.amount), 0);
   const totalExpenses = data.expenses.reduce((sum, t) => sum + Number(t.amount), 0);
@@ -304,6 +313,166 @@ export default function MasterSummaryReport() {
       renderSection('New Enrollments', data.admissions, false);
     }
 
+    // ── Period Closing Calculation ────────────────────────────────────────
+    // Ensure we have room; add new page if needed
+    if (currentY > doc.internal.pageSize.height - 80) {
+      doc.addPage();
+      currentY = 14;
+    } else {
+      currentY += 6;
+    }
+
+    // Section header bar
+    doc.setFillColor(15, 23, 42); // slate-900
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.rect(margin, currentY, pageWidth - margin * 2, 8, 'F');
+    doc.text('  PERIOD CLOSING CALCULATION', margin + 2, currentY + 5.5);
+    doc.setTextColor(0, 0, 0);
+    currentY += 11;
+
+    const halfW = (pageWidth - margin * 2) / 2 - 3;
+    const leftX  = margin;
+    const rightX = margin + halfW + 6;
+
+    // Draw left panel background
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(leftX, currentY, halfW, 72, 2, 2, 'FD');
+
+    // Draw right panel background
+    doc.roundedRect(rightX, currentY, halfW, 72, 2, 2, 'FD');
+
+    // ── Left: Financial Summary ───────────────────────────────────────────
+    let ly = currentY + 6;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(100, 116, 139); // slate-500
+    doc.text('FINANCIAL SUMMARY — SELECTED PERIOD', leftX + 4, ly);
+    ly += 6;
+
+    // Row helper
+    const drawRow = (label: string, value: string, color: [number,number,number], bold = false) => {
+      doc.setFont('helvetica', bold ? 'bold' : 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+      doc.text(label, leftX + 4, ly);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...color);
+      doc.text(value, leftX + halfW - 4, ly, { align: 'right' });
+      doc.setTextColor(0, 0, 0);
+      ly += 6;
+    };
+
+    drawRow('Total Income', `Rs. ${totalIncome.toLocaleString()}`, [16, 163, 70]);
+    drawRow('Total Expenses', `Rs. ${totalExpenses.toLocaleString()}`, [220, 38, 38]);
+
+    // Net cashflow highlight
+    doc.setFillColor(netCashflow >= 0 ? 240 : 255, netCashflow >= 0 ? 253 : 241, netCashflow >= 0 ? 244 : 242);
+    doc.rect(leftX + 3, ly - 4, halfW - 6, 8, 'F');
+    drawRow('Net Cashflow', `Rs. ${netCashflow.toLocaleString()}`, netCashflow >= 0 ? [16,163,70] : [220,38,38], true);
+    ly += 2;
+
+    // Dashed divider
+    doc.setDrawColor(148, 163, 184);
+    (doc as any).setLineDash([1.5, 1.5]);
+    doc.line(leftX + 4, ly, leftX + halfW - 4, ly);
+    (doc as any).setLineDash([]);
+    ly += 5;
+
+    // MTD subsection
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(14, 165, 233); // sky-500
+    doc.text(`MONTH-TO-DATE  ${mtdLabel}`, leftX + 4, ly);
+    ly += 5;
+
+    const drawMtdRow = (label: string, value: string, color: [number,number,number]) => {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text(label, leftX + 4, ly);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...color);
+      doc.text(value, leftX + halfW - 4, ly, { align: 'right' });
+      doc.setTextColor(0, 0, 0);
+      ly += 5.5;
+    };
+
+    const mtdNet = mtdIncome - mtdExpenses;
+    drawMtdRow('Income (MTD)',   `Rs. ${mtdIncome.toLocaleString()}`,    [16, 163, 70]);
+    drawMtdRow('Expenses (MTD)', `Rs. ${mtdExpenses.toLocaleString()}`,  [220, 38, 38]);
+    doc.setFillColor(239, 246, 255);
+    doc.rect(leftX + 3, ly - 4, halfW - 6, 7, 'F');
+    drawMtdRow('Net (MTD)',      `Rs. ${mtdNet.toLocaleString()}`,        mtdNet >= 0 ? [16,163,70] : [220,38,38]);
+
+    // ── Right: Payment Mode ───────────────────────────────────────────────
+    let ry = currentY + 6;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(100, 116, 139);
+    doc.text('INCOME BY PAYMENT MODE', rightX + 4, ry);
+    ry += 8;
+
+    // Cash card
+    const cashPct = totalIncome > 0 ? Math.round((cashIncome / totalIncome) * 100) : 0;
+    doc.setFillColor(236, 253, 245); // emerald-50
+    doc.setDrawColor(167, 243, 208); // emerald-200
+    doc.roundedRect(rightX + 3, ry, halfW - 6, 24, 2, 2, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(4, 120, 87); // emerald-700
+    doc.text('CASH IN HAND', rightX + 7, ry + 6);
+    doc.setFontSize(7);
+    doc.setTextColor(16, 185, 129); // emerald-500
+    doc.text('→ Accountant', rightX + 7, ry + 11);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(4, 120, 87);
+    doc.text(`Rs. ${cashIncome.toLocaleString()}`, rightX + halfW - 7, ry + 9, { align: 'right' });
+    // Progress bar track
+    doc.setFillColor(167, 243, 208);
+    doc.roundedRect(rightX + 7, ry + 15, halfW - 18, 2.5, 1, 1, 'F');
+    // Progress fill
+    if (cashPct > 0) {
+      doc.setFillColor(16, 185, 129);
+      doc.roundedRect(rightX + 7, ry + 15, Math.max((halfW - 18) * cashPct / 100, 1), 2.5, 1, 1, 'F');
+    }
+    doc.setFontSize(6.5);
+    doc.setTextColor(16, 185, 129);
+    doc.text(`${cashPct}% of total income`, rightX + halfW - 7, ry + 21.5, { align: 'right' });
+    ry += 28;
+
+    // Online / Bank card
+    const onlinePct = totalIncome > 0 ? Math.round((onlineIncome / totalIncome) * 100) : 0;
+    doc.setFillColor(238, 242, 255); // indigo-50
+    doc.setDrawColor(199, 210, 254); // indigo-200
+    doc.roundedRect(rightX + 3, ry, halfW - 6, 24, 2, 2, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(67, 56, 202); // indigo-700
+    doc.text('ONLINE / BANK', rightX + 7, ry + 6);
+    doc.setFontSize(7);
+    doc.setTextColor(99, 102, 241); // indigo-500
+    doc.text('→ Director', rightX + 7, ry + 11);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(67, 56, 202);
+    doc.text(`Rs. ${onlineIncome.toLocaleString()}`, rightX + halfW - 7, ry + 9, { align: 'right' });
+    // Progress bar track
+    doc.setFillColor(199, 210, 254);
+    doc.roundedRect(rightX + 7, ry + 15, halfW - 18, 2.5, 1, 1, 'F');
+    // Progress fill
+    if (onlinePct > 0) {
+      doc.setFillColor(99, 102, 241);
+      doc.roundedRect(rightX + 7, ry + 15, Math.max((halfW - 18) * onlinePct / 100, 1), 2.5, 1, 1, 'F');
+    }
+    doc.setFontSize(6.5);
+    doc.setTextColor(99, 102, 241);
+    doc.text(`${onlinePct}% of total income`, rightX + halfW - 7, ry + 21.5, { align: 'right' });
+
+    doc.setTextColor(0, 0, 0);
     doc.save(`Executive_Summary_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
@@ -325,8 +494,17 @@ export default function MasterSummaryReport() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 space-y-3">
+      <style>{`
+        @media print {
+          body * { visibility: hidden !important; }
+          #master-summary-print, #master-summary-print * { visibility: visible !important; }
+          #master-summary-print { position: absolute; top: 0; left: 0; width: 100%; }
+          .no-print { display: none !important; }
+          @page { size: A4 portrait; margin: 10mm; }
+        }
+      `}</style>
       {/* Control Bar */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
+      <div className="no-print flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
         <div className="flex items-center gap-3 shrink-0">
           <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-100">
             <BarChart3 className="w-5 h-5" />
@@ -373,7 +551,7 @@ export default function MasterSummaryReport() {
 
       {/* Custom Date Range (Conditional) */}
       {dateType === 'custom' && (
-        <Card className="p-2 border-slate-100 animate-in fade-in slide-in-from-top-2">
+        <Card className="no-print p-2 border-slate-100 animate-in fade-in slide-in-from-top-2">
            <div className="flex flex-wrap items-center gap-3 px-2">
               <Calendar className="w-4 h-4 text-indigo-500 shrink-0" />
               <div className="flex items-center gap-2">
@@ -397,6 +575,9 @@ export default function MasterSummaryReport() {
            </div>
         </Card>
       )}
+
+      {/* ── Printable content starts here ── */}
+      <div id="master-summary-print" className="space-y-3">
 
       {/* KPI Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -529,6 +710,7 @@ export default function MasterSummaryReport() {
                              <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Remarks</th>
                              <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Mode</th>
                              <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
+                             <th className="px-4 py-3 w-10" />
                            </>
                          )}
                       </tr>
@@ -561,6 +743,15 @@ export default function MasterSummaryReport() {
                                  activeTab === 'income' ? "text-emerald-600" : "text-rose-600"
                                )}>
                                  Rs. {Number(row.amount).toLocaleString()}
+                               </td>
+                               <td className="px-2 py-3">
+                                 <button
+                                   onClick={() => handleDeleteTx(row)}
+                                   className="p-1.5 text-slate-200 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition opacity-0 group-hover:opacity-100"
+                                   title="Delete entry"
+                                 >
+                                   <Trash2 className="w-3.5 h-3.5" />
+                                 </button>
                                </td>
                              </>
                            )}
@@ -685,6 +876,8 @@ export default function MasterSummaryReport() {
           </div>
         </Card>
       )}
+
+      </div>{/* end #master-summary-print */}
     </div>
   );
 }
