@@ -133,8 +133,9 @@ export const NAV_SECTIONS = [
         icon: CalendarOff,
         roles: ALL_ACADEMIC,
         subItems: [
-          { name: 'Student Leave', path: '/leave/student', icon: GraduationCap                    },
-          { name: 'Staff Leave',   path: '/leave/staff',   icon: Briefcase,    roles: ALL_ADMIN   },
+          { name: 'Student Leave',      path: '/leave/student',  icon: GraduationCap                    },
+          { name: 'Staff Leave',        path: '/leave/staff',    icon: Briefcase,    roles: ALL_ADMIN   },
+          { name: 'Substitute Fixture', path: '/leave/fixture',  icon: Users2,       roles: ALL_ADMIN   },
         ],
       },
       { name: 'Complaints & Feedback', path: '/complaints', icon: AlertTriangle, roles: ['admin', 'teacher', 'staff', 'principal', 'director', 'vice_principal', 'campus_coordinator'] },

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { BookOpen, Calendar, ArrowUpRight, ArrowDownRight, Wallet, Printer } from 'lucide-react';
+import { BookOpen, Calendar, ArrowUpRight, ArrowDownRight, Wallet, Printer, Trash2 } from 'lucide-react';
 import { formatDate } from '../../lib/utils';
 
 export default function Ledger() {
@@ -156,6 +156,13 @@ export default function Ledger() {
     }
   };
 
+  const handleDeleteTx = async (t: any) => {
+    if (!window.confirm(`Delete this ${t.type} entry of Rs. ${t.amount.toLocaleString()}?\n"${t.description}"\n\nThis cannot be undone.`)) return;
+    const { error } = await supabase.from('financial_transactions').delete().eq('id', t.id);
+    if (error) { alert(error.message); return; }
+    fetchLedger();
+  };
+
   const handlePrint = () => window.print();
 
   // Metrics
@@ -260,12 +267,21 @@ export default function Ledger() {
                       <td className="p-4 text-right font-bold text-green-600">{t.type === 'income' ? t.amount.toLocaleString() : '-'}</td>
                       <td className="p-4 text-right font-bold text-red-600">{t.type === 'expense' ? t.amount.toLocaleString() : '-'}</td>
                       <td className="p-4 text-right">
-                        <button 
-                          onClick={() => openEditModal(t)}
-                          className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded border border-indigo-100 transition-colors"
-                        >
-                          Edit
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => openEditModal(t)}
+                            className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded border border-indigo-100 transition-colors"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTx(t)}
+                            className="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                            title="Delete transaction"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
