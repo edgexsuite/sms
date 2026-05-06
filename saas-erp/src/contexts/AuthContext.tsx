@@ -8,7 +8,8 @@ export interface PermissionSet {
 }
 
 export interface UserRole {
-  role: 'admin' | 'teacher' | 'staff' | 'accountant' | 'librarian' | 'parent' | 'principal' | 'director';
+  role: 'admin' | 'teacher' | 'staff' | 'accountant' | 'librarian' | 'parent' | 'principal' | 'director'
+      | 'vice_principal' | 'campus_coordinator' | 'academic_coordinator' | 'section_coordinator';
   school_id: string;
   user_id: string;
   staff_id?: string;

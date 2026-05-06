@@ -63,6 +63,7 @@ export default function TeacherMarks() {
   const [selectedSubject, setSelectedSubject] = useState('');
 
   const [marks,      setMarks]      = useState<Record<string, string>>({});
+  const [absent,     setAbsent]     = useState<Record<string, boolean>>({});
   const [examConfig, setExamConfig] = useState<{ total_marks: number; passing_marks: number } | null>(null);
   const [saving,     setSaving]     = useState(false);
   const [saved,      setSaved]      = useState(false);
@@ -98,6 +99,7 @@ export default function TeacherMarks() {
 
   const resetData = () => {
     setMarks({});
+    setAbsent({});
     setExamConfig(null);
     setSaved(false);
     setHasExisting(false);
@@ -223,10 +225,11 @@ export default function TeacherMarks() {
           .maybeSingle(),
         supabase
           .from('exam_results')
-          .select('student_id, obtained_marks')
+          .select('student_id, obtained_marks, is_absent')
           .eq('school_id', userRole!.school_id)
           .eq('exam_type_id', selectedExam)
-          .eq('subject_id', selectedSubject),
+          .eq('subject_id', selectedSubject)
+          .eq('class_id', selectedClass),
         supabase
           .from('students')
           .select('id, full_name, roll_number, photograph_url')
@@ -242,10 +245,17 @@ export default function TeacherMarks() {
         // Only show marks for students in THIS class
         const studentIds = new Set(stuRes.data.map(s => s.id));
         const m: Record<string, string> = {};
+        const absMap: Record<string, boolean> = {};
         resRes.data.forEach((r: any) => {
-          if (studentIds.has(r.student_id)) m[r.student_id] = String(r.obtained_marks);
+          if (!studentIds.has(r.student_id)) return;
+          if (r.is_absent) {
+            absMap[r.student_id] = true;
+          } else {
+            m[r.student_id] = String(r.obtained_marks);
+          }
         });
-        if (Object.keys(m).length > 0) {
+        if (Object.keys(absMap).length > 0) setAbsent(absMap);
+        if (Object.keys(m).length > 0 || Object.keys(absMap).length > 0) {
           setMarks(m);
           setHasExisting(true);
           setSaved(true);
@@ -266,22 +276,28 @@ export default function TeacherMarks() {
     if (!sub || !userRole?.school_id) return;
     setSaving(true); setError(''); setSaved(false);
 
-    const filled = students.filter(s => marks[s.id] !== undefined && marks[s.id] !== '');
-    if (filled.length === 0) { setSaving(false); return; }
+    const processed = students.filter(s => (marks[s.id] !== undefined && marks[s.id] !== '') || absent[s.id]);
+    if (processed.length === 0) { setSaving(false); return; }
+    const filled = processed; // rename for clarity below
 
     const totalMarks   = examConfig?.total_marks   || sub.total_marks;
     const passingMarks = examConfig?.passing_marks || sub.passing_marks;
 
-    const inserts = filled.map(s => ({
-      school_id:      userRole!.school_id,
-      student_id:     s.id,
-      exam_type_id:   selectedExam,
-      subject_id:     selectedSubject,
-      class_id:       selectedClass,
-      obtained_marks: Number(marks[s.id]),
-      total_marks:    totalMarks,
-      grade:          getGradeFromPolicy(Number(marks[s.id]), totalMarks, gradingBrackets).grade,
-    }));
+    const inserts = filled.map(s => {
+      const isAbsent = absent[s.id] ?? false;
+      const obtained = isAbsent ? 0 : Number(marks[s.id]);
+      return {
+        school_id:      userRole!.school_id,
+        student_id:     s.id,
+        exam_type_id:   selectedExam,
+        subject_id:     selectedSubject,
+        class_id:       selectedClass,
+        obtained_marks: obtained,
+        total_marks:    totalMarks,
+        grade:          isAbsent ? 'Ab' : getGradeFromPolicy(obtained, totalMarks, gradingBrackets).grade,
+        is_absent:      isAbsent,
+      };
+    });
 
     const { error: err } = await supabase
       .from('exam_results')
@@ -313,7 +329,7 @@ export default function TeacherMarks() {
 
   const selectedSub  = visibleSubjects.find(s => s.id === selectedSubject);
   const selectedExamObj = examTypes.find(e => e.id === selectedExam);
-  const filledCount  = Object.values(marks).filter(v => v !== '').length;
+  const filledCount = Object.values(marks).filter(v => v !== '').length + Object.values(absent).filter(Boolean).length;
 
   // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) return (
@@ -550,14 +566,24 @@ export default function TeacherMarks() {
                 onClick={() => {
                   const m: Record<string, string> = {};
                   students.forEach(s => { m[s.id] = '0'; });
-                  setMarks(m); setSaved(false);
+                  setMarks(m); setAbsent({}); setSaved(false);
                 }}
                 className="text-[11px] font-black text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 transition"
               >
                 Mark All 0
               </button>
               <button
-                onClick={() => { setMarks({}); setSaved(false); }}
+                onClick={() => {
+                  const a: Record<string, boolean> = {};
+                  students.forEach(s => { a[s.id] = true; });
+                  setAbsent(a); setMarks({}); setSaved(false);
+                }}
+                className="text-[11px] font-black text-orange-500 hover:text-orange-700 px-3 py-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 transition"
+              >
+                Mark All Absent
+              </button>
+              <button
+                onClick={() => { setMarks({}); setAbsent({}); setSaved(false); }}
                 className="text-[11px] font-black text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 transition"
               >
                 Clear All
@@ -575,6 +601,7 @@ export default function TeacherMarks() {
                   <th className="text-center px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-36">
                     Marks <span className="text-slate-300">/ {examConfig?.total_marks || selectedSub.total_marks}</span>
                   </th>
+                  <th className="text-center px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-16">Absent</th>
                   <th className="text-center px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-20">Grade</th>
                   <th className="text-center px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-20">Status</th>
                 </tr>
@@ -590,12 +617,14 @@ export default function TeacherMarks() {
                   const grade   = gradeRes?.grade ?? null;
                   const invalid = num !== null && (isNaN(num) || num < 0 || num > totalMarks);
 
+                  const isAbsent = absent[student.id] ?? false;
+
                   return (
                     <tr
                       key={student.id}
                       className={cn(
                         'border-b border-slate-50 hover:bg-slate-50/50 transition-colors',
-                        i % 2 !== 0 && 'bg-slate-50/20',
+                        isAbsent ? 'bg-orange-50/60' : i % 2 !== 0 && 'bg-slate-50/20',
                       )}
                     >
                       <td className="px-4 py-2.5">
@@ -616,6 +645,7 @@ export default function TeacherMarks() {
                           type="text"
                           inputMode="numeric"
                           value={val}
+                          disabled={isAbsent}
                           onChange={e => {
                             const raw = e.target.value.replace(/[^0-9.]/g, '');
                             const n   = parseFloat(raw);
@@ -625,22 +655,51 @@ export default function TeacherMarks() {
                           }}
                           placeholder="—"
                           className={cn(
-                            'w-full text-center font-black text-sm px-2 py-1.5 rounded-lg border transition focus:outline-none focus:ring-2 focus:ring-amber-400',
+                            'w-full text-center font-black text-sm px-2 py-1.5 rounded-lg border transition focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-40 disabled:bg-slate-50',
                             invalid
                               ? 'border-red-300 bg-red-50 text-red-600'
                               : 'border-slate-200 bg-white text-slate-900',
                           )}
                         />
                       </td>
+                      <td className="px-2 py-2.5 text-center">
+                        <button
+                          onClick={() => {
+                            setAbsent(p => {
+                              const next = { ...p };
+                              if (next[student.id]) delete next[student.id];
+                              else next[student.id] = true;
+                              return next;
+                            });
+                            if (!absent[student.id]) {
+                              setMarks(p => { const n = { ...p }; delete n[student.id]; return n; });
+                            }
+                            setSaved(false);
+                          }}
+                          className={`text-[11px] font-black px-2.5 py-1 rounded-lg border transition ${
+                            isAbsent
+                              ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
+                              : 'bg-white text-orange-400 border-orange-200 hover:bg-orange-50'
+                          }`}
+                        >
+                          Ab
+                        </button>
+                      </td>
                       <td className="px-4 py-2.5 text-center">
-                        {grade && !invalid && (
+                        {isAbsent ? (
+                          <span className="text-xs font-black px-2.5 py-1 rounded-full text-orange-700 bg-orange-100">
+                            Ab
+                          </span>
+                        ) : grade && !invalid ? (
                           <span className={cn('text-xs font-black px-2.5 py-1 rounded-full', GRADE_COLORS[grade] || '')}>
                             {grade}
                           </span>
-                        )}
+                        ) : null}
                       </td>
                       <td className="px-4 py-2.5 text-center">
-                        {val === '' ? (
+                        {isAbsent ? (
+                          <span className="text-[10px] text-orange-600 font-bold bg-orange-50 px-2 py-0.5 rounded-full">Absent</span>
+                        ) : val === '' ? (
                           <span className="text-[10px] text-slate-300 font-bold">pending</span>
                         ) : invalid ? (
                           <span className="text-[10px] text-red-500 font-bold">invalid</span>
@@ -674,6 +733,9 @@ export default function TeacherMarks() {
                   return v !== '' && !isNaN(n) && getGradeFromPolicy(n, t, gradingBrackets).status !== 'Pass';
                 }).length} fail
               </span>
+              <span className="text-orange-500">
+                {Object.values(absent).filter(Boolean).length} absent
+              </span>
               <span className="text-slate-400">{students.length - filledCount} pending</span>
             </div>
 
@@ -695,7 +757,7 @@ export default function TeacherMarks() {
               >
                 {saving
                   ? <><RefreshCw className="w-4 h-4 animate-spin" /> Saving…</>
-                  : <><Save className="w-4 h-4" /> {hasExisting ? 'Update' : 'Save'} {filledCount} Marks</>}
+                  : <><Save className="w-4 h-4" /> {hasExisting ? 'Update' : 'Save'} {filledCount} Records</>}
               </button>
             </div>
           </div>

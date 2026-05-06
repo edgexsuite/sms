@@ -1367,18 +1367,67 @@ export function PearlReport(props: ReportCardProps) {
   );
 }
 
+// ─── Position Honour Badge ────────────────────────────────────────────────────
+// Renders a medal overlay for positions 1, 2 & 3. Injected by the renderer so
+// ALL templates get it automatically without touching individual templates.
+
+const POSITION_STYLES: Record<number, { emoji: string; label: string; bg: string; border: string; text: string; shadow: string }> = {
+  1: { emoji: '🥇', label: '1st Position',  bg: 'linear-gradient(135deg,#fffbeb,#fef3c7)', border: '#f59e0b', text: '#92400e', shadow: '0 4px 16px rgba(245,158,11,0.35)' },
+  2: { emoji: '🥈', label: '2nd Position',  bg: 'linear-gradient(135deg,#f8fafc,#e2e8f0)', border: '#94a3b8', text: '#1e293b', shadow: '0 4px 16px rgba(148,163,184,0.35)' },
+  3: { emoji: '🥉', label: '3rd Position',  bg: 'linear-gradient(135deg,#fff7ed,#fed7aa)', border: '#f97316', text: '#7c2d12', shadow: '0 4px 16px rgba(249,115,22,0.35)' },
+};
+
+function PositionHonorBadge({ position }: { position: number }) {
+  const s = POSITION_STYLES[position];
+  if (!s) return null;
+  return (
+    <div style={{
+      position: 'absolute',
+      top: '10mm',
+      right: '10mm',
+      background: s.bg,
+      border: `2.5px solid ${s.border}`,
+      borderRadius: '12px',
+      padding: '8px 14px',
+      textAlign: 'center',
+      boxShadow: s.shadow,
+      zIndex: 20,
+      minWidth: '68px',
+      printColorAdjust: 'exact',
+      WebkitPrintColorAdjust: 'exact',
+    }}>
+      <div style={{ fontSize: '32px', lineHeight: 1, marginBottom: '3px' }}>{s.emoji}</div>
+      <div style={{ fontSize: '9px', fontWeight: 900, color: s.text, textTransform: 'uppercase', letterSpacing: '0.6px', whiteSpace: 'nowrap' }}>{s.label}</div>
+    </div>
+  );
+}
+
 // ─── Renderer ─────────────────────────────────────────────────────────────────
 
 export function ReportCardLayoutRenderer(props: ReportCardProps & { template: ReportTemplateId }) {
   const { template, ...rest } = props;
+
+  let card: React.ReactNode;
   switch (template) {
-    case 'modern':   return <ModernReport   {...rest} />;
-    case 'minimal':  return <MinimalReport  {...rest} />;
-    case 'elegant':  return <ElegantReport  {...rest} />;
-    case 'compact':  return <CompactReport  {...rest} />;
-    case 'royal':    return <RoyalReport    {...rest} />;
-    case 'prestige': return <PrestigeReport {...rest} />;
-    case 'pearl':    return <PearlReport    {...rest} />;
-    default:         return <ClassicReport  {...rest} />;
+    case 'modern':   card = <ModernReport   {...rest} />; break;
+    case 'minimal':  card = <MinimalReport  {...rest} />; break;
+    case 'elegant':  card = <ElegantReport  {...rest} />; break;
+    case 'compact':  card = <CompactReport  {...rest} />; break;
+    case 'royal':    card = <RoyalReport    {...rest} />; break;
+    case 'prestige': card = <PrestigeReport {...rest} />; break;
+    case 'pearl':    card = <PearlReport    {...rest} />; break;
+    default:         card = <ClassicReport  {...rest} />; break;
   }
+
+  const pos = props.positionInClass ?? 0;
+  const showHonor = pos >= 1 && pos <= 3 && props.activeFields?.includes('position_rank');
+
+  if (!showHonor) return <>{card}</>;
+
+  return (
+    <div style={{ position: 'relative', width: '210mm', height: '297mm', overflow: 'visible' }}>
+      {card}
+      <PositionHonorBadge position={pos} />
+    </div>
+  );
 }

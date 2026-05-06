@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { COORDINATOR_ROLES } from '../lib/rolePermissions';
 import {
   GraduationCap, CreditCard, CalendarCheck, TrendingUp, Users,
   Wallet, BookOpen, ArrowUpRight, RefreshCw, AlertTriangle,
@@ -92,8 +93,10 @@ export default function Dashboard() {
   useEffect(() => {
     if (userRole?.role === 'teacher') navigate('/teacher-dashboard', { replace: true });
     else if (userRole?.role === 'accountant') navigate('/accountant-dashboard', { replace: true });
-    else if (userRole?.role === 'principal' || userRole?.role === 'director') navigate('/principal-dashboard', { replace: true });
+    else if (['principal', 'director', 'vice_principal'].includes(userRole?.role ?? '')) navigate('/principal-dashboard', { replace: true });
   }, [userRole, navigate]);
+
+  const isCoordinator = COORDINATOR_ROLES.includes((userRole?.role ?? '') as any);
 
   useEffect(() => { if (userRole?.school_id) fetchAll(); }, [userRole]);
 
@@ -422,36 +425,42 @@ export default function Dashboard() {
           onClick={() => navigate('/attendance/daily-report')}
           animateValue={false}
         />
-        <StatCard
-          label="Today Revenue"
-          value={fmt(stats.todayRevenue)}
-          sub="Fees & other income"
-          icon={TrendingUp}
-          color="blue"
-          onClick={() => navigate('/accounting')}
-          animateValue={true}
-          prefix="Rs. "
-        />
-        <StatCard
-          label="Today Expense"
-          value={fmt(stats.todayExpense)}
-          sub="Staff & operations"
-          icon={ArrowUpRight}
-          color="rose"
-          onClick={() => navigate('/accounting')}
-          animateValue={true}
-          prefix="Rs. "
-        />
-        <StatCard
-          label="Pending Fees"
-          value={fmt(stats.pendingFees)}
-          sub="Action required"
-          icon={AlertTriangle}
-          color="amber"
-          onClick={() => navigate('/fees/invoices')}
-          animateValue={true}
-          prefix="Rs. "
-        />
+        {!isCoordinator && (
+          <StatCard
+            label="Today Revenue"
+            value={fmt(stats.todayRevenue)}
+            sub="Fees & other income"
+            icon={TrendingUp}
+            color="blue"
+            onClick={() => navigate('/accounting')}
+            animateValue={true}
+            prefix="Rs. "
+          />
+        )}
+        {!isCoordinator && (
+          <StatCard
+            label="Today Expense"
+            value={fmt(stats.todayExpense)}
+            sub="Staff & operations"
+            icon={ArrowUpRight}
+            color="rose"
+            onClick={() => navigate('/accounting')}
+            animateValue={true}
+            prefix="Rs. "
+          />
+        )}
+        {!isCoordinator && (
+          <StatCard
+            label="Pending Fees"
+            value={fmt(stats.pendingFees)}
+            sub="Action required"
+            icon={AlertTriangle}
+            color="amber"
+            onClick={() => navigate('/fees/invoices')}
+            animateValue={true}
+            prefix="Rs. "
+          />
+        )}
         <StatCard
           label="Total Staff"
           value={stats.totalStaff}
@@ -482,9 +491,9 @@ export default function Dashboard() {
       </motion.div>
 
       {/* Charts Row */}
-      <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+      <motion.div variants={item} className={`grid grid-cols-1 gap-4 mb-4 ${isCoordinator ? '' : 'lg:grid-cols-3'}`}>
         {/* Student Enrollment by Class (Half Page/Two Thirds) */}
-        <Card className="lg:col-span-2 p-6 flex flex-col">
+        <Card className={`${isCoordinator ? '' : 'lg:col-span-2'} p-6 flex flex-col`}>
           <div className="flex justify-between items-center mb-5 shrink-0">
             <div>
               <div className="text-[15px] font-semibold text-slate-900 tracking-tight">Student Enrollment by Class</div>
@@ -523,8 +532,8 @@ export default function Dashboard() {
           </div>
         </Card>
 
-        {/* Donut Chart with Progress */}
-        <Card className="p-6 flex flex-col relative overflow-hidden group">
+        {/* Donut Chart with Progress — hidden for coordinators */}
+        {!isCoordinator && <Card className="p-6 flex flex-col relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
             <PiggyBank className="w-24 h-24 -rotate-12" />
           </div>
@@ -574,13 +583,13 @@ export default function Dashboard() {
               );
             })}
           </div>
-        </Card>
+        </Card>}
       </motion.div>
 
       <div className="h-4" /> {/* Spacer */}
 
-      {/* Financial Pulse - Restored Below */}
-      <motion.div variants={item} className="mb-4">
+      {/* Financial Pulse - hidden for coordinators */}
+      {!isCoordinator && <motion.div variants={item} className="mb-4">
         <Card className="p-6 overflow-hidden relative">
           <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
             <DollarSign className="w-32 h-32" />
@@ -630,7 +639,7 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </div>
         </Card>
-      </motion.div>
+      </motion.div>}
 
       <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Tabbed Panel */}

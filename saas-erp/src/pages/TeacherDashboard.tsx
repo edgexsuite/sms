@@ -2,7 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
+import { COORDINATOR_ROLES } from '../lib/rolePermissions';
 import { cn, formatDate } from '../lib/utils';
 import {
   BookOpen, Users, ClipboardList, CalendarCheck,
@@ -102,9 +103,23 @@ const isCurrentPeriod = (start: string, end: string): boolean => {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function TeacherDashboard() {
+// Roles that are allowed to use this dashboard
+const TEACHER_DASHBOARD_ROLES = ['teacher', 'academic_coordinator', 'section_coordinator', 'campus_coordinator'];
+
+function TeacherDashboardInner() {
   const { userRole, user } = useAuth();
+  const navigate = useNavigate();
   const attSectionRef = React.useRef<HTMLDivElement>(null);
+
+  // If this user's role doesn't belong here, redirect to the correct dashboard
+  useEffect(() => {
+    if (!userRole) return;
+    if (!TEACHER_DASHBOARD_ROLES.includes(userRole.role)) {
+      if (userRole.role === 'accountant') navigate('/accountant-dashboard', { replace: true });
+      else if (['principal', 'director', 'vice_principal'].includes(userRole.role)) navigate('/principal-dashboard', { replace: true });
+      else navigate('/dashboard', { replace: true });
+    }
+  }, [userRole, navigate]);
 
   const [staffId,   setStaffId]   = useState<string | null>(null);
   const [staffName, setStaffName] = useState('');
@@ -714,7 +729,15 @@ export default function TeacherDashboard() {
     <div className="max-w-2xl mx-auto mt-20 text-center p-8 bg-orange-50 border border-orange-200 rounded-2xl">
       <AlertCircle className="w-12 h-12 text-orange-400 mx-auto mb-4" />
       <h2 className="text-xl font-bold text-orange-900">Staff Record Not Linked</h2>
-      <p className="text-orange-700 mt-2 text-sm">Your login account hasn't been linked to a staff record yet. Ask your school administrator to link your account in Staff → User Accounts.</p>
+      <p className="text-orange-700 mt-2 text-sm">
+        Your login account hasn't been linked to a staff record yet. Ask your school administrator to go to
+        <strong> Staff → User Accounts</strong>, find your name, and click <strong>Repair Unlinked</strong>.
+      </p>
+      <div className="mt-6 flex justify-center gap-3">
+        <Link to="/dashboard" className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-600 text-white text-sm font-semibold rounded-xl hover:bg-orange-700 transition-colors">
+          Go to Dashboard
+        </Link>
+      </div>
     </div>
   );
 
@@ -2447,4 +2470,18 @@ function MessageCenter({ staffId, schoolId, onClose }: { staffId: string; school
       </motion.div>
     </div>
   );
+}
+
+// ── Default export ────────────────────────────────────────────────────────────
+// Coordinators are redirected to /dashboard — their unified view with financial
+// widgets hidden. Only teacher role should land on this page.
+
+export default function TeacherDashboard() {
+  const { userRole } = useAuth();
+
+  if (userRole && COORDINATOR_ROLES.includes(userRole.role as any)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <TeacherDashboardInner />;
 }

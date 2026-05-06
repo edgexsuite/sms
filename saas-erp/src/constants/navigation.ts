@@ -9,11 +9,11 @@ import {
   Radio, Inbox, Tag, History, Printer
 } from 'lucide-react';
 
-export const ALL_ADMIN    = ['admin', 'principal', 'director'];
-export const ALL_STAFF    = ['admin', 'principal', 'director', 'staff'];
-export const ALL_ACADEMIC = ['admin', 'principal', 'director', 'teacher', 'staff'];
-export const ALL_FINANCE  = ['admin', 'staff', 'accountant', 'principal', 'director'];
-export const ALL_REPORTS  = ['admin', 'staff', 'accountant', 'principal', 'director'];
+export const ALL_ADMIN    = ['admin', 'principal', 'director', 'vice_principal'];
+export const ALL_STAFF    = ['admin', 'principal', 'director', 'vice_principal', 'staff', 'campus_coordinator', 'academic_coordinator', 'section_coordinator'];
+export const ALL_ACADEMIC = ['admin', 'principal', 'director', 'vice_principal', 'teacher', 'staff', 'campus_coordinator', 'academic_coordinator', 'section_coordinator'];
+export const ALL_FINANCE  = ['admin', 'staff', 'accountant', 'principal', 'director', 'vice_principal'];
+export const ALL_REPORTS  = ['admin', 'staff', 'accountant', 'principal', 'director', 'vice_principal', 'campus_coordinator', 'academic_coordinator'];
 
 export const NAV_SECTIONS = [
 
@@ -24,11 +24,11 @@ export const NAV_SECTIONS = [
     title: 'Overview',
     id: 'dashboard',
     color: '#6366f1',
-    roles: ['admin', 'teacher', 'staff', 'accountant', 'librarian', 'principal', 'director'],
+    roles: ['admin', 'teacher', 'staff', 'accountant', 'librarian', 'principal', 'director', 'vice_principal', 'campus_coordinator', 'academic_coordinator', 'section_coordinator'],
     items: [
-      { name: 'Dashboard',             path: '/dashboard',             icon: LayoutDashboard, roles: ['admin', 'teacher', 'staff', 'librarian', 'principal', 'director'] },
+      { name: 'Dashboard',             path: '/dashboard',             icon: LayoutDashboard, roles: ['admin', 'teacher', 'staff', 'librarian', 'principal', 'director', 'vice_principal', 'campus_coordinator', 'academic_coordinator', 'section_coordinator'] },
       { name: 'Accountant Dashboard', path: '/accountant-dashboard',  icon: Scale,           roles: ['accountant'] },
-      { name: 'AI Assistant',         path: '/ai-assistant',          icon: Bot,             roles: ['admin', 'director', 'principal'] },
+      { name: 'AI Assistant',         path: '/ai-assistant',          icon: Bot,             roles: ['admin', 'director', 'principal', 'vice_principal'] },
     ],
   },
 
@@ -96,8 +96,8 @@ export const NAV_SECTIONS = [
         ],
       },
       { name: 'Timetable',     path: '/timetable',  icon: Calendar,     roles: ALL_ACADEMIC },
-      { name: 'Teacher Diary', path: '/diary',       icon: ClipboardList,roles: ['admin', 'teacher', 'principal', 'director'] },
-      { name: 'Evaluation',    path: '/evaluation',  icon: Star,         roles: ['admin', 'teacher', 'principal', 'director'] },
+      { name: 'Teacher Diary', path: '/diary',       icon: ClipboardList,roles: ALL_ACADEMIC },
+      { name: 'Evaluation',    path: '/evaluation',  icon: Star,         roles: ALL_ACADEMIC },
     ],
   },
 
@@ -137,7 +137,7 @@ export const NAV_SECTIONS = [
           { name: 'Staff Leave',   path: '/leave/staff',   icon: Briefcase,    roles: ALL_ADMIN   },
         ],
       },
-      { name: 'Complaints & Feedback', path: '/complaints', icon: AlertTriangle, roles: ['admin', 'teacher', 'staff', 'principal', 'director'] },
+      { name: 'Complaints & Feedback', path: '/complaints', icon: AlertTriangle, roles: ['admin', 'teacher', 'staff', 'principal', 'director', 'vice_principal', 'campus_coordinator'] },
     ],
   },
 
@@ -156,15 +156,16 @@ export const NAV_SECTIONS = [
         icon: FileText,
         roles: ALL_ACADEMIC,
         subItems: [
-          { name: 'Exam Types',           path: '/result/exam-types',     icon: SettingsIcon,   roles: ALL_ADMIN },
-          { name: 'Result Status',        path: '/result/status',         icon: ClipboardCheck, roles: ALL_ADMIN },
-          { name: 'Admin Results Entry',  path: '/result/add-result',     icon: Star,           roles: ALL_ADMIN },
-          { name: 'Import from Excel',    path: '/result/import',         icon: Upload,         roles: ALL_STAFF },
-          { name: 'Teacher Mark Entry',   path: '/result/teacher-marks',  icon: Star,           roles: ['admin', 'principal', 'director', 'teacher', 'staff'] },
-          { name: 'Award List Generator', path: '/result/award-list',     icon: Printer,        roles: ALL_ACADEMIC },
-          { name: 'Report Cards',         path: '/result/reporting',      icon: LineChart,      roles: ALL_ACADEMIC },
-          { name: 'Grading Policy',       path: '/result/grading-policy', icon: SettingsIcon,   roles: ALL_ADMIN },
-          { name: 'Subject Marks Config', path: '/result/marks-config',   icon: Award,          roles: ALL_ADMIN },
+          { name: 'Exam Types',              path: '/result/exam-types',       icon: SettingsIcon,   roles: ALL_ADMIN   },
+          { name: 'Result Status',           path: '/result/status',           icon: ClipboardCheck, roles: ALL_ACADEMIC },
+          { name: 'Admin Results Entry',     path: '/result/add-result',       icon: Star,           roles: ALL_ADMIN   },
+          { name: 'Import from Excel',       path: '/result/import',           icon: Upload,         roles: ALL_STAFF   },
+          { name: 'Teacher Mark Entry',      path: '/result/teacher-marks',    icon: Star,           roles: ALL_ACADEMIC },
+          { name: 'Consolidated Sheet',      path: '/result/consolidated',     icon: LayoutDashboard,roles: ALL_ACADEMIC },
+          { name: 'Award List Generator',    path: '/result/award-list',       icon: Printer,        roles: ALL_ACADEMIC },
+          { name: 'Report Cards',            path: '/result/reporting',        icon: LineChart,      roles: ALL_ACADEMIC },
+          { name: 'Grading Policy',          path: '/result/grading-policy',   icon: SettingsIcon,   roles: ALL_ADMIN   },
+          { name: 'Subject Marks Config',    path: '/result/marks-config',     icon: Award,          roles: ALL_ADMIN   },
         ],
       },
     ],

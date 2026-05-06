@@ -30,6 +30,8 @@ export default function SubjectManagement() {
   const [selectedClass, setSelectedClass] = useState('');
   const [subjects, setSubjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  // Local mark values for inline editing — prevents DB write on every keystroke
+  const [localMarks, setLocalMarks] = useState<Record<string, { total_marks: string; passing_marks: string }>>({});
 
   // New subject form
   const [showForm, setShowForm] = useState(false);
@@ -67,7 +69,13 @@ export default function SubjectManagement() {
   const fetchSubjects = async () => {
     setLoading(true);
     const { data } = await supabase.from('subjects').select('*').eq('class_id', selectedClass).order('subject_name');
-    if (data) setSubjects(data);
+    if (data) {
+      setSubjects(data);
+      // Initialise local mark state from DB values (no live save on every keystroke)
+      const init: Record<string, { total_marks: string; passing_marks: string }> = {};
+      data.forEach(s => { init[s.id] = { total_marks: String(s.total_marks ?? 100), passing_marks: String(s.passing_marks ?? 33) }; });
+      setLocalMarks(init);
+    }
     setLoading(false);
   };
 
@@ -161,7 +169,11 @@ export default function SubjectManagement() {
     } catch (err: any) { alert(err.message); }
   };
 
-  const updateMarks = async (id: string, field: string, value: number) => {
+  // Called on blur — save to DB only when user leaves the field
+  const commitMark = async (id: string, field: 'total_marks' | 'passing_marks') => {
+    const raw = localMarks[id]?.[field] ?? '';
+    const value = parseInt(raw, 10);
+    if (isNaN(value) || value < 0) return; // don't save invalid input
     await supabase.from('subjects').update({ [field]: value }).eq('id', id);
     setSubjects(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
   };
@@ -280,18 +292,30 @@ export default function SubjectManagement() {
                       </div>
                       <div className="col-span-2 flex justify-center">
                         <input
-                          type="number"
-                          value={subj.total_marks}
-                          onChange={e => updateMarks(subj.id, 'total_marks', parseInt(e.target.value) || 0)}
-                          className="w-20 text-center border border-gray-200 rounded px-2 py-1 text-sm font-bold focus:ring-purple-400"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={localMarks[subj.id]?.total_marks ?? subj.total_marks}
+                          onChange={e => {
+                            const v = e.target.value.replace(/[^0-9]/g, '');
+                            setLocalMarks(prev => ({ ...prev, [subj.id]: { ...prev[subj.id], total_marks: v } }));
+                          }}
+                          onBlur={() => commitMark(subj.id, 'total_marks')}
+                          className="w-20 text-center border border-gray-200 rounded px-2 py-1 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-400"
                         />
                       </div>
                       <div className="col-span-2 flex justify-center">
                         <input
-                          type="number"
-                          value={subj.passing_marks}
-                          onChange={e => updateMarks(subj.id, 'passing_marks', parseInt(e.target.value) || 0)}
-                          className="w-20 text-center border border-gray-200 rounded px-2 py-1 text-sm font-bold text-orange-600 focus:ring-orange-400"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={localMarks[subj.id]?.passing_marks ?? subj.passing_marks}
+                          onChange={e => {
+                            const v = e.target.value.replace(/[^0-9]/g, '');
+                            setLocalMarks(prev => ({ ...prev, [subj.id]: { ...prev[subj.id], passing_marks: v } }));
+                          }}
+                          onBlur={() => commitMark(subj.id, 'passing_marks')}
+                          className="w-20 text-center border border-gray-200 rounded px-2 py-1 text-sm font-bold text-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-400"
                         />
                       </div>
                       <div className="col-span-2 flex justify-center items-center gap-2">
@@ -360,19 +384,29 @@ export default function SubjectManagement() {
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Total Marks</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={newSubject.total_marks}
-                    onChange={e => setNewSubject({ ...newSubject, total_marks: parseInt(e.target.value) || 0 })}
-                    className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-purple-500 text-sm font-bold"
+                    onChange={e => {
+                      const v = e.target.value.replace(/[^0-9]/g, '');
+                      setNewSubject({ ...newSubject, total_marks: v === '' ? 0 : parseInt(v, 10) });
+                    }}
+                    className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm font-bold"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Passing Marks</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={newSubject.passing_marks}
-                    onChange={e => setNewSubject({ ...newSubject, passing_marks: parseInt(e.target.value) || 0 })}
-                    className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-orange-500 text-sm font-bold text-orange-600"
+                    onChange={e => {
+                      const v = e.target.value.replace(/[^0-9]/g, '');
+                      setNewSubject({ ...newSubject, passing_marks: v === '' ? 0 : parseInt(v, 10) });
+                    }}
+                    className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm font-bold text-orange-600"
                   />
                 </div>
               </div>

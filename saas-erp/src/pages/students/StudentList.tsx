@@ -116,9 +116,15 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
   const [bulkUpdateValue, setBulkUpdateValue] = useState('');
 
   // ── Teacher / Staff role access control ─────────────────────────────────
-  // Roles that get FULL admin access to all students
-  const ADMIN_ROLES = ['admin', 'principal', 'director', 'vice principal', 'coordinator', 'accountant'];
+  // Roles that can see ALL students (not filtered to their classes)
+  const ADMIN_ROLES = [
+    'admin', 'principal', 'director', 'vice_principal', 'vice principal',
+    'coordinator', 'accountant', 'staff',
+    'academic_coordinator', 'campus_coordinator', 'section_coordinator',
+  ];
   const isStaffRole = !ADMIN_ROLES.includes((userRole?.role || '').toLowerCase());
+  // Coordinator roles: can view all students but cannot edit/delete
+  const isCoordinator = ['academic_coordinator', 'campus_coordinator', 'section_coordinator'].includes((userRole?.role || '').toLowerCase());
   // Class IDs this teacher is allowed to see (resolved below)
   const [allowedClassIds, setAllowedClassIds] = useState<string[] | null>(null); // null = not resolved yet
   const [staffId, setStaffId] = useState<string | null>(null);
@@ -833,22 +839,24 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
             <thead className="sticky top-0 z-10">
               <tr className="bg-slate-50 border-b border-slate-100">
                 <th className="px-4 py-3 w-10 text-center">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.length > 0 && selectedIds.length === filteredStudents.length}
-                    onChange={(e) => {
-                      if (e.target.checked) setSelectedIds(filteredStudents.map(s => s.id));
-                      else setSelectedIds([]);
-                    }}
-                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                  />
+                  {!isStaffRole && !isCoordinator && (
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.length > 0 && selectedIds.length === filteredStudents.length}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedIds(filteredStudents.map(s => s.id));
+                        else setSelectedIds([]);
+                      }}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                  )}
                 </th>
                 <th className="px-4 py-3 text-premium-label">Roll</th>
                 <th className="px-4 py-3 text-premium-label">Student</th>
                 <th className="px-4 py-3 text-premium-label hidden sm:table-cell">Class</th>
                 <th className="px-4 py-3 text-premium-label hidden md:table-cell">Joined</th>
                 <th className="px-4 py-3 text-premium-label">Status</th>
-                <th className="px-4 py-3 text-premium-label hidden sm:table-cell">Fees</th>
+                {!isCoordinator && <th className="px-4 py-3 text-premium-label hidden sm:table-cell">Fees</th>}
                 <th className="px-4 py-3 text-premium-label text-right">Actions</th>
               </tr>
             </thead>
@@ -889,7 +897,7 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
                     className={cn('hover:bg-indigo-50/30 transition-all group', selectedIds.includes(student.id) ? 'bg-indigo-50/50' : '')}
                   >
                     <td className="px-4 py-2 text-center" onClick={(e) => e.stopPropagation()}>
-                      {!isStaffRole && (
+                      {!isStaffRole && !isCoordinator && (
                         <input
                           type="checkbox"
                           checked={selectedIds.includes(student.id)}
@@ -935,20 +943,22 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
                         {student.status === 'graduated' ? 'Passed' : student.status}
                       </span>
                     </td>
-                    <td className="px-4 py-2 hidden sm:table-cell">
-                      {studentsWithDues.has(student.id) ? (
-                        <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-rose-100 text-rose-600">
-                          Dues
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-600">
-                          Clear
-                        </span>
-                      )}
-                    </td>
+                    {!isCoordinator && (
+                      <td className="px-4 py-2 hidden sm:table-cell">
+                        {studentsWithDues.has(student.id) ? (
+                          <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-rose-100 text-rose-600">
+                            Dues
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-600">
+                            Clear
+                          </span>
+                        )}
+                      </td>
+                    )}
                     <td className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-2 transition-opacity">
-                        {!isStaffRole && (
+                        {!isStaffRole && !isCoordinator && (
                           <button
                             onClick={() => navigate(`/students/edit/${student.id}`)}
                             className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
@@ -965,8 +975,8 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
                           <Eye className="w-4 h-4" />
                         </button>
 
-                        {/* Administrative Action Menu - hidden for staff roles */}
-                        {!isStaffRole && (
+                        {/* Administrative Action Menu - hidden for staff/coordinator roles */}
+                        {!isStaffRole && !isCoordinator && (
                           <div className="relative dropdown-container">
                             <button
                               onClick={(e) => {
@@ -1535,7 +1545,7 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
 
               {/* Drawer Footer */}
               <div className="px-6 py-4 border-t border-slate-100 flex justify-between items-center shrink-0 bg-slate-50">
-                {!isStaffRole ? (
+                {!isStaffRole && !isCoordinator ? (
                   <Link to={`/students/register?edit=${selectedStudent.id}`} className="text-xs font-black text-indigo-600 hover:text-indigo-800 uppercase tracking-widest transition-colors">
                     Edit Student Profile →
                   </Link>

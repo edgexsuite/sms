@@ -26,10 +26,23 @@ interface RowData {
   subjectId: string;
   subjectName: string;
   totalStudents: number;
-  marksEntered: number;
-  missing: number;
-  pct: number;
+  marksEntered: number;   // rows with actual marks (is_absent=false)
+  absentMarked: number;   // rows with is_absent=true
+  processed: number;      // marksEntered + absentMarked
+  trulyMissing: number;   // students with NO row at all
+  pct: number;            // processed / totalStudents %
   status: 'complete' | 'partial' | 'pending';
+}
+
+interface ClassSummary {
+  classId: string;
+  className: string;
+  totalStudents: number;
+  totalSubjects: number;
+  completeSubjects: number;
+  partialSubjects: number;
+  pendingSubjects: number;
+  overallPct: number;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -115,7 +128,7 @@ export default function ResultStatus() {
         supabase.from('subjects').select('id, subject_name, class_id').eq('school_id', sid),
         supabase.from('students').select('id, class_id').eq('school_id', sid).eq('status', 'active'),
         supabase.from('exam_results')
-          .select('student_id, subject_id')
+          .select('student_id, subject_id, is_absent')
           .eq('school_id', sid)
           .eq('exam_type_id', selectedExam),
       ]);
@@ -125,10 +138,10 @@ export default function ResultStatus() {
       const stds = students || [];
       const res  = results  || [];
 
-      // Key = "subjectId|studentId" — deliberately excludes class_id because
-      // older records have class_id = NULL (column was added later via migration).
-      // Student-class membership is already enforced via the students table.
-      const enteredSet = new Set(res.map((r: any) => `${r.subject_id}|${r.student_id}`));
+      // Separate sets: one for marks entries, one for absent-marked
+      // Key = "subjectId|studentId"
+      const marksSet  = new Set(res.filter((r: any) => !r.is_absent).map((r: any) => `${r.subject_id}|${r.student_id}`));
+      const absentSet = new Set(res.filter((r: any) =>  r.is_absent).map((r: any) => `${r.subject_id}|${r.student_id}`));
 
       const built: RowData[] = [];
 
@@ -138,14 +151,15 @@ export default function ResultStatus() {
         const totalStudents = classStudents.length;
 
         classSubs.forEach(sub => {
-          const marksEntered = classStudents.filter(st =>
-            enteredSet.has(`${sub.id}|${st.id}`)
-          ).length;
-          const missing = totalStudents - marksEntered;
-          const pct     = totalStudents > 0 ? Math.round((marksEntered / totalStudents) * 100) : 0;
+          const key = (st: any) => `${sub.id}|${st.id}`;
+          const marksEntered = classStudents.filter(st => marksSet.has(key(st))).length;
+          const absentMarked = classStudents.filter(st => absentSet.has(key(st))).length;
+          const processed    = marksEntered + absentMarked;
+          const trulyMissing = totalStudents - processed;
+          const pct          = totalStudents > 0 ? Math.round((processed / totalStudents) * 100) : 0;
           const status: RowData['status'] =
-            marksEntered === 0           ? 'pending'
-            : marksEntered < totalStudents ? 'partial'
+            processed === 0           ? 'pending'
+            : trulyMissing > 0        ? 'partial'
             : 'complete';
 
           built.push({
@@ -155,7 +169,9 @@ export default function ResultStatus() {
             subjectName: sub.subject_name,
             totalStudents,
             marksEntered,
-            missing,
+            absentMarked,
+            processed,
+            trulyMissing,
             pct,
             status,
           });
@@ -176,6 +192,38 @@ export default function ResultStatus() {
 
   // ── Derived values
   const allClasses = useMemo(() => [...new Set(rows.map(r => r.className))].sort(), [rows]);
+
+  // Class-level roll-up summary
+  const classSummaries = useMemo((): ClassSummary[] => {
+    const map = new Map<string, ClassSummary>();
+    rows.forEach(r => {
+      if (!map.has(r.classId)) {
+        map.set(r.classId, {
+          classId: r.classId,
+          className: r.className,
+          totalStudents: r.totalStudents,
+          totalSubjects: 0,
+          completeSubjects: 0,
+          partialSubjects: 0,
+          pendingSubjects: 0,
+          overallPct: 0,
+        });
+      }
+      const s = map.get(r.classId)!;
+      s.totalSubjects++;
+      if (r.status === 'complete') s.completeSubjects++;
+      else if (r.status === 'partial') s.partialSubjects++;
+      else s.pendingSubjects++;
+    });
+    map.forEach(s => {
+      s.overallPct = s.totalSubjects > 0
+        ? Math.round((s.completeSubjects / s.totalSubjects) * 100)
+        : 0;
+    });
+    return [...map.values()].sort((a, b) => a.overallPct - b.overallPct); // pending classes first
+  }, [rows]);
+
+  const [showClassView, setShowClassView] = useState(false);
 
   const filtered = useMemo(() => rows.filter(r => {
     if (classFilter !== 'all' && r.className !== classFilter) return false;
@@ -201,7 +249,8 @@ export default function ResultStatus() {
       { header: 'Subject',        key: 'subjectName'  },
       { header: 'Total Students', key: 'totalStudents'},
       { header: 'Marks Entered',  key: 'marksEntered' },
-      { header: 'Missing',        key: 'missing'      },
+      { header: 'Absent Marked',  key: 'absentMarked' },
+      { header: 'Not Entered',    key: 'trulyMissing' },
       { header: '% Done',         key: 'pct'          },
       { header: 'Status',         key: 'status'       },
     ]);
@@ -299,14 +348,15 @@ export default function ResultStatus() {
         startY: boxY + boxH + 4,
         tableWidth: W - 16,
         margin: { left: 8, right: 8 },
-        head: [['#', 'Class', 'Subject', 'Students', 'Entered', 'Missing', '% Done', 'Status']],
+        head: [['#', 'Class', 'Subject', 'Total', 'Marks', 'Absent', 'Missing', '% Done', 'Status']],
         body: filtered.map((r, i) => [
           i + 1,
           r.className,
           r.subjectName,
           r.totalStudents,
-          r.marksEntered,
-          r.missing > 0 ? r.missing : '—',
+          r.marksEntered > 0 ? r.marksEntered : '—',
+          r.absentMarked > 0 ? r.absentMarked : '—',
+          r.trulyMissing > 0 ? r.trulyMissing : '—',
           `${r.pct}%`,
           r.status.charAt(0).toUpperCase() + r.status.slice(1),
         ]),
@@ -320,16 +370,17 @@ export default function ResultStatus() {
         styles: { fontSize: 7.5, cellPadding: 2.2 },
         columnStyles: {
           0: { cellWidth: 8,  halign: 'center' },
-          1: { cellWidth: 38, fontStyle: 'bold' },
-          2: { cellWidth: 42 },
-          3: { cellWidth: 22, halign: 'center' },
-          4: { cellWidth: 22, halign: 'center' },
-          5: { cellWidth: 22, halign: 'center' },
-          6: { cellWidth: 20, halign: 'center' },
-          7: { cellWidth: 30, halign: 'center' },
+          1: { cellWidth: 32, fontStyle: 'bold' },
+          2: { cellWidth: 38 },
+          3: { cellWidth: 16, halign: 'center' },
+          4: { cellWidth: 16, halign: 'center' },
+          5: { cellWidth: 16, halign: 'center' },
+          6: { cellWidth: 16, halign: 'center' },
+          7: { cellWidth: 16, halign: 'center' },
+          8: { cellWidth: 26, halign: 'center' },
         },
         didDrawCell: (data) => {
-          if (data.section === 'body' && data.column.index === 7) {
+          if (data.section === 'body' && data.column.index === 8) {
             const status = filtered[data.row.index]?.status;
             if (status && STATUS_COLORS[status]) {
               const [r2, g, b] = STATUS_COLORS[status];
@@ -535,8 +586,96 @@ export default function ResultStatus() {
         </p>
       </div>
 
+      {/* ── View toggle ── */}
+      <div className="flex items-center gap-2">
+        <div className="flex bg-slate-100 p-0.5 rounded-xl">
+          {[{ key: false, label: 'Subject View' }, { key: true, label: 'Class Overview' }].map(opt => (
+            <button
+              key={String(opt.key)}
+              onClick={() => setShowClassView(opt.key)}
+              className={`px-4 py-1.5 text-[11px] font-black rounded-lg transition-all ${
+                showClassView === opt.key ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <span className="text-[10px] text-slate-400 font-bold">
+          {showClassView ? `${classSummaries.length} classes` : `${filtered.length} subject rows`}
+        </span>
+      </div>
+
+      {/* ── Class Overview ── */}
+      {showClassView && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100">
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">#</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Class</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Students</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Subjects</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">✅ Done</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">⚠ Partial</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">🔴 Pending</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Progress</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {classSummaries.map((cs, i) => (
+                <tr
+                  key={cs.classId}
+                  className={`hover:bg-slate-50 transition-colors cursor-pointer ${
+                    cs.pendingSubjects === cs.totalSubjects ? 'bg-rose-50/40' :
+                    cs.overallPct === 100 ? 'bg-emerald-50/30' : ''
+                  }`}
+                  onClick={() => { setShowClassView(false); setClassFilter(cs.className); }}
+                  title="Click to filter subject view by this class"
+                >
+                  <td className="px-4 py-3 text-[11px] font-bold text-slate-300">{i + 1}</td>
+                  <td className="px-4 py-3">
+                    <span className="text-sm font-black text-slate-800">{cs.className}</span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className="text-xs font-bold text-slate-500">{cs.totalStudents}</span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className="text-xs font-bold text-slate-600">{cs.totalSubjects}</span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`text-xs font-black ${cs.completeSubjects > 0 ? 'text-emerald-600' : 'text-slate-300'}`}>
+                      {cs.completeSubjects}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`text-xs font-black ${cs.partialSubjects > 0 ? 'text-amber-600' : 'text-slate-300'}`}>
+                      {cs.partialSubjects > 0 ? cs.partialSubjects : '—'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`text-xs font-black ${cs.pendingSubjects > 0 ? 'text-rose-600' : 'text-slate-300'}`}>
+                      {cs.pendingSubjects > 0 ? cs.pendingSubjects : '—'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <ProgressBar
+                      pct={cs.overallPct}
+                      status={cs.overallPct === 100 ? 'complete' : cs.completeSubjects > 0 || cs.partialSubjects > 0 ? 'partial' : 'pending'}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 text-[10px] font-bold text-slate-400">
+            Click any class row to drill down into its subject breakdown.
+          </div>
+        </div>
+      )}
+
       {/* ── Main Table ── */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      {!showClassView && <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         {loading ? (
           <div className="py-20 text-center">
             <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
@@ -561,8 +700,9 @@ export default function ResultStatus() {
                   <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Class</th>
                   <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Subject</th>
                   <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Students</th>
-                  <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Entered</th>
-                  <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Missing</th>
+                  <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Marks</th>
+                  <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Absent</th>
+                  <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Not Entered</th>
                   <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Progress</th>
                   <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
                   <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Action</th>
@@ -595,13 +735,19 @@ export default function ResultStatus() {
 
                     <td className="px-4 py-3 text-center">
                       <span className={`text-xs font-black ${row.marksEntered > 0 ? 'text-emerald-600' : 'text-slate-300'}`}>
-                        {row.marksEntered}
+                        {row.marksEntered > 0 ? row.marksEntered : '—'}
                       </span>
                     </td>
 
                     <td className="px-4 py-3 text-center">
-                      <span className={`text-xs font-black ${row.missing > 0 ? 'text-rose-500' : 'text-slate-300'}`}>
-                        {row.missing > 0 ? row.missing : '—'}
+                      <span className={`text-xs font-black ${row.absentMarked > 0 ? 'text-orange-500' : 'text-slate-300'}`}>
+                        {row.absentMarked > 0 ? row.absentMarked : '—'}
+                      </span>
+                    </td>
+
+                    <td className="px-4 py-3 text-center">
+                      <span className={`text-xs font-black ${row.trulyMissing > 0 ? 'text-rose-500' : 'text-slate-300'}`}>
+                        {row.trulyMissing > 0 ? row.trulyMissing : '—'}
                       </span>
                     </td>
 
@@ -646,7 +792,7 @@ export default function ResultStatus() {
             </div>
           </div>
         )}
-      </div>
+      </div>}
     </div>
   );
 }

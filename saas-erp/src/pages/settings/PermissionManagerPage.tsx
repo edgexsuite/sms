@@ -11,9 +11,14 @@ import {
   BookOpen, DollarSign, GraduationCap, Settings,
   Library, Bus, BarChart2, LayoutDashboard,
 } from 'lucide-react';
+import {
+  ROLE_ORDER, ACTIONS,
+  ROLE_PRESETS as SHARED_PRESETS, ROLE_DISPLAY,
+} from '../../lib/rolePermissions';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
+// MODULES keeps icon metadata (UI-specific — not stored in the shared lib)
 const MODULES = [
   { id: 'dashboard', name: 'Dashboard',           icon: LayoutDashboard },
   { id: 'students',  name: 'Students',             icon: GraduationCap  },
@@ -25,12 +30,7 @@ const MODULES = [
   { id: 'settings',  name: 'System Settings',      icon: Settings       },
 ];
 
-const ACTIONS = [
-  { id: 'delete_student', name: 'Delete Students',  desc: 'Move student records to trash'  },
-  { id: 'delete_staff',   name: 'Delete Staff',     desc: 'Move staff records to trash'    },
-  { id: 'delete_expense', name: 'Delete Expenses',  desc: 'Remove financial transactions'  },
-];
-
+// Merge permissions + display metadata from the shared canonical source
 interface RolePreset {
   label:   string;
   color:   string;
@@ -41,52 +41,12 @@ interface RolePreset {
   desc:    string;
 }
 
-const ROLE_PRESETS: Record<string, RolePreset> = {
-  admin: {
-    label: 'Admin', color: 'text-indigo-700', bgLight: 'bg-indigo-50', ring: 'ring-indigo-300',
-    desc: 'Full access to all modules and system settings.',
-    modules: { dashboard: true,  students: true,  staff: true,  finance: true,  academic: true,  services: true,  reports: true,  settings: true  },
-    actions: { delete_student: true,  delete_staff: true,  delete_expense: true  },
-  },
-  principal: {
-    label: 'Principal', color: 'text-violet-700', bgLight: 'bg-violet-50', ring: 'ring-violet-300',
-    desc: 'Full view of all modules, no system settings or bulk deletes.',
-    modules: { dashboard: true,  students: true,  staff: true,  finance: true,  academic: true,  services: true,  reports: true,  settings: false },
-    actions: { delete_student: false, delete_staff: false, delete_expense: false },
-  },
-  director: {
-    label: 'Director', color: 'text-purple-700', bgLight: 'bg-purple-50', ring: 'ring-purple-300',
-    desc: 'All access including deletions. Same as admin.',
-    modules: { dashboard: true,  students: true,  staff: true,  finance: true,  academic: true,  services: true,  reports: true,  settings: false },
-    actions: { delete_student: true,  delete_staff: true,  delete_expense: true  },
-  },
-  teacher: {
-    label: 'Teacher', color: 'text-blue-700', bgLight: 'bg-blue-50', ring: 'ring-blue-300',
-    desc: 'Dashboard, students view, academic entry. No finance or settings.',
-    modules: { dashboard: true,  students: true,  staff: false, finance: false, academic: true,  services: false, reports: false, settings: false },
-    actions: { delete_student: false, delete_staff: false, delete_expense: false },
-  },
-  accountant: {
-    label: 'Accountant', color: 'text-emerald-700', bgLight: 'bg-emerald-50', ring: 'ring-emerald-300',
-    desc: 'Finance and reports only. Can delete expenses.',
-    modules: { dashboard: true,  students: false, staff: false, finance: true,  academic: false, services: false, reports: true,  settings: false },
-    actions: { delete_student: false, delete_staff: false, delete_expense: true  },
-  },
-  staff: {
-    label: 'Staff', color: 'text-cyan-700', bgLight: 'bg-cyan-50', ring: 'ring-cyan-300',
-    desc: 'General access — students, finance, academic, services.',
-    modules: { dashboard: true,  students: true,  staff: false, finance: true,  academic: true,  services: true,  reports: false, settings: false },
-    actions: { delete_student: false, delete_staff: false, delete_expense: false },
-  },
-  librarian: {
-    label: 'Librarian', color: 'text-amber-700', bgLight: 'bg-amber-50', ring: 'ring-amber-300',
-    desc: 'Dashboard, student lookup, and library/transport services.',
-    modules: { dashboard: true,  students: true,  staff: false, finance: false, academic: false, services: true,  reports: false, settings: false },
-    actions: { delete_student: false, delete_staff: false, delete_expense: false },
-  },
-};
-
-const ROLE_ORDER = ['admin', 'director', 'principal', 'teacher', 'accountant', 'staff', 'librarian'];
+const ROLE_PRESETS: Record<string, RolePreset> = Object.fromEntries(
+  Object.entries(SHARED_PRESETS).map(([role, perms]) => [
+    role,
+    { ...(ROLE_DISPLAY[role] ?? {}), ...perms } as RolePreset,
+  ])
+);
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -120,12 +80,15 @@ export default function PermissionManagerPage() {
     setLoading(true);
     const { data } = await supabase
       .from('user_roles')
-      .select('id, role, login_email, user_id, is_active, permissions, staff_id')
+      .select('id, role, login_email, user_id, is_active, permissions, staff_id, staff(full_name, photograph_url, department)')
       .eq('school_id', userRole!.school_id)
       .order('role');
-    setAccounts((data || []).map(r => ({
+    setAccounts((data || []).map((r: any) => ({
       ...r,
-      permissions: r.permissions || { modules: {}, actions: {} },
+      permissions:    r.permissions || { modules: {}, actions: {} },
+      staff_name:     r.staff?.full_name     || null,
+      staff_photo:    r.staff?.photograph_url || null,
+      staff_dept:     r.staff?.department    || null,
     })));
     setLoading(false);
   };
@@ -170,7 +133,9 @@ export default function PermissionManagerPage() {
     if (!q) return accounts;
     return accounts.filter(a =>
       a.role?.toLowerCase().includes(q) ||
-      a.login_email?.toLowerCase().includes(q)
+      a.login_email?.toLowerCase().includes(q) ||
+      a.staff_name?.toLowerCase().includes(q) ||
+      a.staff_dept?.toLowerCase().includes(q)
     );
   }, [accounts, searchQ]);
 
@@ -281,7 +246,7 @@ export default function PermissionManagerPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search by role or email…"
+                  placeholder="Search by name, role, email…"
                   value={searchQ}
                   onChange={e => setSearchQ(e.target.value)}
                   className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-400 outline-none"
@@ -299,23 +264,40 @@ export default function PermissionManagerPage() {
                 <div className="p-6 text-center text-slate-400 text-xs">No accounts found.</div>
               ) : (
                 filteredAccounts.map(acct => {
-                  const preset  = ROLE_PRESETS[acct.role?.toLowerCase()];
+                  const preset     = ROLE_PRESETS[acct.role?.toLowerCase()];
                   const isSelected = acct.id === selectedId;
+                  const displayName = acct.staff_name || acct.login_email || acct.role;
+                  const initials = displayName?.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
                   return (
                     <button
                       key={acct.id}
                       onClick={() => setSelectedId(acct.id)}
-                      className={`w-full text-left px-4 py-3.5 flex items-center gap-3 transition-colors ${isSelected ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}
+                      className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${isSelected ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}
                     >
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm shrink-0 ${preset?.bgLight || 'bg-slate-100'} ${preset?.color || 'text-slate-600'}`}>
-                        {acct.role?.charAt(0).toUpperCase()}
-                      </div>
+                      {/* Avatar */}
+                      {acct.staff_photo ? (
+                        <img src={acct.staff_photo} alt={displayName} className="w-9 h-9 rounded-xl object-cover shrink-0 ring-1 ring-slate-200" />
+                      ) : (
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${preset?.bgLight || 'bg-slate-100'} ${preset?.color || 'text-slate-600'}`}>
+                          {initials || '?'}
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
-                        <p className={`text-xs font-black capitalize ${isSelected ? 'text-indigo-700' : 'text-slate-800'}`}>
-                          {acct.role}
+                        {/* Staff name (primary) */}
+                        <p className={`text-xs font-black truncate ${isSelected ? 'text-indigo-700' : 'text-slate-800'}`}>
+                          {acct.staff_name || <span className="italic text-slate-400">{acct.login_email || 'Unknown'}</span>}
                           {!acct.is_active && <span className="ml-1.5 text-[9px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full">Suspended</span>}
+                          {!acct.staff_id && <span className="ml-1.5 text-[9px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">⚠ Unlinked</span>}
                         </p>
-                        <p className="text-[10px] text-slate-400 truncate mt-0.5">{acct.login_email || `ID: ${acct.user_id?.slice(0, 12)}…`}</p>
+                        {/* Role badge + email */}
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${preset?.bgLight || 'bg-slate-100'} ${preset?.color || 'text-slate-500'}`}>
+                            {preset?.label || acct.role}
+                          </span>
+                          {acct.staff_dept && (
+                            <span className="text-[9px] text-slate-300 truncate">{acct.staff_dept}</span>
+                          )}
+                        </div>
                       </div>
                       {isSelected && <div className="w-2 h-2 rounded-full bg-indigo-600 shrink-0" />}
                     </button>
@@ -424,17 +406,33 @@ export default function PermissionManagerPage() {
               {/* Editor header */}
               {(() => {
                 const preset = ROLE_PRESETS[selectedAccount.role?.toLowerCase()];
+                const nameInitials = selectedAccount.staff_name?.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) || selectedAccount.role?.charAt(0).toUpperCase();
                 return (
                   <div className={`px-6 py-5 border-b border-slate-100 flex items-center justify-between gap-4 ${preset?.bgLight || 'bg-slate-50'}`}>
                     <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg shadow-sm ${preset?.bgLight || 'bg-white'} ${preset?.color || 'text-slate-600'} border border-current/20`}>
-                        {selectedAccount.role?.charAt(0).toUpperCase()}
-                      </div>
+                      {selectedAccount.staff_photo ? (
+                        <img src={selectedAccount.staff_photo} alt={selectedAccount.staff_name} className="w-12 h-12 rounded-2xl object-cover ring-2 ring-white shadow-sm" />
+                      ) : (
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg shadow-sm ${preset?.bgLight || 'bg-white'} ${preset?.color || 'text-slate-600'} border border-current/20`}>
+                          {nameInitials}
+                        </div>
+                      )}
                       <div>
-                        <h2 className={`font-black text-base capitalize ${preset?.color || 'text-slate-900'}`}>
-                          {selectedAccount.role} Account
+                        <h2 className={`font-black text-base ${preset?.color || 'text-slate-900'}`}>
+                          {selectedAccount.staff_name || selectedAccount.login_email || 'Unknown Account'}
                         </h2>
-                        <p className="text-xs text-slate-500 mt-0.5">{selectedAccount.login_email || `User ID: ${selectedAccount.user_id?.slice(0, 16)}…`}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${preset?.bgLight || 'bg-slate-100'} ${preset?.color || 'text-slate-600'} border border-current/20`}>
+                            {preset?.label || selectedAccount.role}
+                          </span>
+                          {selectedAccount.staff_dept && (
+                            <span className="text-[10px] text-slate-400">{selectedAccount.staff_dept}</span>
+                          )}
+                          {!selectedAccount.staff_id && (
+                            <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">⚠ Not linked to staff</span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{selectedAccount.login_email || `User ID: ${selectedAccount.user_id?.slice(0, 16)}…`}</p>
                       </div>
                     </div>
                     <button

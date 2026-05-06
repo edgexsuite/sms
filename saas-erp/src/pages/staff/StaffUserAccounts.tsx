@@ -9,6 +9,7 @@ import {
   Wand2, CheckCheck, Filter, ChevronDown, Activity,
 } from 'lucide-react';
 import { formatDate } from '../../lib/utils';
+import { ROLE_LABELS, ROLE_PRESETS as SHARED_PRESETS } from '../../lib/rolePermissions';
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface StaffWithAccount {
@@ -32,27 +33,41 @@ interface StaffWithAccount {
   login_email: string | null;
 }
 
-const SYSTEM_ROLES = ['director', 'principal', 'admin', 'teacher', 'staff', 'accountant', 'librarian'] as const;
+const SYSTEM_ROLES = [
+  'director', 'principal', 'vice_principal', 'admin',
+  'teacher', 'staff', 'accountant', 'librarian',
+  'campus_coordinator', 'academic_coordinator', 'section_coordinator',
+] as const;
 type SystemRole = typeof SYSTEM_ROLES[number];
 
+// ROLE_LABELS imported from ../../lib/rolePermissions
+
 const ROLE_COLORS: Record<string, string> = {
-  director:   'bg-slate-900 text-white border-slate-700 shadow-md ring-1 ring-slate-800',
-  principal:  'bg-blue-700 text-white border-blue-600 shadow-sm',
-  admin:      'bg-red-600 text-white border-red-500 shadow-sm',
-  teacher:    'bg-blue-500/15 text-blue-700 border-blue-300',
-  staff:      'bg-violet-500/15 text-violet-700 border-violet-300',
-  accountant: 'bg-amber-500/15 text-amber-700 border-amber-300',
-  librarian:  'bg-emerald-500/15 text-emerald-700 border-emerald-300',
+  director:             'bg-slate-900 text-white border-slate-700 shadow-md ring-1 ring-slate-800',
+  principal:            'bg-blue-700 text-white border-blue-600 shadow-sm',
+  vice_principal:       'bg-indigo-600 text-white border-indigo-500 shadow-sm',
+  admin:                'bg-red-600 text-white border-red-500 shadow-sm',
+  teacher:              'bg-blue-500/15 text-blue-700 border-blue-300',
+  staff:                'bg-violet-500/15 text-violet-700 border-violet-300',
+  accountant:           'bg-amber-500/15 text-amber-700 border-amber-300',
+  librarian:            'bg-emerald-500/15 text-emerald-700 border-emerald-300',
+  campus_coordinator:   'bg-teal-500/15 text-teal-700 border-teal-300',
+  academic_coordinator: 'bg-cyan-500/15 text-cyan-700 border-cyan-300',
+  section_coordinator:  'bg-sky-500/15 text-sky-700 border-sky-300',
 };
 
 const ROLE_BG: Record<string, string> = {
-  director:   'from-slate-800 to-slate-900',
-  principal:  'from-blue-700 to-blue-900',
-  admin:      'from-red-600 to-red-800',
-  teacher:    'from-blue-500 to-indigo-600',
-  staff:      'from-violet-500 to-purple-600',
-  accountant: 'from-amber-500 to-orange-600',
-  librarian:  'from-emerald-500 to-teal-600',
+  director:             'from-slate-800 to-slate-900',
+  principal:            'from-blue-700 to-blue-900',
+  vice_principal:       'from-indigo-600 to-blue-700',
+  admin:                'from-red-600 to-red-800',
+  teacher:              'from-blue-500 to-indigo-600',
+  staff:                'from-violet-500 to-purple-600',
+  accountant:           'from-amber-500 to-orange-600',
+  librarian:            'from-emerald-500 to-teal-600',
+  campus_coordinator:   'from-teal-500 to-cyan-600',
+  academic_coordinator: 'from-cyan-500 to-blue-500',
+  section_coordinator:  'from-sky-400 to-cyan-500',
 };
 
 const MODULES = [
@@ -65,20 +80,13 @@ const MODULES = [
 ];
 
 const ACTIONS = [
-  { key: 'delete_student',  label: 'Delete Students',  danger: true },
-  { key: 'delete_staff',    label: 'Delete Staff',     danger: true },
-  { key: 'delete_expenses', label: 'Delete Expenses',  danger: true },
+  { key: 'delete_student', label: 'Delete Students', danger: true },
+  { key: 'delete_staff',   label: 'Delete Staff',    danger: true },
+  { key: 'delete_expense', label: 'Delete Expenses', danger: true },
 ];
 
-const ROLE_PRESETS: Record<string, PermissionSet> = {
-  director:   { modules: { students: true,  academic: true,  finance: true,  services: true,  reports: true,  settings: true  }, actions: { delete_student: true,  delete_staff: true,  delete_expenses: true  } },
-  principal:  { modules: { students: true,  academic: true,  finance: true,  services: true,  reports: true,  settings: true  }, actions: { delete_student: true,  delete_staff: false, delete_expenses: false } },
-  admin:      { modules: { students: true,  academic: true,  finance: true,  services: true,  reports: true,  settings: true  }, actions: { delete_student: true,  delete_staff: true,  delete_expenses: true  } },
-  teacher:    { modules: { students: true,  academic: true,  finance: false, services: false, reports: false, settings: false }, actions: { delete_student: false, delete_staff: false, delete_expenses: false } },
-  staff:      { modules: { students: true,  academic: false, finance: true,  services: true,  reports: false, settings: false }, actions: { delete_student: false, delete_staff: false, delete_expenses: false } },
-  accountant: { modules: { students: false, academic: false, finance: true,  services: false, reports: true,  settings: false }, actions: { delete_student: false, delete_staff: false, delete_expenses: true  } },
-  librarian:  { modules: { students: true,  academic: false, finance: false, services: true,  reports: false, settings: false }, actions: { delete_student: false, delete_staff: false, delete_expenses: false } },
-};
+// Canonical presets imported from shared lib (single source of truth)
+const ROLE_PRESETS: Record<string, PermissionSet> = SHARED_PRESETS as Record<string, PermissionSet>;
 
 function generatePassword(): string {
   const digits = Math.floor(1000 + Math.random() * 9000);
@@ -167,6 +175,16 @@ export default function StaffUserAccounts() {
 
   // Bulk grant
   const [bulkGranting, setBulkGranting] = useState(false);
+
+  // Change system role for existing account
+  const [showChangeRole, setShowChangeRole] = useState(false);
+  const [changeRoleTo, setChangeRoleTo]     = useState<SystemRole>('teacher');
+  const [changingRole, setChangingRole]     = useState(false);
+
+  // Repair unlinked accounts
+  const [repairResults, setRepairResults] = useState<{ name: string; email: string; matched: boolean }[]>([]);
+  const [showRepair, setShowRepair] = useState(false);
+  const [repairing, setRepairing] = useState(false);
 
   // Guard
   if (!['admin', 'director', 'principal'].includes(userRole?.role || '')) {
@@ -528,6 +546,82 @@ export default function StaffUserAccounts() {
     alert(`Done! ${success} accounts created${failed ? `, ${failed} failed (check email conflicts)` : ''}.`);
   };
 
+  // ── Change system role for existing account ──────────────────────────────
+
+  const handleChangeRole = async () => {
+    if (!selected?.user_id || !changeRoleTo) return;
+    setChangingRole(true);
+    try {
+      const newPerms = ROLE_PRESETS[changeRoleTo] ?? { modules: {}, actions: {} };
+      const { error } = await supabase.from('user_roles')
+        .update({ role: changeRoleTo, permissions: newPerms })
+        .eq('user_id', selected.user_id)
+        .eq('school_id', userRole!.school_id);
+      if (error) throw new Error(error.message);
+      await fetchStaff();
+      setShowChangeRole(false);
+      alert(`✅ Role updated to "${ROLE_LABELS[changeRoleTo]}" and permissions preset applied.`);
+    } catch (err: any) {
+      alert('Error changing role: ' + err.message);
+    } finally {
+      setChangingRole(false);
+    }
+  };
+
+  // ── Repair unlinked accounts ──────────────────────────────────────────────
+  // Finds user_roles rows where staff_id IS NULL but login_email matches a staff record.
+  const handleRepairUnlinked = async () => {
+    if (!userRole?.school_id) return;
+    setRepairing(true);
+    setRepairResults([]);
+    try {
+      // 1. Get user_roles with no staff_id
+      const { data: orphanRoles } = await supabase
+        .from('user_roles')
+        .select('id, user_id, login_email, role')
+        .eq('school_id', userRole.school_id)
+        .is('staff_id', null)
+        .neq('role', 'admin')
+        .neq('role', 'parent');
+
+      if (!orphanRoles?.length) {
+        alert('✅ No unlinked accounts found — all user_roles rows have a staff_id.');
+        setRepairing(false);
+        return;
+      }
+
+      const results: { name: string; email: string; matched: boolean }[] = [];
+
+      for (const orphan of orphanRoles) {
+        if (!orphan.login_email) continue;
+        // Try to find a staff record with matching email
+        const { data: matchedStaff } = await supabase
+          .from('staff')
+          .select('id, full_name, email')
+          .eq('school_id', userRole.school_id)
+          .ilike('email', orphan.login_email)
+          .maybeSingle();
+
+        if (matchedStaff) {
+          // Link: update user_roles.staff_id and staff.user_id + has_login
+          await supabase.from('user_roles').update({ staff_id: matchedStaff.id }).eq('id', orphan.id);
+          await supabase.from('staff').update({ user_id: orphan.user_id, has_login: true }).eq('id', matchedStaff.id);
+          results.push({ name: matchedStaff.full_name, email: orphan.login_email, matched: true });
+        } else {
+          results.push({ name: '(no staff record)', email: orphan.login_email, matched: false });
+        }
+      }
+
+      setRepairResults(results);
+      setShowRepair(true);
+      await fetchStaff();
+    } catch (err: any) {
+      alert('Repair error: ' + err.message);
+    } finally {
+      setRepairing(false);
+    }
+  };
+
   // ── Select staff (handles mobile navigation) ──────────────────────────────
 
   const selectStaff = (s: StaffWithAccount) => {
@@ -549,6 +643,51 @@ export default function StaffUserAccounts() {
         <StatCard label="Suspended"       value={suspended}      icon={Lock}          color="amber" />
         <StatCard label="No Access"       value={noAccess}       icon={Shield}        color="slate" />
       </div>
+
+      {/* ── Repair Unlinked Accounts banner ──────────────── */}
+      <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+        <div className="flex items-center gap-3">
+          <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+          <div>
+            <p className="text-xs font-bold text-amber-800">Unlinked Account Tool</p>
+            <p className="text-[10px] text-amber-600">Scans for login accounts (user_roles) that have no staff record linked — e.g. mahamayyaz143@gmail.com.</p>
+          </div>
+        </div>
+        <button
+          onClick={handleRepairUnlinked}
+          disabled={repairing}
+          className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50"
+        >
+          {repairing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Settings className="w-3.5 h-3.5" />}
+          {repairing ? 'Scanning…' : 'Repair Unlinked'}
+        </button>
+      </div>
+
+      {/* ── Repair results modal ──────────────────────────── */}
+      {showRepair && repairResults.length > 0 && (
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-lg p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-emerald-500" /> Repair Complete
+            </h3>
+            <button onClick={() => setShowRepair(false)} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
+          </div>
+          <div className="divide-y divide-slate-50">
+            {repairResults.map((r, i) => (
+              <div key={i} className="flex items-center justify-between py-2">
+                <div>
+                  <p className="text-xs font-bold text-slate-800">{r.name}</p>
+                  <p className="text-[10px] text-slate-400">{r.email}</p>
+                </div>
+                {r.matched
+                  ? <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">✅ Linked</span>
+                  : <span className="text-[10px] font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full">⚠ No staff match</span>
+                }
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Main panel ───────────────────────────────────── */}
       <div className="flex gap-4" style={{ minHeight: 'calc(100vh - 260px)' }}>
@@ -631,7 +770,10 @@ export default function StaffUserAccounts() {
                 )}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-800 truncate">{s.full_name}</p>
-                  <p className="text-[11px] text-gray-400 truncate">{s.role}{s.department ? ` · ${s.department}` : ''}</p>
+                  <p className="text-[11px] text-gray-400 truncate">
+                    {ROLE_LABELS[s.role?.toLowerCase()] ?? s.role}
+                    {s.department ? ` · ${s.department}` : ''}
+                  </p>
                 </div>
                 <StatusBadge s={s} />
               </button>
@@ -676,7 +818,10 @@ export default function StaffUserAccounts() {
                   )}
                   <div className="flex-1 min-w-0">
                     <h1 className="text-xl font-bold text-white">{selected.full_name}</h1>
-                    <p className="text-sm text-white/70 mt-0.5">{selected.role}{selected.department ? ` · ${selected.department}` : ''}</p>
+                    <p className="text-sm text-white/70 mt-0.5">
+                      {ROLE_LABELS[selected.role?.toLowerCase()] ?? selected.role}
+                      {selected.department ? ` · ${selected.department}` : ''}
+                    </p>
 
                     {/* Info pills */}
                     <div className="flex flex-wrap gap-2 mt-3">
@@ -781,7 +926,7 @@ export default function StaffUserAccounts() {
                     </button>
                     {selected.system_role && (
                       <span className={`hidden sm:inline-flex items-center text-[10px] font-bold px-3 rounded-xl border ${ROLE_COLORS[selected.system_role] ?? 'bg-white/10 text-white border-white/20'}`}>
-                        {selected.system_role.charAt(0).toUpperCase() + selected.system_role.slice(1)}
+                        {ROLE_LABELS[selected.system_role] ?? selected.system_role}
                       </span>
                     )}
                   </div>
@@ -858,11 +1003,11 @@ export default function StaffUserAccounts() {
                     {/* System Role */}
                     <div>
                       <label className="block text-xs font-semibold text-gray-600 mb-2">System Role</label>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {SYSTEM_ROLES.map(r => (
                           <button key={r} onClick={() => setCreateRole(r)}
                             className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-all ${createRole === r ? `${ROLE_COLORS[r]} border-current` : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-gray-300'}`}>
-                            {r.charAt(0).toUpperCase() + r.slice(1)}
+                            {ROLE_LABELS[r] ?? r}
                           </button>
                         ))}
                       </div>
@@ -933,7 +1078,7 @@ export default function StaffUserAccounts() {
                     <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Account Management</h3>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
 
-                      <button onClick={() => { setResetPass(generatePassword()); setResetEmail(selected.login_email || selected.email || ''); setShowReset(true); setShowPerms(false); }}
+                      <button onClick={() => { setResetPass(generatePassword()); setResetEmail(selected.login_email || selected.email || ''); setShowReset(true); setShowPerms(false); setShowChangeRole(false); }}
                         className="flex flex-col items-center gap-2.5 p-4 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all group">
                         <div className="w-9 h-9 rounded-xl bg-indigo-100 group-hover:bg-indigo-200 flex items-center justify-center transition-colors">
                           <Key className="w-4.5 h-4.5 text-indigo-600" />
@@ -941,7 +1086,15 @@ export default function StaffUserAccounts() {
                         <span className="text-xs font-semibold text-gray-600 group-hover:text-indigo-700 text-center">Reset Password</span>
                       </button>
 
-                      <button onClick={() => { openPermEditor(selected); }}
+                      <button onClick={() => { setChangeRoleTo((selected.system_role as SystemRole) || 'teacher'); setShowChangeRole(true); setShowReset(false); setShowPerms(false); }}
+                        className="flex flex-col items-center gap-2.5 p-4 rounded-xl border border-gray-200 hover:border-sky-300 hover:bg-sky-50 transition-all group">
+                        <div className="w-9 h-9 rounded-xl bg-sky-100 group-hover:bg-sky-200 flex items-center justify-center transition-colors">
+                          <ShieldCheck className="w-4.5 h-4.5 text-sky-600" />
+                        </div>
+                        <span className="text-xs font-semibold text-gray-600 group-hover:text-sky-700 text-center">Change Role</span>
+                      </button>
+
+                      <button onClick={() => { openPermEditor(selected); setShowChangeRole(false); setShowReset(false); }}
                         className="flex flex-col items-center gap-2.5 p-4 rounded-xl border border-gray-200 hover:border-violet-300 hover:bg-violet-50 transition-all group">
                         <div className="w-9 h-9 rounded-xl bg-violet-100 group-hover:bg-violet-200 flex items-center justify-center transition-colors">
                           <Settings className="w-4.5 h-4.5 text-violet-600" />
@@ -976,6 +1129,42 @@ export default function StaffUserAccounts() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Change Role form */}
+                  {showChangeRole && (
+                    <div className="bg-sky-50 border border-sky-200 rounded-2xl p-5">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-sm font-bold text-sky-900">Change System Role</h3>
+                          <p className="text-[11px] text-sky-600 mt-0.5">
+                            Current: <span className="font-black">{ROLE_LABELS[selected.system_role ?? ''] ?? selected.system_role ?? 'None'}</span>
+                            {' → '}
+                            <span className="font-black">{ROLE_LABELS[changeRoleTo]}</span>
+                          </p>
+                        </div>
+                        <button onClick={() => setShowChangeRole(false)} className="text-sky-400 hover:text-sky-600"><X className="w-4 h-4" /></button>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+                        {SYSTEM_ROLES.map(r => (
+                          <button key={r} onClick={() => setChangeRoleTo(r)}
+                            className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-all ${changeRoleTo === r ? `${ROLE_COLORS[r]} border-current shadow-sm` : 'bg-white text-gray-500 border-gray-200 hover:border-sky-300'}`}>
+                            {ROLE_LABELS[r] ?? r}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-sky-700 bg-sky-100 rounded-lg px-3 py-2 mb-3">
+                        ⚠ This updates the system login role and resets permissions to the role preset. The staff HR job title stays unchanged.
+                      </p>
+                      <div className="flex gap-2">
+                        <button onClick={handleChangeRole} disabled={changingRole || changeRoleTo === selected.system_role}
+                          className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white text-sm font-semibold rounded-xl hover:bg-sky-700 disabled:opacity-50 transition-colors">
+                          {changingRole ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                          {changingRole ? 'Saving…' : 'Apply Role Change'}
+                        </button>
+                        <button onClick={() => setShowChangeRole(false)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Reset password form */}
                   {showReset && (

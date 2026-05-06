@@ -1,223 +1,546 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { LayoutDashboard, Printer, TrendingUp } from 'lucide-react';
+import {
+  TableProperties, Printer, Download, TrendingUp,
+  RefreshCw, Award, Users, CheckCircle, XCircle,
+} from 'lucide-react';
 import { fetchGradingPolicy, getGradeFromPolicy, GradingBracket } from '../../lib/gradingUtils';
+import * as XLSX from 'xlsx';
 
-const GRADE_COLORS: Record<string, string> = {
-  'A+': 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  'A': 'bg-green-100 text-green-800 border-green-200',
-  'B': 'bg-blue-100 text-blue-800 border-blue-200',
-  'C': 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  'D': 'bg-orange-100 text-orange-800 border-orange-200',
-  'F': 'bg-red-100 text-red-800 border-red-200',
+// ── Grade colour map ──────────────────────────────────────────────────────────
+const GRADE_COLORS: Record<string, { bg: string; text: string; print: string }> = {
+  'A+': { bg: 'bg-emerald-100',  text: 'text-emerald-800', print: '#d1fae5' },
+  'A':  { bg: 'bg-green-100',   text: 'text-green-800',   print: '#dcfce7' },
+  'B':  { bg: 'bg-blue-100',    text: 'text-blue-800',    print: '#dbeafe' },
+  'C':  { bg: 'bg-yellow-100',  text: 'text-yellow-800',  print: '#fef9c3' },
+  'D':  { bg: 'bg-orange-100',  text: 'text-orange-800',  print: '#ffedd5' },
+  'F':  { bg: 'bg-red-100',     text: 'text-red-800',     print: '#fee2e2' },
 };
 
 export default function ConsolidatedResult() {
   const { userRole } = useAuth();
-  const [examTypes, setExamTypes] = useState<any[]>([]);
-  const [classes, setClasses] = useState<any[]>([]);
-  const [subjects, setSubjects] = useState<any[]>([]);
-  const [students, setStudents] = useState<any[]>([]);
-  const [results, setResults] = useState<any[]>([]);
+
+  const [examTypes,       setExamTypes]       = useState<any[]>([]);
+  const [classes,         setClasses]         = useState<any[]>([]);
+  const [subjects,        setSubjects]        = useState<any[]>([]);
+  // examMarks: subject_id → { total_marks, passing_marks } from exam_subject_config
+  const [examMarks,       setExamMarks]       = useState<Record<string, { total_marks: number; passing_marks: number }>>({});
+  const [students,        setStudents]        = useState<any[]>([]);
+  const [results,         setResults]         = useState<any[]>([]);
   const [gradingBrackets, setGradingBrackets] = useState<GradingBracket[]>([]);
+  const [schoolName,      setSchoolName]      = useState('');
 
   const [selectedExamType, setSelectedExamType] = useState('');
-  const [selectedClass, setSelectedClass] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [selectedClass,    setSelectedClass]    = useState('');
+  const [loading,          setLoading]          = useState(false);
 
-  useEffect(() => { if (userRole?.school_id) {
-    fetchInit();
-    fetchGradingPolicy(userRole.school_id).then(setGradingBrackets);
-  }}, [userRole]);
-  useEffect(() => { if (selectedClass) fetchClassData(); }, [selectedClass]);
-  useEffect(() => { if (selectedExamType && selectedClass) fetchResults(); }, [selectedExamType, selectedClass]);
+  const tableRef = useRef<HTMLDivElement>(null);
 
-  const fetchInit = async () => {
-    const [{ data: et }, { data: cls }] = await Promise.all([
-      supabase.from('exam_types').select('*').eq('school_id', userRole?.school_id).order('created_at'),
-      supabase.from('classes').select('id, name, section').eq('school_id', userRole?.school_id).order('name'),
-    ]);
-    if (et) setExamTypes(et);
-    if (cls) setClasses(cls);
-  };
+  // ── Init ───────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!userRole?.school_id) return;
+    const sid = userRole.school_id;
+    Promise.all([
+      supabase.from('exam_types').select('*').eq('school_id', sid).order('created_at'),
+      supabase.from('classes').select('id, name, section').eq('school_id', sid).order('name'),
+      supabase.from('schools').select('name').eq('id', sid).maybeSingle(),
+      fetchGradingPolicy(sid),
+    ]).then(([{ data: et }, { data: cls }, { data: sch }, brackets]) => {
+      if (et)  setExamTypes(et);
+      if (cls) setClasses(cls);
+      if (sch) setSchoolName((sch as any).name || '');
+      setGradingBrackets(brackets);
+    });
+  }, [userRole]);
 
-  const fetchClassData = async () => {
-    const [{ data: subs }, { data: stus }] = await Promise.all([
-      supabase.from('subjects').select('*').eq('class_id', selectedClass).order('subject_name'),
+  // ── Fetch class data when class changes ───────────────────────────────────
+  useEffect(() => {
+    if (!selectedClass) return;
+    Promise.all([
+      supabase.from('subjects').select('id, subject_name, total_marks, passing_marks').eq('class_id', selectedClass).order('subject_name'),
       supabase.from('students').select('id, full_name, roll_number').eq('class_id', selectedClass).eq('status', 'active').order('roll_number'),
-    ]);
-    if (subs) setSubjects(subs);
-    if (stus) setStudents(stus);
-  };
+    ]).then(([{ data: subs }, { data: stus }]) => {
+      if (subs) setSubjects(subs);
+      if (stus) setStudents(stus);
+      setResults([]);
+      setExamMarks({});
+    });
+  }, [selectedClass]);
 
-  const fetchResults = async () => {
-    setLoading(true);
-    const { data } = await supabase.from('exam_results')
-      .select('*')
+  // ── Fetch exam_subject_config when exam or subjects change ────────────────
+  useEffect(() => {
+    if (!selectedExamType || subjects.length === 0) return;
+    supabase
+      .from('exam_subject_config')
+      .select('subject_id, total_marks, passing_marks')
       .eq('exam_type_id', selectedExamType)
-      .in('student_id', students.length > 0 ? students.map(s => s.id) : ['00000000-0000-0000-0000-000000000000']);
-    if (data) setResults(data);
-    setLoading(false);
+      .in('subject_id', subjects.map(s => s.id))
+      .then(({ data }) => {
+        const map: Record<string, { total_marks: number; passing_marks: number }> = {};
+        (data || []).forEach((r: any) => { map[r.subject_id] = { total_marks: r.total_marks, passing_marks: r.passing_marks }; });
+        setExamMarks(map);
+      });
+  }, [selectedExamType, subjects]);
+
+  // ── Fetch results when both exam + class selected ─────────────────────────
+  useEffect(() => {
+    if (!selectedExamType || students.length === 0) return;
+    setLoading(true);
+    const ids = students.map(s => s.id);
+    supabase
+      .from('exam_results')
+      .select('student_id, subject_id, obtained_marks, total_marks, is_absent')
+      .eq('exam_type_id', selectedExamType)
+      .in('student_id', ids)
+      .then(({ data, error }) => {
+        if (error) console.error('exam_results fetch error:', error.message);
+        setResults(data || []);
+        setLoading(false);
+      });
+  }, [selectedExamType, students]);
+
+  // ── Effective marks: exam config takes priority, subject defaults as fallback ─
+  const effectiveMarks = (subj: any) => {
+    const cfg = examMarks[subj.id];
+    return {
+      total:   cfg ? Number(cfg.total_marks)   : Number(subj.total_marks   ?? 100),
+      passing: cfg ? Number(cfg.passing_marks) : Number(subj.passing_marks ?? 33),
+    };
   };
 
+  // ── Build matrix ──────────────────────────────────────────────────────────
   const getResult = (studentId: string, subjectId: string) =>
     results.find(r => r.student_id === studentId && r.subject_id === subjectId);
 
-  // Build consolidated per-student data
   const consolidatedData = students.map(stu => {
     let totalObtained = 0;
-    let grandTotal = 0;
-    let failCount = 0;
+    let grandTotal    = 0;
+    let failCount     = 0;
 
-    const subjectResults = subjects.map(subj => {
+    const subjectRows = subjects.map(subj => {
+      const { total: maxMarks, passing: passMarks } = effectiveMarks(subj);
       const r = getResult(stu.id, subj.id);
-      if (r) {
-        const g = getGradeFromPolicy(r.obtained_marks, r.total_marks, gradingBrackets);
-        totalObtained += r.obtained_marks;
-        grandTotal    += r.total_marks;
-        if (g.status !== 'Pass') failCount++;
-      } else {
-        grandTotal += subj.total_marks || 100;
-      }
-      return { subject: subj, result: r };
+
+      // No row at all — not yet entered
+      if (!r) return { subject: subj, maxMarks, passMarks, obtained: null, absent: false, pass: false };
+
+      // Absent — Policy A: exclude from grade calc (don't add to grandTotal or totalObtained)
+      if (r.is_absent) return { subject: subj, maxMarks, passMarks, obtained: null, absent: true, pass: false };
+
+      // Has marks — include in calculation
+      grandTotal += maxMarks;
+      const obtained = Number(r.obtained_marks);
+      totalObtained += obtained;
+      const pass = obtained >= passMarks;
+      if (!pass) failCount++;
+      return { subject: subj, maxMarks, passMarks, obtained, absent: false, pass };
     });
 
-    const overallG       = getGradeFromPolicy(totalObtained, grandTotal, gradingBrackets);
-    const overallPct     = overallG.pct;
-    const overallGrade   = overallG.grade;
-    const status         = failCount > 0 ? 'FAIL' : 'PASS';
+    const { grade, pct } = getGradeFromPolicy(totalObtained, grandTotal, gradingBrackets);
+    const status = failCount > 0 ? 'FAIL' : 'PASS';
 
-    return { student: stu, subjectResults, totalObtained, grandTotal, overallPct, overallGrade, status };
-  }).sort((a, b) => b.overallPct - a.overallPct);
+    return { student: stu, subjectRows, totalObtained, grandTotal, pct, grade, status };
+  }).sort((a, b) => b.pct - a.pct);
 
-  // Assign position after sort
-  consolidatedData.forEach((d, i) => { (d as any).position = i + 1; });
+  // Dense ranking: ties share the same position; next rank is +1 (not +count)
+  (() => {
+    let denseRank = 1;
+    consolidatedData.forEach((d, i) => {
+      if (i > 0 && d.pct !== consolidatedData[i - 1].pct) denseRank++;
+      (d as any).position = denseRank;
+    });
+  })();
 
-  const currentExam = examTypes.find(e => e.id === selectedExamType);
+  // ── Summary stats ─────────────────────────────────────────────────────────
+  const passCount   = consolidatedData.filter(d => d.status === 'PASS').length;
+  const failCount   = consolidatedData.filter(d => d.status === 'FAIL').length;
+  const classAvgPct = consolidatedData.length > 0
+    ? Math.round(consolidatedData.reduce((a, d) => a + d.pct, 0) / consolidatedData.length)
+    : 0;
+
+  // Top 3 positions (all students at positions 1, 2, 3 — including ties)
+  const top3Students = consolidatedData.filter(d => (d as any).position <= 3);
+
+  // Subject-wise class averages (bottom row)
+  const subjectAvgs = subjects.map(subj => {
+    const entries = results.filter(r => r.subject_id === subj.id && !r.is_absent);
+    if (entries.length === 0) return null;
+    return Math.round(entries.reduce((a, r) => a + Number(r.obtained_marks), 0) / entries.length);
+  });
+
+  // ── Excel export ──────────────────────────────────────────────────────────
+  const handleExcelExport = () => {
+    const currentExam  = examTypes.find(e => e.id === selectedExamType);
+    const currentClass = classes.find(c => c.id === selectedClass);
+
+    const header1 = ['', 'Roll', 'Student', ...subjects.map(s => s.subject_name), 'Total Obt', 'Max Marks', '%', 'Grade', 'Status'];
+    const header2 = ['',  '',    '',        ...subjects.map(s => `Pass: ${s.passing_marks ?? '—'} / ${s.total_marks ?? 100}`), '', '', '', '', ''];
+
+    const rows = consolidatedData.map((row: any) => [
+      row.position,
+      row.student.roll_number,
+      row.student.full_name,
+      ...row.subjectRows.map((sr: any) => sr.absent ? 'Ab' : sr.obtained ?? '—'),
+      row.totalObtained,
+      row.grandTotal,
+      `${row.pct}%`,
+      row.grade,
+      row.status,
+    ]);
+
+    const avgRow = ['', '', 'Class Average', ...subjectAvgs.map(a => a ?? '—'), '', '', `${classAvgPct}%`, '', ''];
+
+    const ws = XLSX.utils.aoa_to_sheet([
+      [`${schoolName} — Consolidated Result Sheet`],
+      [`Exam: ${currentExam?.name ?? ''} (${currentExam?.session ?? ''})`],
+      [`Class: ${currentClass?.name ?? ''} ${currentClass?.section ?? ''}`],
+      [],
+      header1,
+      header2,
+      ...rows,
+      [],
+      avgRow,
+    ]);
+
+    // Column widths
+    ws['!cols'] = [{ wch: 5 }, { wch: 8 }, { wch: 26 }, ...subjects.map(() => ({ wch: 12 })), { wch: 10 }, { wch: 10 }, { wch: 7 }, { wch: 8 }, { wch: 7 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Consolidated');
+    XLSX.writeFile(wb, `Consolidated_${currentClass?.name ?? 'Class'}_${currentExam?.name ?? 'Exam'}.xlsx`);
+  };
+
+  // ── Derived display ───────────────────────────────────────────────────────
+  const currentExam  = examTypes.find(e => e.id === selectedExamType);
   const currentClass = classes.find(c => c.id === selectedClass);
+  const isReady      = selectedExamType && selectedClass && !loading && consolidatedData.length > 0;
 
   return (
     <div className="space-y-6 max-w-full">
+      {/* Print styles */}
       <style>{`
         @media print {
           .no-print { display: none !important; }
-          body { background: white; }
-          table { font-size: 8px; border-collapse: collapse; width: 100%; }
-          th, td { border: 1px solid #000; padding: 2px 4px; text-align: center; }
+          body { background: white; margin: 0; }
+          table { font-size: 7.5px; border-collapse: collapse; width: 100%; }
+          th, td { border: 1px solid #333; padding: 2px 3px; text-align: center; vertical-align: middle; }
           .text-left { text-align: left !important; }
-          @page { size: landscape; margin: 10mm; }
+          .print-fail-bg { background-color: #fee2e2 !important; }
+          .print-pass-bg { background-color: #f0fdf4 !important; }
+          /* Prevent tfoot from repeating on every printed page */
+          tfoot { display: table-row-group !important; }
+          @page { size: landscape; margin: 8mm; }
         }
       `}</style>
 
+      {/* ── Header ── */}
       <div className="no-print flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <LayoutDashboard className="w-6 h-6 text-violet-600" /> Consolidated Result Sheet
+            <TableProperties className="w-6 h-6 text-violet-600" /> Consolidated Result Sheet
           </h1>
-          <p className="text-gray-500 text-sm mt-1">Full class result with position ranking and grade analysis. Print-ready.</p>
+          <p className="text-gray-500 text-sm mt-1">
+            Full class result — all subjects, totals, rank, grade &amp; pass/fail. Print or export to Excel.
+          </p>
         </div>
-        <button onClick={() => window.print()} disabled={results.length === 0} className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-5 py-2.5 rounded-lg font-bold shadow disabled:opacity-50 transition">
-          <Printer className="w-4 h-4" /> Print Sheet
-        </button>
+        <div className="flex gap-2">
+          {isReady && (
+            <>
+              <button
+                onClick={handleExcelExport}
+                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg font-bold shadow text-sm transition"
+              >
+                <Download className="w-4 h-4" /> Excel
+              </button>
+              <button
+                onClick={() => window.print()}
+                className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-4 py-2.5 rounded-lg font-bold shadow text-sm transition"
+              >
+                <Printer className="w-4 h-4" /> Print
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      <div className="no-print bg-white rounded-xl shadow-sm border border-gray-200 p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* ── Filter bar ── */}
+      <div className="no-print bg-white rounded-xl shadow-sm border border-gray-200 p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-bold text-gray-600 uppercase mb-2">Exam Type</label>
-          <select value={selectedExamType} onChange={e => setSelectedExamType(e.target.value)} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-300 rounded-lg font-medium text-sm">
-            <option value="">-- Select Exam --</option>
-            {examTypes.map(e => <option key={e.id} value={e.id}>{e.name} ({e.session})</option>)}
+          <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Exam</label>
+          <select
+            value={selectedExamType}
+            onChange={e => setSelectedExamType(e.target.value)}
+            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg font-medium text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+          >
+            <option value="">— Select Exam —</option>
+            {examTypes.map(e => (
+              <option key={e.id} value={e.id}>{e.name} ({e.session})</option>
+            ))}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-bold text-gray-600 uppercase mb-2">Class</label>
-          <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-300 rounded-lg font-medium text-sm">
-            <option value="">-- Select Class --</option>
-            {classes.map(c => <option key={c.id} value={c.id}>{c.name} — {c.section}</option>)}
+          <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Class</label>
+          <select
+            value={selectedClass}
+            onChange={e => setSelectedClass(e.target.value)}
+            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg font-medium text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+          >
+            <option value="">— Select Class —</option>
+            {classes.map(c => (
+              <option key={c.id} value={c.id}>{c.name}{c.section ? ` — ${c.section}` : ''}</option>
+            ))}
           </select>
         </div>
       </div>
 
-      {selectedExamType && selectedClass && (
+      {/* ── Loading ── */}
+      {loading && (
+        <div className="bg-white rounded-xl p-14 text-center text-gray-500 border border-gray-200">
+          <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-violet-400" />
+          <p className="font-semibold">Generating result sheet…</p>
+        </div>
+      )}
+
+      {/* ── Results ── */}
+      {!loading && selectedExamType && selectedClass && (
         <>
-          {/* Print Header */}
-          <div className="hidden print:block text-center mb-4">
-            <h1 className="text-2xl font-black uppercase">CONSOLIDATED RESULT SHEET</h1>
-            <p className="text-sm font-bold mt-1">{currentExam?.name} — Session {currentExam?.session}</p>
-            <p className="text-sm font-bold">Class: {currentClass?.name} {currentClass?.section}</p>
+          {/* ── Print header (visible only in print) ── */}
+          <div className="hidden print:block text-center mb-6">
+            {schoolName && <h2 className="text-xl font-black uppercase tracking-wide">{schoolName}</h2>}
+            <h1 className="text-lg font-black uppercase mt-1">Consolidated Result Sheet</h1>
+            <p className="text-sm font-bold mt-1">
+              {currentExam?.name} — Session: {currentExam?.session}
+            </p>
+            <p className="text-sm font-bold">
+              Class: {currentClass?.name}{currentClass?.section ? ` (${currentClass.section})` : ''}
+              &nbsp;|&nbsp; Total Students: {students.length}
+              &nbsp;|&nbsp; Pass: {passCount} &nbsp;|&nbsp; Fail: {failCount}
+              &nbsp;|&nbsp; Class Avg: {classAvgPct}%
+            </p>
+            <hr className="mt-2 border-black" />
           </div>
 
-          {/* Summary Stats */}
-          {!loading && consolidatedData.length > 0 && (
-            <div className="no-print grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* ── Summary stat cards ── */}
+          {consolidatedData.length > 0 && (
+            <div className="no-print grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: 'Total Students', value: students.length, color: 'text-violet-700 bg-violet-50 border-violet-200' },
-                { label: 'Passed', value: consolidatedData.filter(d => d.status === 'PASS').length, color: 'text-green-700 bg-green-50 border-green-200' },
-                { label: 'Failed', value: consolidatedData.filter(d => d.status === 'FAIL').length, color: 'text-red-700 bg-red-50 border-red-200' },
-                { label: 'Class Avg %', value: `${Math.round(consolidatedData.reduce((a, d) => a + d.overallPct, 0) / consolidatedData.length)}%`, color: 'text-blue-700 bg-blue-50 border-blue-200' },
+                { label: 'Total Students', value: students.length,    icon: Users,       color: 'bg-violet-50 border-violet-200 text-violet-700' },
+                { label: 'Passed',         value: passCount,          icon: CheckCircle, color: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
+                { label: 'Failed',         value: failCount,          icon: XCircle,     color: 'bg-red-50 border-red-200 text-red-700' },
+                { label: 'Class Average',  value: `${classAvgPct}%`,  icon: TrendingUp,  color: 'bg-blue-50 border-blue-200 text-blue-700' },
               ].map(stat => (
-                <div key={stat.label} className={`rounded-xl border p-4 ${stat.color}`}>
-                  <p className="text-3xl font-black">{stat.value}</p>
-                  <p className="text-xs font-semibold mt-1 uppercase tracking-wide opacity-80">{stat.label}</p>
+                <div key={stat.label} className={`rounded-xl border p-4 flex items-center gap-4 ${stat.color}`}>
+                  <stat.icon className="w-8 h-8 opacity-60 shrink-0" />
+                  <div>
+                    <p className="text-2xl font-black">{stat.value}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide opacity-70">{stat.label}</p>
+                  </div>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Result Table */}
-          {loading ? (
-            <div className="bg-white rounded-xl p-12 text-center text-gray-500">Generating result sheet...</div>
-          ) : (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden overflow-x-auto">
+          {/* ── No data state ── */}
+          {consolidatedData.length === 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 p-14 text-center text-gray-400">
+              <Award className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p className="font-semibold text-gray-600">No students or results found</p>
+              <p className="text-sm mt-1">Select a valid exam and class, then ensure marks have been entered.</p>
+            </div>
+          )}
+
+          {/* ── Main table ── */}
+          {consolidatedData.length > 0 && (
+            <div ref={tableRef} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr className="bg-violet-50 border-b border-violet-200">
-                    <th className="px-3 py-2 text-left text-xs font-bold text-violet-800 uppercase sticky left-0 bg-violet-50"># Pos</th>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-violet-800 uppercase sticky left-8 bg-violet-50">Student</th>
+                  {/* Row 1: headers */}
+                  <tr className="bg-violet-700 text-white">
+                    <th className="px-2 py-2.5 text-center text-xs font-black uppercase w-10 whitespace-nowrap sticky left-0 bg-violet-700">#</th>
+                    <th className="px-2 py-2.5 text-center text-xs font-black uppercase whitespace-nowrap w-14">Roll</th>
+                    <th className="px-3 py-2.5 text-left   text-xs font-black uppercase whitespace-nowrap min-w-[160px]">Student Name</th>
                     {subjects.map(s => (
-                      <th key={s.id} className="px-2 py-2 text-center text-xs font-bold text-violet-800 whitespace-nowrap">{s.subject_name}<br /><span className="font-normal opacity-60">/{s.total_marks}</span></th>
+                      <th key={s.id} className="px-2 py-2.5 text-center text-xs font-black whitespace-nowrap min-w-[80px]">
+                        {s.subject_name}
+                      </th>
                     ))}
-                    <th className="px-3 py-2 text-center text-xs font-bold text-violet-800 uppercase">Total</th>
-                    <th className="px-3 py-2 text-center text-xs font-bold text-violet-800 uppercase">%</th>
-                    <th className="px-3 py-2 text-center text-xs font-bold text-violet-800 uppercase">Grade</th>
-                    <th className="px-3 py-2 text-center text-xs font-bold text-violet-800 uppercase">Status</th>
+                    <th className="px-2 py-2.5 text-center text-xs font-black uppercase whitespace-nowrap">Total</th>
+                    <th className="px-2 py-2.5 text-center text-xs font-black uppercase whitespace-nowrap">%</th>
+                    <th className="px-2 py-2.5 text-center text-xs font-black uppercase whitespace-nowrap">Grade</th>
+                    <th className="px-2 py-2.5 text-center text-xs font-black uppercase whitespace-nowrap">Result</th>
+                  </tr>
+                  {/* Row 2: max marks + passing marks (from exam config if set, else subject defaults) */}
+                  <tr className="bg-violet-50 border-b-2 border-violet-200">
+                    <td colSpan={3} className="px-3 py-1 text-[10px] font-black text-violet-600 uppercase tracking-widest sticky left-0 bg-violet-50">
+                      Max Marks →
+                    </td>
+                    {subjects.map(s => {
+                      const em = effectiveMarks(s);
+                      return (
+                        <td key={s.id} className="px-2 py-1 text-center text-[10px] font-bold text-violet-700">
+                          <span className="block">{em.total}</span>
+                          <span className="block text-violet-400">Pass: {em.passing}</span>
+                        </td>
+                      );
+                    })}
+                    <td className="px-2 py-1 text-center text-[10px] font-bold text-violet-700">
+                      {subjects.reduce((a, s) => a + effectiveMarks(s).total, 0)}
+                    </td>
+                    <td colSpan={3} />
                   </tr>
                 </thead>
-                <tbody>
-                  {consolidatedData.map((row: any) => (
-                    <tr key={row.student.id} className={`border-b border-gray-100 hover:bg-gray-50 ${row.status === 'FAIL' ? 'bg-red-50/30' : ''}`}>
-                      <td className="px-3 py-2.5 font-black text-gray-700 text-center sticky left-0 bg-white">
-                        {row.position === 1 ? '🥇' : row.position === 2 ? '🥈' : row.position === 3 ? '🥉' : `#${row.position}`}
+
+                <tbody className="divide-y divide-gray-100">
+                  {consolidatedData.map((row: any, idx) => (
+                    <tr
+                      key={row.student.id}
+                      className={row.status === 'FAIL' ? 'bg-red-50/50 print-fail-bg' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}
+                    >
+                      {/* Rank */}
+                      <td className="px-1 py-2 text-center sticky left-0 bg-inherit">
+                        {row.position === 1 ? (
+                          <span className="inline-flex flex-col items-center leading-none">
+                            <span className="text-lg">🥇</span>
+                            <span className="text-[9px] font-black text-yellow-700 tracking-tight uppercase">1st</span>
+                          </span>
+                        ) : row.position === 2 ? (
+                          <span className="inline-flex flex-col items-center leading-none">
+                            <span className="text-lg">🥈</span>
+                            <span className="text-[9px] font-black text-slate-500 tracking-tight uppercase">2nd</span>
+                          </span>
+                        ) : row.position === 3 ? (
+                          <span className="inline-flex flex-col items-center leading-none">
+                            <span className="text-lg">🥉</span>
+                            <span className="text-[9px] font-black text-orange-700 tracking-tight uppercase">3rd</span>
+                          </span>
+                        ) : (
+                          <span className="text-sm font-black text-gray-500">{row.position}</span>
+                        )}
                       </td>
-                      <td className="px-3 py-2.5 sticky left-8 bg-white">
-                        <p className="font-bold text-gray-900">{row.student.full_name}</p>
-                        <p className="text-xs text-gray-400 font-mono">Roll: {row.student.roll_number}</p>
+                      {/* Roll */}
+                      <td className="px-2 py-2.5 text-center font-mono font-bold text-gray-600 text-xs">
+                        {row.student.roll_number}
                       </td>
-                      {row.subjectResults.map(({ subject, result }: any) => {
-                        const isPassing = result && result.obtained_marks >= (subject.passing_marks || 33);
+                      {/* Name */}
+                      <td className="px-3 py-2.5 text-left">
+                        <span className="font-semibold text-gray-900 text-sm">{row.student.full_name}</span>
+                      </td>
+                      {/* Per-subject marks */}
+                      {row.subjectRows.map((sr: any) => {
+                        if (sr.absent) {
+                          return (
+                            <td key={sr.subject.id} className="px-2 py-2.5 text-center text-[11px] font-black text-orange-600 bg-orange-50/70">
+                              Ab
+                            </td>
+                          );
+                        }
+                        if (sr.obtained === null) {
+                          return (
+                            <td key={sr.subject.id} className="px-2 py-2.5 text-center text-gray-300 font-bold">
+                              —
+                            </td>
+                          );
+                        }
                         return (
-                          <td key={subject.id} className={`px-2 py-2.5 text-center font-bold ${result ? (isPassing ? 'text-green-700' : 'text-red-600') : 'text-gray-300'}`}>
-                            {result ? result.obtained_marks : '—'}
+                          <td
+                            key={sr.subject.id}
+                            className={`px-2 py-2.5 text-center font-bold text-sm ${
+                              sr.pass
+                                ? 'text-emerald-700'
+                                : 'text-red-600 bg-red-100/60'
+                            }`}
+                          >
+                            {sr.obtained}
                           </td>
                         );
                       })}
-                      <td className="px-3 py-2.5 text-center font-black text-gray-900">{row.totalObtained}<span className="text-gray-400 font-normal text-xs">/{row.grandTotal}</span></td>
-                      <td className="px-3 py-2.5 text-center">
-                        <span className={`text-sm font-black flex items-center justify-center gap-1 ${row.overallPct >= 60 ? 'text-green-600' : 'text-red-600'}`}>
-                          <TrendingUp className="w-3 h-3" />{row.overallPct}%
+                      {/* Total */}
+                      <td className="px-2 py-2.5 text-center font-black text-gray-900">
+                        {row.totalObtained}
+                        <span className="text-gray-400 font-normal text-[10px]">/{row.grandTotal}</span>
+                      </td>
+                      {/* % */}
+                      <td className="px-2 py-2.5 text-center">
+                        <span className={`text-sm font-black ${row.pct >= 50 ? 'text-emerald-700' : 'text-red-600'}`}>
+                          {row.pct}%
                         </span>
                       </td>
-                      <td className="px-3 py-2.5 text-center">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-black border ${GRADE_COLORS[row.overallGrade] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>{row.overallGrade}</span>
+                      {/* Grade */}
+                      <td className="px-2 py-2.5 text-center">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-black border ${
+                          GRADE_COLORS[row.grade]
+                            ? `${GRADE_COLORS[row.grade].bg} ${GRADE_COLORS[row.grade].text} border-current/20`
+                            : 'bg-gray-100 text-gray-700 border-gray-200'
+                        }`}>
+                          {row.grade}
+                        </span>
                       </td>
-                      <td className="px-3 py-2.5 text-center">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-black ${row.status === 'PASS' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{row.status}</span>
+                      {/* Status */}
+                      <td className="px-2 py-2.5 text-center">
+                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-black ${
+                          row.status === 'PASS' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {row.status}
+                        </span>
                       </td>
                     </tr>
                   ))}
                 </tbody>
+
+                {/* ── Footer: class averages ── */}
+                <tfoot>
+                  <tr className="bg-slate-100 border-t-2 border-slate-300 font-black text-slate-700">
+                    <td colSpan={3} className="px-3 py-2.5 text-xs uppercase tracking-widest text-left">
+                      Class Average
+                    </td>
+                    {subjectAvgs.map((avg, i) => (
+                      <td key={i} className="px-2 py-2.5 text-center text-sm font-black text-slate-700">
+                        {avg ?? '—'}
+                      </td>
+                    ))}
+                    <td className="px-2 py-2.5 text-center text-sm font-black">—</td>
+                    <td className="px-2 py-2.5 text-center text-sm font-black text-blue-700">{classAvgPct}%</td>
+                    <td colSpan={2} />
+                  </tr>
+                  {/* Top 3 honour rows — one per student (ties grouped at same position) */}
+                  {top3Students.map((row: any) => {
+                    const pos = row.position as number;
+                    const styles: Record<number, { row: string; border: string; medal: string; label: string; labelCls: string }> = {
+                      1: { row: 'bg-yellow-50',  border: 'border-yellow-300', medal: '🥇', label: '1ST POSITION', labelCls: 'text-yellow-800' },
+                      2: { row: 'bg-slate-100',  border: 'border-slate-300',  medal: '🥈', label: '2ND POSITION', labelCls: 'text-slate-600'  },
+                      3: { row: 'bg-orange-50',  border: 'border-orange-300', medal: '🥉', label: '3RD POSITION', labelCls: 'text-orange-800' },
+                    };
+                    const s = styles[pos] ?? styles[3];
+                    return (
+                      <tr key={`top-${row.student.id}`} className={`${s.row} border-t ${s.border}`}>
+                        <td colSpan={3} className={`px-3 py-1.5 text-xs font-black uppercase tracking-widest text-left ${s.labelCls}`}>
+                          {s.medal} {s.label}: {row.student.full_name}
+                        </td>
+                        {subjects.map((_: any, i: number) => <td key={i} />)}
+                        <td className={`px-2 py-1.5 text-center text-xs font-black ${s.labelCls}`}>
+                          {row.totalObtained}/{row.grandTotal}
+                        </td>
+                        <td className={`px-2 py-1.5 text-center text-xs font-black ${s.labelCls}`}>{row.pct}%</td>
+                        <td className={`px-2 py-1.5 text-center text-xs font-black ${s.labelCls}`}>{row.grade}</td>
+                        <td />
+                      </tr>
+                    );
+                  })}
+                </tfoot>
               </table>
+            </div>
+          )}
+
+          {/* ── Legend ── */}
+          {consolidatedData.length > 0 && (
+            <div className="no-print flex flex-wrap gap-4 text-xs text-gray-500 pb-2">
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-100/60 border border-red-200 inline-block" /> Failing mark (below passing)</span>
+              <span className="flex items-center gap-1.5"><span className="text-gray-300 font-bold">—</span>&nbsp;= Marks not entered</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-orange-50/70 border border-orange-200 inline-block" /> Ab = Absent (excluded from %)</span>
+              <span className="flex items-center gap-1.5">Red row = overall FAIL</span>
+              <span className="flex items-center gap-1.5">Rank = sorted by overall %</span>
+              <span className="flex items-center gap-1.5">Max marks from exam config (falls back to subject defaults)</span>
             </div>
           )}
         </>
