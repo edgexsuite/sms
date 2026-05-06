@@ -324,15 +324,22 @@ export default function StaffUserAccounts() {
   // ── Store credentials in user_roles after create/reset ────────────────────
 
   const storeCredentials = async (email: string, password: string, userId: string): Promise<string | null> => {
-    // Try with both columns; if columns don't exist yet, return the migration hint
-    const { error } = await supabase
+    // Prefer updating by user_roles PK (id) if available on selected; fall back to user_id
+    const userRolesId = selected?.user_roles_id;
+    let query = supabase
       .from('user_roles')
-      .update({ plain_password: password, login_email: email })
-      .eq('user_id', userId)
-      .eq('school_id', userRole!.school_id);
+      .update({ plain_password: password, login_email: email });
+
+    if (userRolesId) {
+      query = query.eq('id', userRolesId);
+    } else {
+      query = query.eq('user_id', userId).eq('school_id', userRole!.school_id);
+    }
+
+    const { error } = await query;
     if (error) {
       console.error('storeCredentials error:', error.message);
-      return error.message; // caller can show this
+      return error.message;
     }
     return null;
   };
@@ -553,11 +560,19 @@ export default function StaffUserAccounts() {
     setChangingRole(true);
     try {
       const newPerms = ROLE_PRESETS[changeRoleTo] ?? { modules: {}, actions: {} };
+
+      // 1. Update user_roles (system role + permissions)
       const { error } = await supabase.from('user_roles')
         .update({ role: changeRoleTo, permissions: newPerms })
         .eq('user_id', selected.user_id)
         .eq('school_id', userRole!.school_id);
       if (error) throw new Error(error.message);
+
+      // 2. Also sync staff.role so the staff list reflects the new role
+      await supabase.from('staff')
+        .update({ role: changeRoleTo })
+        .eq('id', selected.id);
+
       await fetchStaff();
       setShowChangeRole(false);
       alert(`✅ Role updated to "${ROLE_LABELS[changeRoleTo]}" and permissions preset applied.`);
