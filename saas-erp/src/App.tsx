@@ -54,6 +54,7 @@ const ReportCardSettings = lazy(() => import('./pages/settings/ReportCardSetting
 const TeacherDashboard = lazy(() => import('./pages/TeacherDashboard'));
 const AccountantDashboard = lazy(() => import('./pages/AccountantDashboard'));
 const PrincipalDashboard = lazy(() => import('./pages/PrincipalDashboard'));
+const CoordinatorDashboard = lazy(() => import('./pages/CoordinatorDashboard'));
 const HelpSupport = lazy(() => import('./pages/HelpSupport'));
 const TransportLayout = lazy(() => import('./pages/transport/TransportLayout'));
 
@@ -127,6 +128,7 @@ export default function App() {
                 <Route path="teacher-dashboard" element={<TeacherDashboard />} />
                 <Route path="accountant-dashboard" element={<AccountantDashboard />} />
                 <Route path="principal-dashboard" element={<PrincipalDashboard />} />
+                <Route path="coordinator-dashboard" element={<CoordinatorDashboard />} />
                 <Route path="students/*" element={<StudentsLayout />} />
                 <Route path="parents" element={<Parents />} />
                 <Route path="staff" element={<Staff />} />

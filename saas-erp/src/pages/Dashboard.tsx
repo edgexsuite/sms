@@ -94,6 +94,7 @@ export default function Dashboard() {
     if (userRole?.role === 'teacher') navigate('/teacher-dashboard', { replace: true });
     else if (userRole?.role === 'accountant') navigate('/accountant-dashboard', { replace: true });
     else if (['principal', 'director', 'vice_principal'].includes(userRole?.role ?? '')) navigate('/principal-dashboard', { replace: true });
+    else if (COORDINATOR_ROLES.includes((userRole?.role ?? '') as any)) navigate('/coordinator-dashboard', { replace: true });
   }, [userRole, navigate]);
 
   const isCoordinator = COORDINATOR_ROLES.includes((userRole?.role ?? '') as any);
