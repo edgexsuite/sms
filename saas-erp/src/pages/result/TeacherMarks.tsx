@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   Star, Save, CheckCircle2, AlertTriangle, RefreshCw,
-  BookOpen, ChevronDown, Info, CalendarDays, PenLine,
+  BookOpen, ChevronDown, Info, CalendarDays, PenLine, RotateCcw,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { fetchGradingPolicy, getGradeFromPolicy, GradingBracket } from '../../lib/gradingUtils';
@@ -71,6 +71,8 @@ export default function TeacherMarks() {
   const [error,      setError]      = useState('');
   const [loading,    setLoading]    = useState(true);
   const [gradingBrackets, setGradingBrackets] = useState<GradingBracket[]>([]);
+  // Track which students were absent in DB so we can delete their record on revert
+  const [prevAbsentIds, setPrevAbsentIds] = useState<Set<string>>(new Set());
 
   // ── Init ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -104,6 +106,7 @@ export default function TeacherMarks() {
     setSaved(false);
     setHasExisting(false);
     setError('');
+    setPrevAbsentIds(new Set());
   };
 
   // ── Init: fetch classes + exams ───────────────────────────────────────────
@@ -256,6 +259,8 @@ export default function TeacherMarks() {
           }
         });
         if (Object.keys(absMap).length > 0) setAbsent(absMap);
+        // Remember which students were absent in the DB so we can delete on revert
+        setPrevAbsentIds(new Set(Object.keys(absMap)));
         if (Object.keys(m).length > 0 || Object.keys(absMap).length > 0) {
           setMarks(m);
           setHasExisting(true);
@@ -277,37 +282,76 @@ export default function TeacherMarks() {
     if (!sub || !userRole?.school_id) return;
     setSaving(true); setError(''); setSaved(false);
 
-    const processed = students.filter(s => (marks[s.id] !== undefined && marks[s.id] !== '') || absent[s.id]);
-    if (processed.length === 0) { setSaving(false); return; }
-    const filled = processed; // rename for clarity below
-
     const totalMarks   = examConfig?.total_marks   || sub.total_marks;
     const passingMarks = examConfig?.passing_marks || sub.passing_marks;
 
-    const inserts = filled.map(s => {
-      const isAbsent = absent[s.id] ?? false;
-      const obtained = isAbsent ? 0 : Number(marks[s.id]);
-      return {
-        school_id:      userRole!.school_id,
-        student_id:     s.id,
-        exam_type_id:   selectedExam,
-        subject_id:     selectedSubject,
-        class_id:       selectedClass,
-        obtained_marks: obtained,
-        total_marks:    totalMarks,
-        grade:          isAbsent ? 'Ab' : getGradeFromPolicy(obtained, totalMarks, gradingBrackets).grade,
-        is_absent:      isAbsent,
-      };
-    });
+    try {
+      // ── Step 1: Delete records for students who were previously absent
+      //    but have been un-toggled (reverted) and have no marks entered ───
+      const revertedIds = students
+        .filter(s =>
+          prevAbsentIds.has(s.id) &&
+          !absent[s.id] &&
+          (marks[s.id] === undefined || marks[s.id] === '')
+        )
+        .map(s => s.id);
 
-    const { error: err } = await supabase
-      .from('exam_results')
-      .upsert(inserts, { onConflict: 'exam_type_id,student_id,subject_id' });
+      if (revertedIds.length > 0) {
+        const { error: delErr } = await supabase
+          .from('exam_results')
+          .delete()
+          .eq('school_id', userRole!.school_id)
+          .eq('exam_type_id', selectedExam)
+          .eq('subject_id', selectedSubject)
+          .in('student_id', revertedIds);
+        if (delErr) throw delErr;
+        // Remove from prevAbsentIds so a re-save doesn't attempt to delete again
+        setPrevAbsentIds(prev => {
+          const s = new Set(prev);
+          revertedIds.forEach(id => s.delete(id));
+          return s;
+        });
+      }
 
-    if (err) setError(err.message);
-    else { setSaved(true); setHasExisting(true); }
+      // ── Step 2: Upsert students who have marks entered OR are still absent ─
+      const toUpsert = students.filter(s =>
+        (marks[s.id] !== undefined && marks[s.id] !== '') || absent[s.id]
+      );
+
+      if (toUpsert.length > 0) {
+        const inserts = toUpsert.map(s => {
+          const isAbsent = absent[s.id] ?? false;
+          const obtained = isAbsent ? 0 : Number(marks[s.id]);
+          return {
+            school_id:      userRole!.school_id,
+            student_id:     s.id,
+            exam_type_id:   selectedExam,
+            subject_id:     selectedSubject,
+            class_id:       selectedClass,
+            obtained_marks: obtained,
+            total_marks:    totalMarks,
+            grade:          isAbsent ? 'Ab' : getGradeFromPolicy(obtained, totalMarks, gradingBrackets).grade,
+            is_absent:      isAbsent,
+          };
+        });
+
+        const { error: upsertErr } = await supabase
+          .from('exam_results')
+          .upsert(inserts, { onConflict: 'exam_type_id,student_id,subject_id' });
+        if (upsertErr) throw upsertErr;
+      }
+
+      const totalProcessed = revertedIds.length + toUpsert.length;
+      if (totalProcessed === 0) { setSaving(false); return; }
+
+      setSaved(true);
+      setHasExisting(true);
+    } catch (err: any) {
+      setError(err.message);
+    }
     setSaving(false);
   };
+
 
   // ── Derived: which subjects to show ──────────────────────────────────────
   const visibleSubjects: SubjectRow[] = (() => {
@@ -331,6 +375,10 @@ export default function TeacherMarks() {
   const selectedSub  = visibleSubjects.find(s => s.id === selectedSubject);
   const selectedExamObj = examTypes.find(e => e.id === selectedExam);
   const filledCount = Object.values(marks).filter(v => v !== '').length + Object.values(absent).filter(Boolean).length;
+  // Count how many absent records will be cleared on next save
+  const revertedCount = students.filter(s =>
+    prevAbsentIds.has(s.id) && !absent[s.id] && (marks[s.id] === undefined || marks[s.id] === '')
+  ).length;
 
   // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) return (
@@ -619,13 +667,17 @@ export default function TeacherMarks() {
                   const invalid = num !== null && (isNaN(num) || num < 0 || num > totalMarks);
 
                   const isAbsent = absent[student.id] ?? false;
+                  // Was saved as absent in DB, but teacher un-toggled and hasn't entered marks
+                  const isReverted = prevAbsentIds.has(student.id) && !isAbsent && val === '';
 
                   return (
                     <tr
                       key={student.id}
                       className={cn(
                         'border-b border-slate-50 hover:bg-slate-50/50 transition-colors',
-                        isAbsent ? 'bg-orange-50/60' : i % 2 !== 0 && 'bg-slate-50/20',
+                        isAbsent    ? 'bg-orange-50/60' :
+                        isReverted  ? 'bg-yellow-50/70' :
+                        i % 2 !== 0 ? 'bg-slate-50/20' : '',
                       )}
                     >
                       <td className="px-4 py-2.5">
@@ -665,6 +717,7 @@ export default function TeacherMarks() {
                       </td>
                       <td className="px-2 py-2.5 text-center">
                         <button
+                          title={isAbsent ? 'Click to revert absent mark' : isReverted ? 'Mark absent again' : 'Mark as absent'}
                           onClick={() => {
                             setAbsent(p => {
                               const next = { ...p };
@@ -677,13 +730,18 @@ export default function TeacherMarks() {
                             }
                             setSaved(false);
                           }}
-                          className={`text-[11px] font-black px-2.5 py-1 rounded-lg border transition ${
+                          className={cn(
+                            'flex items-center gap-1 text-[11px] font-black px-2.5 py-1 rounded-lg border transition',
                             isAbsent
                               ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
+                              : isReverted
+                              ? 'bg-yellow-100 text-yellow-700 border-yellow-300 hover:bg-orange-50 hover:text-orange-600'
                               : 'bg-white text-orange-400 border-orange-200 hover:bg-orange-50'
-                          }`}
+                          )}
                         >
-                          Ab
+                          {isAbsent
+                            ? <><RotateCcw className="w-3 h-3" /> Ab</>
+                            : 'Ab'}
                         </button>
                       </td>
                       <td className="px-4 py-2.5 text-center">
@@ -700,6 +758,10 @@ export default function TeacherMarks() {
                       <td className="px-4 py-2.5 text-center">
                         {isAbsent ? (
                           <span className="text-[10px] text-orange-600 font-bold bg-orange-50 px-2 py-0.5 rounded-full">Absent</span>
+                        ) : isReverted ? (
+                          <span className="text-[10px] text-yellow-600 font-bold bg-yellow-50 border border-yellow-200 px-2 py-0.5 rounded-full" title="Absent record will be removed on Save">
+                            ↩ Will clear
+                          </span>
                         ) : val === '' ? (
                           <span className="text-[10px] text-slate-300 font-bold">pending</span>
                         ) : invalid ? (
@@ -751,14 +813,19 @@ export default function TeacherMarks() {
                   <CheckCircle2 className="w-4 h-4" /> Saved successfully!
                 </p>
               )}
+              {revertedCount > 0 && !saving && (
+                <p className="text-[10px] text-yellow-600 font-bold bg-yellow-50 border border-yellow-200 px-2.5 py-1.5 rounded-lg">
+                  ↩ {revertedCount} absent mark{revertedCount !== 1 ? 's' : ''} will be removed
+                </p>
+              )}
               <button
                 onClick={handleSave}
-                disabled={saving || filledCount === 0}
+                disabled={saving || (filledCount === 0 && revertedCount === 0)}
                 className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black uppercase tracking-widest transition active:scale-95 disabled:opacity-50 shadow-lg shadow-amber-100"
               >
                 {saving
                   ? <><RefreshCw className="w-4 h-4 animate-spin" /> Saving…</>
-                  : <><Save className="w-4 h-4" /> {hasExisting ? 'Update' : 'Save'} {filledCount} Records</>}
+                  : <><Save className="w-4 h-4" /> {hasExisting ? 'Update' : 'Save'}{filledCount > 0 ? ` ${filledCount}` : ''}{revertedCount > 0 ? ` · Clear ${revertedCount}` : ''}</>}
               </button>
             </div>
           </div>
