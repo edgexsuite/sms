@@ -1,7 +1,7 @@
 import React from 'react';
 import { formatDate } from './utils';
 
-export type ReportTemplateId = 'classic' | 'modern' | 'minimal' | 'elegant' | 'compact' | 'royal' | 'prestige' | 'pearl' | 'apex';
+export type ReportTemplateId = 'classic' | 'modern' | 'minimal' | 'elegant' | 'compact' | 'royal' | 'prestige' | 'pearl' | 'apex' | 'vivid';
 
 export interface ReportCardCustomization {
   headerFontSize: number;
@@ -67,6 +67,7 @@ export const REPORT_TEMPLATES: { id: ReportTemplateId; name: string; description
   { id: 'prestige', name: 'Prestige',        description: 'Forest green sidebar, photo strip, corporate',   preview: '#14532d' },
   { id: 'pearl',    name: 'Pearl',           description: 'Teal-navy gradient, grading legend, modern',      preview: '#0d9488' },
   { id: 'apex',     name: 'Apex',            description: 'Clean corporate layout, accent stripe, minimal',   preview: '#1e293b' },
+  { id: 'vivid',    name: 'Vivid',           description: 'Navy & green ribbon banner, bold heading, clean',    preview: '#1a2744' },
 ];
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -1640,6 +1641,227 @@ export function ApexReport(props: ReportCardProps) {
   );
 }
 
+// ─── Vivid Report ─────────────────────────────────────────────────────────────
+
+export function VividReport(props: ReportCardProps) {
+  const c = getCustom(props);
+  const { activeFields, subjects } = props;
+  const activeSigs = (c.signatures || []).filter(s => s.active);
+  const tf = c.tableFontSize || 10;
+  const navy  = '#1a2744';
+  const green = '#4e9a3c';
+  const totalObtained = props.obtainedMarks;
+  const totalMax      = props.totalMarks;
+
+  // Corner ornament SVG
+  const Ornament = ({ flip }: { flip?: boolean }) => (
+    <svg width="44" height="44" viewBox="0 0 44 44" fill="none" style={{ display: 'block', transform: flip ? 'scaleY(-1)' : undefined }}>
+      <path d="M4 4 Q4 22 22 22 Q4 22 4 40"   stroke={navy} strokeWidth="1.4" fill="none"/>
+      <path d="M4 4 Q22 4 22 22 Q22 4 40 4"   stroke={navy} strokeWidth="1.4" fill="none"/>
+      <path d="M8 4 Q8 18 22 22 Q8 18 8 38"   stroke={navy} strokeWidth="0.7" fill="none" opacity="0.4"/>
+      <circle cx="4"  cy="4"  r="2.2" fill={navy}/>
+      <circle cx="22" cy="22" r="1.4" fill={navy}/>
+      <circle cx="40" cy="4"  r="1.4" fill={navy}/>
+      <circle cx="4"  cy="40" r="1.4" fill={navy}/>
+    </svg>
+  );
+
+  return (
+    <div style={{
+      width: '210mm', height: '297mm', overflow: 'hidden',
+      background: '#ffffff', fontFamily: 'Arial, Helvetica, sans-serif',
+      color: '#1e293b', boxSizing: 'border-box', position: 'relative',
+      printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact',
+    }}>
+
+      {/* Watermark */}
+      {activeFields.includes('watermark') && props.schoolLogo && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 0, pointerEvents: 'none' }}>
+          <img src={props.schoolLogo} alt="" style={{ width: '280px', height: '280px', objectFit: 'contain', opacity: c.watermarkOpacity }} />
+        </div>
+      )}
+
+      {/* Right ribbon — navy outer */}
+      <div style={{
+        position: 'absolute', top: 0, right: 0, width: '40mm', height: '297mm',
+        background: navy,
+        clipPath: 'polygon(28% 0%, 100% 0%, 100% 100%, 0% 100%)',
+        zIndex: 1, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact',
+      }} />
+      {/* Right ribbon — green inner strip */}
+      <div style={{
+        position: 'absolute', top: 0, right: 0, width: '15mm', height: '297mm',
+        background: green,
+        clipPath: 'polygon(42% 0%, 100% 0%, 100% 100%, 0% 100%)',
+        zIndex: 2, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact',
+      }} />
+
+      {/* Corner ornaments */}
+      <div style={{ position: 'absolute', top: '5mm', left: '5mm', zIndex: 3 }}><Ornament /></div>
+      <div style={{ position: 'absolute', bottom: '5mm', left: '5mm', zIndex: 3 }}><Ornament flip /></div>
+
+      {/* Content */}
+      <div style={{
+        position: 'relative', zIndex: 3,
+        padding: '7mm 46mm 5mm 14mm',
+        height: '297mm', boxSizing: 'border-box',
+        display: 'flex', flexDirection: 'column',
+      }}>
+
+        {/* ── Header ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4mm' }}>
+          {activeFields.includes('school_logo') && props.schoolLogo ? (
+            <img src={props.schoolLogo} alt="" style={{ width: c.logoSize * 0.85, height: c.logoSize * 0.85, objectFit: 'contain', flexShrink: 0 }} />
+          ) : (
+            <div style={{ width: '46px', height: '46px', background: navy, borderRadius: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '22px', flexShrink: 0, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>★</div>
+          )}
+          <div>
+            <div style={{ fontSize: tf * 2.3, fontWeight: '900', color: navy, textTransform: 'uppercase', letterSpacing: '3px', lineHeight: 1 }}>REPORT CARD</div>
+            <div style={{ fontSize: tf * 1.05, color: '#444', fontWeight: '600', marginTop: '3px' }}>{props.schoolName}</div>
+            {props.examName && (
+              <div style={{ fontSize: tf * 0.85, color: '#777', marginTop: '2px' }}>
+                {props.examName}{props.examSession ? ` · ${props.examSession}` : ''}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Navy divider */}
+        <div style={{ height: '2px', background: navy, marginBottom: '4mm', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }} />
+
+        {/* ── Student info ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2.5mm 10mm', marginBottom: '4mm', fontSize: tf * 0.95 }}>
+          {[
+            ['Student Name',   props.studentName],
+            ['Class / Section', props.className],
+            ['School Year',    props.examSession || '—'],
+            ['Roll Number',    props.rollNumber],
+          ].map(([label, value]) => (
+            <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: '5px', borderBottom: '1px solid #999', paddingBottom: '1px' }}>
+              <span style={{ color: '#555', fontSize: tf * 0.84, fontWeight: '700', whiteSpace: 'nowrap' }}>{label}:</span>
+              <span style={{ fontWeight: '700', color: '#111', fontSize: tf * 0.9 }}>{value}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Marks table ── */}
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: tf, marginBottom: '3mm' }}>
+          <thead>
+            <tr style={{ background: navy, color: '#fff', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>
+              {([['Subject','left','32%'],['Max','center','9%'],['Obtained','center','10%'],['%','center','8%'],['Grade','center','9%'],['Status','center','13%'],['Performance','left','19%']] as [string,string,string][]).map(([h, align, w]) => (
+                <th key={h} style={{ padding: '5px 6px', textAlign: align as any, fontWeight: '700', fontSize: tf * 0.82, width: w, letterSpacing: '0.3px' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {subjects.map((sub, i) => {
+              const sp = pct(sub.marks, sub.total);
+              const gc = gradeColor(sub.grade);
+              return (
+                <tr key={i} style={{ borderBottom: '1px solid #ddd', background: i % 2 === 0 ? '#fff' : '#f4f7ff' }}>
+                  <td style={{ padding: '4px 6px', fontWeight: '600', color: navy }}>{sub.name}</td>
+                  <td style={{ padding: '4px 6px', textAlign: 'center', color: '#555' }}>{sub.total}</td>
+                  <td style={{ padding: '4px 6px', textAlign: 'center', fontWeight: '800', color: gc }}>{sub.marks}</td>
+                  <td style={{ padding: '4px 6px', textAlign: 'center', color: '#444' }}>{sp}%</td>
+                  <td style={{ padding: '4px 6px', textAlign: 'center' }}>
+                    <span style={{ display: 'inline-block', padding: '1px 6px', background: gradeBg(sub.grade, '22'), color: gc, borderRadius: '8px', fontWeight: '900', fontSize: tf * 0.82 }}>{sub.grade}</span>
+                  </td>
+                  <td style={{ padding: '4px 6px', textAlign: 'center' }}>
+                    <StatusBadge status={sub.status} fontSize={tf * 0.82} />
+                  </td>
+                  <td style={{ padding: '4px 6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <div style={{ flex: 1, height: '5px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+                        <div style={{ height: '5px', width: `${sp}%`, background: gc, borderRadius: '3px', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }} />
+                      </div>
+                      <span style={{ fontSize: tf * 0.72, color: '#94a3b8', minWidth: '24px', textAlign: 'right' }}>{sp}%</span>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr style={{ background: navy, color: '#fff', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>
+              <td style={{ padding: '5px 6px', fontWeight: '800', fontSize: tf * 0.85, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Grand Total</td>
+              <td style={{ padding: '5px 6px', textAlign: 'center', fontWeight: '700' }}>{totalMax}</td>
+              <td style={{ padding: '5px 6px', textAlign: 'center', fontWeight: '900', color: '#a5f3fc' }}>{totalObtained}</td>
+              <td style={{ padding: '5px 6px', textAlign: 'center', fontWeight: '800', color: '#fde68a' }}>{props.percentage}%</td>
+              <td style={{ padding: '5px 6px', textAlign: 'center' }}>
+                <span style={{ display: 'inline-block', padding: '1px 7px', background: gradeColor(props.grade), color: '#fff', borderRadius: '8px', fontWeight: '900', fontSize: tf * 0.85, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>{props.grade}</span>
+              </td>
+              <td style={{ padding: '5px 6px', textAlign: 'center' }}>
+                {props.finalStatus && (
+                  <span style={{ display: 'inline-block', padding: '1px 7px', background: props.finalStatus.toLowerCase() === 'pass' ? '#22c55e' : '#ef4444', color: '#fff', borderRadius: '8px', fontWeight: '900', fontSize: tf * 0.82, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>{props.finalStatus}</span>
+                )}
+              </td>
+              <td style={{ padding: '5px 6px' }} />
+            </tr>
+          </tfoot>
+        </table>
+
+        {/* ── Grade summary + Teacher remarks ── */}
+        <div style={{ display: 'flex', gap: '6mm', marginBottom: '3mm' }}>
+
+          {/* Grade summary box */}
+          <div style={{ border: `1.5px solid ${navy}`, borderRadius: '5px', overflow: 'hidden', minWidth: '88px', flexShrink: 0 }}>
+            <div style={{ background: navy, color: '#fff', padding: '3px 8px', fontSize: tf * 0.78, fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>
+              Grade Summary
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: tf * 0.85 }}>
+              <tbody>
+                {([
+                  ['Overall Grade', props.grade],
+                  ['Percentage',   `${props.percentage}%`],
+                  ['Result',        props.finalStatus || '—'],
+                  ...(props.positionInClass ? [['Position', `${props.positionInClass} / ${props.totalStudents}`]] : []),
+                  ...(activeFields.includes('attendance_stats') ? [['Attendance', props.attendance]] : []),
+                ] as [string,string][]).map(([label, value], i) => (
+                  <tr key={label} style={{ borderTop: '1px solid #ddd', background: i % 2 === 0 ? '#fff' : '#f4f7ff' }}>
+                    <td style={{ padding: '3px 6px', color: '#555', fontWeight: '600', fontSize: tf * 0.82 }}>{label}</td>
+                    <td style={{ padding: '3px 6px', fontWeight: '800', color: navy, textAlign: 'right', fontSize: tf * 0.82 }}>{value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Teacher remarks */}
+          {activeFields.includes('teacher_remarks') && (
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: tf * 0.78, fontWeight: '800', color: navy, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '5px', textAlign: 'right' }}>
+                TEACHER'S FEEDBACK
+              </div>
+              {props.evaluation?.feedback ? (
+                <div style={{ fontSize: tf * 0.88, color: '#374151', fontStyle: 'italic', lineHeight: 1.6, borderLeft: `3px solid ${green}`, paddingLeft: '8px', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>
+                  {props.evaluation.feedback}
+                </div>
+              ) : (
+                [0, 1, 2, 3].map(i => (
+                  <div key={i} style={{ borderBottom: '1px solid #bbb', height: '18px', marginBottom: '4px' }} />
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Signatures ── */}
+        {activeSigs.length > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-around', borderTop: `2px solid ${navy}`, paddingTop: '4mm', marginTop: 'auto', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>
+            {activeSigs.map((sig, i) => (
+              <div key={i} style={{ textAlign: 'center' }}>
+                <div style={{ height: '26px', borderBottom: `1.5px solid #334155`, width: '90px', marginBottom: '4px' }} />
+                <div style={{ fontSize: tf * 0.78, color: '#475569', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{sig.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
 // ─── Renderer ─────────────────────────────────────────────────────────────────
 
 export function ReportCardLayoutRenderer(props: ReportCardProps & { template: ReportTemplateId }) {
@@ -1655,6 +1877,7 @@ export function ReportCardLayoutRenderer(props: ReportCardProps & { template: Re
     case 'prestige': card = <PrestigeReport {...rest} />; break;
     case 'pearl':    card = <PearlReport    {...rest} />; break;
     case 'apex':     card = <ApexReport     {...rest} />; break;
+    case 'vivid':    card = <VividReport    {...rest} />; break;
     default:         card = <ClassicReport  {...rest} />; break;
   }
 
