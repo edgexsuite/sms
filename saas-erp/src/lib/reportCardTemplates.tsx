@@ -1,7 +1,7 @@
 import React from 'react';
 import { formatDate } from './utils';
 
-export type ReportTemplateId = 'classic' | 'modern' | 'minimal' | 'elegant' | 'compact' | 'royal' | 'prestige' | 'pearl';
+export type ReportTemplateId = 'classic' | 'modern' | 'minimal' | 'elegant' | 'compact' | 'royal' | 'prestige' | 'pearl' | 'apex';
 
 export interface ReportCardCustomization {
   headerFontSize: number;
@@ -66,6 +66,7 @@ export const REPORT_TEMPLATES: { id: ReportTemplateId; name: string; description
   { id: 'royal',    name: 'Royal Gold',      description: 'Dark navy & gold wave accent, grading scale',     preview: '#b8860b' },
   { id: 'prestige', name: 'Prestige',        description: 'Forest green sidebar, photo strip, corporate',   preview: '#14532d' },
   { id: 'pearl',    name: 'Pearl',           description: 'Teal-navy gradient, grading legend, modern',      preview: '#0d9488' },
+  { id: 'apex',     name: 'Apex',            description: 'Clean corporate layout, accent stripe, minimal',   preview: '#1e293b' },
 ];
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -1402,6 +1403,243 @@ function PositionHonorBadge({ position }: { position: number }) {
   );
 }
 
+// ─── APEX ─────────────────────────────────────────────────────────────────────
+
+export function ApexReport(props: ReportCardProps) {
+  const c = getCustom(props);
+  const { activeFields, subjects } = props;
+  const activeSigs = (c.signatures || []).filter(s => s.active);
+  const accent = c.primaryColor || '#1e293b';
+  const tf = c.tableFontSize || 10;
+
+  const totalObtained = props.obtainedMarks;
+  const totalMax = props.totalMarks;
+  const pctBar = totalMax > 0 ? Math.min(100, Math.round((totalObtained / totalMax) * 100)) : 0;
+
+  const SCALE = [
+    { g: 'A+', r: '90–100', l: 'Outstanding',       c: '#059669' },
+    { g: 'A',  r: '80–89',  l: 'Excellent',         c: '#10b981' },
+    { g: 'B+', r: '70–79',  l: 'Very Good',         c: '#3b82f6' },
+    { g: 'B',  r: '60–69',  l: 'Good',              c: '#6366f1' },
+    { g: 'C',  r: '50–59',  l: 'Satisfactory',      c: '#f59e0b' },
+    { g: 'D',  r: '40–49',  l: 'Needs Improvement', c: '#f97316' },
+    { g: 'F',  r: 'Below 40', l: 'Unsatisfactory',  c: '#ef4444' },
+  ];
+
+  return (
+    <div style={{
+      width: '210mm', height: '297mm', overflow: 'hidden',
+      background: '#ffffff', fontFamily: 'Arial, Helvetica, sans-serif',
+      color: '#1e293b', boxSizing: 'border-box', position: 'relative',
+      printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact',
+    }}>
+
+      {/* Watermark */}
+      {activeFields.includes('watermark') && props.schoolLogo && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 0, pointerEvents: 'none' }}>
+          <img src={props.schoolLogo} alt="" style={{ width: '340px', height: '340px', objectFit: 'contain', opacity: c.watermarkOpacity }} />
+        </div>
+      )}
+
+      {/* Top accent stripe */}
+      <div style={{ height: '7mm', background: accent, width: '100%', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }} />
+
+      {/* Thin gold underline */}
+      <div style={{ height: '2px', background: '#f59e0b', width: '100%' }} />
+
+      {/* Content wrapper */}
+      <div style={{ position: 'relative', zIndex: 1, padding: '5mm 9mm 4mm', height: 'calc(297mm - 9mm)', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
+
+        {/* ── Header ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5mm' }}>
+          {activeFields.includes('school_logo') && props.schoolLogo && (
+            <img src={props.schoolLogo} alt="" style={{ width: c.logoSize, height: c.logoSize, objectFit: 'contain', flexShrink: 0 }} />
+          )}
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: c.headerFontSize, fontWeight: '900', color: accent, textTransform: 'uppercase', letterSpacing: '1.5px', lineHeight: 1.1 }}>
+              {props.schoolName}
+            </div>
+            <div style={{ fontSize: tf * 0.82, color: '#64748b', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '2.5px', marginTop: '2px' }}>
+              Academic Report Card
+            </div>
+            {props.examName && (
+              <div style={{ fontSize: tf * 0.88, color: '#475569', marginTop: '3px', fontWeight: '500' }}>
+                {props.examName}{props.examSession ? ` · Session ${props.examSession}` : ''}
+              </div>
+            )}
+          </div>
+          {/* Grade circle */}
+          {activeFields.includes('gpa_summary') && (
+            <div style={{
+              width: '62px', height: '62px', borderRadius: '50%',
+              border: `3px solid ${accent}`, background: '#f8fafc',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <div style={{ fontSize: tf * 1.9, fontWeight: '900', color: gradeColor(props.grade), lineHeight: 1 }}>{props.grade}</div>
+              <div style={{ fontSize: tf * 0.72, color: '#64748b', fontWeight: '700' }}>{props.percentage}%</div>
+            </div>
+          )}
+          {activeFields.includes('student_photo') && props.studentPhoto && (
+            <img src={props.studentPhoto} alt="Student" style={{ width: '64px', height: '64px', objectFit: 'cover', borderRadius: '6px', border: `2px solid ${accent}`, flexShrink: 0 }} />
+          )}
+        </div>
+
+        {/* ── Student info strip ── */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: '0', border: `1.5px solid ${accent}`, borderRadius: '6px',
+          overflow: 'hidden', marginBottom: '4mm', fontSize: tf * 0.9,
+        }}>
+          {[
+            ['Student Name', props.studentName],
+            ['Roll Number',  props.rollNumber],
+            ['Class / Grade', props.className],
+            ['Attendance',   activeFields.includes('attendance_stats') ? props.attendance : '—'],
+          ].map(([label, value], i) => (
+            <div key={label} style={{
+              padding: '5px 8px',
+              borderLeft: i > 0 ? `1px solid ${accent}` : 'none',
+              background: i % 2 === 0 ? '#f8fafc' : '#ffffff',
+            }}>
+              <div style={{ fontSize: tf * 0.72, fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '1px' }}>{label}</div>
+              <div style={{ fontWeight: '700', color: '#0f172a', fontSize: tf * 0.95 }}>{value}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Marks table ── */}
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '3mm', fontSize: tf, flex: 1 }}>
+          <thead>
+            <tr style={{ background: accent, color: '#ffffff', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>
+              {[['Subject', 'left', '34%'], ['Max', 'center', '9%'], ['Obtained', 'center', '11%'], ['%', 'center', '8%'], ['Grade', 'center', '9%'], ['Status', 'center', '11%'], ['Performance', 'left', '18%']].map(([h, align, w]) => (
+                <th key={h as string} style={{ padding: '5px 7px', textAlign: align as any, fontWeight: '700', fontSize: tf * 0.82, letterSpacing: '0.4px', width: w as string }}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {subjects.map((sub, i) => {
+              const sp = pct(sub.marks, sub.total);
+              const gc = gradeColor(sub.grade);
+              return (
+                <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                  <td style={{ padding: '5px 7px', fontWeight: '600', color: '#0f172a' }}>{sub.name}</td>
+                  <td style={{ padding: '5px 7px', textAlign: 'center', color: '#64748b' }}>{sub.total}</td>
+                  <td style={{ padding: '5px 7px', textAlign: 'center', fontWeight: '800', color: gc }}>{sub.marks}</td>
+                  <td style={{ padding: '5px 7px', textAlign: 'center', color: '#475569' }}>{sp}%</td>
+                  <td style={{ padding: '5px 7px', textAlign: 'center' }}>
+                    <span style={{ display: 'inline-block', padding: '1px 7px', background: gradeBg(sub.grade, '20'), color: gc, borderRadius: '10px', fontWeight: '900', fontSize: tf * 0.82 }}>
+                      {sub.grade}
+                    </span>
+                  </td>
+                  <td style={{ padding: '5px 7px', textAlign: 'center' }}>
+                    <StatusBadge status={sub.status} fontSize={tf * 0.82} />
+                  </td>
+                  <td style={{ padding: '5px 7px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <div style={{ flex: 1, height: '5px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+                        <div style={{ height: '5px', width: `${sp}%`, background: gc, borderRadius: '3px', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }} />
+                      </div>
+                      <span style={{ fontSize: tf * 0.72, color: '#94a3b8', fontWeight: '700', minWidth: '26px', textAlign: 'right' }}>{sp}%</span>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr style={{ background: '#0f172a', color: '#ffffff', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>
+              <td style={{ padding: '6px 7px', fontWeight: '800', fontSize: tf * 0.88, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Grand Total</td>
+              <td style={{ padding: '6px 7px', textAlign: 'center', fontWeight: '700' }}>{totalMax}</td>
+              <td style={{ padding: '6px 7px', textAlign: 'center', fontWeight: '900', color: '#a5f3fc' }}>{totalObtained}</td>
+              <td style={{ padding: '6px 7px', textAlign: 'center', fontWeight: '800', color: '#fde68a' }}>{props.percentage}%</td>
+              <td style={{ padding: '6px 7px', textAlign: 'center' }}>
+                <span style={{ display: 'inline-block', padding: '1px 8px', background: gradeColor(props.grade), color: '#fff', borderRadius: '10px', fontWeight: '900', fontSize: tf * 0.85, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>
+                  {props.grade}
+                </span>
+              </td>
+              <td style={{ padding: '6px 7px', textAlign: 'center' }}>
+                {props.finalStatus && (
+                  <span style={{ display: 'inline-block', padding: '1px 8px', background: props.finalStatus.toLowerCase() === 'pass' ? '#22c55e' : '#ef4444', color: '#fff', borderRadius: '10px', fontWeight: '900', fontSize: tf * 0.82, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>
+                    {props.finalStatus}
+                  </span>
+                )}
+              </td>
+              <td style={{ padding: '6px 7px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <div style={{ flex: 1, height: '5px', background: 'rgba(255,255,255,0.2)', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ height: '5px', width: `${pctBar}%`, background: '#a5f3fc', borderRadius: '3px', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }} />
+                  </div>
+                  <span style={{ fontSize: tf * 0.72, color: '#94a3b8', minWidth: '26px', textAlign: 'right' }}>{pctBar}%</span>
+                </div>
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+
+        {/* ── Position + remarks row ── */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '3mm' }}>
+          {/* Position badge */}
+          {props.positionInClass && props.totalStudents && (
+            <div style={{ border: `1.5px solid ${accent}`, borderRadius: '6px', padding: '5px 10px', textAlign: 'center', minWidth: '80px', background: '#f8fafc' }}>
+              <div style={{ fontSize: tf * 0.72, fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Position</div>
+              <div style={{ fontSize: tf * 1.5, fontWeight: '900', color: accent, lineHeight: 1.1, marginTop: '1px' }}>{props.positionInClass}</div>
+              <div style={{ fontSize: tf * 0.72, color: '#94a3b8' }}>of {props.totalStudents}</div>
+            </div>
+          )}
+
+          {/* Teacher remarks */}
+          {activeFields.includes('teacher_remarks') && (
+            <div style={{ flex: 1, border: `1.5px solid #e2e8f0`, borderRadius: '6px', padding: '5px 10px', background: '#fafafa' }}>
+              <div style={{ fontSize: tf * 0.72, fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Teacher's Remarks</div>
+              {props.evaluation?.feedback ? (
+                <div style={{ fontSize: tf * 0.88, color: '#374151', fontStyle: 'italic', lineHeight: 1.5 }}>{props.evaluation.feedback}</div>
+              ) : (
+                <>
+                  <div style={{ borderBottom: '1px dashed #d1d5db', height: '16px', marginBottom: '3px' }} />
+                  <div style={{ borderBottom: '1px dashed #d1d5db', height: '16px' }} />
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Character assessment ── */}
+        {activeFields.includes('evaluation') && props.evaluation && (
+          <CharacterAssessment evaluation={props.evaluation} c={c} />
+        )}
+
+        {/* ── Grading scale (compact single row) ── */}
+        <div style={{ display: 'flex', gap: '4px', marginBottom: '3mm', flexWrap: 'wrap' }}>
+          {SCALE.map(s => (
+            <div key={s.g} style={{ display: 'flex', alignItems: 'center', gap: '3px', background: s.c + '18', border: `1px solid ${s.c}40`, borderRadius: '4px', padding: '2px 6px' }}>
+              <span style={{ fontWeight: '900', color: s.c, fontSize: tf * 0.78 }}>{s.g}</span>
+              <span style={{ color: '#64748b', fontSize: tf * 0.72 }}>{s.r}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Signatures ── */}
+        {activeSigs.length > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-around', borderTop: `1.5px solid ${accent}`, paddingTop: '4mm', marginTop: 'auto' }}>
+            {activeSigs.map((sig, i) => (
+              <div key={i} style={{ textAlign: 'center', minWidth: '80px' }}>
+                <div style={{ height: '28px', borderBottom: `1.5px solid #334155`, marginBottom: '4px', width: '90px' }} />
+                <div style={{ fontSize: tf * 0.78, color: '#475569', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{sig.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Bottom accent line */}
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', background: accent, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }} />
+      </div>
+    </div>
+  );
+}
+
 // ─── Renderer ─────────────────────────────────────────────────────────────────
 
 export function ReportCardLayoutRenderer(props: ReportCardProps & { template: ReportTemplateId }) {
@@ -1416,6 +1654,7 @@ export function ReportCardLayoutRenderer(props: ReportCardProps & { template: Re
     case 'royal':    card = <RoyalReport    {...rest} />; break;
     case 'prestige': card = <PrestigeReport {...rest} />; break;
     case 'pearl':    card = <PearlReport    {...rest} />; break;
+    case 'apex':     card = <ApexReport     {...rest} />; break;
     default:         card = <ClassicReport  {...rest} />; break;
   }
 
