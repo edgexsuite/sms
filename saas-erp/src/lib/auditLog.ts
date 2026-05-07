@@ -48,7 +48,11 @@ export interface AuditParams {
   metadata?:    Record<string, any>;
 }
 
+// Set to true once the audit_logs table schema is confirmed synced in Supabase
+const AUDIT_LOG_ENABLED = false;
+
 export function logActivity(params: AuditParams): void {
+  if (!AUDIT_LOG_ENABLED) return;
   supabase.from('audit_logs').insert({
     school_id:   params.school_id,
     user_id:     params.user_id   || null,

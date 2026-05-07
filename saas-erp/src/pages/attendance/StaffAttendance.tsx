@@ -34,7 +34,7 @@ export default function StaffAttendance() {
       .eq('school_id', userRole?.school_id)
       .lte('start_date', date)
       .gte('end_date', date)
-      .single();
+      .maybeSingle();
     setVacationToday(data || null);
   };
 
@@ -153,17 +153,17 @@ export default function StaffAttendance() {
       </Card>
 
       <Card className="p-0 overflow-hidden border-none shadow-xl">
-        <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+        <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h2 className="font-black text-slate-900 uppercase tracking-tight">Active Staff Roster</h2>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{staffList.length} Personnel Found</p>
           </div>
-          <Btn 
-            variant="primary" 
-            disabled={saving || staffList.length === 0} 
+          <Btn
+            variant="primary"
+            disabled={saving || staffList.length === 0}
             onClick={saveAttendance}
             icon={Save}
-            className="px-8 shadow-indigo-200"
+            className="w-full sm:w-auto px-8 shadow-indigo-200"
           >
             {saving ? 'Logging...' : 'Save & Lock Register'}
           </Btn>
@@ -182,66 +182,69 @@ export default function StaffAttendance() {
               description="No active staff personnel found for this institution."
             />
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {staffList.map((emp, i) => {
                 const st = attendance[emp.id] || 'present';
                 return (
-                  <motion.div 
+                  <motion.div
                     key={emp.id}
-                    initial={{ opacity: 0, y: 10 }}
+                    initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.03 }}
+                    transition={{ delay: i * 0.02 }}
                     className={cn(
-                      "flex flex-col sm:flex-row items-center justify-between p-5 rounded-[2rem] border-2 transition-all gap-4",
-                      st === 'present' ? "border-emerald-100 bg-emerald-50/10 shadow-sm" : 
-                      st === 'absent' ? "border-rose-100 bg-rose-50/10 shadow-sm" : 
-                      st === 'late' ? "border-amber-100 bg-amber-50/10 shadow-sm" : 
-                      st === 'half-leave' ? "border-indigo-100 bg-indigo-50/10 shadow-sm" : "border-slate-50 bg-white"
+                      "flex flex-col p-3 rounded-2xl border-2 transition-all gap-2",
+                      st === 'present'           ? "border-emerald-100 bg-emerald-50/20 shadow-sm" :
+                      st === 'absent'            ? "border-rose-100 bg-rose-50/20 shadow-sm" :
+                      st === 'late'              ? "border-amber-100 bg-amber-50/20 shadow-sm" :
+                      st === 'half-leave'        ? "border-indigo-100 bg-indigo-50/20 shadow-sm" :
+                      st === 'complementary_off' ? "border-slate-200 bg-slate-50 shadow-sm" : "border-slate-100 bg-white"
                     )}
                   >
-                    <div className="flex items-center gap-5 w-full sm:w-auto">
-                      <div className="w-14 h-14 rounded-2xl bg-slate-100 border-2 border-slate-50 overflow-hidden shadow-inner shrink-0">
+                    {/* Row 1: photo + name + badge */}
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0">
                         {emp.photograph_url ? (
                           <img src={emp.photograph_url} alt="" className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center bg-indigo-50 text-indigo-400">
-                            <Briefcase className="w-6 h-6" />
+                            <Briefcase className="w-4 h-4" />
                           </div>
                         )}
                       </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-black text-slate-900 text-lg uppercase tracking-tight truncate">{emp.full_name}</p>
-                          <Badge variant="neutral" className="text-[8px] px-2 py-0.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="font-bold text-slate-900 text-sm leading-tight">{emp.full_name}</p>
+                          <Badge variant="neutral" className="text-[8px] px-1.5 py-0.5 shrink-0">
                             {emp.employment_type}
                           </Badge>
                         </div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 truncate">
-                          {emp.role} {emp.department ? `· ${emp.department}` : ''}
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mt-0.5 truncate">
+                          {emp.role}{emp.department ? ` · ${emp.department}` : ''}
                         </p>
                       </div>
                     </div>
-                    
-                    <div className="flex flex-wrap justify-center sm:justify-end gap-2 shrink-0">
+
+                    {/* Row 2: attendance buttons full-width */}
+                    <div className="flex justify-between gap-1.5">
                       {[
-                        { key: 'present', icon: CheckCircle, label: 'Present', color: 'bg-emerald-600', active: 'emerald' },
-                        { key: 'half-leave', icon: Hash, label: 'Half Day', color: 'bg-indigo-600', active: 'indigo' },
-                        { key: 'late', icon: Clock, label: 'Late', color: 'bg-amber-500', active: 'amber' },
-                        { key: 'absent', icon: XCircle, label: 'Absent', color: 'bg-rose-600', active: 'rose' },
-                        { key: 'complementary_off', icon: Coffee, label: 'Paid Off', color: 'bg-slate-700', active: 'slate' },
+                        { key: 'present',           icon: CheckCircle, label: 'Present',  color: 'bg-emerald-600' },
+                        { key: 'half-leave',         icon: Hash,        label: 'Half Day', color: 'bg-indigo-600' },
+                        { key: 'late',               icon: Clock,       label: 'Late',     color: 'bg-amber-500' },
+                        { key: 'absent',             icon: XCircle,     label: 'Absent',   color: 'bg-rose-600' },
+                        { key: 'complementary_off',  icon: Coffee,      label: 'Paid Off', color: 'bg-slate-700' },
                       ].map((btn) => (
                         <button
                           key={btn.key}
-                          onClick={() => setAttendance({...attendance, [emp.id]: btn.key})}
+                          onClick={() => setAttendance({ ...attendance, [emp.id]: btn.key })}
                           title={btn.label}
                           className={cn(
-                            "w-10 h-10 rounded-xl flex items-center justify-center transition-all border-2",
-                            st === btn.key 
-                              ? `${btn.color} text-white border-transparent shadow-lg scale-110` 
+                            "flex-1 h-9 rounded-lg flex items-center justify-center transition-all border",
+                            st === btn.key
+                              ? `${btn.color} text-white border-transparent shadow-md scale-105`
                               : "bg-slate-50 text-slate-400 border-slate-100 hover:border-slate-300"
                           )}
                         >
-                          <btn.icon className="w-4 h-4" />
+                          <btn.icon className="w-3.5 h-3.5" />
                         </button>
                       ))}
                     </div>

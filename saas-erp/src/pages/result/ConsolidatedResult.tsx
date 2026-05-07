@@ -127,22 +127,22 @@ export default function ConsolidatedResult() {
       const r = getResult(stu.id, subj.id);
 
       // No row at all — not yet entered
-      if (!r) return { subject: subj, maxMarks, passMarks, obtained: null, absent: false, pass: false };
+      if (!r) return { subject: subj, maxMarks, passMarks, obtained: null, absent: false, pass: null };
 
-      // Absent — Policy A: exclude from grade calc
-      if (r.is_absent) return { subject: subj, maxMarks, passMarks, obtained: null, absent: true, pass: false };
+      // Absent — exclude from grade calc; null pass so it doesn't count as a fail
+      if (r.is_absent) return { subject: subj, maxMarks, passMarks, obtained: null, absent: true, pass: null };
 
       // Has marks — include in calculation
       grandTotal += maxMarks;
       const obtained = Number(r.obtained_marks);
       totalObtained += obtained;
       const pass = obtained >= passMarks;
-      if (!pass) failCount++;
+      if (pass === false) failCount++;
       return { subject: subj, maxMarks, passMarks, obtained, absent: false, pass };
     });
 
     const { grade, pct } = getGradeFromPolicy(totalObtained, grandTotal, gradingBrackets);
-    const status = failCount > 0 ? 'FAIL' : 'PASS';
+    const status = failCount >= 3 ? 'FAIL' : 'PASS';
 
     return { student: stu, subjectRows, totalObtained, grandTotal, pct, grade, status };
   }).sort((a, b) => b.pct - a.pct);
@@ -219,6 +219,8 @@ export default function ConsolidatedResult() {
   const currentExam  = examTypes.find(e => e.id === selectedExamType);
   const currentClass = classes.find(c => c.id === selectedClass);
   const isReady      = selectedExamType && selectedClass && !loading && consolidatedData.length > 0;
+  // show_pass_fail: true by default; false hides the Result column (e.g. monthly tests)
+  const showPassFail = currentExam?.show_pass_fail !== false;
 
   return (
     <div className="space-y-6 max-w-full">
@@ -319,7 +321,7 @@ export default function ConsolidatedResult() {
             <p className="text-sm font-bold">
               Class: {currentClass?.name}{currentClass?.section ? ` (${currentClass.section})` : ''}
               &nbsp;|&nbsp; Total Students: {students.length}
-              &nbsp;|&nbsp; Pass: {passCount} &nbsp;|&nbsp; Fail: {failCount}
+              {showPassFail && <>&nbsp;|&nbsp; Pass: {passCount} &nbsp;|&nbsp; Fail: {failCount}</>}
               &nbsp;|&nbsp; Class Avg: {classAvgPct}%
             </p>
             <hr className="mt-2 border-black" />
@@ -329,11 +331,11 @@ export default function ConsolidatedResult() {
           {consolidatedData.length > 0 && (
             <div className="no-print grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: 'Total Students', value: students.length,    icon: Users,       color: 'bg-violet-50 border-violet-200 text-violet-700' },
-                { label: 'Passed',         value: passCount,          icon: CheckCircle, color: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
-                { label: 'Failed',         value: failCount,          icon: XCircle,     color: 'bg-red-50 border-red-200 text-red-700' },
-                { label: 'Class Average',  value: `${classAvgPct}%`,  icon: TrendingUp,  color: 'bg-blue-50 border-blue-200 text-blue-700' },
-              ].map(stat => (
+                { label: 'Total Students', value: students.length,    icon: Users,       color: 'bg-violet-50 border-violet-200 text-violet-700', always: true },
+                { label: 'Passed',         value: passCount,          icon: CheckCircle, color: 'bg-emerald-50 border-emerald-200 text-emerald-700', always: false },
+                { label: 'Failed',         value: failCount,          icon: XCircle,     color: 'bg-red-50 border-red-200 text-red-700', always: false },
+                { label: 'Class Average',  value: `${classAvgPct}%`,  icon: TrendingUp,  color: 'bg-blue-50 border-blue-200 text-blue-700', always: true },
+              ].filter(stat => stat.always || showPassFail).map(stat => (
                 <div key={stat.label} className={`rounded-xl border p-4 flex items-center gap-4 ${stat.color}`}>
                   <stat.icon className="w-8 h-8 opacity-60 shrink-0" />
                   <div>
@@ -372,7 +374,7 @@ export default function ConsolidatedResult() {
                     <th className="px-2 py-2.5 text-center text-xs font-black uppercase whitespace-nowrap">Total</th>
                     <th className="px-2 py-2.5 text-center text-xs font-black uppercase whitespace-nowrap">%</th>
                     <th className="px-2 py-2.5 text-center text-xs font-black uppercase whitespace-nowrap">Grade</th>
-                    <th className="px-2 py-2.5 text-center text-xs font-black uppercase whitespace-nowrap">Result</th>
+                    {showPassFail && <th className="px-2 py-2.5 text-center text-xs font-black uppercase whitespace-nowrap">Result</th>}
                   </tr>
                   {/* Row 2: max marks + passing marks (from exam config if set, else subject defaults) */}
                   <tr className="bg-violet-50 border-b-2 border-violet-200">
@@ -399,7 +401,7 @@ export default function ConsolidatedResult() {
                   {consolidatedData.map((row: any, idx) => (
                     <tr
                       key={row.student.id}
-                      className={row.status === 'FAIL' ? 'bg-red-50/50 print-fail-bg' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}
+                      className={showPassFail && row.status === 'FAIL' ? 'bg-red-50/50 print-fail-bg' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}
                     >
                       {/* Rank */}
                       <td className="px-1 py-2 text-center sticky left-0 bg-inherit">
@@ -481,13 +483,15 @@ export default function ConsolidatedResult() {
                         </span>
                       </td>
                       {/* Status */}
-                      <td className="px-2 py-2.5 text-center">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-black ${
-                          row.status === 'PASS' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                          {row.status}
-                        </span>
-                      </td>
+                      {showPassFail && (
+                        <td className="px-2 py-2.5 text-center">
+                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-black ${
+                            row.status === 'PASS' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                          }`}>
+                            {row.status}
+                          </span>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

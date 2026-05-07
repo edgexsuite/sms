@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -76,7 +77,7 @@ export default function StudentFeeHistory() {
   // Editing State
   const [editingRecord, setEditingRecord] = useState<any | null>(null);
   const [editSaving, setEditSaving] = useState(false);
-  const [editForm, setEditForm] = useState({ total_amount: '', paid_amount: '', month_year: '', paid_at: '' });
+  const [editForm, setEditForm] = useState({ total_amount: '', paid_amount: '', month_year: '', paid_at: '', payment_mode: 'Cash' });
 
   // ── Bootstrap ──────────────────────────────────────────────────────────────
 
@@ -225,7 +226,8 @@ export default function StudentFeeHistory() {
       total_amount: String(r.total_amount),
       paid_amount: String(r.paid_amount),
       month_year: r.month_year.slice(0, 7),
-      paid_at: r.paid_at ? r.paid_at.split('T')[0] : r.month_year.slice(0, 10)
+      paid_at: r.paid_at ? r.paid_at.split('T')[0] : r.month_year.slice(0, 10),
+      payment_mode: r.payment_mode || 'Cash',
     });
   };
 
@@ -236,11 +238,19 @@ export default function StudentFeeHistory() {
       const newPaid = parseFloat(editForm.paid_amount) || 0;
       const newTotal = parseFloat(editForm.total_amount) || 0;
       const newDate = editForm.paid_at;
+
+      if (newPaid === 0 && newTotal > 0) {
+        alert('Paid amount cannot be zero. Use "Pending" status instead or enter a valid paid amount.');
+        setEditSaving(false);
+        return;
+      }
+
       const { error } = await supabase.from('fee_records').update({
         total_amount: newTotal,
         paid_amount: newPaid,
         month_year: editForm.month_year + '-01',
         paid_at: newPaid > 0 ? newDate + 'T12:00:00Z' : null,
+        payment_mode: editForm.payment_mode,
         status: newPaid >= newTotal ? 'paid' : (newPaid > 0 ? 'partial' : 'pending')
       }).eq('id', editingRecord.id);
 
@@ -272,8 +282,21 @@ export default function StudentFeeHistory() {
   };
 
   const handleDeleteRecord = async (id: string) => {
-    if (!confirm('PERMANENT DELETE: This fee record will be completely removed and cannot be recovered. Continue?')) return;
+    if (!confirm('PERMANENT DELETE: This fee record and all linked income/journal entries will be removed. Continue?')) return;
     try {
+      // Cascade: fee_records → financial_transactions → journal_entries
+      const { data: txns } = await supabase
+        .from('financial_transactions')
+        .select('id')
+        .eq('fee_record_id', id)
+        .eq('school_id', userRole?.school_id);
+
+      if (txns && txns.length > 0) {
+        const txnIds = txns.map((t: any) => t.id);
+        await supabase.from('journal_entries').delete().in('source_transaction_id', txnIds);
+        await supabase.from('financial_transactions').delete().in('id', txnIds);
+      }
+
       const { error } = await supabase.from('fee_records').delete().eq('id', id);
       if (error) throw error;
       fetchRecords();
@@ -614,9 +637,9 @@ export default function StudentFeeHistory() {
         )}
       </div>
 
-      {/* EDIT MODAL */}
-      {editingRecord && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      {/* EDIT MODAL — rendered via portal so it escapes overflow/stacking context */}
+      {editingRecord && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="bg-slate-900 px-6 py-4 flex items-center justify-between">
               <h2 className="text-white font-black text-xs uppercase tracking-widest leading-none">Edit Record</h2>
@@ -647,6 +670,26 @@ export default function StudentFeeHistory() {
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-black text-emerald-600 font-mono" />
                 </div>
               </div>
+              {/* Payment Mode */}
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase mb-2">Payment Mode</label>
+                <div className="flex gap-2 flex-wrap">
+                  {['Cash', 'Bank Transfer', 'JazzCash', 'EasyPaisa'].map(mode => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, payment_mode: mode })}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-black border transition ${
+                        editForm.payment_mode === mode
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-400'
+                      }`}
+                    >
+                      {mode}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="pt-2">
                 <button onClick={handleUpdateRecord} disabled={editSaving}
                   className="w-full py-3 bg-indigo-600 text-white font-black rounded-xl text-sm hover:bg-indigo-700 transition disabled:opacity-50">
@@ -655,7 +698,8 @@ export default function StudentFeeHistory() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

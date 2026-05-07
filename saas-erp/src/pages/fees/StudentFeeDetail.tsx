@@ -370,21 +370,23 @@ export default function StudentFeeDetail() {
   };
 
   const handleDeleteInvoice = async (inv: Invoice) => {
-    if (!window.confirm(`PERMANENT DELETE: Are you sure you want to completely eliminate invoice ${inv.invoice_number}? This action cannot be undone and will also remove all associated financial records and payments.`)) return;
+    if (!window.confirm(`PERMANENT DELETE: Invoice ${inv.invoice_number} and all linked income/journal entries will be removed. Cannot be undone. Continue?`)) return;
     try {
-      // PERMANENT (HARD) DELETE
-      const { error } = await supabase
-        .from('fee_records')
-        .delete()
-        .eq('id', inv.id);
-      
-      if (error) throw error;
-
-      // Clean up transactions precisely by remark containing the invoice number
-      await supabase
+      // Cascade: financial_transactions → journal_entries → fee_records
+      const { data: txns } = await supabase
         .from('financial_transactions')
-        .delete()
-        .ilike('remarks', `%${inv.invoice_number}%`);
+        .select('id')
+        .eq('fee_record_id', inv.id)
+        .eq('school_id', userRole?.school_id);
+
+      if (txns && txns.length > 0) {
+        const txnIds = txns.map((t: any) => t.id);
+        await supabase.from('journal_entries').delete().in('source_transaction_id', txnIds);
+        await supabase.from('financial_transactions').delete().in('id', txnIds);
+      }
+
+      const { error } = await supabase.from('fee_records').delete().eq('id', inv.id);
+      if (error) throw error;
 
       setEditingInvoice(null);
       fetchLedger(selectedStudent.id);

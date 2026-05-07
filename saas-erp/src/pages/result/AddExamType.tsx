@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   ClipboardList, PlusCircle, Pencil, Trash2, Save, X,
-  Zap, Calendar, ChevronDown,
+  Zap, Calendar, ChevronDown, ToggleLeft, ToggleRight,
 } from 'lucide-react';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -61,11 +61,12 @@ export default function AddExamType() {
   const [saving,    setSaving]    = useState(false);
 
   const [formData, setFormData] = useState({
-    name:       '',
-    session:    SESSION_OPTIONS[0],
-    weightage:  100,
-    month_year: '',          // e.g. '2025-04'
-    useMonth:   false,       // whether month picker is active
+    name:          '',
+    session:       SESSION_OPTIONS[0],
+    weightage:     100,
+    month_year:    '',
+    useMonth:      false,
+    show_pass_fail: true,
   });
 
   useEffect(() => { if (userRole?.school_id) fetchAll(); }, [userRole]);
@@ -86,13 +87,12 @@ export default function AddExamType() {
     setEditId(null);
     const pad = (n: number) => String(n).padStart(2, '0');
     setFormData({
-      name:       template?.name || '',
-      session:    SESSION_OPTIONS[0],
-      weightage:  template?.weightage ?? 100,
-      month_year: template?.monthly
-        ? `${currentYear}-${pad(currentMonth)}`
-        : '',
-      useMonth: !!(template?.monthly),
+      name:          template?.name || '',
+      session:       SESSION_OPTIONS[0],
+      weightage:     template?.weightage ?? 100,
+      month_year:    template?.monthly ? `${currentYear}-${pad(currentMonth)}` : '',
+      useMonth:      !!(template?.monthly),
+      show_pass_fail: !template?.monthly, // monthly tests default to no pass/fail
     });
     setShowForm(true);
   };
@@ -100,11 +100,12 @@ export default function AddExamType() {
   const openEdit = (et: any) => {
     setEditId(et.id);
     setFormData({
-      name:       et.name,
-      session:    et.session || SESSION_OPTIONS[0],
-      weightage:  et.weightage ?? 100,
-      month_year: et.month_year || '',
-      useMonth:   !!et.month_year,
+      name:          et.name,
+      session:       et.session || SESSION_OPTIONS[0],
+      weightage:     et.weightage ?? 100,
+      month_year:    et.month_year || '',
+      useMonth:      !!et.month_year,
+      show_pass_fail: et.show_pass_fail !== false,
     });
     setShowForm(true);
   };
@@ -122,11 +123,12 @@ export default function AddExamType() {
     }
     setEditId(null);
     setFormData({
-      name:       'Monthly Test',
-      session:    SESSION_OPTIONS[0],
-      weightage:  10,
-      month_year: my,
-      useMonth:   true,
+      name:          'Monthly Test',
+      session:       SESSION_OPTIONS[0],
+      weightage:     10,
+      month_year:    my,
+      useMonth:      true,
+      show_pass_fail: false,
     });
     setShowForm(true);
   };
@@ -137,11 +139,12 @@ export default function AddExamType() {
     setSaving(true);
     try {
       const payload = {
-        school_id:  userRole?.school_id,
-        name:       formData.name.trim(),
-        session:    formData.session,
-        weightage:  formData.weightage,
-        month_year: formData.useMonth ? formData.month_year : null,
+        school_id:     userRole?.school_id,
+        name:          formData.name.trim(),
+        session:       formData.session,
+        weightage:     formData.weightage,
+        month_year:    formData.useMonth ? formData.month_year : null,
+        show_pass_fail: formData.show_pass_fail,
       };
       if (editId) {
         const { error } = await supabase.from('exam_types').update(payload).eq('id', editId);
@@ -294,6 +297,11 @@ export default function AddExamType() {
                               {monthYearLabel(et.month_year)}
                             </span>
                           )}
+                          {et.show_pass_fail === false && (
+                            <span className="text-xs font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                              No P/F
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-gray-500 mt-0.5">
                           Session: {et.session || '—'} &bull; Weightage:{' '}
@@ -444,6 +452,21 @@ export default function AddExamType() {
                 <p className="text-xs text-gray-400 mt-1 italic">
                   E.g. set 25% each for 4 terms = 100% total combined.
                 </p>
+              </div>
+
+              {/* Pass/Fail toggle */}
+              <div
+                className="flex items-center justify-between p-3 rounded-xl border border-gray-200 bg-white cursor-pointer"
+                onClick={() => setFormData(p => ({ ...p, show_pass_fail: !p.show_pass_fail }))}
+              >
+                <div>
+                  <p className="text-sm font-bold text-gray-800">Show Pass / Fail</p>
+                  <p className="text-xs text-gray-400">Disable for monthly tests where P/F is not needed</p>
+                </div>
+                {formData.show_pass_fail
+                  ? <ToggleRight className="w-8 h-8 text-emerald-600 shrink-0" />
+                  : <ToggleLeft  className="w-8 h-8 text-gray-300 shrink-0" />
+                }
               </div>
 
             </div>
