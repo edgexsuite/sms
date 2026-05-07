@@ -34,8 +34,8 @@ export default function StaffAttendance() {
       .eq('school_id', userRole?.school_id)
       .lte('start_date', date)
       .gte('end_date', date)
-      .maybeSingle();
-    setVacationToday(data || null);
+      .limit(1);
+    setVacationToday((data && data.length > 0) ? data[0] : null);
   };
 
   const fetchStaffRoster = async () => {

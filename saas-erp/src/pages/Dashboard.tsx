@@ -97,6 +97,7 @@ export default function Dashboard() {
   const [monthlyData, setMonthlyData] = useState<any[]>([]);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<{ type: string; message: string; link: string; count: number }[]>([]);
+  const [staffAtt, setStaffAtt] = useState({ present: 0, absent: 0, late: 0, halfDay: 0, total: 0, marked: false });
 
   // Role-specific redirect — must be after all hooks
   useEffect(() => {
@@ -135,6 +136,7 @@ export default function Dashboard() {
         { count: complaintsCount },
         { count: leaveCount },
         { count: newStudents },
+        { data: staffAttData },
       ] = await Promise.all([
         supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', sid).eq('status', 'active'),
         supabase.from('staff').select('*', { count: 'exact', head: true }).eq('school_id', sid).eq('is_active', true),
@@ -149,6 +151,7 @@ export default function Dashboard() {
         supabase.from('complaints').select('*', { count: 'exact', head: true }).eq('school_id', sid).eq('status', 'open'),
         supabase.from('leave_requests').select('*', { count: 'exact', head: true }).eq('school_id', sid).eq('status', 'pending'),
         supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', sid).gte('created_at', sevenDaysAgo),
+        supabase.from('attendance').select('status').eq('school_id', sid).eq('date', today).not('staff_id', 'is', null),
       ]);
 
       if (schoolData) setSchoolName((schoolData as any).name || '');
@@ -198,6 +201,16 @@ export default function Dashboard() {
 
       const presentCount = (attendance || []).filter(a => a.status === 'present' || a.status === 'late').length;
       const attRate = attendance && attendance.length > 0 ? Math.round((presentCount / attendance.length) * 100) : 0;
+
+      const sAtt = staffAttData || [];
+      setStaffAtt({
+        present: sAtt.filter(a => a.status === 'present').length,
+        absent:  sAtt.filter(a => a.status === 'absent').length,
+        late:    sAtt.filter(a => a.status === 'late').length,
+        halfDay: sAtt.filter(a => a.status === 'half-leave').length,
+        total:   sAtt.length,
+        marked:  sAtt.length > 0,
+      });
 
       const classStats = (classes || [])
         .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
@@ -498,6 +511,46 @@ export default function Dashboard() {
           onClick={() => setActiveTab('attention')}
           animateValue={true}
         />
+      </motion.div>
+
+      {/* Staff Attendance Today */}
+      <motion.div variants={item} className="mb-4">
+        <Card className="p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Staff Attendance</p>
+              <p className="text-sm font-black text-slate-900 mt-0.5">
+                {staffAtt.marked ? `${staffAtt.present} of ${staffAtt.total} present today` : 'Not marked yet'}
+              </p>
+            </div>
+            <Link
+              to="/attendance/staff"
+              className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-xl hover:bg-indigo-100 transition shrink-0"
+            >
+              {staffAtt.marked ? 'View / Edit' : 'Mark Now'} <ChevronRight className="w-3 h-3" />
+            </Link>
+          </div>
+          {staffAtt.marked ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[
+                { label: 'Present',  value: staffAtt.present, color: 'bg-emerald-50 border-emerald-100 text-emerald-700' },
+                { label: 'Absent',   value: staffAtt.absent,  color: 'bg-rose-50 border-rose-100 text-rose-700'       },
+                { label: 'Late',     value: staffAtt.late,    color: 'bg-amber-50 border-amber-100 text-amber-700'     },
+                { label: 'Half Day', value: staffAtt.halfDay, color: 'bg-indigo-50 border-indigo-100 text-indigo-700' },
+              ].map(s => (
+                <div key={s.label} className={`rounded-xl border p-3 text-center ${s.color}`}>
+                  <p className="text-xl font-black">{s.value}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider mt-0.5 opacity-70">{s.label}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-50 border border-amber-100">
+              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+              <p className="text-xs font-bold text-amber-700">Staff attendance has not been marked for today.</p>
+            </div>
+          )}
+        </Card>
       </motion.div>
 
       {/* Charts Row */}
