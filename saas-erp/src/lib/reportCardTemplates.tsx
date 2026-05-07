@@ -1509,7 +1509,7 @@ export function ApexReport(props: ReportCardProps) {
         </div>
 
         {/* ── Marks table ── */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '3mm', fontSize: tf, flex: 1 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '3mm', fontSize: tf }}>
           <thead>
             <tr style={{ background: accent, color: '#ffffff', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>
               {[['Subject', 'left', '34%'], ['Max', 'center', '9%'], ['Obtained', 'center', '11%'], ['%', 'center', '8%'], ['Grade', 'center', '9%'], ['Status', 'center', '11%'], ['Performance', 'left', '18%']].map(([h, align, w]) => (
