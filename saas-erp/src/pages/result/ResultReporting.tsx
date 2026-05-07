@@ -31,6 +31,7 @@ export default function ResultReporting() {
   const [batchCards, setBatchCards] = useState<any[]>([]);
   const [printMode, setPrintMode] = useState<'single' | 'batch'>('single');
   const [evaluationMap, setEvaluationMap] = useState<Record<string, { ratings: Record<string, number>; feedback?: string }>>({});
+  const [twoPerPage, setTwoPerPage] = useState(false);
 
   useEffect(() => {
     if (userRole?.school_id) {
@@ -230,21 +231,56 @@ export default function ResultReporting() {
         @media print {
           .no-print { display: none !important; }
           body { background: white; margin: 0; padding: 0; }
-          .result-card-wrapper {
-            width: 210mm !important;
-            min-height: 297mm !important;
-            height: auto !important;
-            page-break-inside: avoid !important;
-            box-shadow: none !important;
-            border-radius: 0 !important;
-            border: none !important;
-            margin: 0 !important;
-          }
-          .result-card-wrapper:not(:last-child) {
-            page-break-after: always !important;
-          }
-          @page { size: A4 portrait; margin: 0; }
         }
+        ${twoPerPage ? `
+          @media print {
+            @page { size: A4 landscape; margin: 0; }
+            .two-up-sheet {
+              width: 297mm;
+              height: 210mm;
+              display: flex !important;
+              page-break-after: always;
+              page-break-inside: avoid;
+              overflow: hidden;
+            }
+            .two-up-slot {
+              width: 148.5mm;
+              height: 210mm;
+              overflow: hidden;
+              position: relative;
+              flex-shrink: 0;
+            }
+            .two-up-slot:first-child {
+              border-right: 1px dashed #bbb;
+            }
+            .two-up-scale {
+              position: absolute;
+              top: 0;
+              left: 0;
+              transform: scale(0.707);
+              transform-origin: top left;
+            }
+            .result-card-wrapper { display: none !important; }
+          }
+          .two-up-sheet { display: none; }
+        ` : `
+          @media print {
+            @page { size: A4 portrait; margin: 0; }
+            .result-card-wrapper {
+              width: 210mm !important;
+              height: 297mm !important;
+              page-break-inside: avoid !important;
+              box-shadow: none !important;
+              border-radius: 0 !important;
+              border: none !important;
+              margin: 0 !important;
+            }
+            .result-card-wrapper:not(:last-child) {
+              page-break-after: always !important;
+            }
+            .two-up-sheet { display: none !important; }
+          }
+        `}
       `}</style>
 
       {/* Header */}
@@ -288,7 +324,20 @@ export default function ResultReporting() {
 
       {/* Action buttons */}
       {selectedExamType && selectedClass && subjects.length > 0 && (
-        <div className="no-print flex flex-wrap gap-3 justify-end">
+        <div className="no-print flex flex-wrap gap-3 justify-end items-center">
+
+          {/* 2-per-page toggle */}
+          <label className="flex items-center gap-2 cursor-pointer bg-white border border-gray-200 px-4 py-2 rounded-lg shadow-sm select-none">
+            <input
+              type="checkbox"
+              checked={twoPerPage}
+              onChange={e => setTwoPerPage(e.target.checked)}
+              className="w-4 h-4 accent-indigo-600 cursor-pointer"
+            />
+            <span className="text-sm font-semibold text-gray-700">2 cards / page</span>
+            <span className="text-xs text-gray-400 hidden sm:inline">(landscape, saves paper)</span>
+          </label>
+
           {/* Print single student */}
           {selectedStudent && !loading && (
             <button onClick={() => { setPrintMode('single'); setTimeout(() => window.print(), 100); }}
@@ -309,62 +358,104 @@ export default function ResultReporting() {
       )}
 
       {/* SINGLE student card */}
-      {printMode === 'single' && selectedStudent && subjects.length > 0 && !loading && (
-        <div className="w-full overflow-x-auto custom-scrollbar pb-4 print:overflow-visible">
-          <div className="result-card-wrapper bg-white shadow-lg border border-gray-200 overflow-hidden mx-auto min-w-[210mm]">
-            <ReportCardLayoutRenderer
-              {...commonCardProps}
-              studentName={currentStudent?.full_name || ''}
-              rollNumber={String(currentStudent?.roll_number || '')}
-              studentPhoto={currentStudent?.photograph_url || null}
-              subjects={subjectRows.map(row => ({
-                name: row.subj.subject_name,
-                marks: row.r?.obtained_marks ?? 0,
-                total: row.subj.total_marks || 100,
-                grade: row.grade,
-                status: row.status,
-              }))}
-              totalMarks={grandTotal}
-              obtainedMarks={totalObtained}
-              percentage={overallPct}
-              grade={overallGrade}
-              attendance={attendanceDisplay}
-              positionInClass={position > 0 ? position : undefined}
-              totalStudents={outOf > 0 ? outOf : undefined}
-              finalStatus={failSubjects === 0 ? 'PROMOTED' : 'NOT PROMOTED'}
-              evaluation={evaluationMap[selectedStudent] || undefined}
-            />
+      {printMode === 'single' && selectedStudent && subjects.length > 0 && !loading && (() => {
+        const singleProps = {
+          ...commonCardProps,
+          studentName: currentStudent?.full_name || '',
+          rollNumber: String(currentStudent?.roll_number || ''),
+          studentPhoto: currentStudent?.photograph_url || null,
+          subjects: subjectRows.map(row => ({
+            name: row.subj.subject_name,
+            marks: row.r?.obtained_marks ?? 0,
+            total: row.subj.total_marks || 100,
+            grade: row.grade,
+            status: row.status,
+          })),
+          totalMarks: grandTotal,
+          obtainedMarks: totalObtained,
+          percentage: overallPct,
+          grade: overallGrade,
+          attendance: attendanceDisplay,
+          positionInClass: position > 0 ? position : undefined,
+          totalStudents: outOf > 0 ? outOf : undefined,
+          finalStatus: failSubjects === 0 ? 'PROMOTED' : 'NOT PROMOTED',
+          evaluation: evaluationMap[selectedStudent] || undefined,
+        };
+        return (
+          <div className="w-full overflow-x-auto custom-scrollbar pb-4 print:overflow-visible">
+            {/* Screen preview — always one card */}
+            <div className="result-card-wrapper bg-white shadow-lg border border-gray-200 overflow-hidden mx-auto min-w-[210mm]">
+              <ReportCardLayoutRenderer {...singleProps} />
+            </div>
+            {/* Two-up print sheet (two copies: school + student) */}
+            {twoPerPage && (
+              <div className="two-up-sheet">
+                <div className="two-up-slot">
+                  <div className="two-up-scale"><ReportCardLayoutRenderer {...singleProps} /></div>
+                </div>
+                <div className="two-up-slot">
+                  <div className="two-up-scale"><ReportCardLayoutRenderer {...singleProps} /></div>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
-      {/* BATCH: all class cards (only shown during print via CSS) */}
+      {/* BATCH: all class cards */}
       {printMode === 'batch' && batchCards.length > 0 && (
         <div>
-          {batchCards.map((card, idx) => (
-            <div key={idx} className="result-card-wrapper bg-white overflow-hidden">
-              <ReportCardLayoutRenderer
-                {...commonCardProps}
-                studentName={card.student.full_name}
-                rollNumber={String(card.student.roll_number)}
-                studentPhoto={card.student.photograph_url || null}
-                subjects={card.subjects}
-                totalMarks={card.grand}
-                obtainedMarks={card.obtained}
-                percentage={card.pct}
-                grade={card.grade}
-                attendance={card.attendance || 'N/A'}
-                positionInClass={card.position > 0 ? card.position : undefined}
-                totalStudents={batchCards.length}
-                finalStatus={card.fails === 0 ? 'PROMOTED' : 'NOT PROMOTED'}
-                evaluation={card.evaluation || undefined}
-              />
-            </div>
-          ))}
-          {/* Screen summary after batch generation */}
+          {(() => {
+            const makeCardProps = (card: any) => ({
+              ...commonCardProps,
+              studentName: card.student.full_name,
+              rollNumber: String(card.student.roll_number),
+              studentPhoto: card.student.photograph_url || null,
+              subjects: card.subjects,
+              totalMarks: card.grand,
+              obtainedMarks: card.obtained,
+              percentage: card.pct,
+              grade: card.grade,
+              attendance: card.attendance || 'N/A',
+              positionInClass: card.position > 0 ? card.position : undefined,
+              totalStudents: batchCards.length,
+              finalStatus: card.fails === 0 ? 'PROMOTED' : 'NOT PROMOTED',
+              evaluation: card.evaluation || undefined,
+            });
+
+            if (twoPerPage) {
+              // Group into pairs → landscape sheets
+              const pairs: any[][] = [];
+              for (let i = 0; i < batchCards.length; i += 2) pairs.push(batchCards.slice(i, i + 2));
+              return pairs.map((pair, pIdx) => (
+                <div key={pIdx} className="two-up-sheet">
+                  {pair.map((card, cIdx) => (
+                    <div key={cIdx} className="two-up-slot">
+                      <div className="two-up-scale">
+                        <ReportCardLayoutRenderer {...makeCardProps(card)} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ));
+            }
+
+            // Normal: one card per portrait page
+            return batchCards.map((card, idx) => (
+              <div key={idx} className="result-card-wrapper bg-white overflow-hidden">
+                <ReportCardLayoutRenderer {...makeCardProps(card)} />
+              </div>
+            ));
+          })()}
+
+          {/* Screen summary */}
           <div className="no-print bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-center">
             <p className="text-indigo-700 font-bold">✅ {batchCards.length} report cards generated and sent to printer.</p>
-            <p className="text-indigo-500 text-sm mt-1">Each card is on its own A4 page.</p>
+            <p className="text-indigo-500 text-sm mt-1">
+              {twoPerPage
+                ? `Printed 2 per page (landscape) — ${Math.ceil(batchCards.length / 2)} sheets total.`
+                : 'Each card is on its own A4 portrait page.'}
+            </p>
           </div>
         </div>
       )}
