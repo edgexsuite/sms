@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { FileText, Printer, Users, Loader2, AlertTriangle } from 'lucide-react';
+import { FileText, Printer, Users, Loader2, AlertTriangle, Download } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 import { ReportCardLayoutRenderer, DEFAULT_REPORT_CUSTOM } from '../../lib/reportCardTemplates';
 import {
   fetchGradingPolicy, fetchResultConfig, getGradeFromPolicy,
@@ -21,6 +23,7 @@ export default function ResultReporting() {
   const [gradingBrackets, setGradingBrackets] = useState<GradingBracket[]>([]);
   const [resultConfig, setResultConfig] = useState<any>(null);
   const [attendanceMap, setAttendanceMap] = useState<Record<string, number>>({});
+  const [examConfigs, setExamConfigs] = useState<Record<string, { total_marks: number; passing_marks: number }>>({});
 
   const [selectedExamType, setSelectedExamType] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
@@ -29,6 +32,9 @@ export default function ResultReporting() {
   const [batchLoading, setBatchLoading] = useState(false);
 
   const [batchCards, setBatchCards] = useState<any[]>([]);
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const [selectedBatchClasses, setSelectedBatchClasses] = useState<string[]>([]);
+  const [batchMultipleLoading, setBatchMultipleLoading] = useState(false);
   const [printMode, setPrintMode] = useState<'single' | 'batch'>('single');
   const [evaluationMap, setEvaluationMap] = useState<Record<string, { ratings: Record<string, number>; feedback?: string }>>({});
   const [twoPerPage, setTwoPerPage] = useState(false);
@@ -53,7 +59,10 @@ export default function ResultReporting() {
   useEffect(() => { if (selectedClass) fetchClassData(); }, [selectedClass]);
   useEffect(() => { if (selectedExamType && selectedStudent) fetchStudentResults(); }, [selectedExamType, selectedStudent]);
   useEffect(() => {
-    if (selectedExamType && selectedClass && students.length > 0) fetchAllClassResults();
+    if (selectedExamType && selectedClass && students.length > 0) {
+      fetchAllClassResults();
+      fetchExamConfigs();
+    }
   }, [selectedExamType, selectedClass, students.length]);
 
   const fetchInit = async () => {
@@ -76,15 +85,16 @@ export default function ResultReporting() {
 
   const fetchStudentResults = async () => {
     setLoading(true);
-    const [{ data }, { data: evalData }, { data: attData }] = await Promise.all([
+    const [{ data }, { data: allEvalData }, { data: attData }] = await Promise.all([
       supabase.from('exam_results').select('*').eq('exam_type_id', selectedExamType).eq('student_id', selectedStudent),
-      supabase.from('evaluations').select('student_id, ratings, feedback')
-        .eq('exam_type_id', selectedExamType).eq('student_id', selectedStudent).maybeSingle(),
+      supabase.from('evaluations').select('student_id, ratings, feedback, exam_type_id, evaluation_date').eq('student_id', selectedStudent).eq('school_id', userRole!.school_id).order('evaluation_date', { ascending: false }),
       supabase.from('attendance').select('id').eq('student_id', selectedStudent).eq('status', 'present'),
     ]);
     if (data) setResults(data);
-    if (evalData) {
-      setEvaluationMap(prev => ({ ...prev, [selectedStudent]: { ratings: evalData.ratings || {}, feedback: evalData.feedback } }));
+    if (allEvalData && allEvalData.length > 0) {
+      const exactMatch = allEvalData.find((e: any) => e.exam_type_id === selectedExamType);
+      const bestEval = exactMatch || allEvalData[0];
+      setEvaluationMap(prev => ({ ...prev, [selectedStudent]: { ratings: bestEval.ratings || {}, feedback: bestEval.feedback } }));
     }
     if (attData) {
       setAttendanceMap(prev => ({ ...prev, [selectedStudent]: attData.length }));
@@ -99,13 +109,170 @@ export default function ResultReporting() {
     if (data) setClassResults(data);
   };
 
+  const fetchExamConfigs = async () => {
+    if (!selectedExamType || !selectedClass) return;
+    const { data } = await supabase
+      .from('exam_subject_config')
+      .select('subject_id, total_marks, passing_marks')
+      .eq('exam_type_id', selectedExamType)
+      .eq('school_id', userRole?.school_id);
+    
+    if (data) {
+      const mapping: Record<string, { total_marks: number; passing_marks: number }> = {};
+      data.forEach(d => {
+        mapping[d.subject_id] = { total_marks: d.total_marks, passing_marks: d.passing_marks };
+      });
+      setExamConfigs(mapping);
+    } else {
+      setExamConfigs({});
+    }
+  };
+
   const computePosition = (studentId: string): { position: number; outOf: number } => {
     if (!classResults.length) return { position: 0, outOf: 0 };
     const totals: Record<string, number> = {};
     classResults.forEach(r => { totals[r.student_id] = (totals[r.student_id] || 0) + r.obtained_marks; });
     const sorted = Object.entries(totals).sort(([, a], [, b]) => b - a);
-    const pos = sorted.findIndex(([id]) => id === studentId) + 1;
+    const ranks: Record<string, number> = {};
+    let denseRank = 1;
+    sorted.forEach(([id, marks], i) => {
+      if (i > 0 && marks !== sorted[i - 1][1]) {
+        denseRank++;
+      }
+      ranks[id] = denseRank;
+    });
+    const pos = ranks[studentId] || 0;
     return { position: pos, outOf: sorted.length };
+  };
+
+    const handlePrintMultipleClasses = async () => {
+    if (!selectedExamType || selectedBatchClasses.length === 0) return;
+    
+    setBatchMultipleLoading(true);
+    setBatchCards([]);
+
+    try {
+      const { data: stus } = await supabase
+        .from('students')
+        .select('id, full_name, roll_number, photograph_url, class_id')
+        .in('class_id', selectedBatchClasses)
+        .eq('status', 'active')
+        .order('roll_number');
+      
+      if (!stus || stus.length === 0) {
+        alert('No active students found in selected classes.');
+        setBatchMultipleLoading(false);
+        return;
+      }
+
+      const classIds = [...new Set(stus.map(s => s.class_id))];
+      const studentIds = stus.map(s => s.id);
+
+      const { data: subs } = await supabase
+        .from('subjects')
+        .select('*')
+        .in('class_id', classIds);
+
+      const { data: clsDetails } = await supabase
+        .from('classes')
+        .select('id, name, section')
+        .in('id', classIds);
+
+      const [{ data: allRes }, { data: allEvalsForExam }, { data: allEvalsAny }, { data: allAtt }, { data: allExamConfigs }] = await Promise.all([
+        supabase.from('exam_results').select('*').eq('exam_type_id', selectedExamType).in('student_id', studentIds),
+        supabase.from('evaluations').select('student_id, ratings, feedback, exam_type_id, evaluation_date').eq('exam_type_id', selectedExamType).in('student_id', studentIds),
+        supabase.from('evaluations').select('student_id, ratings, feedback, exam_type_id, evaluation_date').in('student_id', studentIds).eq('school_id', userRole!.school_id).order('evaluation_date', { ascending: false }),
+        supabase.from('attendance').select('student_id').eq('status', 'present').in('student_id', studentIds),
+        supabase.from('exam_subject_config').select('subject_id, total_marks, passing_marks').eq('exam_type_id', selectedExamType).eq('school_id', userRole?.school_id),
+      ]);
+
+      const examConfigMap: Record<string, any> = {};
+      (allExamConfigs || []).forEach(c => { examConfigMap[c.subject_id] = c; });
+
+      const evalMap: Record<string, any> = {};
+      const latestAnyEval: Record<string, any> = {};
+      (allEvalsAny || []).forEach((e: any) => { if (!latestAnyEval[e.student_id]) latestAnyEval[e.student_id] = e; });
+      const exactEvalMap: Record<string, any> = {};
+      (allEvalsForExam || []).forEach((e: any) => { exactEvalMap[e.student_id] = e; });
+      studentIds.forEach(id => {
+        const best = exactEvalMap[id] || latestAnyEval[id];
+        if (best) evalMap[id] = { ratings: best.ratings || {}, feedback: best.feedback };
+      });
+
+      const attCount: Record<string, number> = {};
+      (allAtt || []).forEach((a: any) => { attCount[a.student_id] = (attCount[a.student_id] || 0) + 1; });
+
+      let cards: any[] = [];
+
+      classIds.forEach(cid => {
+        const classStudents = stus.filter(s => s.class_id === cid);
+        const classSubjects = (subs || []).filter((s: any) => s.class_id === cid);
+        const cInfo = (clsDetails || []).find((c: any) => c.id === cid);
+        const classNameStr = cInfo ? cInfo.name : 'Class';
+
+        const totals: Record<string, number> = {};
+        const classRes = (allRes || []).filter((r: any) => classStudents.some(cs => cs.id === r.student_id));
+        classRes.forEach((r: any) => { totals[r.student_id] = (totals[r.student_id] || 0) + r.obtained_marks; });
+        const sorted = Object.entries(totals).sort(([, a], [, b]) => (b as number) - (a as number));
+        const ranks: Record<string, number> = {};
+        let denseRank = 1;
+        sorted.forEach(([id, marks], i) => {
+          if (i > 0 && marks !== sorted[i - 1][1]) {
+            denseRank++;
+          }
+          ranks[id] = denseRank;
+        });
+
+        const classCards = classStudents.map(stu => {
+          const stuResults = classRes.filter((r: any) => r.student_id === stu.id);
+          let obtained = 0, grand = 0, fails = 0;
+          const subjectRows = classSubjects.map((subj: any) => {
+            const r = stuResults.find((res: any) => res.subject_id === subj.id);
+            const eCfg = examConfigMap[subj.id];
+            const actualTotal = eCfg ? eCfg.total_marks : (subj.total_marks || 100);
+
+            if (r) {
+              const isAbs = r.is_absent || r.grade === 'Ab' || r.grade === 'AB';
+              const g = getGradeFromPolicy(r.obtained_marks, actualTotal, gradingBrackets);
+              if (g.status !== 'Pass') fails++;
+              obtained += r.obtained_marks; grand += actualTotal;
+              return { 
+                name: subj.subject_name, 
+                marks: isAbs ? 'Ab' : r.obtained_marks, 
+                total: actualTotal, 
+                grade: isAbs ? 'AB' : g.grade, 
+                status: isAbs ? 'Absent' : g.status 
+              };
+            } else {
+              grand += actualTotal; fails++;
+              return { name: subj.subject_name, marks: 'Ab', total: actualTotal, grade: 'AB', status: 'Absent' };
+            }
+          });
+          const overallG = getGradeFromPolicy(obtained, grand, gradingBrackets);
+          const pos = ranks[stu.id] || 0;
+          const presentDays = attCount[stu.id] || 0;
+          return {
+            student: stu, subjects: subjectRows, obtained, grand,
+            pct: overallG.pct, grade: overallG.grade, remarks: overallG.remarks,
+            gpa: calculateGPA(overallG.grade), fails, position: pos, totalClassStudents: classStudents.length,
+            evaluation: evalMap[stu.id] || null,
+            attendance: presentDays > 0 ? `${presentDays} days` : 'N/A',
+            classNameStr
+          };
+        });
+        cards = [...cards, ...classCards];
+      });
+
+      setBatchCards(cards);
+      setIsBatchModalOpen(false);
+      setPrintMode('batch');
+      setTimeout(() => window.print(), 800);
+    } catch (err) {
+      console.error('Batch Print Error:', err);
+      alert(`Error generating bulk report cards: ${err instanceof Error ? err.message : JSON.stringify(err)}`);
+    } finally {
+      setBatchMultipleLoading(false);
+    }
   };
 
   // Build batch cards for all students
@@ -132,14 +299,26 @@ export default function ResultReporting() {
     setBatchLoading(true);
     setBatchCards([]);
 
-    const [{ data: allRes }, { data: allEvals }, { data: allAtt }] = await Promise.all([
+    const [{ data: allRes }, { data: allEvalsForExam }, { data: allEvalsAny }, { data: allAtt }, { data: allExamConfigs }] = await Promise.all([
       supabase.from('exam_results').select('*').eq('exam_type_id', selectedExamType).in('student_id', ids),
-      supabase.from('evaluations').select('student_id, ratings, feedback').eq('exam_type_id', selectedExamType).in('student_id', ids),
+      supabase.from('evaluations').select('student_id, ratings, feedback, exam_type_id, evaluation_date').eq('exam_type_id', selectedExamType).in('student_id', ids),
+      supabase.from('evaluations').select('student_id, ratings, feedback, exam_type_id, evaluation_date').in('student_id', ids).eq('school_id', userRole!.school_id).order('evaluation_date', { ascending: false }),
       supabase.from('attendance').select('student_id').eq('status', 'present').in('student_id', ids),
+      supabase.from('exam_subject_config').select('subject_id, total_marks, passing_marks').eq('exam_type_id', selectedExamType).eq('school_id', userRole?.school_id),
     ]);
 
+    const examConfigMap: Record<string, any> = {};
+    (allExamConfigs || []).forEach(c => { examConfigMap[c.subject_id] = c; });
+
     const evalMap: Record<string, { ratings: Record<string, number>; feedback?: string }> = {};
-    (allEvals || []).forEach((e: any) => { evalMap[e.student_id] = { ratings: e.ratings || {}, feedback: e.feedback }; });
+    const latestAnyEval: Record<string, any> = {};
+    (allEvalsAny || []).forEach((e: any) => { if (!latestAnyEval[e.student_id]) latestAnyEval[e.student_id] = e; });
+    const exactEvalMap: Record<string, any> = {};
+    (allEvalsForExam || []).forEach((e: any) => { exactEvalMap[e.student_id] = e; });
+    ids.forEach(id => {
+      const best = exactEvalMap[id] || latestAnyEval[id];
+      if (best) evalMap[id] = { ratings: best.ratings || {}, feedback: best.feedback };
+    });
     setEvaluationMap(evalMap);
 
     // Attendance count per student
@@ -150,27 +329,38 @@ export default function ResultReporting() {
     const totals: Record<string, number> = {};
     (allRes || []).forEach((r: any) => { totals[r.student_id] = (totals[r.student_id] || 0) + r.obtained_marks; });
     const sorted = Object.entries(totals).sort(([, a], [, b]) => b - a);
+    const ranks: Record<string, number> = {};
+    let denseRank = 1;
+    sorted.forEach(([id, marks], i) => {
+      if (i > 0 && marks !== sorted[i - 1][1]) {
+        denseRank++;
+      }
+      ranks[id] = denseRank;
+    });
 
     const cards = students.map(stu => {
       const stuResults = (allRes || []).filter((r: any) => r.student_id === stu.id);
       let obtained = 0, grand = 0, fails = 0;
       const subjectRows = subjects.map((subj: any) => {
         const r = stuResults.find((res: any) => res.subject_id === subj.id);
+        const eCfg = examConfigMap[subj.id];
+        const actualTotal = eCfg ? eCfg.total_marks : (subj.total_marks || 100);
         if (r) {
-          const g = getGradeFromPolicy(r.obtained_marks, r.total_marks, gradingBrackets);
+          const isAbs = r.is_absent || r.grade === 'Ab' || r.grade === 'AB';
+          const g = getGradeFromPolicy(r.obtained_marks, actualTotal, gradingBrackets);
           if (g.status !== 'Pass') fails++;
-          obtained += r.obtained_marks; grand += r.total_marks;
-          return { name: subj.subject_name, marks: r.obtained_marks, total: subj.total_marks || 100, grade: g.grade, status: g.status };
+          obtained += r.obtained_marks; grand += actualTotal;
+          return { name: subj.subject_name, marks: isAbs ? 'Ab' : r.obtained_marks, total: actualTotal, grade: isAbs ? 'AB' : g.grade, status: isAbs ? 'Absent' : g.status };
         } else {
-          grand += subj.total_marks || 100; fails++;
-          return { name: subj.subject_name, marks: 0, total: subj.total_marks || 100, grade: 'AB', status: 'Absent' };
+          grand += actualTotal; fails++;
+          return { name: subj.subject_name, marks: 'Ab', total: actualTotal, grade: 'AB', status: 'Absent' };
         }
       });
       const overallG = getGradeFromPolicy(obtained, grand, gradingBrackets);
-      const pos = sorted.findIndex(([id]) => id === stu.id) + 1;
+      const pos = ranks[stu.id] || 0;
       const presentDays = attCount[stu.id] || 0;
       return {
-        student: stu, subjects: subjectRows, obtained, grand,
+        student: stu, subjects: subjectRows, obtained, grand, classNameStr: currentClass?.name || 'Class', totalClassStudents: students.length,
         pct: overallG.pct, grade: overallG.grade, remarks: overallG.remarks,
         gpa: calculateGPA(overallG.grade), fails, position: pos,
         evaluation: evalMap[stu.id] || null,
@@ -192,14 +382,17 @@ export default function ResultReporting() {
   let totalObtained = 0, grandTotal = 0, failSubjects = 0;
   const subjectRows = subjects.map(subj => {
     const r = results.find(res => res.subject_id === subj.id);
+    const eCfg = examConfigs[subj.id];
+    const actualTotal = eCfg ? eCfg.total_marks : (subj.total_marks || 100);
     if (r) {
-      const g = getGradeFromPolicy(r.obtained_marks, r.total_marks, gradingBrackets);
+      const g = getGradeFromPolicy(r.obtained_marks, actualTotal, gradingBrackets);
       if (g.status !== 'Pass') failSubjects++;
-      totalObtained += r.obtained_marks; grandTotal += r.total_marks;
-      return { subj, r, grade: g.grade, status: g.status, remarks: g.remarks };
+      totalObtained += r.obtained_marks; grandTotal += actualTotal;
+      const isAbs = r.is_absent || r.grade === 'Ab' || r.grade === 'AB';
+      return { subj, r, grade: isAbs ? 'AB' : g.grade, status: isAbs ? 'Absent' : g.status, remarks: g.remarks, actualTotal, isAbs };
     } else {
-      grandTotal += subj.total_marks || 100; failSubjects++;
-      return { subj, r: null, grade: 'AB', status: 'Absent', remarks: '' };
+      grandTotal += actualTotal; failSubjects++;
+      return { subj, r: null, grade: 'AB', status: 'Absent', remarks: '', actualTotal, isAbs: true };
     }
   });
 
@@ -220,7 +413,7 @@ export default function ResultReporting() {
     schoolLogo: schoolInfo?.logo_url || null,
     examName: currentExam?.name || '',
     examSession: currentExam?.session || '',
-    className: `${currentClass?.name} — ${currentClass?.section}`,
+    className: currentClass?.name || '',
     totalStudents: outOf > 0 ? outOf : students.length || undefined,
     finalStatus: failSubjects === 0 ? 'PROMOTED' : 'NOT PROMOTED',
   };
@@ -229,6 +422,12 @@ export default function ResultReporting() {
     <div className="max-w-4xl mx-auto space-y-6">
       <style>{`
         @media print {
+          * {
+            box-shadow: none !important;
+            filter: none !important;
+            backdrop-filter: none !important;
+            text-shadow: none !important;
+          }
           .no-print { display: none !important; }
           body { background: white; margin: 0; padding: 0; }
         }
@@ -310,7 +509,7 @@ export default function ResultReporting() {
           <label className="block text-xs font-bold text-gray-600 uppercase mb-2">Class</label>
           <select value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setSelectedStudent(''); }} className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-medium text-sm">
             <option value="">-- Select Class --</option>
-            {classes.map(c => <option key={c.id} value={c.id}>{c.name} — {c.section}</option>)}
+            {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
         <div>
@@ -322,7 +521,18 @@ export default function ResultReporting() {
         </div>
       </div>
 
-      {/* Action buttons */}
+            {/* General Action buttons (Exam level) */}
+      {selectedExamType && (
+        <div className="no-print flex flex-wrap gap-3 justify-end items-center mb-4 mt-2">
+          {/* Print Multiple Classes Button */}
+          <button onClick={() => setIsBatchModalOpen(true)}
+            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2 rounded-lg font-bold shadow transition">
+            <Printer className="w-4 h-4" /> Print Multiple Classes
+          </button>
+        </div>
+      )}
+
+      {/* Class Action buttons */}
       {selectedExamType && selectedClass && subjects.length > 0 && (
         <div className="no-print flex flex-wrap gap-3 justify-end items-center">
 
@@ -351,7 +561,7 @@ export default function ResultReporting() {
             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white px-5 py-2 rounded-lg font-bold shadow transition">
             {batchLoading
               ? <><Loader2 className="w-4 h-4 animate-spin" /> Preparing {students.length} cards...</>
-              : <><Users className="w-4 h-4" /> Print All Class ({students.length} students)</>
+              : <><Users className="w-4 h-4" /> Print This Class ({students.length} students)</>
             }
           </button>
         </div>
@@ -366,7 +576,7 @@ export default function ResultReporting() {
           studentPhoto: currentStudent?.photograph_url || null,
           subjects: subjectRows.map(row => ({
             name: row.subj.subject_name,
-            marks: row.r?.obtained_marks ?? 0,
+            marks: row.isAbs ? 'Ab' : (row.r?.obtained_marks ?? 0),
             total: row.subj.total_marks || 100,
             grade: row.grade,
             status: row.status,
@@ -408,6 +618,7 @@ export default function ResultReporting() {
           {(() => {
             const makeCardProps = (card: any) => ({
               ...commonCardProps,
+              className: card.classNameStr || commonCardProps.className,
               studentName: card.student.full_name,
               rollNumber: String(card.student.roll_number),
               studentPhoto: card.student.photograph_url || null,
@@ -418,7 +629,7 @@ export default function ResultReporting() {
               grade: card.grade,
               attendance: card.attendance || 'N/A',
               positionInClass: card.position > 0 ? card.position : undefined,
-              totalStudents: batchCards.length,
+              totalStudents: card.totalClassStudents || batchCards.length,
               finalStatus: card.fails === 0 ? 'PROMOTED' : 'NOT PROMOTED',
               evaluation: card.evaluation || undefined,
             });
@@ -456,6 +667,78 @@ export default function ResultReporting() {
                 ? `Printed 2 per page (landscape) — ${Math.ceil(batchCards.length / 2)} sheets total.`
                 : 'Each card is on its own A4 portrait page.'}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Modal */}
+      {isBatchModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm no-print">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-5 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+              <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <Printer className="w-5 h-5 text-purple-600" />
+                Select Classes
+              </h3>
+              <button onClick={() => setIsBatchModalOpen(false)} className="text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-full p-1">
+                &times;
+              </button>
+            </div>
+            
+            <div className="p-5 overflow-y-auto custom-scrollbar flex-1">
+              <p className="text-sm text-gray-500 mb-4">
+                Select the classes you want to generate report cards for. The system will compile all students from these classes into a single PDF via your browser's Print dialog.
+              </p>
+              
+              <div className="flex gap-3 mb-4">
+                <button 
+                  onClick={() => setSelectedBatchClasses(classes.map(c => c.id))}
+                  className="text-sm font-medium text-purple-600 hover:text-purple-700"
+                >
+                  Select All
+                </button>
+                <button 
+                  onClick={() => setSelectedBatchClasses([])}
+                  className="text-sm font-medium text-gray-500 hover:text-gray-700"
+                >
+                  Deselect All
+                </button>
+              </div>
+
+              <div className="space-y-2 border border-gray-200 rounded-lg p-3 max-h-[40vh] overflow-y-auto">
+                {classes.map(c => (
+                  <label key={c.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer border-b border-gray-100 last:border-0">
+                    <input 
+                      type="checkbox" 
+                      className="w-4 h-4 accent-purple-600 cursor-pointer"
+                      checked={selectedBatchClasses.includes(c.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedBatchClasses(prev => [...prev, c.id]);
+                        else setSelectedBatchClasses(prev => prev.filter(id => id !== c.id));
+                      }}
+                    />
+                    <span className="font-medium text-gray-800">{c.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-gray-200 bg-gray-50 flex justify-end gap-3 shrink-0">
+              <button 
+                onClick={() => setIsBatchModalOpen(false)}
+                className="px-5 py-2 font-medium text-gray-700 hover:bg-gray-200 bg-gray-100 rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handlePrintMultipleClasses}
+                disabled={batchMultipleLoading || selectedBatchClasses.length === 0}
+                className="flex items-center gap-2 px-5 py-2 font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow transition"
+              >
+                {batchMultipleLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+                {batchMultipleLoading ? 'Generating...' : `Print / Save PDF (${selectedBatchClasses.length})`}
+              </button>
+            </div>
           </div>
         </div>
       )}

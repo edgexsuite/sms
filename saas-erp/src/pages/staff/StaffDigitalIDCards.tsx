@@ -30,7 +30,7 @@ export default function StaffDigitalIDCards() {
 
   const fetchStaff = async () => {
     setLoading(true);
-    const { data } = await supabase.from('staff').select('*').eq('school_id', userRole?.school_id).eq('is_active', true).order('role');
+    const { data } = await supabase.from('staff').select('*').eq('school_id', userRole?.school_id).eq('is_active', true).eq('is_deleted', false).order('role');
     if (data) {
       setStaff(data);
       setSelectedStaff(new Set(data.map(s => s.id)));
@@ -41,7 +41,7 @@ export default function StaffDigitalIDCards() {
   const fetchSettings = async () => {
     const { data } = await supabase
       .from('id_card_settings')
-      .select('fields, template, layout_config')
+      .select('*')
       .eq('school_id', userRole?.school_id)
       .eq('card_type', 'staff')
       .maybeSingle();

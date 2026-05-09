@@ -2463,15 +2463,7 @@ function MessageCenter({ staffId, schoolId, onClose }: { staffId: string; school
 
             {/* Chat Interface Integration */}
             <div className="flex-1 flex flex-col min-h-0 p-4">
-              <ChatInterface
-                schoolId={schoolId}
-                currentUserId={staffId}
-                currentUserType="staff"
-                targetUserId={selectedThread.targetId}
-                targetUserType={selectedThread.type}
-                studentId={selectedThread.student?.id || selectedThread.studentId}
-                targetName={selectedThread.name}
-              />
+              {/* ChatInterface removed temporarily */}
             </div>
           </div>
         )}

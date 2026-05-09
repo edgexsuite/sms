@@ -6,7 +6,7 @@ import {
   Banknote, DollarSign, Scale, BarChart3, BarChart2, ClipboardCheck, UserX,
   LineChart, Library, Home, Bell, Key, Trash2, Box, Package, Clock, Palette,
   Receipt, Layers, BookMarked, Landmark, BarChart, LifeBuoy, Users2, Bus, MapPin, Truck,
-  Radio, Inbox, Tag, History, Printer, Wand2
+  Radio, Inbox, Tag, History, Printer, Wand2, Trophy
 } from 'lucide-react';
 
 export const ALL_ADMIN    = ['admin', 'principal', 'director', 'vice_principal'];
@@ -68,6 +68,7 @@ export const NAV_SECTIONS = [
         subItems: [
           { name: 'Staff Directory', path: '/staff',          exact: true, icon: Users     },
           { name: 'Staff ID Cards',  path: '/staff/id-cards',             icon: CreditCard },
+          { name: 'Teacher of Month',path: '/staff/teacher-of-the-month', icon: Trophy     },
           { name: 'User Accounts',   path: '/staff/accounts',             icon: Shield     },
         ],
       },
@@ -163,6 +164,7 @@ export const NAV_SECTIONS = [
           { name: 'Admin Results Entry',     path: '/result/add-result',       icon: Star,           roles: ALL_ADMIN   },
           { name: 'Import from Excel',       path: '/result/import',           icon: Upload,         roles: ALL_STAFF   },
           { name: 'Teacher Mark Entry',      path: '/result/teacher-marks',    icon: Star,           roles: ALL_ACADEMIC },
+          { name: 'Teacher-Wise Results',    path: '/result/teacher-wise',     icon: Users,          roles: ALL_ACADEMIC },
           { name: 'Consolidated Sheet',      path: '/result/consolidated',     icon: LayoutDashboard,roles: ALL_ACADEMIC },
           { name: 'Award List Generator',    path: '/result/award-list',       icon: Printer,        roles: ALL_ACADEMIC },
           { name: 'Report Cards',            path: '/result/reporting',        icon: LineChart,      roles: ALL_ACADEMIC },

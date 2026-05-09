@@ -42,6 +42,8 @@ export default function SubjectManagement() {
     passing_marks: 33
   });
   const [saving, setSaving] = useState(false);
+  const [editingSubject, setEditingSubject] = useState<any>(null);
+
 
   // Bulk template presets
   const [presets, setPresets] = useState<Record<string, string[]>>(DEFAULT_PRESETS);
@@ -117,20 +119,32 @@ export default function SubjectManagement() {
     await savePresetsToDb(newPresets);
   };
 
-  const handleAddSubject = async () => {
+  const handleSaveSubject = async () => {
     if (!newSubject.subject_name.trim()) return alert('Subject name is required.');
     setSaving(true);
     try {
-      const { error } = await supabase.from('subjects').insert([{
-        school_id: userRole?.school_id,
-        class_id: selectedClass,
-        subject_name: newSubject.subject_name.trim(),
-        subject_code: newSubject.subject_code.trim() || null,
-        total_marks: newSubject.total_marks,
-        passing_marks: newSubject.passing_marks
-      }]);
-      if (error) throw error;
+      if (editingSubject) {
+        const { error } = await supabase.from('subjects').update({
+          subject_name: newSubject.subject_name.trim(),
+          subject_code: newSubject.subject_code.trim() || null,
+          total_marks: newSubject.total_marks,
+          passing_marks: newSubject.passing_marks
+        }).eq('id', editingSubject.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('subjects').insert([{
+          school_id: userRole?.school_id,
+          class_id: selectedClass,
+          subject_name: newSubject.subject_name.trim(),
+          subject_code: newSubject.subject_code.trim() || null,
+          total_marks: newSubject.total_marks,
+          passing_marks: newSubject.passing_marks
+        }]);
+        if (error) throw error;
+      }
+      
       setNewSubject({ subject_name: '', subject_code: '', total_marks: 100, passing_marks: 33 });
+      setEditingSubject(null);
       setShowForm(false);
       fetchSubjects();
     } catch (err: any) { alert(err.message); }
@@ -138,9 +152,51 @@ export default function SubjectManagement() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Remove "${name}" from this class? This will affect any existing exam results.`)) return;
+    const isConfirmed = window.confirm(`Remove "${name}" from this class? This will affect any existing exam results.`);
+    if (!isConfirmed) return;
+
     const { error } = await supabase.from('subjects').delete().eq('id', id);
-    if (error) return alert(error.message);
+    
+    if (error) {
+      // Check for foreign key violation (23503)
+      if (error.code === '23503') {
+        const forceDelete = window.confirm(
+          `UNABLE TO DELETE: "${name}" has existing marks/results in the database.\n\n` +
+          `Would you like to FORCE DELETE? \n` +
+          `WARNING: This will permanently WIPE ALL MARKS for this subject across all exams and students. This cannot be undone.`
+        );
+
+        if (forceDelete) {
+          const password = window.prompt(`Please type "DELETE" to confirm wiping all results for "${name}":`);
+          if (!password || password.trim().toUpperCase() !== 'DELETE') {
+            return alert('Force delete cancelled. Confirmation text did not match.');
+          }
+
+          setLoading(true);
+          try {
+            // 1. Wipe results
+            await supabase.from('exam_results').delete().eq('subject_id', id);
+            // 2. Wipe custom configs
+            await supabase.from('exam_subject_config').delete().eq('subject_id', id);
+            // 3. Wipe timetable slots
+            await supabase.from('timetable_slots').delete().eq('subject_id', id);
+            // 4. Finally delete the subject
+            const { error: finalErr } = await supabase.from('subjects').delete().eq('id', id);
+            
+            if (finalErr) throw finalErr;
+            alert(`"${name}" and all associated results have been wiped successfully.`);
+            fetchSubjects();
+          } catch (err: any) {
+            alert(`Error during force delete: ${err.message}`);
+          }
+          setLoading(false);
+        }
+      } else {
+        alert(error.message);
+      }
+      return;
+    }
+    
     fetchSubjects();
   };
 
@@ -209,7 +265,11 @@ export default function SubjectManagement() {
           {selectedClass && (
             <>
               <button
-                onClick={() => { setNewSubject({ subject_name: '', subject_code: '', total_marks: 100, passing_marks: 33 }); setShowForm(true); }}
+                onClick={() => { 
+                  setEditingSubject(null);
+                  setNewSubject({ subject_name: '', subject_code: '', total_marks: 100, passing_marks: 33 }); 
+                  setShowForm(true); 
+                }}
                 className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-lg font-bold shadow transition"
               >
                 <PlusCircle className="w-4 h-4" /> Add Subject
@@ -323,8 +383,25 @@ export default function SubjectManagement() {
                           {passPct}%
                         </span>
                         <button
+                          onClick={() => {
+                            setEditingSubject(subj);
+                            setNewSubject({
+                              subject_name: subj.subject_name,
+                              subject_code: subj.subject_code || '',
+                              total_marks: subj.total_marks,
+                              passing_marks: subj.passing_marks
+                            });
+                            setShowForm(true);
+                          }}
+                          className="p-1 text-gray-300 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition"
+                          title="Edit Subject Name/Config"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
                           onClick={() => handleDelete(subj.id, subj.subject_name)}
-                          className="ml-2 p-1 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
+                          className="p-1 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
+                          title="Delete Subject"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -351,7 +428,7 @@ export default function SubjectManagement() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
             <div className="bg-purple-600 px-6 py-4 flex justify-between items-center">
               <h3 className="font-bold text-lg text-white flex items-center gap-2">
-                <FileText className="w-5 h-5" /> New Subject
+                <FileText className="w-5 h-5" /> {editingSubject ? 'Edit Subject' : 'New Subject'}
               </h3>
               <button onClick={() => setShowForm(false)} className="text-purple-200 hover:text-white">
                 <X className="w-5 h-5" />
@@ -420,11 +497,11 @@ export default function SubjectManagement() {
                 Cancel
               </button>
               <button
-                onClick={handleAddSubject}
+                onClick={handleSaveSubject}
                 disabled={saving}
                 className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg shadow flex items-center gap-2 disabled:opacity-50 transition"
               >
-                <Save className="w-4 h-4" /> {saving ? 'Adding...' : 'Add Subject'}
+                <Save className="w-4 h-4" /> {saving ? 'Saving...' : editingSubject ? 'Update Subject' : 'Add Subject'}
               </button>
             </div>
           </div>

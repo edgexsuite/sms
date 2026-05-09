@@ -71,17 +71,19 @@ export default function DefaulterReport() {
           total_amount,
           paid_amount,
           month_year,
-          students (
+          students!inner (
             id,
             full_name,
             roll_number,
             father_name,
             father_contact,
             class_id,
+            is_deleted,
             classes (name, section)
           )
         `)
         .eq('school_id', userRole.school_id)
+        .eq('students.is_deleted', false)
         .is('deleted_at', null)
         .neq('status', 'paid');
 

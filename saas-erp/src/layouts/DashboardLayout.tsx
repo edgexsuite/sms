@@ -653,7 +653,7 @@ export default function DashboardLayout() {
       <CommandPalette />
 
       {/* Global AI Assistant */}
-      <AiAssistant />
+      {/* <AiAssistant /> */}
     </>
   );
 }

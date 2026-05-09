@@ -137,7 +137,7 @@ export default function StationaryManagement() {
 
   const fetchClassStudents = async (cid: string) => {
     setLoading(true);
-    const { data } = await supabase.from('students').select('*').eq('class_id', cid).eq('status', 'active');
+    const { data } = await supabase.from('students').select('*').eq('class_id', cid).eq('status', 'active').eq('is_deleted', false);
     if (data) {
       // Fetch ledger flags for each student to show alerts in the list
       const studentIds = data.map(s => s.id);

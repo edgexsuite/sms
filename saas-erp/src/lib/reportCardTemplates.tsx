@@ -48,7 +48,7 @@ export interface ReportCardProps {
   positionInClass?: number;
   totalStudents?: number;
   finalStatus?: string;
-  subjects: { name: string; marks: number; total: number; grade: string; status?: string }[];
+  subjects: { name: string; marks: number | string; total: number; grade: string; status?: string }[];
   totalMarks: number;
   obtainedMarks: number;
   percentage: number;
@@ -88,7 +88,10 @@ function gradeColor(grade: string): string {
   return '#dc2626';
 }
 function gradeBg(grade: string, alpha = '20'): string { return gradeColor(grade) + alpha; }
-function pct(marks: number, total: number): number { return total > 0 ? Math.round((marks / total) * 100) : 0; }
+function pct(marks: number | string, total: number): number { 
+  const m = typeof marks === 'string' ? 0 : marks;
+  return total > 0 ? Math.round((m / total) * 100) : 0; 
+}
 
 function ProgressBar({ value, color, height = 3 }: { value: number; color: string; height?: number }) {
   return (
@@ -138,7 +141,7 @@ function CharacterAssessment({ evaluation, c }: {
   const keys = Object.keys(evaluation.ratings);
   if (!keys.length) return null;
   return (
-    <div style={{ border: `1px solid ${c.borderColor}`, borderRadius: '6px', padding: '8px 12px', marginBottom: '10px', background: '#fffbeb' }}>
+    <div style={{ border: `1px solid ${c.borderColor}`, borderRadius: '6px', padding: '8px 12px', marginBottom: '10px', background: 'rgba(255, 251, 235, 0.5)' }}>
       <div style={{ fontSize: c.tableFontSize * 0.82, fontWeight: '800', color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
         ★ Character Assessment
       </div>
@@ -168,7 +171,7 @@ function TeacherRemarksBlock({ feedback, label = 'Teacher Remarks', c, lines = 2
   lines?: number;
 }) {
   return (
-    <div style={{ border: `1px solid ${c.borderColor}`, borderRadius: '6px', padding: '8px 12px', marginBottom: '10px', background: '#fafafa' }}>
+    <div style={{ border: `1px solid ${c.borderColor}`, borderRadius: '6px', padding: '8px 12px', marginBottom: '10px', background: 'rgba(250, 250, 250, 0.5)' }}>
       <div style={{ fontSize: c.tableFontSize * 0.82, fontWeight: '800', color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
         {label}
       </div>
@@ -903,6 +906,8 @@ export function CompactReport(props: ReportCardProps) {
 export function RoyalReport(props: ReportCardProps) {
   const c = getCustom(props);
   const { activeFields, subjects } = props;
+  const showPct = activeFields.includes('show_subject_pct');
+  const showStatus = activeFields.includes('show_pass_fail');
   const NAVY = '#1a2744';
   const GOLD = '#c8960c';
   const GOLD2 = '#e8b84b';
@@ -959,7 +964,7 @@ export function RoyalReport(props: ReportCardProps) {
             {[['Student Name', props.studentName], ['Term', props.examName || '—'], ['Roll / ID', props.rollNumber], ['Academic Year', props.examSession || '—'],
               ['Grade / Class', props.className], ['Date', formatDate(new Date())],
               ...(activeFields.includes('attendance_stats') ? [['Attendance', props.attendance]] : []),
-              ...(props.positionInClass && props.totalStudents ? [['Position', `${props.positionInClass} of ${props.totalStudents}`]] : []),
+              ...(activeFields.includes('position_in_class') && props.positionInClass && props.totalStudents ? [['Position', `${props.positionInClass} of ${props.totalStudents}`]] : []),
             ].map(([label, val], i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: '5px', borderBottom: '1px solid #e5e5e5', paddingBottom: '2px' }}>
                 <span style={{ fontWeight: '600', color: '#444', minWidth: '78px', fontSize: c.tableFontSize * 0.85 }}>{label}:</span>
@@ -976,9 +981,17 @@ export function RoyalReport(props: ReportCardProps) {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: c.tableFontSize, marginBottom: '10px' }}>
           <thead>
             <tr style={{ background: NAVY, color: GOLD, textTransform: 'uppercase', fontSize: c.tableFontSize * 0.85, letterSpacing: '0.5px' }}>
-              {['Subject', 'Score', 'Pct', 'Grade', 'Remarks', 'Status'].map((h, i) => (
-                <th key={h} style={{ padding: '7px 8px', textAlign: i === 0 ? 'left' : 'center' }}>{h}</th>
-              ))}
+              {(() => {
+                const hCols = ['Subject', 'Score', ...(showPct ? ['Pct'] : []), 'Grade', 'Remarks', ...(showStatus ? ['Status'] : [])];
+                return hCols.map((h, i) => (
+                  <th key={h} style={{ 
+                    padding: '7px 8px', 
+                    textAlign: i === 0 ? 'left' : 'center',
+                    borderLeft: i === 0 ? `2px solid ${GOLD}` : 'none',
+                    borderRight: i === hCols.length - 1 ? `2px solid ${GOLD}` : `1px solid ${GOLD}44`
+                  }}>{h}</th>
+                ));
+              })()}
             </tr>
           </thead>
           <tbody>
@@ -987,31 +1000,33 @@ export function RoyalReport(props: ReportCardProps) {
               const gc = gradeColor(sub.grade);
               const remark = sub.grade === 'A+' ? 'Outstanding' : sub.grade === 'A' ? 'Excellent' : sub.grade === 'B+' ? 'Very Good' : sub.grade === 'B' ? 'Good' : sub.grade === 'C' ? 'Satisfactory' : sub.grade === 'D' ? 'Needs Improvement' : 'Unsatisfactory';
               return (
-                <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#fafaf7', borderBottom: '1px solid #e8e5d8' }}>
-                  <td style={{ padding: '5px 8px', textTransform: 'uppercase', fontSize: c.tableFontSize * 0.9, fontWeight: '500' }}>{sub.name}</td>
-                  <td style={{ padding: '5px 8px', textAlign: 'center' }}>
+                <tr key={i} style={{ background: i % 2 === 0 ? 'rgba(255, 255, 255, 0.4)' : 'rgba(250, 250, 247, 0.4)', borderBottom: '1px solid #e8e5d8' }}>
+                  <td style={{ padding: '5px 8px', textTransform: 'uppercase', fontSize: c.tableFontSize * 0.9, fontWeight: '500', borderLeft: `2px solid ${GOLD}`, borderRight: '1px solid #e8e5d8' }}>{sub.name}</td>
+                  <td style={{ padding: '5px 8px', textAlign: 'center', borderRight: '1px solid #e8e5d8' }}>
                     <span style={{ fontWeight: '700', color: gc }}>{sub.marks}</span>
                     <span style={{ color: '#aaa', fontSize: c.tableFontSize * 0.8 }}>/{sub.total}</span>
                   </td>
-                  <td style={{ padding: '5px 8px', textAlign: 'center' }}>
+                  {showPct && <td style={{ padding: '5px 8px', textAlign: 'center', borderRight: '1px solid #e8e5d8' }}>
                     <div style={{ fontSize: c.tableFontSize * 0.8, color: '#777', marginBottom: '2px' }}>{sp}%</div>
                     <ProgressBar value={sp} color={gc} height={3} />
-                  </td>
-                  <td style={{ padding: '5px 8px', textAlign: 'center' }}><GradeBadge grade={sub.grade} fontSize={c.tableFontSize * 0.85} /></td>
-                  <td style={{ padding: '5px 8px', textAlign: 'center', color: '#555', fontSize: c.tableFontSize * 0.85 }}>{remark}</td>
-                  <td style={{ padding: '5px 8px', textAlign: 'center' }}><StatusBadge status={sub.status} fontSize={c.tableFontSize * 0.8} /></td>
+                  </td>}
+                  <td style={{ padding: '5px 8px', textAlign: 'center', borderRight: '1px solid #e8e5d8' }}><GradeBadge grade={sub.grade} fontSize={c.tableFontSize * 0.85} /></td>
+                  <td style={{ padding: '5px 8px', textAlign: 'center', color: '#555', fontSize: c.tableFontSize * 0.85, borderRight: !showStatus ? `2px solid ${GOLD}` : '1px solid #e8e5d8' }}>{remark}</td>
+                  {showStatus && <td style={{ padding: '5px 8px', textAlign: 'center', borderRight: `2px solid ${GOLD}` }}><StatusBadge status={sub.status} fontSize={c.tableFontSize * 0.8} /></td>}
                 </tr>
               );
             })}
           </tbody>
           {activeFields.includes('gpa_summary') && (
             <tfoot>
-              <tr style={{ background: '#f5f0e0', fontWeight: 'bold', borderTop: `2px solid ${GOLD}` }}>
-                <td style={{ padding: '6px 8px', color: NAVY }}>OVERALL</td>
-                <td style={{ padding: '6px 8px', textAlign: 'center', color: NAVY }}>{props.obtainedMarks}/{props.totalMarks}</td>
-                <td style={{ padding: '6px 8px', textAlign: 'center', color: NAVY }}>{props.percentage}%</td>
-                <td style={{ padding: '6px 8px', textAlign: 'center' }} colSpan={2}><GradeBadge grade={props.grade} fontSize={c.tableFontSize * 0.95} /></td>
-                <td style={{ padding: '6px 8px', textAlign: 'center', color: NAVY }}>{props.finalStatus || '—'}</td>
+              <tr style={{ background: 'rgba(220, 252, 231, 0.6)', fontWeight: 'bold', borderTop: `2px solid ${GOLD}`, borderBottom: `2px solid ${GOLD}` }}>
+                <td style={{ padding: '6px 8px', color: NAVY, borderLeft: `2px solid ${GOLD}`, borderRight: '1px solid #c0d8c0' }}>OVERALL</td>
+                <td style={{ padding: '6px 8px', textAlign: 'center', color: NAVY, borderRight: '1px solid #c0d8c0' }}>{props.obtainedMarks}/{props.totalMarks}</td>
+                <td style={{ padding: '6px 8px', textAlign: 'center', color: NAVY, borderRight: '1px solid #c0d8c0' }}>{props.percentage}%</td>
+                <td style={{ padding: '6px 8px', textAlign: 'center', borderRight: !showStatus ? `2px solid ${GOLD}` : '1px solid #c0d8c0' }} colSpan={2}>
+                  <GradeBadge grade={props.grade} fontSize={c.tableFontSize * 0.95} />
+                </td>
+                {showStatus && <td style={{ padding: '6px 8px', textAlign: 'center', color: NAVY, borderRight: `2px solid ${GOLD}` }}>{props.finalStatus || '—'}</td>}
               </tr>
             </tfoot>
           )}
@@ -1022,7 +1037,7 @@ export function RoyalReport(props: ReportCardProps) {
           {activeFields.includes('teacher_remarks') && (
             <TeacherRemarksBlock feedback={props.evaluation?.feedback} label="Teacher's Comments" c={c} lines={3} />
           )}
-          <div style={{ flex: 1, border: '1px solid #e0d8c0', borderRadius: '6px', padding: '8px 10px', background: '#fffef9' }}>
+          <div style={{ flex: 1, border: '1px solid #e0d8c0', borderRadius: '6px', padding: '8px 10px', background: 'rgba(255, 254, 249, 0.5)' }}>
             <div style={{ fontSize: c.tableFontSize * 0.85, fontWeight: '700', color: GOLD, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>🏅 Grading Scale</div>
             {GRADING_SCALE.map(({ grade, range, label }) => (
               <div key={grade} style={{ display: 'flex', gap: '4px', fontSize: c.tableFontSize * 0.8, marginBottom: '2px', alignItems: 'center' }}>
@@ -1039,11 +1054,11 @@ export function RoyalReport(props: ReportCardProps) {
         )}
 
         {/* Signatures */}
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', paddingTop: '6px', borderTop: `1px solid ${GOLD}` }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', paddingTop: '12px', borderTop: `1.5px solid ${GOLD}`, marginTop: '15px' }}>
           {activeSigs.map((sig, idx) => (
-            <div key={idx} style={{ textAlign: 'center', minWidth: '100px' }}>
-              <div style={{ height: '28px', borderBottom: '1px solid #aaa', marginBottom: '4px' }} />
-              <div style={{ fontSize: c.tableFontSize * 0.9, color: '#333', fontWeight: '600' }}>{sig.label}</div>
+            <div key={idx} style={{ textAlign: 'center', minWidth: '110px' }}>
+              <div style={{ height: '50px', borderBottom: '1px solid #aaa', marginBottom: '6px' }} />
+              <div style={{ fontSize: c.tableFontSize * 0.9, color: '#333', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{sig.label}</div>
             </div>
           ))}
           <div style={{ textAlign: 'center' }}>
@@ -1126,7 +1141,7 @@ export function PrestigeReport(props: ReportCardProps) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 16px', fontSize: c.tableFontSize, background: '#f0fdf4', border: `1px solid ${LIME}33`, borderRadius: '6px', padding: '8px 10px', marginBottom: '10px' }}>
           {[['Student', props.studentName], ['Roll No', props.rollNumber], ['Class', props.className],
             ...(activeFields.includes('attendance_stats') ? [['Attendance', props.attendance]] : []),
-            ...(props.positionInClass && props.totalStudents ? [['Position', `${props.positionInClass} of ${props.totalStudents}`]] : []),
+            ...(activeFields.includes('position_in_class') && props.positionInClass && props.totalStudents ? [['Position', `${props.positionInClass} of ${props.totalStudents}`]] : []),
           ].map(([l, v], i) => (
             <div key={i} style={{ display: 'flex', gap: '6px', alignItems: 'baseline' }}>
               <span style={{ color: '#555', minWidth: '58px', fontSize: c.tableFontSize * 0.85 }}>{l}:</span>
@@ -1271,7 +1286,7 @@ export function PearlReport(props: ReportCardProps) {
             { l: 'Student', v: props.studentName },
             { l: 'Roll No', v: props.rollNumber },
             { l: 'Class', v: props.className },
-            props.positionInClass && props.totalStudents
+            activeFields.includes('position_in_class') && props.positionInClass && props.totalStudents
               ? { l: 'Rank', v: `${props.positionInClass}/${props.totalStudents}` }
               : { l: 'Status', v: props.finalStatus || '—' },
           ].map((item, i) => (
@@ -1584,7 +1599,7 @@ export function ApexReport(props: ReportCardProps) {
         {/* ── Position + remarks row ── */}
         <div style={{ display: 'flex', gap: '8px', marginBottom: '3mm' }}>
           {/* Position badge */}
-          {props.positionInClass && props.totalStudents && (
+          {activeFields.includes('position_in_class') && props.positionInClass && props.totalStudents && (
             <div style={{ border: `1.5px solid ${accent}`, borderRadius: '6px', padding: '5px 10px', textAlign: 'center', minWidth: '80px', background: '#f8fafc' }}>
               <div style={{ fontSize: tf * 0.72, fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Position</div>
               <div style={{ fontSize: tf * 1.5, fontWeight: '900', color: accent, lineHeight: 1.1, marginTop: '1px' }}>{props.positionInClass}</div>
@@ -1815,7 +1830,7 @@ export function VividReport(props: ReportCardProps) {
                   ['Overall Grade', props.grade],
                   ['Percentage',   `${props.percentage}%`],
                   ['Result',        props.finalStatus || '—'],
-                  ...(props.positionInClass ? [['Position', `${props.positionInClass} / ${props.totalStudents}`]] : []),
+                  ...(activeFields.includes('position_in_class') && props.positionInClass ? [['Position', `${props.positionInClass} / ${props.totalStudents}`]] : []),
                   ...(activeFields.includes('attendance_stats') ? [['Attendance', props.attendance]] : []),
                 ] as [string,string][]).map(([label, value], i) => (
                   <tr key={label} style={{ borderTop: '1px solid #ddd', background: i % 2 === 0 ? '#fff' : '#f4f7ff' }}>
@@ -2042,7 +2057,7 @@ export function MonoReport(props: ReportCardProps) {
             ['Overall Grade', props.grade],
             ['Percentage',    `${props.percentage}%`],
             ['Result',         props.finalStatus ? props.finalStatus.toUpperCase() : '—'],
-            ...(props.positionInClass ? [['Class Position', `${props.positionInClass} of ${props.totalStudents}`]] : []),
+            ...(activeFields.includes('position_in_class') && props.positionInClass ? [['Class Position', `${props.positionInClass} of ${props.totalStudents}`]] : []),
           ] as [string, string][]).map(([label, value], i, arr) => (
             <div key={label} style={{
               flex: 1, padding: '4px 8px', textAlign: 'center',

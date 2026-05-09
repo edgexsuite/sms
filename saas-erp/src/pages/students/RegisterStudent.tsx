@@ -428,14 +428,6 @@ export default function RegisterStudent() {
       return;
     }
 
-    // Reject if raw file is larger than 20 KB
-    if (file.size > 20 * 1024) {
-      const errs = [...photoErrors];
-      errs[index] = 'Photo must be under 20 KB. Please compress and resize the image before uploading.';
-      setPhotoErrors(errs);
-      return;
-    }
-
     // Show raw preview immediately while processing runs in background
     const prev = [...photoPreviews];
     if (prev[index]) URL.revokeObjectURL(prev[index]!);
@@ -650,11 +642,33 @@ export default function RegisterStudent() {
         parentId = parentResult.id;
       }
 
+      // 4. Fetch next roll numbers for each unique class in the batch
+      const uniqueClassIds = [...new Set(students.map(s => s.class_id).filter(Boolean))];
+      const rollNumberMap: Record<string, number> = {};
+      
+      for (const cid of uniqueClassIds) {
+        const { data: maxRoll } = await supabase
+          .from('students')
+          .select('roll_number')
+          .eq('class_id', cid)
+          .order('roll_number', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        rollNumberMap[cid] = (maxRoll?.roll_number || 0);
+      }
+
       const studentInserts = students.map((stu, idx) => {
         const studentNamePart = (stu.full_name || 'Student').trim().split(' ')[0];
         const suffix = `${familyNumber.replace(/\D/g, '').slice(-4)}${idx + 1}`;
         const studentUniqueId = `${studentNamePart}${suffix}`;
         const studentPassword = generatePassword();
+
+        // Increment roll number for this class
+        const targetClassId = stu.class_id || '';
+        if (targetClassId) {
+          rollNumberMap[targetClassId] = (rollNumberMap[targetClassId] || 0) + 1;
+        }
 
         return {
           school_id: userRole.school_id,
@@ -688,7 +702,7 @@ export default function RegisterStudent() {
           contagious_disease: stu.contagious_disease || null,
           medical_caution: stu.medical_caution || null,
           family_group_id: finalFamilyGroupId,
-          roll_number: Math.floor(10000 + Math.random() * 90000),
+          roll_number: rollNumberMap[targetClassId] ?? Math.floor(1000 + Math.random() * 9000),
           fee_waiver_percentage: stu.fee_waiver_percentage || 0,
           status: 'active',
           custom_data: stu.custom_data // JSONB inject
@@ -1392,9 +1406,13 @@ export default function RegisterStudent() {
         )}
 
         <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 z-10 flex justify-end rounded-b-xl shadow-lg">
-          <button type="submit" disabled={loading} className="flex items-center gap-2 px-8 py-3 text-sm font-bold text-white bg-blue-600 rounded-lg shadow-md hover:bg-blue-700 disabled:opacity-50">
+          <button 
+            type="submit" 
+            disabled={loading || photoProcessing.some(p => p)} 
+            className="flex items-center gap-2 px-8 py-3 text-sm font-bold text-white bg-blue-600 rounded-lg shadow-md hover:bg-blue-700 disabled:opacity-50"
+          >
             <Save className="w-5 h-5" />
-            {loading ? 'Processing...' : (isEditMode ? 'Update Profile' : `Register ${students.length} Student${students.length > 1 ? 's' : ''}`)}
+            {loading ? 'Processing...' : photoProcessing.some(p => p) ? 'Processing Photos...' : (isEditMode ? 'Update Profile' : `Register ${students.length} Student${students.length > 1 ? 's' : ''}`)}
           </button>
         </div>
       </form>

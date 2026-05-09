@@ -117,9 +117,11 @@ export default function ConsolidatedResult() {
   const getResult = (studentId: string, subjectId: string) =>
     results.find(r => r.student_id === studentId && r.subject_id === subjectId);
 
+  // Calculate total possible marks for the class (all subjects in this exam config)
+  const classTotalPossible = subjects.reduce((sum, subj) => sum + effectiveMarks(subj).total, 0);
+
   const consolidatedData = students.map(stu => {
     let totalObtained = 0;
-    let grandTotal    = 0;
     let failCount     = 0;
 
     const subjectRows = subjects.map(subj => {
@@ -129,11 +131,10 @@ export default function ConsolidatedResult() {
       // No row at all — not yet entered
       if (!r) return { subject: subj, maxMarks, passMarks, obtained: null, absent: false, pass: null };
 
-      // Absent — exclude from grade calc; null pass so it doesn't count as a fail
-      if (r.is_absent) return { subject: subj, maxMarks, passMarks, obtained: null, absent: true, pass: null };
+      // Absent — obtained remains 0, count as a subject in the denominator
+      if (r.is_absent) return { subject: subj, maxMarks, passMarks, obtained: 0, absent: true, pass: false };
 
       // Has marks — include in calculation
-      grandTotal += maxMarks;
       const obtained = Number(r.obtained_marks);
       totalObtained += obtained;
       const pass = obtained >= passMarks;
@@ -141,17 +142,19 @@ export default function ConsolidatedResult() {
       return { subject: subj, maxMarks, passMarks, obtained, absent: false, pass };
     });
 
-    const { grade, pct } = getGradeFromPolicy(totalObtained, grandTotal, gradingBrackets);
+    const { grade, pct } = getGradeFromPolicy(totalObtained, classTotalPossible, gradingBrackets);
     const status = failCount >= 3 ? 'FAIL' : 'PASS';
 
-    return { student: stu, subjectRows, totalObtained, grandTotal, pct, grade, status };
-  }).sort((a, b) => b.pct - a.pct);
+    return { student: stu, subjectRows, totalObtained, grandTotal: classTotalPossible, pct, grade, status };
+  }).sort((a, b) => b.totalObtained - a.totalObtained);
 
-  // Dense ranking: ties share the same position; next rank is +1 (not +count)
+  // Dense Ranking: ties share position; next position is +1 (1, 1, 2, 2, 3)
   (() => {
     let denseRank = 1;
     consolidatedData.forEach((d, i) => {
-      if (i > 0 && d.pct !== consolidatedData[i - 1].pct) denseRank++;
+      if (i > 0 && d.totalObtained !== consolidatedData[i - 1].totalObtained) {
+        denseRank++;
+      }
       (d as any).position = denseRank;
     });
   })();

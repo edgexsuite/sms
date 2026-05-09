@@ -46,8 +46,10 @@ export default function AccountantDashboard() {
     const [{ data: allFees }, { data: txns }] = await Promise.all([
       supabase
         .from('fee_records')
-        .select('total_amount, paid_amount, status, paid_at')
-        .eq('school_id', userRole?.school_id),
+        .select('total_amount, paid_amount, status, paid_at, students!inner(is_deleted)')
+        .eq('school_id', userRole?.school_id)
+        .eq('students.is_deleted', false)
+        .is('deleted_at', null),
       supabase
         .from('financial_transactions')
         .select('amount, payment_mode, date, type')
@@ -113,7 +115,7 @@ export default function AccountantDashboard() {
     const startDate = `${months[0]}-01`;
 
     const [{ data: fees }, { data: expenses }] = await Promise.all([
-      supabase.from('fee_records').select('paid_amount, paid_at').eq('school_id', userRole?.school_id).gte('paid_at', startDate),
+      supabase.from('fee_records').select('paid_amount, paid_at, students!inner(is_deleted)').eq('school_id', userRole?.school_id).eq('students.is_deleted', false).is('deleted_at', null).gte('paid_at', startDate),
       supabase.from('financial_transactions').select('amount, date, type').eq('school_id', userRole?.school_id).eq('type', 'expense').gte('date', startDate),
     ]);
 

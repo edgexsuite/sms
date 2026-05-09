@@ -138,7 +138,8 @@ export default function ParentPortal() {
         .select('id, full_name, roll_number, photograph_url, class_id, classes(name, section, class_teacher_id, staff:class_teacher_id(full_name, photograph_url))')
         .eq('school_id', parentData.school_id)
         .eq('parent_id', parentData.id)
-        .eq('status', 'active');
+        .eq('status', 'active')
+        .eq('is_deleted', false);
 
       const childList: ChildData[] = (childData || []).map((c: any) => ({
         id: c.id,
@@ -1897,16 +1898,7 @@ function ChatTab({ schoolId, parentId, student }: {
       >
         <ChevronLeft className="w-4 h-4" /> All Teachers
       </button>
-      <ChatInterface
-        schoolId={schoolId}
-        currentUserId={parentId}
-        currentUserType="parent"
-        targetUserId={selectedTeacher.id}
-        targetUserType="staff"
-        studentId={student.id}
-        targetName={selectedTeacher.full_name}
-        targetPhoto={selectedTeacher.photograph_url}
-      />
+      {/* ChatInterface removed temporarily */}
       <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex items-start gap-3">
         <MessageCircle className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
         <p className="text-[11px] text-blue-800/80 leading-relaxed">

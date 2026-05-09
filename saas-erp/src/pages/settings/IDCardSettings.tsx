@@ -39,6 +39,10 @@ export interface CardCustomization {
   primaryColor: string;      // header bg
   accentColor: string;       // badges, highlights
   textColor: string;         // name color
+  logoSize: number;
+  roleFontSize: number;
+  roleColor: string;
+  roleBgColor: string;
 }
 
 const DEFAULT_CUSTOM: CardCustomization = {
@@ -50,6 +54,10 @@ const DEFAULT_CUSTOM: CardCustomization = {
   primaryColor: '#1d4ed8',
   accentColor: '#3b82f6',
   textColor: '#0f172a',
+  logoSize: 14,
+  roleFontSize: 6,
+  roleColor: '#1d4ed8',
+  roleBgColor: '#eff6ff',
 };
 
 /* ── Sample dummy data for preview ───────────────────────────────────────── */
@@ -60,7 +68,7 @@ const SAMPLE_STUDENT = {
   className: 'Class 9-A',
   rollNumber: 42,
   schoolName: 'The Edge School',
-  schoolLogo: null,
+  schoolLogo: 'https://api.dicebear.com/7.x/initials/svg?seed=ES',
   qrValue: JSON.stringify({ type: 'student_attendance', student_id: 'preview' }),
   bloodGroup: 'B+',
   dob: '2009-03-15',
@@ -79,7 +87,7 @@ const SAMPLE_STAFF = {
   refId: 'EMP-0042',
   phone: '+92 321 9876543',
   schoolName: 'The Edge School',
-  schoolLogo: null,
+  schoolLogo: 'https://api.dicebear.com/7.x/initials/svg?seed=ES',
   qrValue: JSON.stringify({ type: 'staff_attendance', staff_id: 'preview' }),
 };
 
@@ -378,7 +386,9 @@ export default function IDCardSettings() {
                   <SizeControl label="Name Font" value={currentCustom.nameFontSize} onChange={v => setCurrentCustom({ nameFontSize: v })} min={6} max={18} />
                   <SizeControl label="School Font" value={currentCustom.schoolFontSize} onChange={v => setCurrentCustom({ schoolFontSize: v })} min={4} max={14} />
                   <SizeControl label="Field Font" value={currentCustom.fieldFontSize} onChange={v => setCurrentCustom({ fieldFontSize: v })} min={4} max={12} />
+                  <SizeControl label="Role Font" value={currentCustom.roleFontSize} onChange={v => setCurrentCustom({ roleFontSize: v })} min={4} max={14} />
                   <SizeControl label="Photo Size" value={currentCustom.photoSize} onChange={v => setCurrentCustom({ photoSize: v })} min={20} max={60} step={2} />
+                  <SizeControl label="Logo Size" value={currentCustom.logoSize} onChange={v => setCurrentCustom({ logoSize: v })} min={8} max={60} step={1} />
                   <SizeControl label="QR Code Size" value={currentCustom.qrSize} onChange={v => setCurrentCustom({ qrSize: v })} min={20} max={70} step={2} />
                 </div>
 
@@ -388,6 +398,8 @@ export default function IDCardSettings() {
                   <ColorControl label="Primary Color" value={currentCustom.primaryColor} onChange={v => setCurrentCustom({ primaryColor: v })} />
                   <ColorControl label="Accent Color" value={currentCustom.accentColor} onChange={v => setCurrentCustom({ accentColor: v })} />
                   <ColorControl label="Name Color" value={currentCustom.textColor} onChange={v => setCurrentCustom({ textColor: v })} />
+                  <ColorControl label="Role Text" value={currentCustom.roleColor} onChange={v => setCurrentCustom({ roleColor: v })} />
+                  <ColorControl label="Role BG" value={currentCustom.roleBgColor} onChange={v => setCurrentCustom({ roleBgColor: v })} />
                 </div>
               </div>
             </div>

@@ -88,8 +88,10 @@ export default function PrincipalDashboard() {
   const fetchFeeSummary = async () => {
     const { data } = await supabase
       .from('fee_records')
-      .select('total_amount, paid_amount')
-      .eq('school_id', userRole?.school_id);
+      .select('total_amount, paid_amount, students!inner(is_deleted)')
+      .eq('school_id', userRole?.school_id)
+      .eq('students.is_deleted', false)
+      .is('deleted_at', null);
     if (!data) return;
     const collected = data.reduce((s, r) => s + (r.paid_amount || 0), 0);
     const pending = data.reduce((s, r) => s + Math.max(0, (r.total_amount || 0) - (r.paid_amount || 0)), 0);

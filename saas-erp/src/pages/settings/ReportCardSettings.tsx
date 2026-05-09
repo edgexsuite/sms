@@ -12,15 +12,42 @@ import {
   DEFAULT_REPORT_CUSTOM, ReportCardLayoutRenderer, ReportCardProps
 } from '../../lib/reportCardTemplates';
 
-const REPORT_FIELDS = [
-  { id: 'school_logo', label: 'School Logo' },
-  { id: 'watermark', label: 'Background Watermark' },
-  { id: 'student_photo', label: 'Student Photo' },
-  { id: 'attendance_stats', label: 'Attendance Statistics' },
-  { id: 'gpa_summary', label: 'GPA & Percentage Summary' },
-  { id: 'teacher_remarks', label: 'Teacher Remarks' },
-  { id: 'position_in_class', label: 'Position in Class (Rank)' },
-  { id: 'evaluation', label: 'Character Assessment (Star Ratings)' },
+const REPORT_FIELD_GROUPS = [
+  {
+    group: 'Result Display',
+    fields: [
+      { id: 'gpa_summary',        label: 'GPA & Overall Grade Badge' },
+      { id: 'show_promotion',     label: 'Promoted / Not Promoted Status' },
+      { id: 'show_pass_fail',     label: 'Pass / Fail Column (per subject)' },
+      { id: 'show_subject_pct',   label: 'Percentage Column (per subject)' },
+      { id: 'position_in_class',  label: 'Class Rank / Position' },
+      { id: 'position_rank',      label: 'Position Honor Medal (1st, 2nd, 3rd)' },
+      { id: 'show_grading_scale', label: 'Grading Scale Legend' },
+    ],
+  },
+  {
+    group: 'Student Info',
+    fields: [
+      { id: 'student_photo',    label: 'Student Photo' },
+      { id: 'show_exam_info',   label: 'Exam Name & Session' },
+      { id: 'attendance_stats', label: 'Attendance Statistics' },
+    ],
+  },
+  {
+    group: 'Layout & Branding',
+    fields: [
+      { id: 'school_logo', label: 'School Logo' },
+      { id: 'watermark',   label: 'Background Watermark' },
+      { id: 'signatures',  label: 'Authorization Signatures' },
+    ],
+  },
+  {
+    group: 'Extras',
+    fields: [
+      { id: 'teacher_remarks', label: 'Teacher Remarks' },
+      { id: 'evaluation',      label: 'Character Assessment (Star Ratings)' },
+    ],
+  },
 ];
 
 /* ── Sample dummy data for preview ───────────────────────────────────────── */
@@ -32,11 +59,16 @@ const SAMPLE_PREVIEW: ReportCardProps = {
   schoolLogo: null,
   studentPhoto: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&h=150&fit=crop',
   activeFields: [], // Injected dynamically
+  examName: 'Mid-Term Examination',
+  examSession: '2024–25',
+  finalStatus: 'PROMOTED',
+  positionInClass: 3,
+  totalStudents: 32,
   subjects: [
-    { name: 'Mathematics', marks: 95, total: 100, grade: 'A+' },
-    { name: 'English', marks: 88, total: 100, grade: 'A' },
-    { name: 'Science', marks: 92, total: 100, grade: 'A+' },
-    { name: 'History', marks: 78, total: 100, grade: 'B' },
+    { name: 'Mathematics', marks: 95, total: 100, grade: 'A+', status: 'Pass' },
+    { name: 'English', marks: 88, total: 100, grade: 'A', status: 'Pass' },
+    { name: 'Science', marks: 92, total: 100, grade: 'A+', status: 'Pass' },
+    { name: 'History', marks: 78, total: 100, grade: 'B', status: 'Pass' },
   ],
   totalMarks: 400,
   obtainedMarks: 353,
@@ -132,7 +164,10 @@ export default function ReportCardSettings() {
   const { userRole } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [fields, setFields] = useState<string[]>(['school_logo', 'student_photo', 'gpa_summary', 'teacher_remarks']);
+  const [fields, setFields] = useState<string[]>([
+    'school_logo', 'student_photo', 'gpa_summary', 'teacher_remarks',
+    'show_promotion', 'show_pass_fail', 'show_subject_pct', 'show_exam_info', 'signatures',
+  ]);
   const [template, setTemplate] = useState<ReportTemplateId>('classic');
   const [customization, setCustomization] = useState<ReportCardCustomization>({ ...DEFAULT_REPORT_CUSTOM });
   const [schoolInfo, setSchoolInfo] = useState<any>(null);
@@ -376,40 +411,41 @@ export default function ReportCardSettings() {
             {/* Fields */}
             <div>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Display Elements</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {REPORT_FIELDS.map(field => (
-                  <div
-                    key={field.id}
-                    onClick={() => toggleField(field.id)}
-                    className={cn(
-                      'flex items-center justify-between p-3.5 rounded-2xl border transition-all cursor-pointer group',
-                      fields.includes(field.id)
-                        ? 'bg-indigo-50 border-indigo-200 shadow-sm'
-                        : 'bg-white border-slate-100 hover:border-slate-300',
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={cn(
-                        'w-5 h-5 rounded-full flex items-center justify-center transition-all shrink-0',
-                        fields.includes(field.id)
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-slate-100 text-slate-300 group-hover:bg-slate-200',
-                      )}>
-                        {fields.includes(field.id) && <CheckCircle2 className="w-3.5 h-3.5" />}
-                      </div>
-                      <p className={cn(
-                        'text-xs font-bold uppercase tracking-tight',
-                        fields.includes(field.id) ? 'text-indigo-900' : 'text-slate-600',
-                      )}>
-                        {field.label}
-                      </p>
+              <div className="space-y-4">
+                {REPORT_FIELD_GROUPS.map(group => (
+                  <div key={group.group}>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 pl-1 border-l-2 border-indigo-200">{group.group}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {group.fields.map(field => (
+                        <div
+                          key={field.id}
+                          onClick={() => toggleField(field.id)}
+                          className={cn(
+                            'flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group',
+                            fields.includes(field.id)
+                              ? 'bg-indigo-50 border-indigo-200 shadow-sm'
+                              : 'bg-white border-slate-100 hover:border-slate-300',
+                          )}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className={cn(
+                              'w-4 h-4 rounded-full flex items-center justify-center transition-all shrink-0',
+                              fields.includes(field.id)
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-slate-100 text-slate-300 group-hover:bg-slate-200',
+                            )}>
+                              {fields.includes(field.id) && <CheckCircle2 className="w-3 h-3" />}
+                            </div>
+                            <p className={cn(
+                              'text-[10px] font-bold uppercase tracking-tight leading-tight',
+                              fields.includes(field.id) ? 'text-indigo-900' : 'text-slate-600',
+                            )}>
+                              {field.label}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <ChevronRight className={cn(
-                      'w-4 h-4 transition-all',
-                      fields.includes(field.id)
-                        ? 'text-indigo-600 translate-x-0.5'
-                        : 'text-slate-200 group-hover:text-slate-300',
-                    )} />
                   </div>
                 ))}
               </div>

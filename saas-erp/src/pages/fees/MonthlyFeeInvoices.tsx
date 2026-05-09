@@ -122,8 +122,9 @@ export default function MonthlyFeeInvoices() {
     setLoading(true);
     const { data } = await supabase
       .from('fee_records')
-      .select('*, students(id, full_name, roll_number, class_id, family_group_id, fee_waiver_percentage, classes(name, section), parents(whatsapp_number, father_name, family_number))')
+      .select('*, students!inner(id, full_name, roll_number, class_id, family_group_id, fee_waiver_percentage, is_deleted, classes(name, section), parents(whatsapp_number, father_name, family_number))')
       .eq('school_id', userRole?.school_id)
+      .eq('students.is_deleted', false)
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
     if (data) setInvoices(data);

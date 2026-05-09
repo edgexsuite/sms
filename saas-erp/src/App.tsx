@@ -23,6 +23,7 @@ const Staff = lazy(() => import('./pages/Staff'));
 const StaffDigitalIDCards = lazy(() => import('./pages/staff/StaffDigitalIDCards'));
 const StaffUserAccounts = lazy(() => import('./pages/staff/StaffUserAccounts'));
 const StaffDetailPage = lazy(() => import('./pages/staff/StaffDetailPage'));
+const TeacherOfMonth = lazy(() => import('./pages/staff/TeacherOfMonth'));
 const ClassesLayout = lazy(() => import('./pages/classes/ClassesLayout'));
 const FeesLayout = lazy(() => import('./pages/fees/FeesLayout'));
 const ExpensesLayout = lazy(() => import('./pages/expenses/ExpensesLayout'));
@@ -138,6 +139,7 @@ export default function App() {
                 <Route path="staff/detail/:id" element={<StaffDetailPage />} />
                 <Route path="staff/id-cards" element={<StaffDigitalIDCards />} />
                 <Route path="staff/accounts" element={<StaffUserAccounts />} />
+                <Route path="staff/teacher-of-the-month" element={<TeacherOfMonth />} />
                 <Route path="classes/*" element={<ClassesLayout />} />
                 <Route path="attendance/*" element={<AttendanceLayout />} />
                 <Route path="result/*" element={<ResultLayout />} />

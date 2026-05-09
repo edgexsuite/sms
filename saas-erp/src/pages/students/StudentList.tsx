@@ -454,21 +454,33 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
   // ── Import / Export ──────────────────────────────────────────────────────
 
   const executeImport = async () => {
-    if (!importFile || !importClassId || !userRole?.school_id) return;
+    const file = importFile;
+    const classId = importClassId;
     setImporting(true);
 
-    Papa.parse(importFile, {
+    // Fetch next roll number for the target class
+    const { data: maxRollData } = await supabase
+      .from('students')
+      .select('roll_number')
+      .eq('class_id', classId)
+      .order('roll_number', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    
+    let nextRollNumber = (maxRollData?.roll_number || 0) + 1;
+
+    Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
       complete: async (results) => {
         try {
           const newStudents = results.data.map((row: any) => ({
             school_id: userRole.school_id,
-            class_id: importClassId,
+            class_id: classId,
             full_name: row.full_name || row.Name || row.name || 'Unknown Student',
             b_form_cnic: row.b_form_cnic || row.CNIC || null,
             dob: row.dob || row.DOB || null,
-            roll_number: row.roll_number || row.RollNo || Math.floor(Math.random() * 9000) + 1000,
+            roll_number: row.roll_number || row.RollNo || nextRollNumber++,
             status: 'active',
           }));
 

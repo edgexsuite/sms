@@ -146,6 +146,17 @@ export default function BulkEnrollment() {
     setError(null);
 
     try {
+      // 0. Fetch max roll number for the target class
+      const { data: maxRollData } = await supabase
+        .from('students')
+        .select('roll_number')
+        .eq('class_id', selectedClassId)
+        .order('roll_number', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      let nextRollNumber = (maxRollData?.roll_number || 0) + 1;
+
       // 1. Sanitize & Group by Father (Family Logic)
       const families: Record<string, any[]> = {};
       parsedData.forEach((row, idx) => {
@@ -156,7 +167,7 @@ export default function BulkEnrollment() {
           if (!val) return;
           
           if (dbK === 'dob' || dbK === 'admission_date') val = parseDate(val);
-          if (dbK === 'roll_number') val = parseInt(val) || (1000 + idx);
+          if (dbK === 'roll_number') val = parseInt(val) || null; // Don't auto-assign 1000 here
           if (dbK === 'fee_waiver_percentage') {
             const num = parseInt(val);
             val = isNaN(num) ? (val.toLowerCase() === 'free' ? 100 : 0) : Math.min(100, Math.max(0, num));
@@ -266,11 +277,14 @@ export default function BulkEnrollment() {
 
           // Insert new student
           const sNameInit = s.full_name.split(' ')[0].toLowerCase();
-          const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-          const studentUniqueId = s.student_unique_id || `${sNameInit}${s.roll_number || randomSuffix}-${Math.floor(Math.random() * 900)}`;
+          const studentUniqueId = s.student_unique_id || `${sNameInit}${s.roll_number || Math.floor(1000 + Math.random() * 9000)}-${Math.floor(Math.random() * 900)}`;
+
+          // Assign sequential roll number if not provided
+          const finalRollNumber = s.roll_number || nextRollNumber++;
 
           const { error: sE } = await supabase.from('students').insert({
             ...remainder,
+            roll_number: finalRollNumber,
             parent_id: parentId,
             family_group_id: familyGroupId,
             student_unique_id: studentUniqueId,

@@ -50,8 +50,9 @@ export default function InvoiceReport() {
     setLoading(true);
     const { data } = await supabase
       .from('fee_records')
-      .select('id, student_id, total_amount, paid_amount, discount_amount, status, month_year, due_date, invoice_number, breakdown, students(full_name, roll_number, class_id, classes(name, section))')
+      .select('id, student_id, total_amount, paid_amount, discount_amount, status, month_year, due_date, invoice_number, breakdown, students!inner(full_name, roll_number, class_id, is_deleted, classes(name, section))')
       .eq('school_id', userRole!.school_id)
+      .eq('students.is_deleted', false)
       .is('deleted_at', null)
       .order('month_year', { ascending: false });
     if (data) setInvoices(data as any);

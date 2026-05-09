@@ -169,6 +169,7 @@ export default function StudentPortal() {
         .select('id, full_name, student_unique_id, school_id, class_id, photograph_url, roll_number, classes(name, section, class_teacher_id, staff:class_teacher_id(full_name, photograph_url))')
         .eq('student_unique_id', studentIdInput.trim())
         .eq('auth_password', password.trim())
+        .eq('is_deleted', false)
         .maybeSingle();
       if (error) throw error;
       if (!data) { setLoginError('Invalid Student ID or Password.'); return; }
@@ -1116,16 +1117,7 @@ function ChatTab({ schoolId, student }: {
       >
         <ChevronLeft className="w-4 h-4" /> All Teachers
       </button>
-      <ChatInterface
-        schoolId={schoolId}
-        currentUserId={student.id}
-        currentUserType="student"
-        targetUserId={selectedTeacher.id}
-        targetUserType="staff"
-        studentId={student.id}
-        targetName={selectedTeacher.full_name}
-        targetPhoto={selectedTeacher.photograph_url}
-      />
+      {/* ChatInterface removed temporarily */}
       <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 flex items-start gap-3">
         <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
         <p className="text-[11px] text-amber-800/80 leading-relaxed">

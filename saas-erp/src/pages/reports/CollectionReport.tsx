@@ -48,6 +48,7 @@ export default function CollectionReport() {
   const [records, setRecords] = useState<FeeRecord[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
   const [schoolInfo, setSchoolInfo] = useState<any>(null);
+  const [globalStats, setGlobalStats] = useState({ total: 0, collected: 0, pending: 0 });
 
   // Filters
   const [selectedClass, setSelectedClass] = useState('');
@@ -80,13 +81,15 @@ export default function CollectionReport() {
         .from('fee_records')
         .select(`
           *,
-          students (
+          students!inner (
             full_name,
             roll_number,
+            is_deleted,
             classes (name, section)
           )
         `)
         .eq('school_id', userRole.school_id)
+        .eq('students.is_deleted', false)
         .is('deleted_at', null)
         .order('month_year', { ascending: false });
 
@@ -99,6 +102,11 @@ export default function CollectionReport() {
       if (selectedMonth) {
         query = query.eq('month_year', `${selectedMonth}-01`);
       }
+      
+      // If we have date filters, we want to see records that were either PAID in that range
+      // OR are pending/partial (so we can see outstanding).
+      // However, if the user explicitly wants a "Collection Report" for a period,
+      // they usually want to see what came IN.
       if (startDate) {
         query = query.gte('paid_at', `${startDate}T00:00:00Z`);
       }
@@ -126,6 +134,20 @@ export default function CollectionReport() {
       }
 
       setRecords(filtered);
+
+      // Fetch global stats for reference
+      const { data: gData } = await supabase
+        .from('fee_records')
+        .select('total_amount, paid_amount, students!inner(is_deleted)')
+        .eq('school_id', userRole.school_id)
+        .eq('students.is_deleted', false)
+        .is('deleted_at', null);
+      
+      if (gData) {
+        const gTotal = gData.reduce((s, r) => s + (Number(r.total_amount) || 0), 0);
+        const gColl = gData.reduce((s, r) => s + (Number(r.paid_amount) || 0), 0);
+        setGlobalStats({ total: gTotal, collected: gColl, pending: gTotal - gColl });
+      }
     } catch (err) {
       console.error('Error fetching collection records:', err);
     } finally {
@@ -239,11 +261,11 @@ export default function CollectionReport() {
 
         <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-1">
           {[
-            { label: 'Invoiced', val: totalInvoiced, color: 'text-indigo-600', icon: CreditCard },
-            { label: 'Collected', val: totalCollected, color: 'text-emerald-600', icon: CheckCircle },
-            { label: 'Balance', val: totalBalance, color: 'text-rose-600', icon: AlertCircle },
+            { label: 'Invoiced (Filtered)', val: totalInvoiced, color: 'text-indigo-600', icon: CreditCard },
+            { label: 'Collected (Filtered)', val: totalCollected, color: 'text-emerald-600', icon: CheckCircle },
+            { label: 'School Pending', val: globalStats.pending, color: 'text-rose-600', icon: AlertCircle },
           ].map(s => (
-            <div key={s.label} className="flex items-center gap-3 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 whitespace-nowrap min-w-[120px]">
+            <div key={s.label} className="flex items-center gap-3 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 whitespace-nowrap min-w-[150px]">
                <div className={cn("p-1.5 rounded-lg bg-white shadow-sm", s.color)}>
                  <s.icon className="w-3.5 h-3.5" />
                </div>

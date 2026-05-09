@@ -141,7 +141,9 @@ export default function Fees() {
           return;
         }
       } else {
-        query = query.eq('school_id', userRole?.school_id);
+        query = query.eq('school_id', userRole?.school_id)
+                     .is('deleted_at', null)
+                     .eq('student.is_deleted', false);
       }
 
       const { data, error } = await query;

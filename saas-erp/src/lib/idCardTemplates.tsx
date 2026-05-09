@@ -12,6 +12,10 @@ export interface CardCustomization {
   primaryColor: string;
   accentColor: string;
   textColor: string;
+  logoSize: number;
+  roleFontSize: number;
+  roleColor: string;
+  roleBgColor: string;
 }
 
 const DEFAULT_CUSTOM: CardCustomization = {
@@ -23,6 +27,10 @@ const DEFAULT_CUSTOM: CardCustomization = {
   primaryColor: '#1d4ed8',
   accentColor: '#3b82f6',
   textColor: '#0f172a',
+  logoSize: 14,
+  roleFontSize: 6,
+  roleColor: '#1d4ed8',
+  roleBgColor: '#eff6ff',
 };
 
 export interface StudentCardProps {
@@ -87,7 +95,7 @@ export function ClassicCard(props: CardProps) {
     <div style={{ width: '54mm', height: '86mm', background: '#fff', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'sans-serif', position: 'relative', border: '1px solid #e2e8f0' }}>
       {/* Header */}
       <div style={{ background: `linear-gradient(135deg,${c.primaryColor},${c.accentColor})`, padding: `6px 8px ${c.photoSize / 2 + 2}px`, textAlign: 'center', position: 'relative' }}>
-        {props.schoolLogo && <img src={props.schoolLogo} alt="" style={{ width: 14, height: 14, borderRadius: '50%', objectFit: 'cover', margin: '0 auto 2px', display: 'block' }} />}
+        {props.schoolLogo && <img src={props.schoolLogo} alt="" style={{ width: c.logoSize, height: c.logoSize, borderRadius: '50%', objectFit: 'contain', margin: '0 auto 2px', display: 'block' }} />}
         <div style={{ color: '#fff', fontSize: c.schoolFontSize, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.3, lineHeight: 1.2 }}>{props.schoolName}</div>
         <div style={{ color: '#bfdbfe', fontSize: 5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginTop: 1 }}>{subtitle}</div>
       </div>
@@ -104,24 +112,32 @@ export function ClassicCard(props: CardProps) {
       {/* Name + badge */}
       <div style={{ textAlign: 'center', padding: '3px 6px 0' }}>
         <div style={{ fontSize: c.nameFontSize, fontWeight: 900, color: c.textColor, textTransform: 'uppercase', letterSpacing: 0.3, lineHeight: 1.2 }}>{props.name}</div>
-        <div style={{ display: 'inline-block', background: '#eff6ff', color: c.primaryColor, fontSize: c.fieldFontSize, fontWeight: 700, padding: '1px 5px', borderRadius: 10, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 }}>{roleBadge}</div>
+        <div style={{ display: 'inline-block', background: c.roleBgColor, color: c.roleColor, fontSize: c.roleFontSize, fontWeight: 700, padding: '1px 5px', borderRadius: 10, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 }}>{roleBadge}</div>
       </div>
 
       {/* Fields */}
-      <div style={{ flex: 1, padding: '4px 8px', borderTop: '1px solid #f1f5f9', marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center', fontSize: c.fieldFontSize }}>
+      <div style={{ flex: 1, padding: '6px 8px', borderTop: '1px solid #f1f5f9', marginTop: 4, display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'center', justifyContent: 'center', fontSize: c.fieldFontSize, position: 'relative', zIndex: 10 }}>
         {isStudent && p.activeFields?.includes('roll_number') && p.rollNumber && <div style={{ fontWeight: 700, color: '#475569' }}>Roll # {p.rollNumber}</div>}
         {isStudent && p.activeFields?.includes('blood_group') && p.bloodGroup && <div style={{ fontWeight: 700, color: '#dc2626' }}>Blood: {p.bloodGroup}</div>}
         {isStudent && p.activeFields?.includes('emergency_contact') && p.phone && <div style={{ color: '#64748b' }}>{p.phone}</div>}
         {isStudent && p.activeFields?.includes('dob') && p.dob && <div style={{ color: '#64748b' }}>DOB: {p.dob}</div>}
-        {!isStudent && p.activeFields?.includes('designation') && <div style={{ fontWeight: 700, color: '#334155', textTransform: 'uppercase', fontSize: c.fieldFontSize }}>{p.designation || p.role}</div>}
+        {!isStudent && p.activeFields?.includes('designation') && p.designation && p.designation.toLowerCase() !== p.role?.toLowerCase() && <div style={{ fontWeight: 700, color: '#334155', textTransform: 'uppercase', fontSize: c.fieldFontSize }}>{p.designation}</div>}
         {!isStudent && p.activeFields?.includes('department') && <div style={{ color: '#64748b', textTransform: 'uppercase', fontSize: c.fieldFontSize }}>{p.department}</div>}
-        {!isStudent && p.activeFields?.includes('joining_date') && p.joiningDate && <div style={{ color: '#94a3b8', fontSize: c.fieldFontSize * 0.9 }}>Since {p.joiningDate}</div>}
+        {!isStudent && p.activeFields?.includes('joining_date') && p.joiningDate?.trim() && <div style={{ color: '#94a3b8', fontSize: c.fieldFontSize * 0.9 }}>Since {p.joiningDate}</div>}
         {!isStudent && p.activeFields?.includes('ref_id') && <div style={{ fontFamily: 'monospace', color: '#cbd5e1', fontSize: c.fieldFontSize * 0.9, letterSpacing: 1 }}>{p.refId}</div>}
       </div>
 
+      {/* Background Bottom Waves */}
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '40%', zIndex: 1, pointerEvents: 'none' }}>
+        <svg viewBox="0 0 200 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%' }}>
+          <path d="M0,60 Q50,30 100,60 T200,60 L200,100 L0,100 Z" fill={`${c.primaryColor}10`} />
+          <path d="M0,80 Q50,50 100,80 T200,80 L200,100 L0,100 Z" fill={`${c.primaryColor}20`} />
+        </svg>
+      </div>
+
       {/* QR */}
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '3px 0 4px' }}>
-        <div style={{ background: '#fff', padding: 3, borderRadius: 4, border: '1px solid #f1f5f9' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '3px 0 6px', position: 'relative', zIndex: 10 }}>
+        <div style={{ background: '#fff', padding: 4, borderRadius: 6, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
           <QRCode value={qrVal} size={c.qrSize} level="M" />
         </div>
       </div>
@@ -146,7 +162,7 @@ export function EliteCard(props: CardProps) {
 
       {/* School header */}
       <div style={{ textAlign: 'center', padding: '5px 6px 4px' }}>
-        {props.schoolLogo && <img src={props.schoolLogo} alt="" style={{ width: 12, height: 12, borderRadius: '50%', objectFit: 'cover', margin: '0 auto 2px', display: 'block', border: `1px solid ${gold}` }} />}
+        {props.schoolLogo && <img src={props.schoolLogo} alt="" style={{ width: c.logoSize, height: c.logoSize, borderRadius: '50%', objectFit: 'contain', margin: '0 auto 2px', display: 'block', border: `1px solid ${gold}` }} />}
         <div style={{ color: gold, fontSize: c.schoolFontSize, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.5 }}>{props.schoolName}</div>
         <div style={{ color: '#475569', fontSize: 5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, marginTop: 1 }}>{isStudent ? 'STUDENT' : 'FACULTY'} CARD</div>
       </div>
@@ -163,7 +179,7 @@ export function EliteCard(props: CardProps) {
       {/* Name + role */}
       <div style={{ textAlign: 'center', padding: '2px 6px' }}>
         <div style={{ fontSize: c.nameFontSize, fontWeight: 900, color: c.textColor === DEFAULT_CUSTOM.textColor ? '#f8fafc' : c.textColor, textTransform: 'uppercase', letterSpacing: 0.3 }}>{props.name}</div>
-        <div style={{ display: 'inline-block', background: gold, color: darkBg, fontSize: c.fieldFontSize, fontWeight: 900, padding: '1px 6px', borderRadius: 10, marginTop: 2, textTransform: 'uppercase' }}>{roleBadge}</div>
+        <div style={{ display: 'inline-block', background: c.roleBgColor, color: c.roleColor, fontSize: c.roleFontSize, fontWeight: 900, padding: '1px 6px', borderRadius: 10, marginTop: 2, textTransform: 'uppercase' }}>{roleBadge}</div>
       </div>
 
       {/* Divider */}
@@ -175,9 +191,9 @@ export function EliteCard(props: CardProps) {
         {isStudent && p.activeFields?.includes('blood_group') && p.bloodGroup && <div style={{ color: '#f87171', fontWeight: 700 }}>Blood: {p.bloodGroup}</div>}
         {isStudent && p.activeFields?.includes('emergency_contact') && p.phone && <div style={{ color: '#64748b' }}>{p.phone}</div>}
         {isStudent && p.activeFields?.includes('dob') && p.dob && <div style={{ color: '#64748b' }}>DOB: {p.dob}</div>}
-        {!isStudent && p.activeFields?.includes('designation') && <div style={{ color: '#e2e8f0', fontWeight: 700, textTransform: 'uppercase' }}>{p.designation || p.role}</div>}
+        {!isStudent && p.activeFields?.includes('designation') && p.designation && p.designation.toLowerCase() !== p.role?.toLowerCase() && <div style={{ color: '#e2e8f0', fontWeight: 700, textTransform: 'uppercase' }}>{p.designation}</div>}
         {!isStudent && p.activeFields?.includes('department') && <div style={{ color: '#64748b', textTransform: 'uppercase' }}>{p.department}</div>}
-        {!isStudent && p.activeFields?.includes('joining_date') && p.joiningDate && <div style={{ color: '#475569', fontSize: c.fieldFontSize * 0.9 }}>Since {p.joiningDate}</div>}
+        {!isStudent && p.activeFields?.includes('joining_date') && p.joiningDate?.trim() && <div style={{ color: '#475569', fontSize: c.fieldFontSize * 0.9 }}>Since {p.joiningDate}</div>}
         {!isStudent && p.activeFields?.includes('ref_id') && <div style={{ fontFamily: 'monospace', color: '#334155', fontSize: c.fieldFontSize * 0.9, letterSpacing: 1 }}>{p.refId}</div>}
       </div>
 
@@ -209,7 +225,7 @@ export function AuroraCard(props: CardProps) {
       <div style={{ background: `linear-gradient(135deg,${aurora1},${aurora2},#6366f1)`, height: '30mm', position: 'relative', flexShrink: 0 }}>
         {/* School info */}
         <div style={{ textAlign: 'center', padding: '6px 8px 0', position: 'relative', zIndex: 2 }}>
-          {props.schoolLogo && <img src={props.schoolLogo} alt="" style={{ width: 12, height: 12, borderRadius: '50%', objectFit: 'cover', margin: '0 auto 2px', display: 'block' }} />}
+          {props.schoolLogo && <img src={props.schoolLogo} alt="" style={{ width: c.logoSize, height: c.logoSize, borderRadius: '50%', objectFit: 'contain', margin: '0 auto 2px', display: 'block' }} />}
           <div style={{ color: '#fff', fontSize: c.schoolFontSize, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.3 }}>{props.schoolName}</div>
           <div style={{ color: '#ddd6fe', fontSize: 5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.2, marginTop: 1 }}>{isStudent ? 'STUDENT' : 'FACULTY'} ID</div>
         </div>
@@ -231,7 +247,7 @@ export function AuroraCard(props: CardProps) {
       {/* Name + role */}
       <div style={{ textAlign: 'center', padding: '3px 6px 0' }}>
         <div style={{ fontSize: c.nameFontSize, fontWeight: 900, color: c.textColor === DEFAULT_CUSTOM.textColor ? '#1e1b4b' : c.textColor, textTransform: 'uppercase', letterSpacing: 0.3 }}>{props.name}</div>
-        <div style={{ display: 'inline-block', background: `linear-gradient(90deg,${aurora1},${aurora2})`, color: '#fff', fontSize: c.fieldFontSize, fontWeight: 700, padding: '1px 7px', borderRadius: 10, marginTop: 2, textTransform: 'uppercase' }}>{roleBadge}</div>
+        <div style={{ display: 'inline-block', background: c.roleBgColor, color: c.roleColor, fontSize: c.roleFontSize, fontWeight: 700, padding: '1px 7px', borderRadius: 10, marginTop: 2, textTransform: 'uppercase' }}>{roleBadge}</div>
       </div>
 
       {/* Fields */}
@@ -240,9 +256,9 @@ export function AuroraCard(props: CardProps) {
         {isStudent && p.activeFields?.includes('blood_group') && p.bloodGroup && <div style={{ fontWeight: 700, color: '#dc2626' }}>Blood: {p.bloodGroup}</div>}
         {isStudent && p.activeFields?.includes('emergency_contact') && p.phone && <div style={{ color: '#6b7280' }}>{p.phone}</div>}
         {isStudent && p.activeFields?.includes('dob') && p.dob && <div style={{ color: '#6b7280' }}>DOB: {p.dob}</div>}
-        {!isStudent && p.activeFields?.includes('designation') && <div style={{ color: '#4c1d95', fontWeight: 700, textTransform: 'uppercase' }}>{p.designation || p.role}</div>}
+        {!isStudent && p.activeFields?.includes('designation') && p.designation && p.designation.toLowerCase() !== p.role?.toLowerCase() && <div style={{ color: '#4c1d95', fontWeight: 700, textTransform: 'uppercase' }}>{p.designation}</div>}
         {!isStudent && p.activeFields?.includes('department') && <div style={{ color: '#6b7280', textTransform: 'uppercase' }}>{p.department}</div>}
-        {!isStudent && p.activeFields?.includes('joining_date') && p.joiningDate && <div style={{ color: '#9ca3af', fontSize: c.fieldFontSize * 0.9 }}>Since {p.joiningDate}</div>}
+        {!isStudent && p.activeFields?.includes('joining_date') && p.joiningDate?.trim() && <div style={{ color: '#9ca3af', fontSize: c.fieldFontSize * 0.9 }}>Since {p.joiningDate}</div>}
         {!isStudent && p.activeFields?.includes('ref_id') && <div style={{ fontFamily: 'monospace', color: '#c4b5fd', fontSize: c.fieldFontSize * 0.9 }}>{p.refId}</div>}
       </div>
 
@@ -288,23 +304,26 @@ export function HorizonCard(props: CardProps) {
       {/* Right panel */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '5px 6px', minWidth: 0 }}>
         {/* School */}
-        <div style={{ borderBottom: '1px solid #f0f9ff', paddingBottom: 3, marginBottom: 3 }}>
-          <div style={{ fontSize: c.schoolFontSize * 0.93, fontWeight: 900, color: hColor, textTransform: 'uppercase', letterSpacing: 0.3, lineHeight: 1.2 }}>{props.schoolName}</div>
-          <div style={{ fontSize: 5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1 }}>Identity Card</div>
+        <div style={{ borderBottom: '1px solid #f0f9ff', paddingBottom: 3, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+          {props.schoolLogo && <img src={props.schoolLogo} alt="" style={{ width: c.logoSize, height: c.logoSize, borderRadius: '50%', objectFit: 'contain' }} />}
+          <div>
+            <div style={{ fontSize: c.schoolFontSize * 0.93, fontWeight: 900, color: hColor, textTransform: 'uppercase', letterSpacing: 0.3, lineHeight: 1.2 }}>{props.schoolName}</div>
+            <div style={{ fontSize: 5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1 }}>Identity Card</div>
+          </div>
         </div>
 
         {/* Name */}
         <div style={{ fontSize: c.nameFontSize * 1.1, fontWeight: 900, color: c.textColor, textTransform: 'uppercase', letterSpacing: 0.2, lineHeight: 1.1 }}>{props.name}</div>
-        <div style={{ display: 'inline-block', background: '#ecfeff', color: hColor, fontSize: c.fieldFontSize, fontWeight: 700, padding: '1px 5px', borderRadius: 8, margin: '2px 0', textTransform: 'uppercase' }}>{roleBadge}</div>
+        <div style={{ display: 'inline-block', background: c.roleBgColor, color: c.roleColor, fontSize: c.roleFontSize, fontWeight: 700, padding: '1px 5px', borderRadius: 8, margin: '2px 0', textTransform: 'uppercase' }}>{roleBadge}</div>
 
         {/* Fields micro grid */}
         <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1px 4px', alignContent: 'start', fontSize: c.fieldFontSize * 0.92, marginTop: 2 }}>
           {isStudent && p.activeFields?.includes('blood_group') && p.bloodGroup && <div style={{ color: '#dc2626', fontWeight: 700 }}>Blood: {p.bloodGroup}</div>}
           {isStudent && p.activeFields?.includes('dob') && p.dob && <div style={{ color: '#64748b' }}>DOB: {p.dob}</div>}
           {isStudent && p.activeFields?.includes('emergency_contact') && p.phone && <div style={{ color: '#64748b' }}>{p.phone}</div>}
-          {!isStudent && p.activeFields?.includes('designation') && <div style={{ color: hColor, fontWeight: 700 }}>{p.designation || p.role}</div>}
+          {!isStudent && p.activeFields?.includes('designation') && p.designation && p.designation.toLowerCase() !== p.role?.toLowerCase() && <div style={{ color: hColor, fontWeight: 700 }}>{p.designation}</div>}
           {!isStudent && p.activeFields?.includes('department') && <div style={{ color: '#64748b' }}>{p.department}</div>}
-          {!isStudent && p.activeFields?.includes('joining_date') && p.joiningDate && <div style={{ color: '#94a3b8' }}>Since {p.joiningDate}</div>}
+          {!isStudent && p.activeFields?.includes('joining_date') && p.joiningDate?.trim() && <div style={{ color: '#94a3b8' }}>Since {p.joiningDate}</div>}
         </div>
 
         {/* QR bottom right */}
@@ -336,7 +355,7 @@ export function MintCard(props: CardProps) {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'row', padding: '4px 6px', gap: 6, minHeight: 0 }}>
         {/* Left: photo */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '24mm', flexShrink: 0, gap: 3 }}>
-          {props.schoolLogo && <img src={props.schoolLogo} alt="" style={{ width: 12, height: 12, borderRadius: '50%', objectFit: 'cover', border: `1px solid ${mintLight}` }} />}
+          {props.schoolLogo && <img src={props.schoolLogo} alt="" style={{ width: c.logoSize, height: c.logoSize, borderRadius: '50%', objectFit: 'contain', border: `1px solid ${mintLight}` }} />}
           <div style={{ width: c.photoSize * 0.95, height: c.photoSize * 0.95, borderRadius: '50%', border: `2px solid ${mint}`, overflow: 'hidden', background: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {props.photo
               ? <img src={props.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -350,15 +369,15 @@ export function MintCard(props: CardProps) {
           <div style={{ fontSize: c.schoolFontSize * 0.86, fontWeight: 900, color: mint, textTransform: 'uppercase', letterSpacing: 0.5 }}>{props.schoolName}</div>
           <div style={{ fontSize: 4.5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>{isStudent ? 'Student Identity Card' : 'Faculty Identity Card'}</div>
           <div style={{ fontSize: c.nameFontSize * 1.1, fontWeight: 900, color: c.textColor === DEFAULT_CUSTOM.textColor ? '#064e3b' : c.textColor, textTransform: 'uppercase', letterSpacing: 0.2, lineHeight: 1.1 }}>{props.name}</div>
-          <div style={{ display: 'inline-block', background: `${mint}20`, color: mint, fontSize: c.fieldFontSize, fontWeight: 700, padding: '1px 5px', borderRadius: 8, margin: '2px 0', textTransform: 'uppercase', alignSelf: 'flex-start' }}>{roleBadge}</div>
+          <div style={{ display: 'inline-block', background: c.roleBgColor, color: c.roleColor, fontSize: c.roleFontSize, fontWeight: 700, padding: '1px 5px', borderRadius: 8, margin: '2px 0', textTransform: 'uppercase', alignSelf: 'flex-start' }}>{roleBadge}</div>
 
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1.5, fontSize: c.fieldFontSize * 0.92, justifyContent: 'center' }}>
             {isStudent && p.activeFields?.includes('blood_group') && p.bloodGroup && <div style={{ color: '#dc2626', fontWeight: 700 }}>Blood: {p.bloodGroup}</div>}
             {isStudent && p.activeFields?.includes('dob') && p.dob && <div style={{ color: '#64748b' }}>DOB: {p.dob}</div>}
             {isStudent && p.activeFields?.includes('emergency_contact') && p.phone && <div style={{ color: '#64748b' }}>{p.phone}</div>}
-            {!isStudent && p.activeFields?.includes('designation') && <div style={{ color: '#065f46', fontWeight: 700 }}>{p.designation || p.role}</div>}
+            {!isStudent && p.activeFields?.includes('designation') && p.designation && p.designation.toLowerCase() !== p.role?.toLowerCase() && <div style={{ color: '#065f46', fontWeight: 700 }}>{p.designation}</div>}
             {!isStudent && p.activeFields?.includes('department') && <div style={{ color: '#64748b' }}>{p.department}</div>}
-            {!isStudent && p.activeFields?.includes('joining_date') && p.joiningDate && <div style={{ color: '#94a3b8' }}>Since {p.joiningDate}</div>}
+            {!isStudent && p.activeFields?.includes('joining_date') && p.joiningDate?.trim() && <div style={{ color: '#94a3b8' }}>Since {p.joiningDate}</div>}
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>

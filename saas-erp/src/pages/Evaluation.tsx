@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   Star, Search, TrendingUp, Award, Plus, Save, X,
   Calendar, UserCheck, ChevronDown, CheckCircle2,
-  Users, Filter, Printer, LayoutGrid, List,
+  Users, Filter, Printer, LayoutGrid, List, AlertTriangle,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -311,6 +311,21 @@ export default function Evaluation() {
         </div>
       </div>
 
+      {/* ── Unlinked eval notice ──────────────────────────────────────────── */}
+      {(() => {
+        const unlinked = evaluations.filter(e => !e.exam_type_id).length;
+        if (unlinked === 0) return null;
+        return (
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-800 font-medium">
+              <span className="font-black">{unlinked} evaluation{unlinked > 1 ? 's' : ''}</span> {unlinked > 1 ? 'have' : 'has'} no exam type linked.
+              {' '}These will still appear on report cards as the student's latest evaluation — but consider editing them to link the correct exam for accurate tracking.
+            </p>
+          </div>
+        );
+      })()}
+
       {/* ── Toolbar ─────────────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-col md:flex-row gap-3 items-start md:items-center justify-between">
         <div className="flex flex-wrap gap-3 flex-1">
@@ -409,7 +424,10 @@ export default function Evaluation() {
                   <div className="mt-auto pt-3 border-t border-gray-50 flex justify-between items-center text-[9px] font-bold text-gray-400">
                     <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{formatDate(ev.evaluation_date)}</span>
                     <div className="flex flex-col items-end gap-0.5">
-                      {ev.exam_type?.name && <span className="bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded uppercase">{ev.exam_type.name}</span>}
+                      {ev.exam_type?.name
+                        ? <span className="bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded uppercase">{ev.exam_type.name}</span>
+                        : <span className="bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded uppercase flex items-center gap-0.5"><AlertTriangle className="w-2.5 h-2.5" />No Exam Linked</span>
+                      }
                       <span className="bg-gray-100 px-1.5 py-0.5 rounded uppercase">By: {ev.evaluator?.full_name ?? 'Admin'}</span>
                     </div>
                   </div>

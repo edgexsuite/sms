@@ -134,7 +134,11 @@ export function buildActiveFields(
   rcSettingsFields: string[] | undefined,
   resultConfig: { show_gpa: boolean; show_position: boolean; show_remarks: boolean } | null,
 ): string[] {
-  const base = rcSettingsFields || ['school_logo', 'gpa_summary', 'teacher_remarks'];
+  const base = rcSettingsFields || [
+    'school_logo', 'gpa_summary', 'teacher_remarks',
+    'show_promotion', 'show_pass_fail', 'show_subject_pct',
+    'show_exam_info', 'signatures',
+  ];
   const merged = new Set(base);
   // Always include evaluation so CharacterAssessment renders when data exists
   merged.add('evaluation');

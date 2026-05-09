@@ -172,7 +172,7 @@ export default function Timetable() {
         { data: school },
       ] = await Promise.all([
         supabase.from('classes').select('id, name, section, period_template_id').eq('school_id', sid).order('name').order('section'),
-        supabase.from('staff').select('id, full_name, role').eq('school_id', sid).eq('is_active', true).order('full_name'),
+        supabase.from('staff').select('id, full_name, role').eq('school_id', sid).eq('is_active', true).eq('is_deleted', false).order('full_name'),
         supabase.from('period_templates').select('*').eq('school_id', sid).order('created_at'),
         supabase.from('period_template_rows').select('*').eq('school_id', sid).order('sort_order'),
         supabase.from('timetable_slots').select('*, subjects(subject_name), staff(full_name), classes(name, section)').eq('school_id', sid),

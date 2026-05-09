@@ -127,6 +127,7 @@ export default function Students() {
             section
           )
         `)
+        .eq('is_deleted', false)
         .order('roll_number', { ascending: true });
 
       if (userRole?.role === 'parent') {
@@ -163,11 +164,29 @@ export default function Students() {
     if (!userRole?.school_id) return;
 
     try {
+      // Fetch next roll number for the selected class
+      let nextRollNumber = 1;
+      if (formData.class_id) {
+        const { data: maxRoll } = await supabase
+          .from('students')
+          .select('roll_number')
+          .eq('class_id', formData.class_id)
+          .eq('is_deleted', false)
+          .order('roll_number', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (maxRoll) {
+          nextRollNumber = (maxRoll.roll_number || 0) + 1;
+        }
+      }
+
       const { data: inserted, error } = await supabase.from('students').insert([
         {
           school_id: userRole.school_id,
           parent_id: formData.parent_id || null,
           class_id: formData.class_id || null,
+          roll_number: nextRollNumber,
           full_name: formData.full_name,
           b_form_cnic: formData.b_form_cnic,
           dob: formData.dob || null,
@@ -309,7 +328,7 @@ export default function Students() {
     try {
       const { error } = await supabase
         .from('students')
-        .delete()
+        .update({ is_deleted: true, status: 'left' })
         .in('id', selectedIds);
       if (error) throw error;
       alert(`Permanently deleted ${selectedIds.length} students.`);

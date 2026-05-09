@@ -269,7 +269,7 @@ export default function Settings() {
     try {
       // Fetch all relevant data for backup
       const [students, classes, fees, attendance] = await Promise.all([
-        supabase.from('students').select('*').eq('school_id', userRole.school_id),
+        supabase.from('students').select('*').eq('school_id', userRole.school_id).eq('is_deleted', false),
         supabase.from('classes').select('*').eq('school_id', userRole.school_id),
         supabase.from('fee_records').select('*').eq('school_id', userRole.school_id),
         supabase.from('attendance').select('*').eq('school_id', userRole.school_id)

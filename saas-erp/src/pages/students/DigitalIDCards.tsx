@@ -16,6 +16,7 @@ export default function DigitalIDCards() {
   const [template, setTemplate] = useState<TemplateId>('classic');
   const [customization, setCustomization] = useState<CardCustomization | undefined>(undefined);
   const [loading, setLoading] = useState(false);
+  const [fixing, setFixing] = useState(false);
 
   useEffect(() => {
     if (userRole?.school_id) {
@@ -43,7 +44,7 @@ export default function DigitalIDCards() {
   const fetchSettings = async () => {
     const { data } = await supabase
       .from('id_card_settings')
-      .select('fields, template, layout_config')
+      .select('*')
       .eq('school_id', userRole?.school_id)
       .eq('card_type', 'student')
       .maybeSingle();
@@ -87,6 +88,42 @@ export default function DigitalIDCards() {
   const toggleAll = () => {
     if (selectedStudents.size === students.length) setSelectedStudents(new Set());
     else setSelectedStudents(new Set(students.map(s => s.id)));
+  };
+
+  const fixRollNumbers = async () => {
+    if (!students.length || !userRole?.school_id || !selectedClass) return;
+    if (!window.confirm('This will re-sequence all students in this class (1, 2, 3...) based on their admission date. Continue?')) return;
+    
+    setFixing(true);
+    try {
+      // Sort local students by admission date
+      const sorted = [...students].sort((a, b) => {
+        const dateA = a.admission_date || a.created_at || '';
+        const dateB = b.admission_date || b.created_at || '';
+        return dateA.localeCompare(dateB);
+      });
+
+      for (let i = 0; i < sorted.length; i++) {
+        const student = sorted[i];
+        const newRoll = i + 1;
+        
+        if (student.roll_number !== newRoll) {
+          const { error } = await supabase
+            .from('students')
+            .update({ roll_number: newRoll })
+            .eq('id', student.id);
+          
+          if (error) throw error;
+        }
+      }
+      
+      alert('Roll numbers synchronized successfully!');
+      fetchStudents();
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setFixing(false);
+    }
   };
 
   const handlePrint = () => {
@@ -141,6 +178,19 @@ export default function DigitalIDCards() {
             </select>
           </div>
           
+          {selectedClass && (
+             <div className="flex flex-col gap-2">
+               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Maintenance</label>
+               <button 
+                onClick={fixRollNumbers} 
+                disabled={fixing}
+                className="px-4 py-2 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-100 transition-all flex items-center gap-2 disabled:opacity-50"
+               >
+                 {fixing ? 'Fixing...' : 'Sync Roll Numbers'}
+               </button>
+             </div>
+           )}
+
           {selectedClass && (
              <div className="flex-1 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
                 <div className="px-5 py-3 border-b border-slate-200 flex justify-between items-center bg-white">

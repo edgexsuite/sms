@@ -15,6 +15,7 @@ import ImportStaffModal from '../components/ImportStaffModal';
 import JoiningLetter from '../components/JoiningLetter';
 import ExperienceCertificate from '../components/ExperienceCertificate';
 import * as templatesLib from '../lib/whatsappTemplates';
+import { processStudentPhoto } from '../lib/uploadUtils';
 
 const ROLES = ['Teacher', 'Principal', 'Vice Principal', 'Coordinator', 'Admin', 'Accountant', 'Librarian', 'Security', 'Support Staff', 'Driver', 'Other'];
 const DEPARTMENTS = ['Academic', 'Administration', 'Accounts', 'Library', 'Security', 'Transport', 'Science', 'Arts', 'IT'];
@@ -196,11 +197,11 @@ export default function Staff() {
 
       if (photoFile && staffId) {
         try {
-          const ext = photoFile.name.endsWith('.jpeg') ? 'jpeg' : 'webp';
-          const fileName = `${userRole?.school_id}/${staffId}-${Date.now()}.${ext}`;
-          const { error: uploadError } = await supabase.storage.from('staff-photos').upload(fileName, photoFile);
+          const ext = photoFile.name?.endsWith('.jpeg') ? 'jpeg' : 'webp';
+          const fileName = `${userRole?.school_id}/staff/${staffId}-${Date.now()}.${ext}`;
+          const { error: uploadError } = await supabase.storage.from('school-assets').upload(fileName, photoFile);
           if (uploadError) throw uploadError;
-          const { data: { publicUrl } } = supabase.storage.from('staff-photos').getPublicUrl(fileName);
+          const { data: { publicUrl } } = supabase.storage.from('school-assets').getPublicUrl(fileName);
           await supabase.from('staff').update({ photograph_url: publicUrl }).eq('id', staffId);
         } catch (err) {
           console.error('Photo upload failed:', err);
@@ -234,10 +235,14 @@ export default function Staff() {
     setPhotoPreview(URL.createObjectURL(file));
     setPhotoProcessing(true);
     try {
-      setPhotoFile(file);
-      setPhotoSize(`${(file.size / 1024).toFixed(1)} KB`);
-    } catch (err) {
-      setPhotoError('Failed to process image');
+      const processed = await processStudentPhoto(file);
+      // We store the Blob in photoFile, but we might need to cast or just let the File | null state accept it.
+      // Wait, photoFile is `File | null`. To avoid TypeScript error, we can use an 'any' or create a new File from Blob.
+      const newFile = new File([processed.blob], `photo.${processed.format}`, { type: `image/${processed.format}` });
+      setPhotoFile(newFile);
+      setPhotoSize(`${processed.sizeKB} KB`);
+    } catch (err: any) {
+      setPhotoError(err.message || 'Failed to process image');
     } finally {
       setPhotoProcessing(false);
     }
@@ -467,7 +472,7 @@ export default function Staff() {
                         </span>
                       </td>
                        <td className="px-4 py-2.5 no-print whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                        <div className="flex items-center justify-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all">
                           <button onClick={() => navigate(`/staff/detail/${s.id}`)} className="p-2.5 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-90"><Eye className="w-5 h-5" /></button>
                           <button onClick={() => handlePrint('experience', s)} className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-90"><Award className="w-5 h-5" /></button>
                           {s.whatsapp_number && <button onClick={() => setWaDropdown(waDropdown === s.id ? null : s.id)} className="p-2.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90"><MessageSquare className="w-5 h-5" /></button>}
@@ -515,10 +520,17 @@ export default function Staff() {
             </div>
             
             <div className="overflow-y-auto flex-1 bg-white p-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="md:col-span-2">
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2">Identity & Contact Info</h4>
-                </div>
+              
+              <div className="flex flex-col gap-8">
+                
+                {/* Identity Section (3 cols) */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="md:col-span-3">
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2">Identity & Contact Info</h4>
+                  </div>
+                  
+                  {/* Text Inputs (2 cols) */}
+                  <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                 {[
                   { label: 'Full Name *', key: 'full_name', placeholder: 'e.g. Ahmed Khan' },
                   { label: 'Father\'s Name', key: 'father_name', placeholder: 'e.g. Muhammad Khan' },
@@ -570,8 +582,76 @@ export default function Staff() {
                     <option value="Other">Other</option>
                   </select>
                 </div>
+              </div>
 
-                <div className="md:col-span-2 mt-4">
+              {/* Photo Upload Box (1 col) */}
+              <div className="md:col-span-1 flex flex-col items-center justify-start mt-1">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  ref={photoInputRef}
+                  onChange={e => handlePhotoChange(e.target.files?.[0] ?? null)}
+                />
+                {photoProcessing ? (
+                  <div className="flex flex-col items-center justify-center border-2 border-dashed border-indigo-300 rounded-2xl p-4 bg-indigo-50 w-full h-full min-h-[200px] gap-3">
+                    <div className="w-8 h-8 border-[3px] border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-xs text-indigo-600 font-black uppercase tracking-widest">Processing...</span>
+                  </div>
+                ) : photoPreview ? (
+                  <div className="relative flex flex-col items-center gap-3 border border-slate-200 rounded-2xl p-4 bg-slate-50 w-full min-h-[200px] justify-center group shadow-inner">
+                    <div className="w-32 h-32 rounded-2xl overflow-hidden border-4 border-white shadow-xl">
+                      <img
+                        src={photoPreview}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    {photoSize && (
+                      <span className="text-[10px] font-black tracking-widest text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full uppercase">
+                        {photoSize}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => { setPhotoFile(null); setPhotoPreview(null); setPhotoSize(null); setFormData({ ...formData, photograph_url: '' }); photoInputRef.current && (photoInputRef.current.value = ''); }}
+                      className="absolute top-3 right-3 bg-white text-rose-500 rounded-full p-1.5 opacity-0 group-hover:opacity-100 hover:bg-rose-500 hover:text-white transition-all shadow-md active:scale-90"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => photoInputRef.current?.click()}
+                      className="text-xs text-indigo-600 font-bold hover:text-indigo-800 transition-colors bg-white px-4 py-1.5 rounded-full shadow-sm border border-indigo-100 mt-2"
+                    >
+                      Change Photo
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => photoInputRef.current?.click()}
+                    className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-2xl p-6 bg-slate-50 hover:border-indigo-400 hover:bg-indigo-50 transition-all w-full min-h-[200px] group active:scale-[0.98]"
+                  >
+                    <div className="w-14 h-14 bg-white rounded-[1rem] shadow-sm flex items-center justify-center mb-4 group-hover:-translate-y-1 transition-transform border border-slate-100">
+                      <Camera className="w-6 h-6 text-slate-400 group-hover:text-indigo-500 transition-colors" />
+                    </div>
+                    <span className="text-sm text-slate-700 font-black uppercase tracking-tight">Upload Photo</span>
+                    <span className="text-[10px] text-slate-400 font-bold mt-2 text-center leading-tight uppercase tracking-widest px-4">
+                      Max 5MB. Resized to WebP automatically.
+                    </span>
+                  </button>
+                )}
+                {photoError && (
+                  <p className="text-[10px] text-rose-600 font-black mt-3 text-center bg-rose-50 py-1.5 px-3 rounded-lg border border-rose-100 uppercase tracking-widest">{photoError}</p>
+                )}
+              </div>
+
+            </div>
+
+            {/* Employment Grid (2 columns) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
+                <div className="md:col-span-2">
                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2">Employment Parameters</h4>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -687,6 +767,7 @@ export default function Staff() {
                     className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-slate-500 text-sm resize-none" />
                 </div>
               </div>
+            </div>
             </div>
 
             <div className="p-4 bg-gray-50 border-t border-gray-200 flex justify-between gap-3 shrink-0">
