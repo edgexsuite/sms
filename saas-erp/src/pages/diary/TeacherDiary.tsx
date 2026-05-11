@@ -244,36 +244,34 @@ export default function TeacherDiary() {
     setLoading(true);
 
     // ── Diary Schedule filter ──────────────────────────────────────────────
-    // If a diary_schedule is configured for this class+day, show ONLY those
-    // subjects (in slot order). Otherwise fall back to all assignedSlots.
+    // diary_schedule is per-class per-day. In class view: filter to that
+    // class's schedule. In teacher view: apply each class's schedule
+    // independently so only scheduled subjects show per class, with fallback
+    // to all teacher subjects for classes that have no schedule configured.
     const DAYS_EN = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     const dayOfWeek = DAYS_EN[new Date(viewDate).getDay()];
 
-    // Determine which class to query for the schedule
-    const scheduleClassId = viewMode === 'class' ? selectedClassId
-      : (assignedSlots.length > 0 ? assignedSlots[0].class_id : '');
+    let slotsToUse: Slot[] = [];
 
-    let slotsToUse: Slot[] = assignedSlots;
-
-    if (scheduleClassId) {
+    if (viewMode === 'class' && selectedClassId) {
+      // ── Class view ────────────────────────────────────────────────────────
       const { data: schedRows } = await supabase
         .from('diary_schedule')
         .select('subject_id, slot_order, subjects(subject_name)')
-        .eq('class_id', scheduleClassId)
+        .eq('class_id', selectedClassId)
         .eq('school_id', userRole?.school_id)
         .eq('day_of_week', dayOfWeek)
         .order('slot_order');
 
       if (schedRows && schedRows.length > 0) {
         setScheduleActive(true);
-        // Build slots from schedule, inheriting teacher_id from timetable where possible
+        const cls = allClasses.find((c: any) => c.id === selectedClassId);
         slotsToUse = schedRows.map((r: any) => {
           const existing = assignedSlots.find(s =>
-            s.subject_id === r.subject_id && s.class_id === scheduleClassId
+            s.subject_id === r.subject_id && s.class_id === selectedClassId
           );
-          const cls = allClasses.find((c: any) => c.id === scheduleClassId);
           return {
-            class_id:     scheduleClassId,
+            class_id:     selectedClassId,
             class_name:   cls?.name || '',
             section:      cls?.section || '',
             subject_id:   r.subject_id,
@@ -284,9 +282,46 @@ export default function TeacherDiary() {
         });
       } else {
         setScheduleActive(false);
+        slotsToUse = assignedSlots;
       }
+
     } else {
-      setScheduleActive(false);
+      // ── Teacher view: one batch query for all teacher's classes ───────────
+      const uniqueClassIds: string[] = Array.from(new Set(assignedSlots.map(s => s.class_id)));
+
+      const { data: schedRows } = await supabase
+        .from('diary_schedule')
+        .select('class_id, subject_id, slot_order, subjects(subject_name)')
+        .in('class_id', uniqueClassIds)
+        .eq('school_id', userRole?.school_id)
+        .eq('day_of_week', dayOfWeek)
+        .order('slot_order');
+
+      // Group schedule rows by class_id
+      const schedByClass = new Map<string, any[]>();
+      (schedRows || []).forEach((r: any) => {
+        if (!schedByClass.has(r.class_id)) schedByClass.set(r.class_id, []);
+        schedByClass.get(r.class_id)!.push(r);
+      });
+
+      setScheduleActive(schedByClass.size > 0);
+
+      // Per class: apply its schedule, or fall back to all teacher subjects
+      uniqueClassIds.forEach(classId => {
+        const classSchedule = schedByClass.get(classId);
+        const teacherSlotsForClass = assignedSlots.filter(s => s.class_id === classId);
+
+        if (classSchedule && classSchedule.length > 0) {
+          // Include only the teacher's subjects that appear in this class's schedule
+          classSchedule.forEach((r: any) => {
+            const existing = teacherSlotsForClass.find(s => s.subject_id === r.subject_id);
+            if (existing) slotsToUse.push(existing);
+          });
+        } else {
+          // No schedule for this class — show all teacher subjects for it
+          slotsToUse.push(...teacherSlotsForClass);
+        }
+      });
     }
 
     // ── Fetch existing diary entries for this date ─────────────────────────
@@ -445,6 +480,11 @@ export default function TeacherDiary() {
             >
               <CalendarDays className="w-3.5 h-3.5" /> Manage Schedule
             </a>
+          )}
+          {selectedTeacherId && viewMode === 'teacher' && (
+            <span className="flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1.5 rounded-full bg-blue-50 text-blue-600">
+              🗓 {selectedTeacherName} · {new Set(assignedSlots.map(s => s.class_id)).size} class(es) from timetable
+            </span>
           )}
           {rows.length > 0 && (
             <span className={`flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1.5 rounded-full ${
