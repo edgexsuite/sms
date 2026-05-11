@@ -481,11 +481,7 @@ export default function TeacherDiary() {
               <CalendarDays className="w-3.5 h-3.5" /> Manage Schedule
             </a>
           )}
-          {selectedTeacherId && viewMode === 'teacher' && (
-            <span className="flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1.5 rounded-full bg-blue-50 text-blue-600">
-              🗓 {selectedTeacherName} · {new Set(assignedSlots.map(s => s.class_id)).size} class(es) from timetable
-            </span>
-          )}
+
           {rows.length > 0 && (
             <span className={`flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1.5 rounded-full ${
               scheduleActive
