@@ -51,9 +51,18 @@ const STATUS_BADGE: Record<string, string> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/** Current time in Pakistan Standard Time (GMT+5), returns "HH:MM" */
 function nowTime() {
-  const d = new Date();
-  return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+  const parts = new Intl.DateTimeFormat('en-PK', {
+    timeZone: 'Asia/Karachi',
+    hour:     '2-digit',
+    minute:   '2-digit',
+    hour12:   false,
+  }).formatToParts(new Date());
+  const h = parts.find(p => p.type === 'hour')?.value   ?? '00';
+  const m = parts.find(p => p.type === 'minute')?.value ?? '00';
+  // Intl may return '24' for midnight — normalise
+  return `${h === '24' ? '00' : h}:${m}`;
 }
 
 function fmt12(t?: string | null) {
@@ -150,8 +159,26 @@ export default function StaffAttendance() {
 
   // ── Per-staff field updaters ─────────────────────────────────────────────────
 
-  const setStatus  = (id: string, status: string) =>
-    setAttMap(prev => ({ ...prev, [id]: { ...prev[id], status } }));
+  /**
+   * Set status for a staff member.
+   * In the arrival session, auto-stamp arrival time (GMT+5) if not already set
+   * and the status implies physical presence (not absent / paid-off).
+   */
+  const setStatus = (id: string, status: string) =>
+    setAttMap(prev => {
+      const row = prev[id] ?? { status: 'present' };
+      const needsArrival = session === 'arrival' &&
+        !row.arrival_time &&
+        !['absent', 'complementary_off', 'vacation'].includes(status);
+      return {
+        ...prev,
+        [id]: {
+          ...row,
+          status,
+          ...(needsArrival ? { arrival_time: nowTime() } : {}),
+        },
+      };
+    });
 
   const setArrival = (id: string, t: string) =>
     setAttMap(prev => ({ ...prev, [id]: { ...prev[id], arrival_time: t || null } }));
@@ -396,9 +423,15 @@ export default function StaffAttendance() {
                           <LogIn className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                           <div>
                             <p className="text-[8px] font-black text-slate-400 uppercase mb-0.5">Arrival</p>
-                            <input type="time" value={att.arrival_time || ''}
-                              onChange={e => setArrival(emp.id, e.target.value)}
-                              className="px-2 py-1 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400 font-bold text-emerald-700 w-28" />
+                            <div className="flex items-center gap-1">
+                              <input type="time" value={att.arrival_time || ''}
+                                onChange={e => setArrival(emp.id, e.target.value)}
+                                className="px-2 py-1 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400 font-bold text-emerald-700 w-28" />
+                              <button onClick={() => setArrival(emp.id, nowTime())} title="Stamp current GMT+5 time"
+                                className="text-[8px] font-black px-1.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-100 transition-all whitespace-nowrap">
+                                Now
+                              </button>
+                            </div>
                           </div>
                           {att.arrival_time && (
                             <span className="text-[10px] font-black text-emerald-600">{fmt12(att.arrival_time)}</span>
@@ -422,9 +455,15 @@ export default function StaffAttendance() {
                           <LogOut className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
                           <div>
                             <p className="text-[8px] font-black text-slate-400 uppercase mb-0.5">Departure</p>
-                            <input type="time" value={att.departure_time || ''}
-                              onChange={e => setDepart(emp.id, e.target.value)}
-                              className="px-2 py-1 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 font-bold text-indigo-700 w-28" />
+                            <div className="flex items-center gap-1">
+                              <input type="time" value={att.departure_time || ''}
+                                onChange={e => setDepart(emp.id, e.target.value)}
+                                className="px-2 py-1 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 font-bold text-indigo-700 w-28" />
+                              <button onClick={() => setDepart(emp.id, nowTime())} title="Stamp current GMT+5 time"
+                                className="text-[8px] font-black px-1.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-600 hover:bg-indigo-100 transition-all whitespace-nowrap">
+                                Now
+                              </button>
+                            </div>
                           </div>
                           {att.departure_time && (
                             <span className="text-[10px] font-black text-indigo-600">{fmt12(att.departure_time)}</span>
