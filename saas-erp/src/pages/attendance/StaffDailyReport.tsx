@@ -542,36 +542,45 @@ export default function StaffDailyReport() {
 
       <style>{`
         @media print {
-          @page { size: A4 landscape; margin: 8mm 10mm; }
+          @page { size: A4 landscape; margin: 6mm 8mm; }
 
-          /* Hide everything outside this page's content */
+          /* ── Kill ALL layout chrome ── */
           .no-print { display: none !important; }
+          header, aside, nav { display: none !important; }
 
-          /* Kill the layout chrome */
-          header, aside, nav, .aura-glass { display: none !important; }
+          /* Hide the global DashboardLayout print header (logo + school name block) */
+          .hidden.print\\:flex { display: none !important; }
 
-          /* Root wrapper — remove padding so we use the full page */
-          body, #root { background: white !important; }
+          /* Remove all wrapper padding/margins */
+          body, #root { background: white !important; margin: 0 !important; padding: 0 !important; }
           .theme-shell { padding: 0 !important; overflow: visible !important; }
+          .flex-1.flex.flex-col { padding: 0 !important; }
+          main { padding: 0 !important; }
 
-          /* Shrink fonts + spacing to fit one page */
-          table { font-size: 8.5px !important; border-collapse: collapse; width: 100%; }
-          th, td { padding: 3px 6px !important; }
+          /* ── Page content wrapper ── */
+          .max-w-7xl { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+          .space-y-6 > * + * { margin-top: 5px !important; }
 
-          /* Summary cards inline row for print */
-          .print\\:grid-cols-6 { display: flex !important; gap: 6px !important; }
-          .print\\:grid-cols-6 > div { flex: 1; padding: 4px 6px !important; }
-          .print\\:grid-cols-6 p:first-child { font-size: 14px !important; }
-          .print\\:grid-cols-6 p:last-child  { font-size: 7px !important; }
+          /* ── Summary cards: compact single row ── */
+          .grid.print\\:grid-cols-6 { display: flex !important; gap: 4px !important; margin-bottom: 4px !important; }
+          .grid.print\\:grid-cols-6 > div { flex: 1 !important; padding: 3px 5px !important; border-radius: 6px !important; }
+          .grid.print\\:grid-cols-6 p:first-child { font-size: 13px !important; line-height: 1 !important; }
+          .grid.print\\:grid-cols-6 p:last-child  { font-size: 6.5px !important; margin-top: 1px !important; }
 
-          /* Avatar — smaller on print */
-          .w-8.h-8 { width: 22px !important; height: 22px !important; }
+          /* ── Table: very compact ── */
+          table { font-size: 8px !important; border-collapse: collapse !important; width: 100% !important; }
+          th    { padding: 3px 5px !important; font-size: 7px !important; }
+          td    { padding: 2.5px 5px !important; }
+
+          /* Avatar smaller */
+          img.rounded-full, div.rounded-full.w-8 { width: 18px !important; height: 18px !important; font-size: 7px !important; }
 
           /* Status badge tighter */
-          .rounded-full { padding: 1px 5px !important; font-size: 7.5px !important; }
+          span.rounded-full { padding: 1px 4px !important; font-size: 7px !important; gap: 2px !important; }
+          span.rounded-full svg { width: 8px !important; height: 8px !important; }
 
-          /* Don't break mid-page */
-          table, thead, tbody, tr { page-break-inside: avoid; }
+          /* No mid-row breaks */
+          tbody tr { page-break-inside: avoid !important; }
         }
       `}</style>
     </div>
