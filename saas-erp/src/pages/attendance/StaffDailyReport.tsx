@@ -255,7 +255,7 @@ export default function StaffDailyReport() {
             </p>
           </div>
         </div>
-        <p style={{ fontWeight: 700, fontSize: 9, color: '#475569', textAlign: 'right' }}>
+        <p style={{ fontWeight: 700, fontSize: 9, color: '#475569', textAlign: 'right', whiteSpace: 'nowrap', flexShrink: 0, paddingLeft: 12 }}>
           {new Date(date + 'T00:00:00').toLocaleDateString('en-PK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
       </div>
