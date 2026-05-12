@@ -78,6 +78,7 @@ export default function StaffDailyReport() {
 
   const [departments, setDepartments] = useState<string[]>([]);
   const [schoolName, setSchoolName] = useState('');
+  const [schoolLogo, setSchoolLogo] = useState('');
   const [sortCol, setSortCol] = useState<'name' | 'arrival' | 'departure' | 'hours'>('name');
   const [sortAsc, setSortAsc] = useState(true);
 
@@ -99,7 +100,7 @@ export default function StaffDailyReport() {
         .eq('school_id', userRole.school_id)
         .eq('date', date)
         .not('staff_id', 'is', null),
-      supabase.from('schools').select('name').eq('id', userRole.school_id).maybeSingle(),
+      supabase.from('schools').select('name, logo_url').eq('id', userRole.school_id).maybeSingle(),
     ]);
 
     if (stData) {
@@ -107,7 +108,7 @@ export default function StaffDailyReport() {
       const depts = [...new Set(stData.map((s: any) => s.department).filter(Boolean))].sort() as string[];
       setDepartments(depts);
     }
-    if (sch) setSchoolName(sch.name || '');
+    if (sch) { setSchoolName(sch.name || ''); setSchoolLogo(sch.logo_url || ''); }
 
     const map: Record<string, AttendanceRow> = {};
     (attData || []).forEach((a: any) => { map[a.staff_id] = a; });
@@ -240,13 +241,21 @@ export default function StaffDailyReport() {
         </div>
       </div>
 
-      {/* ── Print-only compact header ── */}
-      <div className="hidden print:flex items-center justify-between border-b-2 border-slate-800 pb-2 mb-1">
-        <div>
-          <p className="text-base font-black uppercase tracking-wider">{schoolName}</p>
-          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Staff Daily Attendance Report</p>
+      {/* ── Print-only school header ── */}
+      <div className="sdr-print-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {schoolLogo && (
+            <img src={schoolLogo} alt={schoolName}
+              style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover', border: '1px solid #e2e8f0', flexShrink: 0 }} />
+          )}
+          <div>
+            <p style={{ fontWeight: 900, fontSize: 15, textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>{schoolName}</p>
+            <p style={{ fontWeight: 700, fontSize: 9, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: 2 }}>
+              Staff Daily Attendance Report
+            </p>
+          </div>
         </div>
-        <p className="text-xs font-bold text-gray-600">
+        <p style={{ fontWeight: 700, fontSize: 9, color: '#475569', textAlign: 'right' }}>
           {new Date(date + 'T00:00:00').toLocaleDateString('en-PK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
       </div>
@@ -541,20 +550,33 @@ export default function StaffDailyReport() {
       </Card>
 
       <style>{`
+        /* ── Screen: hide the print-only header ── */
+        .sdr-print-header { display: none; }
+
         @media print {
           @page { size: A4 landscape; margin: 6mm 8mm; }
 
-          /* ── Kill ALL layout chrome ── */
+          /* Show our own print header */
+          .sdr-print-header {
+            display: flex !important;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 2px solid #1e293b;
+            padding-bottom: 6px;
+            margin-bottom: 6px;
+          }
+
+          /* ── Kill layout chrome ── */
           .no-print { display: none !important; }
           header, aside, nav { display: none !important; }
 
-          /* Hide the global DashboardLayout print header (logo + school name block) */
-          .hidden.print\\:flex { display: none !important; }
+          /* Suppress the DashboardLayout global print header specifically
+             (it's a sibling div before <main> with py-5 border-b-2 border-slate-300) */
+          .flex-1.flex.flex-col > div:not(main):not(.sdr-wrapper) { display: none !important; }
 
-          /* Remove all wrapper padding/margins */
+          /* Remove all wrapper padding */
           body, #root { background: white !important; margin: 0 !important; padding: 0 !important; }
           .theme-shell { padding: 0 !important; overflow: visible !important; }
-          .flex-1.flex.flex-col { padding: 0 !important; }
           main { padding: 0 !important; }
 
           /* ── Page content wrapper ── */
