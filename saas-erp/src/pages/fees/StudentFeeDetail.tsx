@@ -890,13 +890,13 @@ export default function StudentFeeDetail() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] overflow-y-auto flex items-start sm:items-center justify-center p-4 sm:p-6"
           >
             <motion.div
               initial={{ scale: 0.95, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 20 }}
-              className="w-full max-w-sm bg-white rounded-3xl shadow-2xl flex flex-col max-h-[calc(100vh-2rem)] overflow-hidden"
+              className="w-full max-w-sm bg-white rounded-3xl shadow-2xl flex flex-col my-auto"
             >
               {/* Modal Header */}
               <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-5 py-4 flex items-center justify-between text-white shrink-0">
@@ -914,7 +914,7 @@ export default function StudentFeeDetail() {
                 </button>
               </div>
 
-              <div className="p-5 space-y-5 overflow-y-auto">
+              <div className="p-5 space-y-5">
                 {/* Outstanding Balance */}
                 <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-center">
                   <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Outstanding Balance</p>
@@ -1017,11 +1017,11 @@ export default function StudentFeeDetail() {
         {editingInvoice && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 text-left"
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] overflow-y-auto flex items-start sm:items-center justify-center p-4 sm:p-6 text-left"
           >
             <motion.div
               initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-              className="w-full max-w-md bg-white rounded-3xl shadow-2xl flex flex-col max-h-[calc(100vh-2rem)] overflow-hidden"
+              className="w-full max-w-md bg-white rounded-3xl shadow-2xl flex flex-col my-auto"
             >
               <div className="bg-slate-900 px-6 py-4 flex items-center justify-between text-white shrink-0">
                 <div>
@@ -1032,7 +1032,7 @@ export default function StudentFeeDetail() {
                   <X className="w-4 h-4" />
                 </button>
               </div>
-              <div className="p-6 space-y-5 overflow-y-auto">
+              <div className="p-6 space-y-5">
                 {/* Month + Paid At */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
