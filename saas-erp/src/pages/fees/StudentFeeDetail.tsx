@@ -890,18 +890,16 @@ export default function StudentFeeDetail() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] overflow-y-auto"
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
           >
-            {/* centering wrapper — min-h-full makes my-auto work correctly */}
-            <div className="flex min-h-full items-center justify-center p-4 py-8">
             <motion.div
               initial={{ scale: 0.95, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 20 }}
-              className="w-full max-w-sm bg-white rounded-3xl shadow-2xl flex flex-col"
+              className="w-full max-w-sm bg-white rounded-3xl shadow-2xl flex flex-col max-h-[90vh]"
             >
-              {/* Modal Header */}
-              <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-5 py-4 flex items-center justify-between text-white shrink-0">
+              {/* Modal Header — never scrolls away */}
+              <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-5 py-4 flex items-center justify-between text-white shrink-0 rounded-t-3xl">
                 <div>
                   <p className="text-sm font-bold">Collect Payment</p>
                   <p className="text-xs text-indigo-200 mt-0.5">
@@ -916,7 +914,8 @@ export default function StudentFeeDetail() {
                 </button>
               </div>
 
-              <div className="p-5 space-y-5">
+              {/* Scrollable body */}
+              <div className="p-5 space-y-5 overflow-y-auto">
                 {/* Outstanding Balance */}
                 <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-center">
                   <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Outstanding Balance</p>
@@ -1010,7 +1009,6 @@ export default function StudentFeeDetail() {
                 </button>
               </div>
             </motion.div>
-            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1020,14 +1018,13 @@ export default function StudentFeeDetail() {
         {editingInvoice && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] overflow-y-auto text-left"
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 text-left"
           >
-            <div className="flex min-h-full items-center justify-center p-4 py-8">
             <motion.div
               initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-              className="w-full max-w-md bg-white rounded-3xl shadow-2xl flex flex-col"
+              className="w-full max-w-md bg-white rounded-3xl shadow-2xl flex flex-col max-h-[90vh]"
             >
-              <div className="bg-slate-900 px-6 py-4 flex items-center justify-between text-white shrink-0">
+              <div className="bg-slate-900 px-6 py-4 flex items-center justify-between text-white shrink-0 rounded-t-3xl">
                 <div>
                   <h2 className="text-sm font-black uppercase tracking-widest leading-none">Edit Invoice</h2>
                   <p className="text-xs text-slate-400 mt-0.5">{editingInvoice.invoice_number}</p>
@@ -1036,7 +1033,7 @@ export default function StudentFeeDetail() {
                   <X className="w-4 h-4" />
                 </button>
               </div>
-              <div className="p-6 space-y-5">
+              <div className="p-6 space-y-5 overflow-y-auto">
                 {/* Month + Paid At */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
@@ -1112,7 +1109,6 @@ export default function StudentFeeDetail() {
                 </div>
               </div>
             </motion.div>
-            </div>
           </motion.div>
         )}
       </AnimatePresence>
