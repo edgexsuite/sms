@@ -227,21 +227,28 @@ export default function StaffDailyReport() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      <PageHeader
-        title="Staff Daily Attendance Report"
-        subtitle="Arrival, departure and working hours for all staff on a given day"
-        actions={
-          <div className="flex gap-2 no-print">
-            <Btn variant="outline" size="sm" icon={Download} onClick={exportData}>Export</Btn>
-            <Btn variant="outline" size="sm" icon={Printer} onClick={() => window.print()}>Print</Btn>
-          </div>
-        }
-      />
 
-      {/* ── Print Header ── */}
-      <div className="hidden print:block text-center mb-4">
-        <h1 className="text-xl font-black uppercase tracking-wider">{schoolName}</h1>
-        <p className="text-sm font-bold text-gray-600 mt-1">Staff Daily Attendance Report — {new Date(date + 'T00:00:00').toLocaleDateString('en-PK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+      {/* ── Screen-only top bar ── */}
+      <div className="no-print flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-lg font-black text-slate-900 uppercase tracking-tight">Staff Daily Report</h1>
+          <p className="text-xs text-slate-400 font-medium mt-0.5">Arrival · Departure · Working hours</p>
+        </div>
+        <div className="flex gap-2">
+          <Btn variant="outline" size="sm" icon={Download} onClick={exportData}>Export</Btn>
+          <Btn variant="outline" size="sm" icon={Printer} onClick={() => window.print()}>Print</Btn>
+        </div>
+      </div>
+
+      {/* ── Print-only compact header ── */}
+      <div className="hidden print:flex items-center justify-between border-b-2 border-slate-800 pb-2 mb-1">
+        <div>
+          <p className="text-base font-black uppercase tracking-wider">{schoolName}</p>
+          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Staff Daily Attendance Report</p>
+        </div>
+        <p className="text-xs font-bold text-gray-600">
+          {new Date(date + 'T00:00:00').toLocaleDateString('en-PK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+        </p>
       </div>
 
       {/* ── Filters ── */}
@@ -292,7 +299,7 @@ export default function StaffDailyReport() {
       </Card>
 
       {/* ── Summary Cards ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 print:grid-cols-6 gap-3">
         {[
           { label: 'Total Staff',  value: counts.total,    color: 'bg-slate-50 border-slate-200',     text: 'text-slate-800' },
           { label: 'Present',      value: counts.present,  color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
@@ -535,9 +542,36 @@ export default function StaffDailyReport() {
 
       <style>{`
         @media print {
+          @page { size: A4 landscape; margin: 8mm 10mm; }
+
+          /* Hide everything outside this page's content */
           .no-print { display: none !important; }
-          body { font-size: 11px; }
-          table { font-size: 10px; }
+
+          /* Kill the layout chrome */
+          header, aside, nav, .aura-glass { display: none !important; }
+
+          /* Root wrapper — remove padding so we use the full page */
+          body, #root { background: white !important; }
+          .theme-shell { padding: 0 !important; overflow: visible !important; }
+
+          /* Shrink fonts + spacing to fit one page */
+          table { font-size: 8.5px !important; border-collapse: collapse; width: 100%; }
+          th, td { padding: 3px 6px !important; }
+
+          /* Summary cards inline row for print */
+          .print\\:grid-cols-6 { display: flex !important; gap: 6px !important; }
+          .print\\:grid-cols-6 > div { flex: 1; padding: 4px 6px !important; }
+          .print\\:grid-cols-6 p:first-child { font-size: 14px !important; }
+          .print\\:grid-cols-6 p:last-child  { font-size: 7px !important; }
+
+          /* Avatar — smaller on print */
+          .w-8.h-8 { width: 22px !important; height: 22px !important; }
+
+          /* Status badge tighter */
+          .rounded-full { padding: 1px 5px !important; font-size: 7.5px !important; }
+
+          /* Don't break mid-page */
+          table, thead, tbody, tr { page-break-inside: avoid; }
         }
       `}</style>
     </div>
