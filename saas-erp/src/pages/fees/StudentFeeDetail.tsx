@@ -77,6 +77,8 @@ export default function StudentFeeDetail() {
 
   const [showNewInvoice, setShowNewInvoice] = useState(false);
   const paidAtInputRef = useRef<HTMLInputElement>(null);
+  const [classes, setClasses] = useState<{ id: string; name: string; section: string }[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState('');
 
   // ── Fetch Metadata ─────────────────────────────────────────────────────────
 
@@ -87,6 +89,8 @@ export default function StudentFeeDetail() {
         .then(({ data }) => setDiscountRules(data?.sections_config?.rules ?? []));
       supabase.from('form_settings').select('sections_config').eq('school_id', userRole.school_id).eq('form_name', 'challan_settings').maybeSingle()
         .then(({ data }) => { if (data?.sections_config) setChallanConfig({ ...DEFAULT_CHALLAN_CONFIG, ...data.sections_config }); });
+      supabase.from('classes').select('id, name, section').eq('school_id', userRole.school_id).order('name')
+        .then(({ data }) => setClasses(data || []));
     }
   }, [userRole?.school_id]);
 
@@ -103,27 +107,27 @@ export default function StudentFeeDetail() {
 
   // ── Fetch Initial ──────────────────────────────────────────────────────────
 
-  const fetchStudents = useCallback(async (query: string = '') => {
+  const fetchStudents = useCallback(async (query: string = '', classId: string = '') => {
     if (!userRole?.school_id) return;
     setIsLoading(true);
-    const { data } = await supabase
+    let q = supabase
       .from('students')
       .select('id, full_name, roll_number, class_id, fee_waiver_percentage, custom_data, classes(name, section)')
       .eq('school_id', userRole!.school_id)
       .eq('status', 'active')
-      .or(`full_name.ilike.%${query}%,roll_number.eq.${parseInt(query) || 0}`)
-      .limit(20);
-
+      .or(`full_name.ilike.%${query}%,roll_number.eq.${parseInt(query) || 0}`);
+    if (classId) q = q.eq('class_id', classId);
+    const { data } = await q.limit(20);
     if (data) setStudents(data);
     setIsLoading(false);
   }, [userRole?.school_id]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchStudents(search);
+      fetchStudents(search, selectedClassId);
     }, 400);
     return () => clearTimeout(timer);
-  }, [search, fetchStudents]);
+  }, [search, selectedClassId, fetchStudents]);
 
   useEffect(() => {
     if (userRole?.school_id) {
@@ -543,15 +547,29 @@ export default function StudentFeeDetail() {
             <h1 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
               <Wallet className="w-4 h-4 text-indigo-600" /> Student Fee Ledger
             </h1>
-            <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search by student name or roll number…"
-                autoFocus
-                className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              />
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search by student name or roll number…"
+                  autoFocus
+                  className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                />
+              </div>
+              <select
+                value={selectedClassId}
+                onChange={e => setSelectedClassId(e.target.value)}
+                className="px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent min-w-[130px]"
+              >
+                <option value="">All Classes</option>
+                {classes.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}{c.section ? ` (${c.section})` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
