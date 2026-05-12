@@ -7,13 +7,14 @@ import {
   ArrowLeft, Printer, User, BookOpen, Calendar, CreditCard, BarChart3,
   Phone, MapPin, Heart, Shield, CheckCircle, XCircle, Clock, Award,
   TrendingUp, AlertCircle, Download, Plus, ChevronRight, MoreVertical, Users,
-  Wallet, X as XIcon, Loader2, Tag, ExternalLink,
+  Wallet, X as XIcon, Loader2, Tag, ExternalLink, AlertTriangle,
 } from 'lucide-react';
 import { PageHeader, Card, Btn, Badge, Input, Select, EmptyState } from '../../components/ui';
 import StudentFeeModal from '../../components/StudentFeeModal';
 import StudentFeeOverrideModal from '../../components/StudentFeeOverrideModal';
 import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, type ChallanRecord, type SchoolInfo } from '../../lib/challanUtils';
 import FeeBreakdownEditor, { type BreakdownRow } from '../../components/FeeBreakdownEditor';
+import { calculateLateFine, getFineRules, type FineRule } from '../../lib/fineUtils';
 
 const PAY_MODES = ['Cash', 'Cheque', 'Bank Transfer', 'JazzCash', 'EasyPaisa', 'Online'];
 
@@ -60,6 +61,8 @@ export default function StudentDetailPage() {
   const [collectDate, setCollectDate] = useState(new Date().toISOString().split('T')[0]);
   const [collectSaving, setCollectSaving] = useState(false);
   const [school, setSchool] = useState<any>(null);
+  const [fineRules, setFineRules] = useState<FineRule[]>([]);
+  const [waiveFine, setWaiveFine] = useState(false);
 
   // Edit Fee Record State
   const [editingFee, setEditingFee] = useState<any | null>(null);
@@ -87,6 +90,7 @@ export default function StudentDetailPage() {
   useEffect(() => {
     if (userRole?.school_id) {
       supabase.from('schools').select('name,logo_url,address,contact_phone').eq('id', userRole.school_id).maybeSingle().then(({ data }) => setSchool(data));
+      getFineRules(userRole.school_id).then(setFineRules);
       // Fetch discount rules for inline assignment
       supabase.from('form_settings').select('sections_config').eq('school_id', userRole.school_id).eq('form_name', 'discount_rules').maybeSingle()
         .then(({ data }) => setDiscountRules(data?.sections_config?.rules ?? []));
@@ -264,20 +268,34 @@ export default function StudentDetailPage() {
   const handleCollectSave = async () => {
     if (!collectingFee || !student) return;
     const amt = parseFloat(collectAmount);
-    const balance = Math.max(0, (collectingFee.total_amount || 0) - (collectingFee.paid_amount || 0));
+
+    // Apply fine if not waived
+    const { totalFine, appliedRules } = calculateLateFine(collectingFee, fineRules);
+    const fine = waiveFine ? 0 : totalFine;
+    const effectiveTotal = (collectingFee.total_amount || 0) + fine;
+    const balance = Math.max(0, effectiveTotal - (collectingFee.paid_amount || 0));
+
     if (!amt || amt <= 0) return alert('Enter a valid amount.');
     if (amt > balance + 0.01) return alert(`Amount cannot exceed balance (Rs. ${balance.toLocaleString()}).`);
 
     setCollectSaving(true);
     try {
       const newPaid = (collectingFee.paid_amount || 0) + amt;
-      const newStatus: string = newPaid >= (collectingFee.total_amount || 0) ? 'paid' : 'partial';
+      const newStatus: string = newPaid >= effectiveTotal ? 'paid' : 'partial';
+
+      // Build updated breakdown — append fine line item if applicable
+      const baseBreakdown = collectingFee.breakdown || [];
+      const finalBreakdown = fine > 0
+        ? [...baseBreakdown, { item: `Late Fine (${appliedRules || 'Policy'})`, amount: fine }]
+        : baseBreakdown;
 
       const { error: recErr } = await supabase.from('fee_records').update({
+        total_amount: effectiveTotal,
         paid_amount: newPaid,
         status: newStatus,
         payment_mode: collectMode,
         paid_at: collectDate + 'T12:00:00Z',
+        breakdown: finalBreakdown,
       }).eq('id', collectingFee.id);
       if (recErr) throw recErr;
 
@@ -324,10 +342,10 @@ export default function StudentDetailPage() {
         invoice_number: collectingFee.invoice_number,
         month_year: collectingFee.month_year,
         due_date: collectingFee.due_date,
-        total_amount: collectingFee.total_amount,
+        total_amount: effectiveTotal,
         paid_amount: newPaid,
         status: newStatus,
-        breakdown: rawBreakdown.map((b: any) => ({ item: b.item, amount: Number(b.amount) })),
+        breakdown: finalBreakdown.map((b: any) => ({ item: b.item, amount: Number(b.amount) })),
         student_name: student.full_name,
         roll_number: student.roll_number,
         class_name: cls ? `${cls.name}${cls.section ? ' - ' + cls.section : ''}` : '',
@@ -530,6 +548,44 @@ export default function StudentDetailPage() {
                   <span>Balance Due</span>
                   <span>Rs. {Math.max(0, (collectingFee.total_amount || 0) - (collectingFee.paid_amount || 0)).toLocaleString()}</span>
                 </div>
+                {/* Fine row */}
+                {(() => {
+                  const { totalFine, appliedRules } = calculateLateFine(collectingFee, fineRules);
+                  if (totalFine <= 0) return null;
+                  return (
+                    <div className={cn(
+                      'flex items-center justify-between rounded-xl px-3 py-2 border transition-all',
+                      waiveFine ? 'bg-slate-50 border-slate-200' : 'bg-amber-50 border-amber-200'
+                    )}>
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className={cn('w-3.5 h-3.5', waiveFine ? 'text-slate-400' : 'text-amber-500')} />
+                        <div>
+                          <p className={cn('text-xs font-bold', waiveFine ? 'text-slate-400 line-through' : 'text-amber-800')}>
+                            Late Fine: Rs. {totalFine.toLocaleString()}
+                          </p>
+                          <p className="text-[10px] text-slate-400">{appliedRules}</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newWaive = !waiveFine;
+                          setWaiveFine(newWaive);
+                          const base = Math.max(0, (collectingFee.total_amount || 0) - (collectingFee.paid_amount || 0));
+                          setCollectAmount(String(newWaive ? base : base + totalFine));
+                        }}
+                        className={cn(
+                          'text-[10px] font-bold px-2 py-1 rounded-lg border transition-all',
+                          waiveFine
+                            ? 'bg-slate-200 text-slate-600 border-slate-300'
+                            : 'bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200'
+                        )}
+                      >
+                        {waiveFine ? 'Exemption On' : 'Exempt Fine'}
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Amount */}
@@ -539,7 +595,11 @@ export default function StudentDetailPage() {
                   type="number" min="1" step="1"
                   value={collectAmount}
                   onChange={e => setCollectAmount(e.target.value)}
-                  placeholder={String(Math.max(0, (collectingFee.total_amount || 0) - (collectingFee.paid_amount || 0)))}
+                  placeholder={(() => {
+                    const base = Math.max(0, (collectingFee.total_amount || 0) - (collectingFee.paid_amount || 0));
+                    const { totalFine } = calculateLateFine(collectingFee, fineRules);
+                    return String(base + (waiveFine ? 0 : totalFine));
+                  })()}
                   className="w-full px-4 py-3 border border-slate-200 rounded-xl text-lg font-bold font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   autoFocus
                 />
@@ -1317,7 +1377,9 @@ export default function StudentDetailPage() {
                                       size="xs" 
                                       onClick={() => {
                                         setCollectingFee(f);
-                                        setCollectAmount(String(bal));
+                                        setWaiveFine(false);
+                                        const { totalFine: ft } = calculateLateFine(f, fineRules);
+                                        setCollectAmount(String(bal + ft));
                                         setCollectMode('Cash');
                                       }}
                                       icon={Wallet}

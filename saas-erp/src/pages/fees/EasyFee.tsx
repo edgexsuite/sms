@@ -7,11 +7,12 @@ import {
   ArrowRight, Printer, History, Users,
   Receipt, Landmark, Clock, X as XIcon, Trash2, ExternalLink,
   DollarSign, Banknote, Smartphone, FileText,
-  AlertCircle, ChevronRight, UserCheck, User,
+  AlertCircle, AlertTriangle, ChevronRight, UserCheck, User,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatDate } from '../../lib/utils';
 import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, type ChallanConfig, type ChallanRecord, type SchoolInfo } from '../../lib/challanUtils';
+import { calculateLateFine, getFineRules, type FineRule } from '../../lib/fineUtils';
 import HelpBanner from '../../components/HelpBanner';
 import { PageHeader, Card, Btn, Badge, Select, Input } from '../../components/ui';
 
@@ -24,6 +25,7 @@ interface FeeRecord {
   total_amount: number;
   paid_amount: number;
   status: string;
+  due_date?: string | null;
   breakdown?: { item: string; amount: number }[];
 }
 
@@ -60,6 +62,18 @@ function modeDateLabel(d: string) {
 
 function outstanding(fees: FeeRecord[]) {
   return fees.filter(f => f.status !== 'paid').reduce((s, f) => s + Number(f.total_amount) - Number(f.paid_amount), 0);
+}
+function outstandingWithFine(fees: FeeRecord[], rules: FineRule[], waive: boolean) {
+  return fees.filter(f => f.status !== 'paid').reduce((s, f) => {
+    const base = Number(f.total_amount) - Number(f.paid_amount);
+    const { totalFine } = waive ? { totalFine: 0 } : calculateLateFine(f, rules);
+    return s + base + totalFine;
+  }, 0);
+}
+function totalFinesForPending(fees: FeeRecord[], rules: FineRule[]) {
+  return fees.filter(f => f.status !== 'paid').reduce((s, f) => {
+    return s + calculateLateFine(f, rules).totalFine;
+  }, 0);
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -106,13 +120,16 @@ export default function EasyFee() {
   const [classes, setClasses]           = useState<any[]>([]);
   const [school, setSchool]             = useState<any>(null);
   const [challanConfig, setChallanConfig] = useState<ChallanConfig>(DEFAULT_CHALLAN_CONFIG);
+  const [fineRules, setFineRules]       = useState<FineRule[]>([]);
+  const [waiveFine, setWaiveFine]       = useState(false);
   const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([]);
   const [selectedRecentTx, setSelectedRecentTx]     = useState<RecentTransaction | null>(null);
 
   // ── Derived (student mode) ────────────────────────────────────────────────
 
   const pendingInvoices = useMemo(() => feeHistory.filter(f => f.status !== 'paid'), [feeHistory]);
-  const totalOutstanding = useMemo(() => outstanding(feeHistory), [feeHistory]);
+  const totalOutstanding = useMemo(() => outstandingWithFine(feeHistory, fineRules, waiveFine), [feeHistory, fineRules, waiveFine]);
+  const totalFineAmount  = useMemo(() => waiveFine ? 0 : totalFinesForPending(feeHistory, fineRules), [feeHistory, fineRules, waiveFine]);
 
   const thisMonthBalance = useMemo(() => {
     const m = new Date().toISOString().slice(0, 7);
@@ -125,16 +142,17 @@ export default function EasyFee() {
     if (!amt || pendingInvoices.length === 0) return [];
     const sorted = [...pendingInvoices].sort((a, b) => a.month_year.localeCompare(b.month_year));
     let rem = amt;
-    const out: { month: string; paying: number; full: boolean }[] = [];
+    const out: { month: string; paying: number; full: boolean; fine: number }[] = [];
     for (const f of sorted) {
       if (rem <= 0) break;
-      const due = Number(f.total_amount) - Number(f.paid_amount);
+      const { totalFine } = waiveFine ? { totalFine: 0 } : calculateLateFine(f, fineRules);
+      const due = Number(f.total_amount) - Number(f.paid_amount) + totalFine;
       const paying = Math.min(rem, due);
-      out.push({ month: formatDate(f.month_year), paying, full: paying >= due - 0.01 });
+      out.push({ month: formatDate(f.month_year), paying, full: paying >= due - 0.01, fine: totalFine });
       rem -= paying;
     }
     return out;
-  }, [payAmount, pendingInvoices]);
+  }, [payAmount, pendingInvoices, fineRules, waiveFine]);
 
   const todayStr   = new Date().toISOString().slice(0, 10);
   const totalToday = recentTransactions.filter(t => t.date === todayStr).reduce((s, t) => s + Number(t.amount), 0);
@@ -151,6 +169,7 @@ export default function EasyFee() {
     if (sch) setSchool(sch);
     if (cls) setClasses(cls);
     if (cfg?.sections_config) setChallanConfig({ ...DEFAULT_CHALLAN_CONFIG, ...cfg.sections_config });
+    getFineRules(userRole.school_id).then(setFineRules);
   }, [userRole?.school_id]);
 
   const fetchRecentActivity = useCallback(async () => {
@@ -227,7 +246,7 @@ export default function EasyFee() {
     setQuery('');
     const { data: fees } = await supabase
       .from('fee_records')
-      .select('id, invoice_number, month_year, total_amount, paid_amount, status, breakdown')
+      .select('id, invoice_number, month_year, total_amount, paid_amount, status, due_date, breakdown')
       .eq('student_id', student.id)
       .is('deleted_at', null)
       .order('month_year', { ascending: false })
@@ -291,7 +310,7 @@ export default function EasyFee() {
     await Promise.all(kids.map(async (kid: any) => {
       const { data: fees } = await supabase
         .from('fee_records')
-        .select('id, invoice_number, month_year, total_amount, paid_amount, status, breakdown')
+        .select('id, invoice_number, month_year, total_amount, paid_amount, status, due_date, breakdown')
         .eq('student_id', kid.id)
         .is('deleted_at', null)
         .order('month_year', { ascending: true })
@@ -329,16 +348,26 @@ export default function EasyFee() {
       const paymentBreakdown: { item: string; amount: number }[] = [];
       for (const fee of pendingOldest) {
         if (remaining <= 0) break;
-        const due = Number(fee.total_amount) - Number(fee.paid_amount);
+        // Apply fine to this invoice if not waived
+        const { totalFine, appliedRules } = waiveFine ? { totalFine: 0, appliedRules: '' } : calculateLateFine(fee, fineRules);
+        const effectiveTotal = Number(fee.total_amount) + totalFine;
+        const due = effectiveTotal - Number(fee.paid_amount);
         const paying = Math.min(remaining, due);
         paidRecords.push(fee);
         paymentBreakdown.push({ item: formatDate(fee.month_year), amount: paying });
         updatedRecords.push({ id: fee.id, originalPaid: Number(fee.paid_amount), originalStatus: fee.status });
+        // Build updated breakdown with fine line if applicable
+        const baseBreakdown = (fee.breakdown as { item: string; amount: number }[]) || [];
+        const updatedBreakdown = totalFine > 0
+          ? [...baseBreakdown, { item: `Late Fine (${appliedRules || 'Policy'})`, amount: totalFine }]
+          : baseBreakdown;
         const { error } = await supabase.from('fee_records').update({
+          total_amount: effectiveTotal,
           paid_amount:  Number(fee.paid_amount) + paying,
-          status:       (Number(fee.paid_amount) + paying) >= Number(fee.total_amount) ? 'paid' : 'partial',
+          status:       (Number(fee.paid_amount) + paying) >= effectiveTotal ? 'paid' : 'partial',
           paid_at:      date + 'T12:00:00Z',
           payment_mode: mode_,
+          breakdown:    updatedBreakdown,
         }).eq('id', fee.id);
         if (error) throw error;
         remaining -= paying;
@@ -418,7 +447,7 @@ export default function EasyFee() {
     if (!result.success) { alert(`Payment failed: ${result.error}`); return; }
     // Refresh child's fees
     const { data: updated } = await supabase
-      .from('fee_records').select('id, invoice_number, month_year, total_amount, paid_amount, status, breakdown')
+      .from('fee_records').select('id, invoice_number, month_year, total_amount, paid_amount, status, due_date, breakdown')
       .eq('student_id', child.id).is('deleted_at', null).order('month_year', { ascending: true }).limit(12);
     setChildFees(prev => ({ ...prev, [child.id]: updated || [] }));
     setPayingChildId(null);
@@ -442,7 +471,7 @@ export default function EasyFee() {
       results.push({ name: child.full_name, amount: amt, success: result.success, error: result.error });
       if (result.success) {
         const { data: updated } = await supabase
-          .from('fee_records').select('id, invoice_number, month_year, total_amount, paid_amount, status, breakdown')
+          .from('fee_records').select('id, invoice_number, month_year, total_amount, paid_amount, status, due_date, breakdown')
           .eq('student_id', child.id).is('deleted_at', null).order('month_year', { ascending: true }).limit(12);
         setChildFees(prev => ({ ...prev, [child.id]: updated || [] }));
       }
@@ -783,6 +812,40 @@ export default function EasyFee() {
                         <AlertCircle className="w-6 h-6 text-red-300" />
                       </div>
                     )}
+                    {/* Fine alert + waive toggle */}
+                    {totalFineAmount > 0 && (
+                      <div className={cn(
+                        'rounded-xl px-4 py-3 border flex items-center justify-between transition-all',
+                        waiveFine ? 'bg-slate-50 border-slate-200' : 'bg-amber-50 border-amber-200'
+                      )}>
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className={cn('w-4 h-4 shrink-0', waiveFine ? 'text-slate-400' : 'text-amber-500')} />
+                          <div>
+                            <p className={cn('text-xs font-black', waiveFine ? 'text-slate-400 line-through' : 'text-amber-800')}>
+                              Late Fine: Rs. {totalFineAmount.toLocaleString()}
+                            </p>
+                            <p className="text-[10px] text-slate-400">Applied to overdue invoices</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newWaive = !waiveFine;
+                            setWaiveFine(newWaive);
+                            setPayAmount(String(outstandingWithFine(feeHistory, fineRules, newWaive)));
+                          }}
+                          className={cn(
+                            'text-[10px] font-black px-2 py-1 rounded-lg border transition-all',
+                            waiveFine
+                              ? 'bg-slate-200 text-slate-600 border-slate-300 hover:bg-slate-300'
+                              : 'bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200'
+                          )}
+                        >
+                          {waiveFine ? 'Exemption On' : 'Exempt Fine'}
+                        </button>
+                      </div>
+                    )}
+
                     <form onSubmit={processPayment} className="space-y-4">
                       {totalOutstanding > 0 && (
                         <div className="space-y-1.5">

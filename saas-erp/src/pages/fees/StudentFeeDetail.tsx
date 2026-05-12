@@ -461,7 +461,12 @@ export default function StudentFeeDetail() {
   };
 
   const calculateTotalDue = () => {
-    return invoices.reduce((s, inv) => s + (inv.total_amount - (inv.paid_amount || 0)), 0);
+    return invoices.reduce((s, inv) => {
+      const base = inv.total_amount - (inv.paid_amount || 0);
+      if (inv.status === 'paid') return s + base;
+      const { totalFine } = calculateLateFine(inv, fineRules);
+      return s + base + totalFine;
+    }, 0);
   };
 
   // ── Derived stat values ────────────────────────────────────────────────────
@@ -779,9 +784,20 @@ export default function StudentFeeDetail() {
                             <p className="font-medium text-emerald-600">Rs. {(inv.paid_amount || 0).toLocaleString()}</p>
                           </td>
                           <td className="px-3 py-3 text-right">
-                            <p className="font-bold text-gray-900">
-                              Rs. {(inv.total_amount - (inv.paid_amount || 0)).toLocaleString()}
-                            </p>
+                            {(() => {
+                              const base = inv.total_amount - (inv.paid_amount || 0);
+                              const { totalFine } = inv.status !== 'paid' ? calculateLateFine(inv, fineRules) : { totalFine: 0 };
+                              return (
+                                <div className="flex flex-col items-end gap-0.5">
+                                  <p className="font-bold text-gray-900">Rs. {(base + totalFine).toLocaleString()}</p>
+                                  {totalFine > 0 && (
+                                    <span className="text-[9px] bg-amber-100 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5 font-bold">
+                                      +Rs.{totalFine.toLocaleString()} fine
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </td>
                           <td className="px-3 py-3 text-center">
                             <span className={cn(
@@ -802,7 +818,12 @@ export default function StudentFeeDetail() {
                                 </button>
                               ) : (
                                 <button
-                                  onClick={() => { setPayingInvoice(inv); setPaymentAmount(inv.total_amount - (inv.paid_amount || 0)); }}
+                                  onClick={() => {
+                                    const { totalFine } = calculateLateFine(inv, fineRules);
+                                    setPayingInvoice(inv);
+                                    setWaiveFine(false);
+                                    setPaymentAmount(inv.total_amount - (inv.paid_amount || 0) + totalFine);
+                                  }}
                                   className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-indigo-700 transition-colors whitespace-nowrap"
                                 >
                                   Collect
