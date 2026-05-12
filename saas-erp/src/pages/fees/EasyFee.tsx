@@ -134,8 +134,11 @@ export default function EasyFee() {
   const thisMonthBalance = useMemo(() => {
     const m = new Date().toISOString().slice(0, 7);
     const inv = pendingInvoices.find(f => f.month_year.startsWith(m));
-    return inv ? Number(inv.total_amount) - Number(inv.paid_amount) : 0;
-  }, [pendingInvoices]);
+    if (!inv) return 0;
+    const base = Number(inv.total_amount) - Number(inv.paid_amount);
+    const { totalFine } = waiveFine ? { totalFine: 0 } : calculateLateFine(inv, fineRules);
+    return base + totalFine;
+  }, [pendingInvoices, fineRules, waiveFine]);
 
   const allocationPreview = useMemo(() => {
     const amt = parseFloat(payAmount) || 0;
@@ -252,8 +255,9 @@ export default function EasyFee() {
       .order('month_year', { ascending: false })
       .limit(12);
     setFeeHistory(fees || []);
-    const unpaid = outstanding(fees || []);
-    setPayAmount(unpaid > 0 ? String(unpaid) : '');
+    setWaiveFine(false);
+    const total = outstandingWithFine(fees || [], fineRules, false);
+    setPayAmount(total > 0 ? String(total) : '');
     setLoadingDetails(false);
   };
 
@@ -803,15 +807,22 @@ export default function EasyFee() {
 
                   {/* Payment form */}
                   <Card className="md:col-span-2 p-5 space-y-4">
-                    {totalOutstanding > 0 && (
-                      <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 flex items-center justify-between">
-                        <div>
-                          <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-0.5">Outstanding</p>
-                          <p className="text-xl font-black text-red-700 tabular-nums">Rs {totalOutstanding.toLocaleString()}</p>
+                    {totalOutstanding > 0 && (() => {
+                      const currentMonth = new Date().toISOString().slice(0, 7);
+                      const arrearCount = pendingInvoices.filter(f => f.month_year.slice(0, 7) < currentMonth).length;
+                      return (
+                        <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 flex items-center justify-between">
+                          <div>
+                            <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-0.5">Outstanding</p>
+                            <p className="text-xl font-black text-red-700 tabular-nums">Rs {totalOutstanding.toLocaleString()}</p>
+                            {arrearCount > 0 && (
+                              <p className="text-[10px] font-bold text-red-400 mt-0.5">{arrearCount} month{arrearCount > 1 ? 's' : ''} in arrears</p>
+                            )}
+                          </div>
+                          <AlertCircle className="w-6 h-6 text-red-300" />
                         </div>
-                        <AlertCircle className="w-6 h-6 text-red-300" />
-                      </div>
-                    )}
+                      );
+                    })()}
                     {/* Fine alert + waive toggle */}
                     {totalFineAmount > 0 && (
                       <div className={cn(
