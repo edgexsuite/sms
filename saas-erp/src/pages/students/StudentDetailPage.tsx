@@ -592,7 +592,7 @@ export default function StudentDetailPage() {
               <div>
                 <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Amount Collecting (Rs.)</label>
                 <input
-                  type="number" min="1" step="1"
+                  type="text" inputMode="numeric" pattern="[0-9]*"
                   value={collectAmount}
                   onChange={e => setCollectAmount(e.target.value)}
                   placeholder={(() => {
@@ -1594,8 +1594,7 @@ export default function StudentDetailPage() {
                 <div>
                   <label className="block text-[10px] font-black text-gray-500 uppercase mb-1">Amount Already Paid (Rs)</label>
                   <input
-                    type="number"
-                    min="0"
+                    type="text" inputMode="numeric" pattern="[0-9]*"
                     value={newEntryPaid}
                     onChange={e => setNewEntryPaid(e.target.value)}
                     placeholder="0 if unpaid"
@@ -1693,7 +1692,7 @@ export default function StudentDetailPage() {
               </div>
               <div>
                 <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Amount Paid (Rs)</label>
-                <input type="number" value={editForm.paid_amount} onChange={e => setEditForm({...editForm, paid_amount: e.target.value})}
+                <input type="text" inputMode="numeric" pattern="[0-9]*" value={editForm.paid_amount} onChange={e => setEditForm({...editForm, paid_amount: e.target.value})}
                   className="w-full px-3 py-2 border rounded-xl font-mono text-sm font-bold text-emerald-600" />
               </div>
               <button onClick={handleUpdateFeeRecord} disabled={editSaving}
