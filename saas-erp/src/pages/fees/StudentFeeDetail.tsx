@@ -890,13 +890,15 @@ export default function StudentFeeDetail() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] overflow-y-auto flex items-start sm:items-center justify-center p-4 sm:p-6"
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] overflow-y-auto"
           >
+            {/* centering wrapper — min-h-full makes my-auto work correctly */}
+            <div className="flex min-h-full items-center justify-center p-4 py-8">
             <motion.div
               initial={{ scale: 0.95, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 20 }}
-              className="w-full max-w-sm bg-white rounded-3xl shadow-2xl flex flex-col my-auto"
+              className="w-full max-w-sm bg-white rounded-3xl shadow-2xl flex flex-col"
             >
               {/* Modal Header */}
               <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-5 py-4 flex items-center justify-between text-white shrink-0">
@@ -1008,6 +1010,7 @@ export default function StudentFeeDetail() {
                 </button>
               </div>
             </motion.div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1017,11 +1020,12 @@ export default function StudentFeeDetail() {
         {editingInvoice && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] overflow-y-auto flex items-start sm:items-center justify-center p-4 sm:p-6 text-left"
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] overflow-y-auto text-left"
           >
+            <div className="flex min-h-full items-center justify-center p-4 py-8">
             <motion.div
               initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-              className="w-full max-w-md bg-white rounded-3xl shadow-2xl flex flex-col my-auto"
+              className="w-full max-w-md bg-white rounded-3xl shadow-2xl flex flex-col"
             >
               <div className="bg-slate-900 px-6 py-4 flex items-center justify-between text-white shrink-0">
                 <div>
@@ -1108,6 +1112,7 @@ export default function StudentFeeDetail() {
                 </div>
               </div>
             </motion.div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
