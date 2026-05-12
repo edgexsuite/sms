@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -515,8 +516,8 @@ export default function StudentDetailPage() {
       )}
 
       {/* ── Inline Collect Payment Modal ── */}
-      {collectingFee && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      {createPortal(collectingFee && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
             <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4 flex items-center justify-between">
               <div>
@@ -642,7 +643,7 @@ export default function StudentDetailPage() {
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
 
       {/* Fee Override Modal */}
       {showFeeOverrideModal && student && (
@@ -1497,8 +1498,8 @@ export default function StudentDetailPage() {
     </div>
 
       {/* ── New Custom Fee Entry Modal ── */}
-      {showNewEntry && student && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      {createPortal(showNewEntry && student && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
             {/* Header */}
             <div className={`px-6 py-4 flex items-center justify-between flex-shrink-0 ${newEntryType === 'onetime' ? 'bg-gradient-to-r from-amber-600 to-orange-600' : 'bg-gradient-to-r from-indigo-600 to-violet-600'}`}>
@@ -1634,11 +1635,11 @@ export default function StudentDetailPage() {
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
 
       {/* ── Edit Fee Record Modal ── */}
-      {editingFee && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      {createPortal(editingFee && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
             <div className="bg-slate-900 px-6 py-4 flex items-center justify-between">
               <h2 className="text-white font-black text-sm uppercase tracking-widest">Edit Fee Invoice</h2>
@@ -1702,7 +1703,7 @@ export default function StudentDetailPage() {
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
     </>
   );
 }

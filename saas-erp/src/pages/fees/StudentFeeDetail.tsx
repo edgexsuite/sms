@@ -884,13 +884,14 @@ export default function StudentFeeDetail() {
       )}
 
       {/* ── Payment Modal ─────────────────────────────────────────────── */}
+      {createPortal(
       <AnimatePresence>
         {payingInvoice && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
           >
             <motion.div
               initial={{ scale: 0.95, y: 20 }}
@@ -1012,13 +1013,15 @@ export default function StudentFeeDetail() {
           </motion.div>
         )}
       </AnimatePresence>
+      , document.body)}
 
       {/* Edit Modal */}
+      {createPortal(
       <AnimatePresence>
         {editingInvoice && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 text-left"
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 text-left"
           >
             <motion.div
               initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
@@ -1112,6 +1115,7 @@ export default function StudentFeeDetail() {
           </motion.div>
         )}
       </AnimatePresence>
+      , document.body)}
 
       {/* New Invoice Modal */}
       {/* Unified New Invoice Modal Component */}
