@@ -10,6 +10,7 @@ import SMSHistory from './SMSHistory';
 import QRScanner from './QRScanner';
 import StaffAttendance from './StaffAttendance';
 import StaffAttendanceReport from './StaffAttendanceReport';
+import StaffDailyReport from './StaffDailyReport';
 
 export default function AttendanceLayout() {
   return (
@@ -23,6 +24,7 @@ export default function AttendanceLayout() {
       <Route path="scanner" element={<QRScanner />} />
       <Route path="staff" element={<StaffAttendance />} />
       <Route path="staff-report" element={<StaffAttendanceReport />} />
+      <Route path="staff-daily" element={<StaffDailyReport />} />
       <Route path="*" element={<Navigate to="/attendance" replace />} />
     </Routes>
   );
