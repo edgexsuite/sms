@@ -32,14 +32,22 @@ interface FeeRecord {
   due_date: string;
   paid_at: string | null;
   payment_mode: string | null;
+  student_id: string;
   students: {
+    id: string;
     full_name: string;
     roll_number: number;
+    parent_id: string;
+    parents: {
+      whatsapp_number: string;
+    } | null;
+    class_id: string;
     classes: {
+      id: string;
       name: string;
       section: string;
-    };
-  };
+    } | null;
+  } | null;
 }
 
 export default function CollectionReport() {
@@ -77,53 +85,75 @@ export default function CollectionReport() {
     setLoading(true);
 
     try {
-      let query = supabase
+      // 1. Fetch all fee records for the school with student and class info
+      const { data, error } = await supabase
         .from('fee_records')
         .select(`
           *,
-          students!inner (
+          students (
+            id,
             full_name,
             roll_number,
+            parent_id,
+            parents (whatsapp_number),
+            class_id,
             is_deleted,
-            classes (name, section)
+            classes (id, name, section)
           )
         `)
         .eq('school_id', userRole.school_id)
-        .eq('students.is_deleted', false)
         .is('deleted_at', null)
         .order('month_year', { ascending: false });
 
-      if (selectedClass) {
-        query = query.eq('students.class_id', selectedClass);
-      }
-      if (selectedStatus !== 'all') {
-        query = query.eq('status', selectedStatus);
-      }
-      if (selectedMonth) {
-        query = query.eq('month_year', `${selectedMonth}-01`);
-      }
-      
-      // If we have date filters, we want to see records that were either PAID in that range
-      // OR are pending/partial (so we can see outstanding).
-      // However, if the user explicitly wants a "Collection Report" for a period,
-      // they usually want to see what came IN.
-      if (startDate) {
-        query = query.gte('paid_at', `${startDate}T00:00:00Z`);
-      }
-      if (endDate) {
-        query = query.lte('paid_at', `${endDate}T23:59:59Z`);
-      }
-
-      const { data, error } = await query;
       if (error) throw error;
 
-      // Local filtering for student name/roll number and class (since join filtering in Supabase can be tricky)
+      // 2. Perform ALL filtering in Javascript for 100% reliability
       let filtered = (data || []) as FeeRecord[];
-      
+
+      // Filter out deleted students
+      filtered = filtered.filter(r => r.students && r.students.is_deleted === false);
+
+      // Class Filter
       if (selectedClass) {
-        filtered = filtered.filter(r => (r.students as any)?.classes?.id === selectedClass || (r as any).students?.class_id === selectedClass);
+        filtered = filtered.filter(r => r.students?.class_id === selectedClass);
       }
 
+      // Status Filter
+      if (selectedStatus !== 'all') {
+        filtered = filtered.filter(r => r.status === selectedStatus);
+      }
+
+      // Month Filter (YYYY-MM-01)
+      if (selectedMonth) {
+        const m = `${selectedMonth}-01`;
+        filtered = filtered.filter(r => r.month_year === m);
+      }
+
+      // Date Range Filter (Smart logic)
+      if (startDate || endDate) {
+        const start = startDate ? new Date(startDate) : null;
+        const end = endDate ? new Date(endDate) : null;
+        if (end) end.setHours(23, 59, 59, 999);
+
+        filtered = filtered.filter(r => {
+          if (r.status === 'pending') {
+            // For pending, filter by billing month
+            const rMonth = new Date(r.month_year);
+            if (start && rMonth < start) return false;
+            if (end && rMonth > end) return false;
+            return true;
+          } else {
+            // For paid/partial, filter by payment date
+            if (!r.paid_at) return false;
+            const rPaid = new Date(r.paid_at);
+            if (start && rPaid < start) return false;
+            if (end && rPaid > end) return false;
+            return true;
+          }
+        });
+      }
+
+      // Search Query
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         filtered = filtered.filter(r => 
@@ -135,7 +165,7 @@ export default function CollectionReport() {
 
       setRecords(filtered);
 
-      // Fetch global stats for reference
+      // Fetch global stats for reference (Total School Pending)
       const { data: gData } = await supabase
         .from('fee_records')
         .select('total_amount, paid_amount, students!inner(is_deleted)')
@@ -146,7 +176,7 @@ export default function CollectionReport() {
       if (gData) {
         const gTotal = gData.reduce((s, r) => s + (Number(r.total_amount) || 0), 0);
         const gColl = gData.reduce((s, r) => s + (Number(r.paid_amount) || 0), 0);
-        setGlobalStats({ total: gTotal, collected: gColl, pending: gTotal - gColl });
+        setGlobalStats({ total: gTotal, collected: gColl, pending: Math.max(0, gTotal - gColl) });
       }
     } catch (err) {
       console.error('Error fetching collection records:', err);
@@ -199,6 +229,7 @@ export default function CollectionReport() {
     const tableData = records.map((r, i) => [
       i + 1,
       r.students?.full_name || 'N/A',
+      r.students?.parents?.whatsapp_number || 'N/A',
       r.students?.roll_number || 'N/A',
       r.students?.classes ? `${r.students.classes.name}-${r.students.classes.section}` : 'N/A',
       formatDate(r.month_year),
@@ -210,7 +241,7 @@ export default function CollectionReport() {
 
     autoTable(doc, {
       startY: 55,
-      head: [['#', 'Student Name', 'Roll #', 'Class', 'Month', 'Status', 'Invoiced', 'Collected', 'Balance']],
+      head: [['#', 'Student Name', 'Contact', 'Roll #', 'Class', 'Month', 'Status', 'Invoiced', 'Collected', 'Balance']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [13, 21, 38], textColor: 255 },
@@ -235,6 +266,7 @@ export default function CollectionReport() {
   const handleExportCSV = () => {
     const headers = [
       { header: 'Student Name', key: (r: any) => r.students?.full_name },
+      { header: 'Contact', key: (r: any) => r.students?.parents?.whatsapp_number },
       { header: 'Roll #', key: (r: any) => r.students?.roll_number },
       { header: 'Class', key: (r: any) => r.students?.classes ? `${r.students.classes.name}-${r.students.classes.section}` : 'N/A' },
       { header: 'Month', key: (r: any) => formatDate(r.month_year) },

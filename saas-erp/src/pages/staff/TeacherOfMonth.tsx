@@ -155,7 +155,7 @@ export default function TeacherOfMonth() {
       await supabase.from('staff_evaluations').insert(evaluationData);
     }
 
-    fetchEvaluations(); 
+    await fetchEvaluations(); 
     setExpandedTeacher(null);
     setSaving(null);
   };
@@ -163,8 +163,18 @@ export default function TeacherOfMonth() {
   const handleReset = async (teacherId: string) => {
     if (!confirm('Are you sure you want to completely clear this evaluation?')) return;
     setSaving(teacherId);
-    await supabase.from('staff_evaluations').delete().eq('staff_id', teacherId).eq('evaluation_month', `${selectedMonth}-01`);
-    fetchEvaluations(); 
+    
+    // Optimistically clear from UI
+    setEvaluations(prev => prev.filter(e => e.staff_id !== teacherId));
+
+    const { error } = await supabase.from('staff_evaluations').delete().eq('staff_id', teacherId).eq('evaluation_month', `${selectedMonth}-01`);
+    
+    if (error) {
+      console.error('Error clearing evaluation:', error);
+      alert('Failed to clear evaluation. Please try again.');
+    } else {
+      await fetchEvaluations(); 
+    }
     setExpandedTeacher(null); 
     setSaving(null);
   };

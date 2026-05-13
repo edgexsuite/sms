@@ -76,7 +76,8 @@ export default function DefaulterReport() {
             full_name,
             roll_number,
             father_name,
-            father_contact,
+            parent_id,
+            parents (whatsapp_number),
             class_id,
             is_deleted,
             classes (name, section)
@@ -103,23 +104,23 @@ export default function DefaulterReport() {
         const balance = Number(r.total_amount) - Number(r.paid_amount);
         if (balance <= 0) return;
 
-        if (studentMap.has(student.id)) {
-          const existing = studentMap.get(student.id)!;
-          existing.total_pending += balance;
-          existing.unpaid_months.push(formatDate(r.month_year));
-        } else {
+        if (!studentMap.has(student.id)) {
           studentMap.set(student.id, {
             student_id: student.id,
             student_name: student.full_name,
             roll_number: student.roll_number,
             class_name: student.classes?.name || 'N/A',
-            section: student.classes?.section || '',
+            section: student.classes?.section || 'N/A',
             father_name: student.father_name || 'N/A',
-            father_contact: student.father_contact || '',
-            total_pending: balance,
-            unpaid_months: [formatDate(r.month_year)]
+            father_contact: student.parents?.whatsapp_number || 'N/A',
+            total_pending: 0,
+            unpaid_months: []
           });
         }
+        
+        const existing = studentMap.get(student.id)!;
+        existing.total_pending += balance;
+        existing.unpaid_months.push(formatDate(r.month_year));
       });
 
       // 3. Convert to array and apply Min Balance + Search

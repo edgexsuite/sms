@@ -13,7 +13,13 @@ type Invoice = {
   id: string; student_id: string; total_amount: number; paid_amount: number;
   discount_amount: number; status: string; month_year: string; due_date: string;
   invoice_number: string; breakdown: any[];
-  students: { full_name: string; roll_number: string; class_id: string; classes: { name: string; section: string } | null } | null;
+  students: { 
+    full_name: string; 
+    roll_number: string; 
+    class_id: string; 
+    parents: { whatsapp_number: string } | null;
+    classes: { name: string; section: string } | null 
+  } | null;
 };
 
 function fmt(n: number) { return 'Rs. ' + Math.round(n).toLocaleString(); }
@@ -50,7 +56,7 @@ export default function InvoiceReport() {
     setLoading(true);
     const { data } = await supabase
       .from('fee_records')
-      .select('id, student_id, total_amount, paid_amount, discount_amount, status, month_year, due_date, invoice_number, breakdown, students!inner(full_name, roll_number, class_id, is_deleted, classes(name, section))')
+      .select('id, student_id, total_amount, paid_amount, discount_amount, status, month_year, due_date, invoice_number, breakdown, students!inner(full_name, roll_number, class_id, is_deleted, parents(whatsapp_number), classes(name, section))')
       .eq('school_id', userRole!.school_id)
       .eq('students.is_deleted', false)
       .is('deleted_at', null)
@@ -67,7 +73,13 @@ export default function InvoiceReport() {
   const filtered = useMemo(() => invoices.filter(inv => {
     if (classFilter && inv.students?.class_id !== classFilter) return false;
     if (monthFilter && !inv.month_year?.startsWith(monthFilter)) return false;
-    if (statusFilter && inv.status !== statusFilter) return false;
+    if (statusFilter) {
+      if (statusFilter === 'pending') {
+        if (inv.status !== 'pending' && inv.status !== 'partial') return false;
+      } else {
+        if (inv.status !== statusFilter) return false;
+      }
+    }
     if (search) {
       const q = search.toLowerCase();
       if (!inv.students?.full_name?.toLowerCase().includes(q) && !inv.invoice_number?.toLowerCase().includes(q)) return false;
@@ -89,6 +101,7 @@ export default function InvoiceReport() {
       if (!m.has(sid)) {
         m.set(sid, {
           id: sid, name: inv.students?.full_name || '—', roll: inv.students?.roll_number || '—',
+          contact: inv.students?.parents?.whatsapp_number || '—',
           className: inv.students?.classes ? `${inv.students.classes.name} ${inv.students.classes.section}` : '—',
           class_id: inv.students?.class_id,
           billed: 0, paid: 0, count: 0, worstStatus: 'paid',
@@ -203,8 +216,8 @@ export default function InvoiceReport() {
 
   const exportCSV = () => {
     const rows = [
-      ['Student', 'Roll', 'Class', 'Invoices', 'Total Billed', 'Total Paid', 'Balance Due', 'Status'],
-      ...studentMap.map(s => [s.name, s.roll, s.className, s.count, s.billed, s.paid, s.balance, s.worstStatus])
+      ['Student', 'Roll', 'Contact', 'Class', 'Invoices', 'Total Billed', 'Total Paid', 'Balance Due', 'Status'],
+      ...studentMap.map(s => [s.name, s.roll, s.contact, s.className, s.count, s.billed, s.paid, s.balance, s.worstStatus])
     ];
     const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
@@ -336,6 +349,7 @@ export default function InvoiceReport() {
                     <th className="px-4 py-3">Sr#</th>
                     <th className="px-4 py-3">Roll #</th>
                     <th className="px-4 py-3">Student</th>
+                    <th className="px-4 py-3">Contact</th>
                     <th className="px-4 py-3">Class</th>
                     <th className="px-4 py-3 text-right">Inv.</th>
                     {showBreakdown && breakdownKeys.map(k => (
@@ -363,6 +377,7 @@ export default function InvoiceReport() {
                       <td className="px-4 py-3 text-xs font-bold text-slate-400">{idx + 1}</td>
                       <td className="px-4 py-3 text-xs font-bold text-slate-400">{s.roll}</td>
                       <td className="px-4 py-3 text-sm font-black text-slate-800">{s.name}</td>
+                      <td className="px-4 py-3 text-xs font-bold text-slate-500">{s.contact}</td>
                       <td className="px-4 py-3 text-xs font-bold text-slate-500">{s.className}</td>
                       <td className="px-4 py-3 text-xs font-bold text-slate-500 text-right">{s.count}</td>
                       {showBreakdown && breakdownKeys.map(k => (
