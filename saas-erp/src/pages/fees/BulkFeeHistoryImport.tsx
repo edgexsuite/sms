@@ -143,8 +143,10 @@ export default function BulkFeeHistoryImport() {
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
-        const wb   = XLSX.read(evt.target?.result, { type: 'binary' });
-        const ws   = wb.Sheets[wb.SheetNames[0]];
+        const wb   = XLSX.read(evt.target?.result, { type: 'binary', cellFormula: false, cellNF: false });
+        // Prefer 'Fee Record' sheet if it exists, else first sheet
+        const sheetName = wb.SheetNames.includes('Fee Record') ? 'Fee Record' : wb.SheetNames[0];
+        const ws   = wb.Sheets[sheetName];
         const raw  = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as any[][];
 
         // Find header row (search first 8 rows for "Student Name" / "Name")
@@ -189,18 +191,27 @@ export default function BulkFeeHistoryImport() {
           return;
         }
 
-        const parsed: ParsedRow[] = dataRows.map((r, idx) => ({
-          _idx:          idx,
-          studentName:   String(r[iName]  ?? '').trim(),
-          fatherName:    iFather  >= 0 ? String(r[iFather]  ?? '').trim() : '',
-          classNum:      iClass   >= 0 ? String(r[iClass]   ?? '').trim() : '',
-          feePaid:       iPaid    >= 0 ? toMoney(r[iPaid])   : 0,
-          pendingArrears:iPending >= 0 ? toMoney(r[iPending]): 0,
-          status:        iStatus  >= 0 ? String(r[iStatus]  ?? '').trim() : 'NILL',
-          actualFee:     iActual  >= 0 ? toMoney(r[iActual]) : 0,
-          paymentMode:   iMode    >= 0 ? String(r[iMode]    ?? 'Cash').trim() : 'Cash',
-          remarks:       iRemark  >= 0 ? String(r[iRemark]  ?? '').trim() : '',
-        }));
+        const cleanStr = (v: any) => String(v ?? '').replace(/[\t\r\n]+/g, ' ').trim();
+
+        const parsed: ParsedRow[] = dataRows.map((r, idx) => {
+          const feePaid       = iPaid    >= 0 ? toMoney(r[iPaid])    : 0;
+          const pendingArrears= iPending >= 0 ? toMoney(r[iPending]) : 0;
+          // Actual fee may be a formula cell (reads as 0/NaN) — fall back to feePaid + arrears
+          const rawActual     = iActual  >= 0 ? toMoney(r[iActual])  : 0;
+          const actualFee     = rawActual > 0 ? rawActual : feePaid + pendingArrears;
+          return {
+            _idx:          idx,
+            studentName:   cleanStr(r[iName]),
+            fatherName:    iFather  >= 0 ? cleanStr(r[iFather])  : '',
+            classNum:      iClass   >= 0 ? cleanStr(r[iClass])   : '',
+            feePaid,
+            pendingArrears,
+            status:        iStatus  >= 0 ? cleanStr(r[iStatus])  : '',
+            actualFee,
+            paymentMode:   iMode    >= 0 ? (cleanStr(r[iMode]) || 'Cash') : 'Cash',
+            remarks:       iRemark  >= 0 ? cleanStr(r[iRemark])  : '',
+          };
+        });
 
         // Match each row
         const matched: MatchedRow[] = parsed.map(p => {
