@@ -126,8 +126,8 @@ export default function PromoteStudents() {
                     <span className="text-sm font-medium text-gray-700">Select All ({selectedStudents.size} / {students.length})</span>
                   </div>
                 </div>
-                <div className="max-h-[500px] overflow-y-auto">
-                  <table className="w-full text-left text-sm">
+                <div className="max-h-[500px] overflow-y-auto overflow-x-auto">
+                  <table className="w-full text-left text-sm min-w-[400px]">
                     <tbody className="divide-y divide-gray-200">
                       {students.map(stu => (
                         <tr key={stu.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => toggleStudent(stu.id)}>

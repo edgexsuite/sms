@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { FileText, Download, ChevronLeft, ChevronRight, Printer } from 'lucide-react';
+import { FileText, Download, ChevronLeft, ChevronRight, Printer, MessageCircle } from 'lucide-react';
 import { formatDate } from '../../lib/utils';
 import { downloadSalarySlips, generateSalarySlipsPDF, SlipData } from '../../lib/salarySlipUtils';
+import { openWhatsApp, staffPayslipTemplate } from '../../lib/whatsappTemplates';
 
 export default function SalarySlips() {
   const { userRole } = useAuth();
@@ -34,7 +35,7 @@ export default function SalarySlips() {
     setLoading(true);
     const { data, error } = await supabase
       .from('payroll_records')
-      .select('*, staff(full_name, role, department, cnic)')
+      .select('*, staff(full_name, role, department, cnic, whatsapp_number)')
       .eq('school_id', userRole!.school_id)
       .eq('month_year', selectedMonth + '-01')
       .order('created_at');
@@ -204,6 +205,23 @@ export default function SalarySlips() {
                     <Download className="w-4 h-4" />
                     {generating === slip.id ? 'Generating…' : 'Download PDF (2 copies)'}
                   </button>
+                  {slip.staff?.whatsapp_number && (
+                    <button
+                      onClick={() => openWhatsApp(
+                        slip.staff.whatsapp_number,
+                        staffPayslipTemplate({
+                          staffName: slip.staff.full_name,
+                          month: selectedMonth,
+                          amount: slip.net_salary || 0,
+                          schoolName,
+                        })
+                      )}
+                      className="w-full flex items-center justify-center gap-2 py-2 border border-green-200 text-green-700 text-sm font-medium rounded-lg hover:bg-green-50 transition-colors"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      Send via WhatsApp
+                    </button>
+                  )}
                 </div>
               </div>
             );

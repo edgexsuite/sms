@@ -65,6 +65,16 @@ export function resultNotificationTemplate(vars: TemplateVars): string {
   return `Dear Parent,\n\nThe result for *${vars.examName}* has been published for *${vars.studentName}* (${vars.className}).\n\n${vars.resultSummary ? vars.resultSummary + '\n\n' : ''}Please log in to the Parent Portal to view the detailed result card.\n\n— ${vars.schoolName || 'School Management'}`;
 }
 
+/** Fee payment receipt — sent after a successful fee collection */
+export function paymentReceiptTemplate(vars: TemplateVars): string {
+  return `✅ *Fee Receipt Confirmation*\n\nDear Parent,\n\nWe acknowledge receipt of the following payment:\n\n*Student:* ${vars.studentName}\n*Class:* ${vars.className}\n*Month(s):* ${vars.month || '—'}\n*Amount Paid:* Rs. ${fmt(vars.amount)}\n*Payment Mode:* ${vars.customMessage || '—'}\n*Date:* ${vars.dueDate || '—'}\n\nThank you for the timely payment.\n\n— ${vars.schoolName || 'School Management'}`;
+}
+
+/** Staff salary slip notification */
+export function staffPayslipTemplate(vars: TemplateVars): string {
+  return `💼 *Salary Slip — ${vars.month || ''}*\n\nDear ${vars.staffName || 'Staff'},\n\nYour salary for *${vars.month}* has been processed.\n\n*Net Salary:* Rs. ${fmt(vars.amount)}\n\nPlease contact accounts for your printed salary slip.\n\n— ${vars.schoolName || 'School Management'}`;
+}
+
 /** Custom / general announcement */
 export function customTemplate(vars: TemplateVars): string {
   return `Dear ${vars.parentName || 'Parent'},\n\n${vars.customMessage || ''}\n\n— ${vars.schoolName || 'School Management'}`;

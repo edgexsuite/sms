@@ -643,7 +643,7 @@ export default function RegisterStudent() {
       }
 
       // 4. Fetch next roll numbers for each unique class in the batch
-      const uniqueClassIds = [...new Set(students.map(s => s.class_id).filter(Boolean))];
+      const uniqueClassIds = [...new Set(students.map(s => s.class_id).filter(Boolean))] as string[];
       const rollNumberMap: Record<string, number> = {};
       
       for (const cid of uniqueClassIds) {

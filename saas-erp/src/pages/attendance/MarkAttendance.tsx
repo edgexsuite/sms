@@ -1,18 +1,22 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   CalendarCheck, Search, CheckCircle, XCircle, Clock, Save,
   MessageSquare, AlertTriangle, Users, Calendar, Filter,
-  ChevronRight, AlertCircle, Send, Check, Umbrella
+  ChevronRight, AlertCircle, Send, Check, Umbrella, X, RotateCcw
 } from 'lucide-react';
-import { PageHeader, Card, Btn, Badge, Select, Input, EmptyState } from '../../components/ui';
+import { motion, AnimatePresence } from 'motion/react';
+import { PageHeader, Card, Btn, Badge, Select, Input, EmptyState, useToast, Toast } from '../../components/ui';
 import { cn } from '../../lib/utils';
 import { absenceAlertTemplate, cleanWhatsAppNumber, buildWhatsAppLink } from '../../lib/whatsappTemplates';
 
 export default function MarkAttendance() {
   const { userRole, user } = useAuth();
+  const { toast, showToast, hideToast } = useToast();
   const [classes, setClasses] = useState<any[]>([]);
+  const [classesLoading, setClassesLoading] = useState(false);
   const [selectedClass, setSelectedClass] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   
@@ -20,6 +24,7 @@ export default function MarkAttendance() {
   const [attendance, setAttendance] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [undoing, setUndoing] = useState(false);
 
   // Post-save state
   const [hasSaved, setHasSaved] = useState(false);
@@ -28,6 +33,13 @@ export default function MarkAttendance() {
   const [vacations, setVacations] = useState<any[]>([]);
   const [activeVacation, setActiveVacation] = useState<any>(null);
   const [schoolName, setSchoolName] = useState('');
+
+  // Attendance summary popup
+  const [showSummary, setShowSummary] = useState(false);
+  const [summaryData, setSummaryData] = useState<{
+    className: string; teacherName: string; date: string;
+    present: number; absent: number; leave: number; late: number; total: number;
+  } | null>(null);
 
   useEffect(() => {
     if (userRole?.school_id) {
@@ -44,8 +56,13 @@ export default function MarkAttendance() {
   }, [selectedClass, date]);
 
   const fetchClasses = async () => {
-    const { data } = await supabase.from('classes').select('id, name, section').eq('school_id', userRole?.school_id).order('name');
+    setClassesLoading(true);
+    // staff(full_name) uses the reverse FK: staff.class_incharge_id → classes.id
+    const { data } = await supabase.from('classes')
+      .select('id, name, section, staff(full_name)')
+      .eq('school_id', userRole?.school_id).order('name');
     if (data) setClasses(data);
+    setClassesLoading(false);
   };
 
   const fetchVacations = async () => {
@@ -147,15 +164,51 @@ export default function MarkAttendance() {
        }
        
        setHasSaved(true);
-       
+
        // Calc absentees to show notification button
        const absentList = students.filter(s => attendance[s.id] === 'absent');
        setAbsentees(absentList);
-       
-       alert('Roll Call successfully logged to master database.');
-       
-    } catch(err: any) { alert(err.message); }
+
+       // Show summary popup — incharge already loaded via reverse FK join in fetchClasses
+       const cls = classes.find(c => c.id === selectedClass);
+       const inchargeArr = (cls as any)?.staff as { full_name: string }[] | undefined;
+       setSummaryData({
+         className:   cls ? `${cls.name}${cls.section ? ` (${cls.section})` : ''}` : '—',
+         teacherName: inchargeArr?.[0]?.full_name || 'Not Assigned',
+         date,
+         present: students.filter(s => attendance[s.id] === 'present').length,
+         absent:  absentList.length,
+         leave:   students.filter(s => attendance[s.id] === 'leave').length,
+         late:    students.filter(s => attendance[s.id] === 'late').length,
+         total:   students.length,
+       });
+       setShowSummary(true);
+
+    } catch(err: any) { showToast(err.message, 'error'); }
     setSaving(false);
+  };
+
+  const undoAttendance = async () => {
+    if (!window.confirm(`Delete all attendance records for this class on ${date}? This cannot be undone.`)) return;
+    setUndoing(true);
+    try {
+      const studentIds = students.map(s => s.id);
+      if (studentIds.length === 0) { showToast('No students loaded for this class.', 'error'); setUndoing(false); return; }
+      const { error, count } = await supabase.from('attendance')
+        .delete({ count: 'exact' })
+        .eq('date', date)
+        .in('student_id', studentIds);
+      if (error) throw error;
+      if (count === 0) throw new Error('No records found to delete — attendance may have already been cleared.');
+      // Reset to default state
+      const resetAtt: Record<string, string> = {};
+      students.forEach(s => { resetAtt[s.id] = 'present'; });
+      setAttendance(resetAtt);
+      setHasSaved(false);
+      setAbsentees([]);
+      showToast('Attendance cleared for this class.', 'info');
+    } catch (err: any) { showToast(err.message, 'error'); }
+    setUndoing(false);
   };
 
   const notifyAbsentees = async () => {
@@ -164,7 +217,7 @@ export default function MarkAttendance() {
     const withoutNumber = absentees.filter(s => !s.parents?.whatsapp_number);
 
     if (withNumber.length === 0) {
-      alert(`None of the ${absentees.length} absent students have a WhatsApp number on file. Add parent numbers in the Students module.`);
+      showToast(`No WhatsApp numbers on file for ${absentees.length} absent student(s). Add parent numbers in the Students module.`, 'info');
       return;
     }
 
@@ -206,10 +259,14 @@ export default function MarkAttendance() {
       });
 
       setAbsentees([]);
-      if (withoutNumber.length > 0) {
-        alert(`WhatsApp opened for ${withNumber.length} parent(s). ${withoutNumber.length} skipped — no number on file.`);
-      }
-    } catch (err: any) { alert(err.message); }
+      showToast(
+        withoutNumber.length > 0
+          ? `WhatsApp opened for ${withNumber.length} parent(s). ${withoutNumber.length} skipped — no number.`
+          : `WhatsApp opened for ${withNumber.length} parent(s).`,
+        'success',
+        6000
+      );
+    } catch (err: any) { showToast(err.message, 'error'); }
     setNotifying(false);
   };
 
@@ -223,6 +280,7 @@ export default function MarkAttendance() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <Toast toast={toast} onDismiss={hideToast} />
       <PageHeader
         title="Daily Roll Call"
         subtitle="Fast-action attendance marking with instant WhatsApp alerts for absentees."
@@ -249,10 +307,11 @@ export default function MarkAttendance() {
               value={selectedClass}
               onChange={(e) => setSelectedClass(e.target.value)}
               icon={Users}
+              disabled={classesLoading}
             >
-              <option value="">-- Choose Class --</option>
+              <option value="">{classesLoading ? 'Loading classes...' : '-- Choose Class --'}</option>
               {classes.map(c => (
-                <option key={c.id} value={c.id}>{c.name} ({c.section})</option>
+                <option key={c.id} value={c.id}>{c.name}{c.section ? ` (${c.section})` : ''}</option>
               ))}
             </Select>
           </div>
@@ -392,23 +451,38 @@ export default function MarkAttendance() {
             )}
           </div>
 
-          <div className="bg-slate-50 px-8 py-6 border-t border-slate-100 flex justify-end items-center gap-6">
-            <div className="hidden sm:block text-right">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Attendance Status</p>
-              <p className="text-xs font-bold text-slate-600">
-                {Object.values(attendance).filter(s => s === 'present').length} Present · {Object.values(attendance).filter(s => s === 'absent').length} Absent
-              </p>
+          <div className="bg-slate-50 px-8 py-6 border-t border-slate-100 flex justify-between items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              {hasSaved && ['admin', 'principal', 'director'].includes(userRole?.role ?? '') && (
+                <Btn
+                  variant="secondary"
+                  size="sm"
+                  disabled={undoing || students.length === 0}
+                  onClick={undoAttendance}
+                  icon={RotateCcw}
+                >
+                  {undoing ? 'Clearing...' : 'Undo Attendance'}
+                </Btn>
+              )}
             </div>
-            <Btn 
-              variant="primary" 
-              size="lg"
-              disabled={saving || students.length === 0} 
-              onClick={saveAttendance}
-              icon={Save}
-              className="px-10 py-4 shadow-xl shadow-indigo-600/20"
-            >
-              {saving ? 'Saving Records...' : 'Save & Lock Register'}
-            </Btn>
+            <div className="flex items-center gap-6">
+              <div className="hidden sm:block text-right">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Attendance Status</p>
+                <p className="text-xs font-bold text-slate-600">
+                  {Object.values(attendance).filter(s => s === 'present').length} Present · {Object.values(attendance).filter(s => s === 'absent').length} Absent
+                </p>
+              </div>
+              <Btn
+                variant="primary"
+                size="lg"
+                disabled={saving || students.length === 0}
+                onClick={saveAttendance}
+                icon={Save}
+                className="px-10 py-4 shadow-xl shadow-indigo-600/20"
+              >
+                {saving ? 'Saving Records...' : 'Save & Lock Register'}
+              </Btn>
+            </div>
           </div>
         </Card>
       ) : (
@@ -417,6 +491,82 @@ export default function MarkAttendance() {
           title="Select Class & Date"
           description="Choose a class section and date to begin marking attendance."
         />
+      )}
+
+      {/* Attendance Summary Modal */}
+      {createPortal(
+        <AnimatePresence>
+          {showSummary && summaryData && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[99999] flex items-center justify-center p-4"
+              onClick={() => setShowSummary(false)}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.92, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.92, y: 20 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+                onClick={e => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="bg-slate-900 px-6 py-5 flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <CalendarCheck className="w-4 h-4 text-emerald-400" />
+                      <span className="text-emerald-400 text-[10px] font-black uppercase tracking-widest">Attendance Logged</span>
+                    </div>
+                    <h2 className="text-white font-black text-lg">{summaryData.className}</h2>
+                    <p className="text-slate-400 text-xs mt-0.5">
+                      {summaryData.teacherName && summaryData.teacherName !== 'Not Assigned'
+                        ? `${summaryData.teacherName} · ` : ''}{summaryData.date}
+                    </p>
+                  </div>
+                  <button onClick={() => setShowSummary(false)} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors mt-0.5">
+                    <X className="w-4 h-4 text-slate-400" />
+                  </button>
+                </div>
+
+                {/* Stats grid */}
+                <div className="p-6 grid grid-cols-2 gap-3">
+                  {[
+                    { label: 'Present',  value: summaryData.present, color: 'bg-emerald-50', text: 'text-emerald-700', badge: 'bg-emerald-600' },
+                    { label: 'Absent',   value: summaryData.absent,  color: 'bg-rose-50',    text: 'text-rose-700',    badge: 'bg-rose-600'    },
+                    { label: 'On Leave', value: summaryData.leave,   color: 'bg-slate-100',  text: 'text-slate-700',   badge: 'bg-slate-600'   },
+                    { label: 'Late',     value: summaryData.late,    color: 'bg-amber-50',   text: 'text-amber-700',   badge: 'bg-amber-500'   },
+                  ].map(s => (
+                    <div key={s.label} className={`${s.color} rounded-xl p-4 flex items-center gap-3`}>
+                      <div className={`${s.badge} w-9 h-9 rounded-lg flex items-center justify-center`}>
+                        <span className="text-white font-black text-base">{s.value}</span>
+                      </div>
+                      <span className={`${s.text} text-xs font-black uppercase tracking-wider`}>{s.label}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Total + close */}
+                <div className="px-6 pb-6 flex items-center justify-between">
+                  <div className="bg-indigo-50 rounded-xl px-4 py-2.5 flex items-center gap-3">
+                    <div className="bg-indigo-600 w-8 h-8 rounded-lg flex items-center justify-center">
+                      <span className="text-white font-black text-sm">{summaryData.total}</span>
+                    </div>
+                    <span className="text-indigo-700 text-xs font-black uppercase tracking-wider">Total Students</span>
+                  </div>
+                  <button
+                    onClick={() => setShowSummary(false)}
+                    className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-colors"
+                  >
+                    Done
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
       )}
     </div>
   );

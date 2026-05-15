@@ -69,8 +69,8 @@ export default function ParentSMSHistory() {
            </p>
          </div>
       ) : (
-        <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-          <table className="w-full text-left text-sm">
+        <div className="bg-white rounded-lg shadow border border-gray-200 overflow-x-auto">
+          <table className="w-full text-left text-sm min-w-[640px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="p-4 font-medium text-gray-700">Sent Date</th>

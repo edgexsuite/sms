@@ -771,6 +771,7 @@ export default function StudentFeeDetail() {
                   </button>
                 </div>
               ) : (
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm min-w-[600px]">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
@@ -895,6 +896,7 @@ export default function StudentFeeDetail() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
           </div>

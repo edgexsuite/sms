@@ -122,6 +122,8 @@ export default function App() {
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/parent-portal" element={<ParentPortal />} />
               <Route path="/student-portal" element={<StudentPortal />} />
+              <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/admin/*" element={<Navigate to="/dashboard" replace />} />
               <Route path="/" element={
                 <ProtectedRoute>
                   <DashboardLayout />

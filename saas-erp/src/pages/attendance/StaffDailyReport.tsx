@@ -216,7 +216,8 @@ export default function StaffDailyReport() {
         'Notes':           att?.notes || '',
       };
     });
-    exportToExcel(rows, `Staff_Daily_Report_${date}`);
+    const columns = Object.keys(rows[0] || {}).map(k => ({ header: k, key: k }));
+    exportToExcel(`Staff_Daily_Report_${date}`, rows, columns);
   };
 
   const SortIcon = ({ col }: { col: typeof sortCol }) =>

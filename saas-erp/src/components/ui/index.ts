@@ -11,3 +11,4 @@ export * from './WelcomeBanner';
 export * from './CountUp';
 export * from './SmartDateInput';
 export * from './Toggle';
+export * from './Toast';

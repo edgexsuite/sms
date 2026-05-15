@@ -91,7 +91,7 @@ export default function ProgressReport() {
                   </div>
 
                   {/* Mock Academic Grades Table */}
-                  <div className="mb-8 relative">
+                  <div className="mb-8 relative overflow-x-auto">
                      <table className="w-full border-collapse border border-gray-800 text-center">
                        <thead className="bg-gray-100">
                          <tr>

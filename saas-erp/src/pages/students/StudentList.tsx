@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Search, Upload, Download, Trash2, BookOpen, FileSpreadsheet, UserPlus, Eye, X, ChevronDown, Users, CheckCircle, MoreVertical, Edit, UserX, Key, GraduationCap, LogOut, Shield, Filter } from 'lucide-react';
+import { Search, Upload, Download, Trash2, BookOpen, FileSpreadsheet, UserPlus, Eye, X, ChevronDown, Users, CheckCircle, MoreVertical, Edit, UserX, Key, GraduationCap, LogOut, Shield, Filter, RotateCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
 import DeletePinModal from '../../components/DeletePinModal';
@@ -97,6 +97,8 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
 
   // Bulk Selection States
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [undoToast, setUndoToast] = useState<{ message: string; ids: string[] } | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isBulkStatusOpen, setIsBulkStatusOpen] = useState(false);
   const [isBulkClassOpen, setIsBulkClassOpen] = useState(false);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
@@ -501,15 +503,32 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
     });
   };
 
+  const showUndoToast = (message: string, ids: string[]) => {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    setUndoToast({ message, ids });
+    undoTimerRef.current = setTimeout(() => setUndoToast(null), 6000);
+  };
+
+  const handleUndo = async () => {
+    if (!undoToast) return;
+    const { ids } = undoToast;
+    setUndoToast(null);
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    await supabase.from('students').update({ is_deleted: false, deleted_at: null }).in('id', ids);
+    fetchStudents();
+  };
+
   const executeDelete = async () => {
     if (!deleteModal.id) return;
+    const deletedId = deleteModal.id;
     try {
       const { error } = await supabase
         .from('students')
         .update({ is_deleted: true, deleted_at: new Date().toISOString() })
-        .eq('id', deleteModal.id);
+        .eq('id', deletedId);
       if (error) throw error;
       fetchStudents();
+      showUndoToast('Student moved to trash.', [deletedId]);
     } catch (error: any) {
       alert('Error moving student to trash: ' + error.message);
     }
@@ -552,16 +571,17 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
 
   const handleBulkDelete = async () => {
     if (!userRole?.school_id || selectedIds.length === 0) return;
+    const deletedIds = [...selectedIds];
     try {
       const { error } = await supabase
         .from('students')
         .update({ is_deleted: true, deleted_at: new Date().toISOString() })
-        .in('id', selectedIds);
+        .in('id', deletedIds);
       if (error) throw error;
-      alert(`Moved ${selectedIds.length} students to trash.`);
       setSelectedIds([]);
       setIsBulkDeleteModalOpen(false);
       fetchStudents();
+      showUndoToast(`${deletedIds.length} student${deletedIds.length > 1 ? 's' : ''} moved to trash.`, deletedIds);
     } catch (err: any) {
       alert(err.message);
     }
@@ -1943,6 +1963,31 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
         </div>,
         document.body
       )}
+
+      {/* ── Undo Delete Toast ── */}
+      <AnimatePresence>
+        {undoToast && createPortal(
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 24 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[99999] flex items-center gap-3 bg-slate-900 text-white text-sm font-semibold px-5 py-3.5 rounded-2xl shadow-2xl"
+          >
+            <Trash2 className="w-4 h-4 text-slate-400 shrink-0" />
+            <span>{undoToast.message}</span>
+            <button
+              onClick={handleUndo}
+              className="flex items-center gap-1.5 ml-2 px-3 py-1.5 bg-indigo-500 hover:bg-indigo-400 rounded-lg text-xs font-black transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" /> Undo
+            </button>
+            <button onClick={() => setUndoToast(null)} className="ml-1 p-1 rounded-lg hover:bg-white/10 transition-colors">
+              <X className="w-3.5 h-3.5 text-slate-400" />
+            </button>
+          </motion.div>,
+          document.body
+        )}
+      </AnimatePresence>
     </div>
   );
 }

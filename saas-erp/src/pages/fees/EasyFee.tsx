@@ -7,12 +7,13 @@ import {
   ArrowRight, Printer, History, Users,
   Receipt, Landmark, Clock, X as XIcon, Trash2, ExternalLink,
   DollarSign, Banknote, Smartphone, FileText,
-  AlertCircle, AlertTriangle, ChevronRight, UserCheck, User,
+  AlertCircle, AlertTriangle, ChevronRight, UserCheck, User, MessageCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatDate } from '../../lib/utils';
 import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, type ChallanConfig, type ChallanRecord, type SchoolInfo } from '../../lib/challanUtils';
 import { calculateLateFine, getFineRules, type FineRule } from '../../lib/fineUtils';
+import { openWhatsApp, paymentReceiptTemplate } from '../../lib/whatsappTemplates';
 import HelpBanner from '../../components/HelpBanner';
 import { PageHeader, Card, Btn, Badge, Select, Input } from '../../components/ui';
 
@@ -208,7 +209,7 @@ export default function EasyFee() {
       setIsSearching(true);
       let q = supabase
         .from('students')
-        .select('id, full_name, roll_number, class:class_id(name, section), parent:parent_id(full_name, father_name)')
+        .select('id, full_name, roll_number, class:class_id(name, section), parent:parent_id(full_name, father_name, whatsapp_number)')
         .eq('school_id', userRole!.school_id)
         .eq('status', 'active');
       if (selectedClassId) q = q.eq('class_id', selectedClassId);
@@ -233,7 +234,7 @@ export default function EasyFee() {
     if (!id || !userRole?.school_id) return;
     supabase
       .from('students')
-      .select('id, full_name, roll_number, class:class_id(name, section), parent:parent_id(full_name, father_name), fee_waiver_percentage')
+      .select('id, full_name, roll_number, class:class_id(name, section), parent:parent_id(full_name, father_name, whatsapp_number), fee_waiver_percentage')
       .eq('id', id).eq('school_id', userRole.school_id).maybeSingle()
       .then(({ data }) => { if (data) handleSelectStudent(data); });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -405,6 +406,7 @@ export default function EasyFee() {
           invoice_number: paidRecords[0]?.invoice_number || '',
           months: paidRecords.map(r => formatDate(r.month_year)).join(', '),
           breakdown: paymentBreakdown,
+          whatsapp_number: (student as any).parent?.whatsapp_number || '',
         },
       };
     } catch (err: any) {
@@ -1202,6 +1204,20 @@ export default function EasyFee() {
                     </div>
                     <div className="flex flex-col gap-3 w-full max-w-sm">
                       <Btn variant="primary" onClick={() => handlePrintReceipt(lastPayment)} className="w-full !py-3.5" icon={Printer}>Print Receipt</Btn>
+                      {successData.whatsapp_number && (
+                        <Btn variant="secondary" icon={MessageCircle} className="w-full" onClick={() => openWhatsApp(
+                          successData.whatsapp_number,
+                          paymentReceiptTemplate({
+                            studentName: successData.student_name,
+                            className: successData.class_name,
+                            month: successData.months,
+                            amount: successData.amount,
+                            customMessage: successData.mode,
+                            dueDate: successData.date,
+                            schoolName: school?.name,
+                          })
+                        )}>Send Receipt via WhatsApp</Btn>
+                      )}
                       <Btn variant="secondary" onClick={() => navigate(`/fees/student-detail?student=${successData.student_id}`)} className="w-full" icon={ExternalLink}>View Full Ledger</Btn>
                       <button onClick={() => setSuccessData(null)} className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-black text-indigo-600 hover:bg-indigo-50 transition-colors">
                         <Zap className="w-4 h-4" />New Collection

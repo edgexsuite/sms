@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatDate } from '../lib/utils';
 import DeletePinModal from '../components/DeletePinModal';
 import ImportStaffModal from '../components/ImportStaffModal';
+import { exportToCSV } from '../lib/exportUtils';
 import JoiningLetter from '../components/JoiningLetter';
 import ExperienceCertificate from '../components/ExperienceCertificate';
 import * as templatesLib from '../lib/whatsappTemplates';
@@ -323,6 +324,26 @@ export default function Staff() {
     return matchSearch && matchRole;
   });
 
+  const handleExportCSV = () => {
+    exportToCSV('Staff_Directory', filtered.map(s => ({
+      name: s.full_name, role: s.role, department: s.department || '',
+      cnic: s.cnic || '', phone: s.whatsapp_number || s.mobile_number || '',
+      email: s.email || '', joining: s.joining_date || '',
+      status: s.is_active ? 'Active' : 'Inactive',
+      salary: s.salary || '',
+    })), [
+      { header: 'Full Name', key: 'name' },
+      { header: 'Role', key: 'role' },
+      { header: 'Department', key: 'department' },
+      { header: 'CNIC', key: 'cnic' },
+      { header: 'Phone', key: 'phone' },
+      { header: 'Email', key: 'email' },
+      { header: 'Joining Date', key: 'joining' },
+      { header: 'Status', key: 'status' },
+      { header: 'Salary', key: 'salary' },
+    ]);
+  };
+
   const active = staff.filter(s => s.is_active).length;
   const teachers = staff.filter(s => ['Teacher', 'Principal', 'Vice Principal', 'Coordinator'].includes(s.role)).length;
   const onLeave = staff.filter(s => !s.is_active).length;
@@ -363,6 +384,9 @@ export default function Staff() {
             <p className="text-slate-500 text-sm font-bold mt-1 opacity-70 uppercase tracking-widest">Enterprise Workforce Management</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <button onClick={handleExportCSV} className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
+              <FileSpreadsheet className="w-4 h-4" /> Export CSV
+            </button>
             <button onClick={() => setShowImportModal(true)} className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
               <Upload className="w-4 h-4" /> Import Excel
             </button>

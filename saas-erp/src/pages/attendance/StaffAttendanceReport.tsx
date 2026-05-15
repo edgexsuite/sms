@@ -34,7 +34,8 @@ export default function StaffAttendanceReport() {
       const { data: stData } = await supabase.from('staff').select('*').eq('school_id', userRole?.school_id).eq('is_active', true).eq('is_deleted', false).order('full_name');
       
       const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
-      const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+      const lastDay = new Date(year, month, 0);
+      const endDate = `${lastDay.getFullYear()}-${String(lastDay.getMonth() + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
       const { data: attData } = await supabase.from('attendance')
         .select('*')
         .eq('school_id', userRole?.school_id)

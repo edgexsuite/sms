@@ -111,7 +111,7 @@ export default function CollectionReport() {
       let filtered = (data || []) as FeeRecord[];
 
       // Filter out deleted students
-      filtered = filtered.filter(r => r.students && r.students.is_deleted === false);
+      filtered = filtered.filter(r => r.students && (r.students as any).is_deleted === false);
 
       // Class Filter
       if (selectedClass) {

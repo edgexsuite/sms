@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { BookOpen, Calendar, ArrowUpRight, ArrowDownRight, Wallet, Printer, Trash2 } from 'lucide-react';
+import { BookOpen, Calendar, ArrowUpRight, ArrowDownRight, Wallet, Printer, Trash2, X } from 'lucide-react';
 import { formatDate } from '../../lib/utils';
 
 export default function Ledger() {
   const { userRole } = useAuth();
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
+  const [schoolName, setSchoolName] = useState('');
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
+
   // Filters
   const [dateType, setDateType] = useState('today'); // 'today', 'month', 'all', 'custom'
   const [customStart, setCustomStart] = useState('');
@@ -20,8 +22,25 @@ export default function Ledger() {
   const [editForm, setEditForm] = useState({ date: '', amount: '', description: '' });
 
   useEffect(() => {
+    if (!userRole?.school_id) return;
+    supabase.from('schools').select('name').eq('id', userRole.school_id).single()
+      .then(({ data }) => { if (data) setSchoolName(data.name); });
+  }, [userRole?.school_id]);
+
+  useEffect(() => {
     if (userRole?.school_id) fetchLedger();
   }, [userRole, dateType, customStart, customEnd]);
+
+  const periodLabel = (() => {
+    if (dateType === 'today') return `Today — ${formatDate(new Date().toISOString().split('T')[0])}`;
+    if (dateType === 'month') {
+      const d = new Date();
+      return `${d.toLocaleString('default', { month: 'long' })} ${d.getFullYear()}`;
+    }
+    if (dateType === 'custom' && customStart && customEnd)
+      return `${formatDate(customStart)} to ${formatDate(customEnd)}`;
+    return 'All Time';
+  })();
 
   const fetchLedger = async () => {
     setLoading(true);
@@ -163,7 +182,7 @@ export default function Ledger() {
     fetchLedger();
   };
 
-  const handlePrint = () => window.print();
+  const handlePrint = () => { setShowPrintPreview(false); window.print(); };
 
   // Metrics
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
@@ -195,7 +214,7 @@ export default function Ledger() {
                <button onClick={() => setDateType('all')} className={`px-4 py-1.5 text-sm font-medium rounded ${dateType === 'all' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>Lifetime</button>
                <button onClick={() => setDateType('custom')} className={`px-4 py-1.5 text-sm font-medium rounded flex items-center gap-1 ${dateType === 'custom' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}><Calendar className="w-4 h-4"/> Custom</button>
              </div>
-             <button onClick={handlePrint} className="bg-indigo-600 text-white p-2.5 rounded-md hover:bg-indigo-700 shadow-sm" title="Print Ledger"><Printer className="w-5 h-5"/></button>
+             <button onClick={() => setShowPrintPreview(true)} className="bg-indigo-600 text-white p-2.5 rounded-md hover:bg-indigo-700 shadow-sm" title="Print Ledger"><Printer className="w-5 h-5"/></button>
           </div>
         </div>
 
@@ -294,8 +313,9 @@ export default function Ledger() {
 
       {/* PRINT-ONLY UI */}
       <div className="print-only" style={{ display: 'none' }}>
-         <h1 style={{ textAlign: 'center', fontFamily: 'sans-serif' }}>Unified Day Book Ledger</h1>
-         <p style={{ textAlign: 'center', fontFamily: 'sans-serif', fontSize: '12px' }}>Generated on {formatDate(new Date())}</p>
+         {schoolName && <h1 style={{ textAlign: 'center', fontFamily: 'sans-serif', marginBottom: 2 }}>{schoolName}</h1>}
+         <h2 style={{ textAlign: 'center', fontFamily: 'sans-serif', fontWeight: 'normal', fontSize: 14 }}>Unified Day Book Ledger</h2>
+         <p style={{ textAlign: 'center', fontFamily: 'sans-serif', fontSize: '12px', color: '#555' }}>Period: {periodLabel} &nbsp;·&nbsp; Generated: {formatDate(new Date().toISOString().split('T')[0])}</p>
          
          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'sans-serif', marginTop: '20px', marginBottom: '20px' }}>
             <div><strong>Total Income:</strong> Rs. {totalIncome.toLocaleString()}</div>
@@ -330,6 +350,47 @@ export default function Ledger() {
       </div>
 
       </div>
+
+      {/* PRINT PREVIEW MODAL */}
+      {showPrintPreview && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">Print Preview</h3>
+              <button onClick={() => setShowPrintPreview(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              {schoolName && <p className="text-lg font-black text-gray-900 text-center">{schoolName}</p>}
+              <p className="text-sm text-center text-gray-500">Unified Day Book Ledger</p>
+              <div className="bg-indigo-50 rounded-xl px-4 py-3 text-center">
+                <p className="text-xs font-black text-indigo-500 uppercase tracking-widest mb-0.5">Period</p>
+                <p className="text-sm font-bold text-indigo-800">{periodLabel}</p>
+              </div>
+              <div className="grid grid-cols-3 gap-3 text-center text-sm">
+                <div className="bg-green-50 rounded-lg p-3">
+                  <p className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-1">Income</p>
+                  <p className="font-black text-green-700">Rs. {totalIncome.toLocaleString()}</p>
+                </div>
+                <div className="bg-red-50 rounded-lg p-3">
+                  <p className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-1">Expense</p>
+                  <p className="font-black text-red-600">Rs. {totalExpense.toLocaleString()}</p>
+                </div>
+                <div className="bg-indigo-50 rounded-lg p-3">
+                  <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">Net</p>
+                  <p className={`font-black ${netCash >= 0 ? 'text-indigo-700' : 'text-red-700'}`}>Rs. {netCash.toLocaleString()}</p>
+                </div>
+              </div>
+              <p className="text-xs text-center text-gray-400">{transactions.length} transaction{transactions.length !== 1 ? 's' : ''} will be printed</p>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+              <button onClick={() => setShowPrintPreview(false)} className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50">Cancel</button>
+              <button onClick={handlePrint} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-sm font-black text-white">
+                <Printer className="w-4 h-4" /> Print
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* EDIT MODAL */}
       {editingTx && (
