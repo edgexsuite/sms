@@ -14,7 +14,7 @@ import AiAssistant from '../components/AiAssistant';
 
 export default function DashboardLayout() {
 
-  const { signOut, userRole } = useAuth();
+  const { signOut, userRole, session } = useAuth();
   const { theme, cycleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -158,6 +158,26 @@ export default function DashboardLayout() {
     await signOut();
     navigate('/login');
   };
+
+  // ── Session timeout warning ────────────────────────────────────────────────
+  const [sessionWarning, setSessionWarning] = useState(false);
+  const [sessionSecondsLeft, setSessionSecondsLeft] = useState(0);
+
+  useEffect(() => {
+    if (!session?.expires_at) return;
+    const WARNING_MS = 5 * 60 * 1000; // warn 5 min before expiry
+
+    const tick = () => {
+      const remaining = session.expires_at! * 1000 - Date.now();
+      setSessionSecondsLeft(Math.max(0, Math.floor(remaining / 1000)));
+      if (remaining <= 0) { signOut(); return; }
+      setSessionWarning(remaining <= WARNING_MS);
+    };
+
+    tick();
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
+  }, [session?.expires_at]);
 
   const navSections = useMemo(() =>
     NAV_SECTIONS.filter(section => {
@@ -656,6 +676,50 @@ export default function DashboardLayout() {
 
       {/* Global AI Assistant */}
       {/* <AiAssistant /> */}
+
+      {/* ── Session expiry warning modal ── */}
+      <AnimatePresence>
+        {sessionWarning && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full text-center"
+            >
+              <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Clock className="w-7 h-7 text-amber-600" />
+              </div>
+              <h2 className="text-lg font-bold text-slate-900 mb-2">Session Expiring Soon</h2>
+              <p className="text-slate-500 text-sm mb-1">
+                Your session will expire in{' '}
+                <span className="font-bold text-amber-600">
+                  {Math.floor(sessionSecondsLeft / 60)}m {sessionSecondsLeft % 60}s
+                </span>
+              </p>
+              <p className="text-slate-400 text-xs mb-6">Any unsaved work will be lost.</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => signOut()}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition"
+                >
+                  Log Out
+                </button>
+                <button
+                  onClick={async () => {
+                    await supabase.auth.refreshSession();
+                    setSessionWarning(false);
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition"
+                >
+                  Stay Logged In
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

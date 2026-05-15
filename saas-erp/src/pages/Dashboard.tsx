@@ -8,7 +8,7 @@ import {
   MessageSquare, Mail, ChevronRight, Bell, ShieldCheck,
   BarChart2, PiggyBank, Activity, Layers, Banknote, X, Printer
 } from 'lucide-react';
-import { downloadDailyCollectionReport } from '../lib/reportUtils';
+import { downloadDailyCollectionReport, downloadDailyCashSummary } from '../lib/reportUtils';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -355,12 +355,19 @@ export default function Dashboard() {
 
             <div className="flex-1 flex flex-col sm:flex-row items-center gap-6 lg:justify-end">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <button 
+                <button
                   onClick={() => downloadDailyCollectionReport(userRole?.school_id!)}
-                  title="Print Today's Collection"
+                  title="Fee Collection Report"
                   className="w-11 h-11 backdrop-blur-md border border-white/30 bg-white/10 text-white hover:scale-110 rounded-xl flex items-center justify-center transition-all group"
                 >
                   <Printer className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => downloadDailyCashSummary(userRole?.school_id!)}
+                  title="Daily Cash Summary (Income + Expenses)"
+                  className="w-11 h-11 backdrop-blur-md border border-white/30 bg-white/10 text-white hover:scale-110 rounded-xl flex items-center justify-center transition-all group"
+                >
+                  <Wallet className="w-5 h-5" />
                 </button>
                 {[
                   { label: 'Attendance', icon: CheckCircle, link: '/attendance', color: 'bg-emerald-400/20 text-emerald-100 border-emerald-400/30' },

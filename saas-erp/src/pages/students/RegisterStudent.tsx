@@ -709,6 +709,26 @@ export default function RegisterStudent() {
         };
       });
 
+      // Duplicate check — warn if a student with same name already exists in the class
+      for (const stu of studentInserts as any[]) {
+        if (!stu.full_name || !stu.class_id) continue;
+        const { data: dupes } = await supabase
+          .from('students')
+          .select('id, full_name, roll_number')
+          .eq('school_id', userRole.school_id)
+          .eq('full_name', stu.full_name)
+          .eq('class_id', stu.class_id)
+          .eq('is_deleted', false)
+          .limit(1);
+        if (dupes && dupes.length > 0) {
+          const proceed = window.confirm(
+            `A student named "${stu.full_name}" already exists in this class (Roll #${dupes[0].roll_number ?? '?'}).\n\nRegister anyway?`
+          );
+          if (!proceed) { setLoading(false); return; }
+          break;
+        }
+      }
+
       const { data: insertedStudents, error: studentError } = await supabase
         .from('students')
         .insert(studentInserts)

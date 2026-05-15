@@ -145,6 +145,12 @@ export default function BulkFeeHistoryImport() {
     if (!f) return;
     setFile(f);
     setError('');
+    // Snapshot existing manual overrides before re-parsing so we can restore them
+    const prevOverrides = new Map<string, { id: string | null; name: string }>(
+      rows
+        .filter(r => r.matchStatus === 'matched' && r.matchedStudentId)
+        .map(r => [`${normalize(r.studentName)}|${r.classNum}`, { id: r.matchedStudentId, name: r.matchedStudentName }])
+    );
 
     const reader = new FileReader();
     reader.onload = (evt) => {
@@ -236,7 +242,17 @@ export default function BulkFeeHistoryImport() {
           };
         });
 
-        setRows(matched);
+        // Restore manual overrides from the previous upload
+        const restored = matched.map(r => {
+          const key = `${normalize(r.studentName)}|${r.classNum}`;
+          const prev = prevOverrides.get(key);
+          if (prev && r.matchStatus !== 'matched') {
+            return { ...r, matchStatus: 'matched' as const, matchedStudentId: prev.id, matchedStudentName: prev.name, skip: false };
+          }
+          return r;
+        });
+
+        setRows(restored);
         setStep(2);
       } catch (err: any) {
         setError('Failed to parse file: ' + err.message);
@@ -268,9 +284,13 @@ export default function BulkFeeHistoryImport() {
 
   const runImport = async () => {
     if (!userRole?.school_id) return;
+    const monthYear = `${month}-01`;
+    if (!/^\d{4}-\d{2}-01$/.test(monthYear)) {
+      setError('Invalid month format. Please select a valid month.');
+      return;
+    }
     setLoading(true);
     setError('');
-    const monthYear = `${month}-01`;
     const importDate = monthYear;
     let imported = 0, skipped = 0;
     const errors: string[] = [];
