@@ -79,8 +79,10 @@ export default function BulkFeeHistoryImport() {
       .select('id, full_name, father_name, roll_number, class_id, classes(name, section)')
       .eq('school_id', userRole.school_id)
       .eq('status', 'active')
-      .eq('is_deleted', false)
-      .then(({ data }) => { if (data) setAllStudents(data); });
+      .then(({ data, error }) => {
+        if (error) console.error('Student fetch error:', error);
+        if (data) setAllStudents(data);
+      });
   }, [userRole]);
 
   // ── Student matching ───────────────────────────────────────────────────────
