@@ -28,7 +28,7 @@ interface MatchedRow extends ParsedRow {
   matchStatus: 'matched' | 'unmatched' | 'multiple';
   matchedStudentId: string | null;
   matchedStudentName: string;
-  candidates: { id: string; full_name: string; className: string }[];
+  candidates: { id: string; full_name: string; father_name: string; className: string }[];
   skip: boolean;
 }
 
@@ -85,24 +85,46 @@ export default function BulkFeeHistoryImport() {
 
   // ── Student matching ───────────────────────────────────────────────────────
 
-  const matchStudent = useCallback((name: string, classNum: string) => {
-    const normName  = normalize(name);
-    const normClass = parseClassNum(classNum);
+  const matchStudent = useCallback((name: string, classNum: string, fatherName: string = '') => {
+    const normName   = normalize(name);
+    const normClass  = parseClassNum(classNum);
+    const normFather = normalize(fatherName);
 
-    // Filter by class
+    // Filter by class first
     const inClass = allStudents.filter(s => parseClassNum(s.classes?.name) === normClass);
     const pool    = inClass.length > 0 ? inClass : allStudents;
 
-    // Match by normalized name
+    // Exact name match
     const exact = pool.filter(s => normalize(s.full_name) === normName);
+
     if (exact.length === 1) return { status: 'matched' as const, matched: exact[0], candidates: [] };
 
+    // Multiple exact name matches — break tie with father name
+    if (exact.length > 1 && normFather) {
+      const byFather = exact.filter(s => normalize(s.father_name ?? '') === normFather);
+      if (byFather.length === 1) return { status: 'matched' as const, matched: byFather[0], candidates: [] };
+      // Father name narrows but still ambiguous
+      const narrowed = byFather.length > 1 ? byFather : exact;
+      return { status: 'multiple' as const, matched: narrowed[0], candidates: narrowed };
+    }
+    if (exact.length > 1) return { status: 'multiple' as const, matched: exact[0], candidates: exact };
+
+    // Fuzzy name match
     const fuzzy = pool.filter(s => {
       const sn = normalize(s.full_name);
       return sn.includes(normName) || normName.includes(sn);
     });
+
     if (fuzzy.length === 1) return { status: 'matched' as const, matched: fuzzy[0], candidates: [] };
-    if (fuzzy.length > 1)   return { status: 'multiple' as const, matched: fuzzy[0], candidates: fuzzy };
+
+    // Multiple fuzzy — try father name tiebreaker
+    if (fuzzy.length > 1 && normFather) {
+      const byFather = fuzzy.filter(s => normalize(s.father_name ?? '') === normFather);
+      if (byFather.length === 1) return { status: 'matched' as const, matched: byFather[0], candidates: [] };
+      const narrowed = byFather.length > 1 ? byFather : fuzzy;
+      return { status: 'multiple' as const, matched: narrowed[0], candidates: narrowed };
+    }
+    if (fuzzy.length > 1) return { status: 'multiple' as const, matched: fuzzy[0], candidates: fuzzy };
 
     return { status: 'unmatched' as const, matched: null, candidates: [] };
   }, [allStudents]);
@@ -179,7 +201,7 @@ export default function BulkFeeHistoryImport() {
 
         // Match each row
         const matched: MatchedRow[] = parsed.map(p => {
-          const m = matchStudent(p.studentName, p.classNum);
+          const m = matchStudent(p.studentName, p.classNum, p.fatherName);
           return {
             ...p,
             matchStatus:       m.status,
@@ -187,6 +209,7 @@ export default function BulkFeeHistoryImport() {
             matchedStudentName:m.matched?.full_name ?? '',
             candidates:        m.candidates.map(c => ({
               id: c.id, full_name: c.full_name,
+              father_name: c.father_name ?? '',
               className: c.classes?.name ?? '',
             })),
             skip: m.status === 'unmatched',
@@ -494,7 +517,7 @@ export default function BulkFeeHistoryImport() {
                               {row.candidates.length > 0 && (
                                 <optgroup label="Possible Matches">
                                   {row.candidates.map(c => (
-                                    <option key={c.id} value={c.id}>{c.full_name} (Class {c.className})</option>
+                                    <option key={c.id} value={c.id}>{c.full_name}{c.father_name ? ` s/o ${c.father_name}` : ''} — Class {c.className}</option>
                                   ))}
                                 </optgroup>
                               )}
