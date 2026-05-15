@@ -15,6 +15,7 @@ import EasyFee from './EasyFee';
 import BulkDiscountEntry from './BulkDiscountEntry';
 import BulkArrearsEntry from './BulkArrearsEntry';
 import InvoiceReport from './InvoiceReport';
+import BulkFeeHistoryImport from './BulkFeeHistoryImport';
 
 export default function FeesLayout() {
   return (
@@ -34,6 +35,7 @@ export default function FeesLayout() {
       <Route path="bulk-discount" element={<BulkDiscountEntry />} />
       <Route path="bulk-arrears" element={<BulkArrearsEntry />} />
       <Route path="invoice-report" element={<InvoiceReport />} />
+      <Route path="bulk-fee-import" element={<BulkFeeHistoryImport />} />
       <Route path="*" element={<Navigate to="/fees/invoices" replace />} />
     </Routes>
   );
