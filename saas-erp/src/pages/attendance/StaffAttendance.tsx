@@ -51,6 +51,17 @@ const STATUS_BADGE: Record<string, string> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/**
+ * Returns the scheduled arrival and departure times for a given date.
+ * Mon–Thu: 07:30 → 14:00 | Fri: 07:30 → 13:30 | Sat: 09:00 → 14:00
+ */
+function defaultSchedule(dateStr: string) {
+  const day = new Date(dateStr).getDay(); // 0=Sun 1=Mon … 5=Fri 6=Sat
+  if (day === 5) return { arrival: '07:30', departure: '13:30', label: 'Friday',         range: '7:30 AM → 1:30 PM' };
+  if (day === 6) return { arrival: '09:00', departure: '14:00', label: 'Saturday',        range: '9:00 AM → 2:00 PM' };
+  return         { arrival: '07:30', departure: '14:00', label: 'Mon – Thu',      range: '7:30 AM → 2:00 PM' };
+}
+
 /** Current time in Pakistan Standard Time (GMT+5), returns "HH:MM" */
 function nowTime() {
   const parts = new Intl.DateTimeFormat('en-PK', {
@@ -120,10 +131,16 @@ export default function StaffAttendance() {
 
     const map: Record<string, AttRow> = {};
     const isHoliday = d.getDay() === 0 || (vacData && vacData.length > 0);
+    const sched = defaultSchedule(date);
     stData?.forEach(s => {
-      map[s.id] = { status: isHoliday ? (d.getDay() === 0 ? 'present' : 'vacation') : 'present' };
+      map[s.id] = {
+        status:         isHoliday ? (d.getDay() === 0 ? 'present' : 'vacation') : 'present',
+        arrival_time:   sched.arrival,
+        departure_time: sched.departure,
+      };
     });
     attData?.forEach((a: any) => {
+      // existing DB records always win — keep whatever was saved (including nulls)
       map[a.staff_id] = { id: a.id, status: a.status, arrival_time: a.arrival_time, departure_time: a.departure_time };
     });
     setAttMap(map);
@@ -156,6 +173,17 @@ export default function StaffAttendance() {
       staffList.forEach(s => { if (!next[s.id]?.departure_time) next[s.id] = { ...next[s.id], departure_time: t }; });
       return next;
     });
+
+  const applyScheduleAll = () => {
+    const { arrival, departure } = defaultSchedule(date);
+    setAttMap(prev => {
+      const next = { ...prev };
+      staffList.forEach(s => {
+        next[s.id] = { ...next[s.id], arrival_time: arrival, departure_time: departure };
+      });
+      return next;
+    });
+  };
 
   // ── Per-staff field updaters ─────────────────────────────────────────────────
 
@@ -299,8 +327,35 @@ export default function StaffAttendance() {
                 <Clock className="w-3.5 h-3.5 mr-1" />Stamp All Now
               </Btn>
             )}
+            <Btn variant="outline" size="sm" onClick={applyScheduleAll}
+              className="text-[10px] tracking-widest border-indigo-200 text-indigo-600 hover:bg-indigo-50">
+              <CalendarCheck className="w-3.5 h-3.5 mr-1" />Apply Schedule
+            </Btn>
           </div>
         </div>
+
+        {/* Schedule info strip */}
+        {(() => {
+          const sched = defaultSchedule(date);
+          const day = new Date(date).getDay();
+          if (day === 0) return null; // Sunday — no schedule
+          return (
+            <div className="mt-4 flex items-center gap-3 px-4 py-2.5 bg-indigo-50 border border-indigo-100 rounded-xl">
+              <CalendarCheck className="w-4 h-4 text-indigo-500 shrink-0" />
+              <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">{sched.label} Schedule</span>
+              <div className="flex items-center gap-2 ml-2">
+                <span className="flex items-center gap-1 text-xs font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-lg">
+                  <LogIn className="w-3 h-3" /> {fmt12(sched.arrival)}
+                </span>
+                <span className="text-slate-300">→</span>
+                <span className="flex items-center gap-1 text-xs font-black text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-lg">
+                  <LogOut className="w-3 h-3" /> {fmt12(sched.departure)}
+                </span>
+              </div>
+              <span className="ml-auto text-[9px] font-black text-slate-400 uppercase tracking-widest">Pre-filled · editable per staff</span>
+            </div>
+          );
+        })()}
       </Card>
 
       {/* ── Summary strip ── */}
