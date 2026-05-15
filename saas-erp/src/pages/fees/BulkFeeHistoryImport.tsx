@@ -76,13 +76,19 @@ export default function BulkFeeHistoryImport() {
   useEffect(() => {
     if (!userRole?.school_id) return;
     supabase.from('students')
-      .select('id, full_name, father_name, roll_number, class_id, is_deleted, class:class_id(name, section)')
+      .select('id, full_name, roll_number, class_id, is_deleted, class:class_id(name, section), parents(father_name)')
       .eq('school_id', userRole.school_id)
       .eq('status', 'active')
       .eq('is_deleted', false)
       .then(({ data, error }) => {
         if (error) console.error('Student fetch error:', error.message, error.details);
-        if (data) setAllStudents(data);
+        if (data) {
+          // Flatten father_name from parents relation
+          setAllStudents(data.map((s: any) => ({
+            ...s,
+            father_name: s.parents?.father_name ?? '',
+          })));
+        }
       });
   }, [userRole]);
 
