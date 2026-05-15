@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { 
-  TrendingDown, Upload, Calendar, 
-  Save, Trash2, X 
+import {
+  TrendingDown, Upload, Calendar,
+  Save, Trash2, Pencil, AlertTriangle
 } from 'lucide-react';
 import DeletePinModal from '../../components/DeletePinModal';
 import { motion, AnimatePresence } from 'motion/react';
@@ -19,6 +19,8 @@ export default function AddDailyExpenses() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string; name: string }>({ isOpen: false, id: '', name: '' });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [duplicateAlert, setDuplicateAlert] = useState<any | null>(null);
 
   const [formData, setFormData] = useState({
     amount: '',
@@ -52,12 +54,92 @@ export default function AddDailyExpenses() {
     if (data) setRecentExpenses(data);
   };
 
+  const loadForEdit = (exp: any) => {
+    setEditingId(exp.id);
+    setDuplicateAlert(null);
+    setFormData({
+      amount: String(exp.amount),
+      category: exp.category,
+      date: exp.date,
+      payment_mode: exp.payment_mode || 'Cash',
+      remarks: exp.remarks || ''
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setDuplicateAlert(null);
+    setFormData({ amount: '', category: '', date: new Date().toISOString().split('T')[0], payment_mode: 'Cash', remarks: '' });
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.amount || !formData.category) return setError('Amount and Category are required.');
     setLoading(true);
     setError('');
+    setDuplicateAlert(null);
 
+    try {
+      // If already editing an existing record, just update it
+      if (editingId) {
+        const { error } = await supabase.from('financial_transactions')
+          .update({
+            amount: parseFloat(formData.amount),
+            category: formData.category,
+            payment_mode: formData.payment_mode,
+            date: formData.date,
+            remarks: formData.remarks
+          })
+          .eq('id', editingId);
+        if (error) throw error;
+        setEditingId(null);
+        setFormData({ amount: '', category: '', date: new Date().toISOString().split('T')[0], payment_mode: 'Cash', remarks: '' });
+        fetchRecent();
+        alert('Expense updated successfully!');
+        return;
+      }
+
+      // Check for duplicate (same category + date)
+      const { data: existing } = await supabase.from('financial_transactions')
+        .select('*')
+        .eq('school_id', userRole?.school_id)
+        .eq('type', 'expense')
+        .eq('is_deleted', false)
+        .eq('category', formData.category)
+        .eq('date', formData.date)
+        .maybeSingle();
+
+      if (existing) {
+        setDuplicateAlert(existing);
+        setLoading(false);
+        return;
+      }
+
+      const { error } = await supabase.from('financial_transactions').insert([{
+        school_id: userRole?.school_id,
+        type: 'expense',
+        amount: parseFloat(formData.amount),
+        category: formData.category,
+        payment_mode: formData.payment_mode,
+        date: formData.date,
+        remarks: formData.remarks
+      }]);
+      if (error) throw error;
+
+      setFormData({ ...formData, amount: '', remarks: '' });
+      fetchRecent();
+      alert('Expense permanently logged to the Daily Ledger!');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addAnywayAndSave = async () => {
+    setDuplicateAlert(null);
+    setLoading(true);
     try {
       const { error } = await supabase.from('financial_transactions').insert([{
         school_id: userRole?.school_id,
@@ -69,10 +151,9 @@ export default function AddDailyExpenses() {
         remarks: formData.remarks
       }]);
       if (error) throw error;
-      
-      setFormData({ ...formData, amount: '', remarks: '' }); // reset partial
+      setFormData({ ...formData, amount: '', remarks: '' });
       fetchRecent();
-      alert('Expense permanently logged to the Daily Ledger!');
+      alert('Expense logged!');
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -159,8 +240,54 @@ export default function AddDailyExpenses() {
            transition={{ delay: 0.1 }}
            className="lg:col-span-1 aura-card p-8 self-start border-none shadow-2xl shadow-slate-200/50"
          >
-            <h2 className="text-xs font-black text-slate-900 border-b border-slate-100 pb-4 mb-6 uppercase tracking-[0.2em]">New Transaction</h2>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+              <h2 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em]">
+                {editingId ? 'Edit Transaction' : 'New Transaction'}
+              </h2>
+              {editingId && (
+                <button onClick={cancelEdit} className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-rose-600 transition-colors">
+                  Cancel
+                </button>
+              )}
+            </div>
             {error && <div className="text-[10px] font-black uppercase tracking-widest text-red-600 bg-red-50 p-3 rounded-xl mb-6 border border-red-100">{error}</div>}
+
+            {/* Duplicate alert */}
+            <AnimatePresence>
+              {duplicateAlert && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl p-4"
+                >
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest leading-none">Duplicate Entry Detected</p>
+                      <p className="text-xs text-amber-700 font-bold mt-1.5">
+                        <span className="font-black">{duplicateAlert.category}</span> on <span className="font-black">{formatDate(duplicateAlert.date)}</span> already exists — Rs. {parseFloat(duplicateAlert.amount).toLocaleString()}
+                        {duplicateAlert.remarks && <span className="italic opacity-70"> · {duplicateAlert.remarks}</span>}
+                      </p>
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          onClick={() => loadForEdit(duplicateAlert)}
+                          className="flex-1 bg-amber-500 text-white text-[10px] font-black uppercase tracking-widest py-2 px-3 rounded-xl hover:bg-amber-600 transition-colors"
+                        >
+                          Edit Existing
+                        </button>
+                        <button
+                          onClick={addAnywayAndSave}
+                          className="flex-1 bg-white border border-amber-200 text-amber-700 text-[10px] font-black uppercase tracking-widest py-2 px-3 rounded-xl hover:bg-amber-50 transition-colors"
+                        >
+                          Add Anyway
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
             
             <form onSubmit={handleSave} className="space-y-6">
                <div>
@@ -234,7 +361,7 @@ export default function AddDailyExpenses() {
 
                <div className="pt-4">
                  <button type="submit" disabled={loading} className="w-full bg-slate-900 border border-slate-800 text-white px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-3 shadow-xl hover:bg-black transition-all active:scale-95 disabled:opacity-50">
-                   {loading ? 'Committing...' : <><Save className="w-5 h-5" /> Commit to Ledger</>}
+                   {loading ? 'Saving...' : editingId ? <><Save className="w-5 h-5" /> Update Entry</> : <><Save className="w-5 h-5" /> Commit to Ledger</>}
                  </button>
                </div>
             </form>
@@ -266,7 +393,7 @@ export default function AddDailyExpenses() {
                      <th className="p-6 text-premium-label">Accounting Head</th>
                      <th className="p-6 text-premium-label">Transaction Narrative</th>
                      <th className="p-6 text-premium-label text-right">Debit Amount</th>
-                     <th className="p-6 text-premium-label text-center">Menu</th>
+                     <th className="p-6 text-premium-label text-center">Actions</th>
                    </tr>
                  </thead>
                  <tbody className="divide-y divide-slate-50">
@@ -287,12 +414,22 @@ export default function AddDailyExpenses() {
                          <td className="p-6 text-slate-500 text-xs font-medium max-w-[200px] truncate" title={exp.remarks}>{exp.remarks || '—'}</td>
                          <td className="p-6 text-right font-black text-rose-600 text-sm whitespace-nowrap tracking-tight">Rs. {exp.amount.toLocaleString()}</td>
                          <td className="p-6 text-center">
-                           <button 
-                             onClick={() => setDeleteModal({ isOpen: true, id: exp.id, name: `${exp.category} (Rs. ${exp.amount})` })}
-                             className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all active:scale-90 opacity-0 group-hover:opacity-100"
-                           >
-                             <Trash2 className="w-5 h-5" />
-                           </button>
+                           <div className="flex items-center justify-center gap-1">
+                             <button
+                               onClick={() => loadForEdit(exp)}
+                               className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-90"
+                               title="Edit this entry"
+                             >
+                               <Pencil className="w-4 h-4" />
+                             </button>
+                             <button
+                               onClick={() => setDeleteModal({ isOpen: true, id: exp.id, name: `${exp.category} (Rs. ${exp.amount})` })}
+                               className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all active:scale-90"
+                               title="Delete this entry"
+                             >
+                               <Trash2 className="w-4 h-4" />
+                             </button>
+                           </div>
                          </td>
                        </motion.tr>
                      ))
