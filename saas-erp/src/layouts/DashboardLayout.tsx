@@ -159,7 +159,17 @@ export default function DashboardLayout() {
     navigate('/login');
   };
 
-  const navSections = NAV_SECTIONS;
+  const navSections = useMemo(() =>
+    NAV_SECTIONS.filter(section => {
+      if (!userRole?.role) return false;
+      if (!section.roles.includes(userRole.role)) return false;
+      if (userRole.role !== 'admin' && (section as any).id) {
+        const permissions = userRole.permissions?.modules;
+        if (permissions && permissions[(section as any).id] === false) return false;
+      }
+      return true;
+    }),
+  [userRole]);
 
   const schoolName = schoolBrand?.name || 'School Dashboard';
   const schoolLogo = schoolBrand?.logo_url || null;
@@ -190,6 +200,7 @@ export default function DashboardLayout() {
               <img
                 src={schoolLogo}
                 alt={schoolName}
+                loading="lazy"
                 className="w-9 h-9 rounded-xl object-cover ring-2 ring-indigo-500/40 shadow-lg shadow-black/40 shrink-0"
               />
             ) : (
@@ -228,16 +239,7 @@ export default function DashboardLayout() {
 
         {/* ── Navigation ── */}
         <nav className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar py-3 px-2.5">
-          {navSections.filter(section => {
-            if (!userRole?.role) return false;
-            if (!section.roles.includes(userRole.role)) return false;
-            // Apply module permissions for all non-admin roles
-            if (userRole.role !== 'admin' && (section as any).id) {
-              const permissions = userRole.permissions?.modules;
-              if (permissions && permissions[(section as any).id] === false) return false;
-            }
-            return true;
-          }).map((section, sectionIdx) => {
+          {navSections.map((section, sectionIdx) => {
             const visibleItems = section.items.filter(item => userRole?.role && item.roles.includes(userRole.role));
             if (visibleItems.length === 0) return null;
             // Per-section accent color (falls back to indigo if section has no color)

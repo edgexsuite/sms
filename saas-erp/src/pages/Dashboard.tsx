@@ -21,14 +21,16 @@ import { motion, AnimatePresence } from 'motion/react';
 
 const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#6366f1'];
 
-// Single shared Audio instance — avoids creating a new object + network request per character
-const _typingAudio = (() => {
+// Audio loaded lazily on first keystroke — avoids a CDN request on every Dashboard mount
+let _typingAudio: HTMLAudioElement | null = null;
+const getTypingAudio = () => {
+  if (_typingAudio) return _typingAudio;
   try {
-    const a = new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
-    a.volume = 0.05;
-    return a;
-  } catch { return null; }
-})();
+    _typingAudio = new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
+    _typingAudio.volume = 0.05;
+  } catch { _typingAudio = null; }
+  return _typingAudio;
+};
 
 const TypewriterText = ({ text, delay = 25 }: { text: string; delay?: number }) => {
   const [displayedText, setDisplayedText] = useState('');
@@ -37,11 +39,8 @@ const TypewriterText = ({ text, delay = 25 }: { text: string; delay?: number }) 
   useEffect(() => {
     if (currentIndex < text.length) {
       const timeout = setTimeout(() => {
-        // Play subtle typing sound using the shared Audio instance
-        if (_typingAudio) {
-          _typingAudio.currentTime = 0;
-          _typingAudio.play().catch(() => {});
-        }
+        const audio = getTypingAudio();
+        if (audio) { audio.currentTime = 0; audio.play().catch(() => {}); }
         setDisplayedText(prev => prev + text[currentIndex]);
         setCurrentIndex(prev => prev + 1);
       }, delay);
@@ -123,13 +122,12 @@ export default function Dashboard() {
 
     try {
       const [
-        { count: stuCount },
+        { data: allStudents, count: stuCount },
         { count: staffCount },
         { count: classCount },
         { data: fees },
         { data: attendance },
         { data: classes },
-        { data: allStudents },
         { data: transactions },
         { data: recentFees },
         { data: schoolData },
@@ -138,19 +136,19 @@ export default function Dashboard() {
         { count: newStudents },
         { data: staffAttData },
       ] = await Promise.all([
-        supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', sid).eq('status', 'active').eq('is_deleted', false),
-        supabase.from('staff').select('*', { count: 'exact', head: true }).eq('school_id', sid).eq('is_active', true),
-        supabase.from('classes').select('*', { count: 'exact', head: true }).eq('school_id', sid),
+        // Single students query — returns class_ids AND count, replacing two separate queries
+        supabase.from('students').select('class_id', { count: 'exact' }).eq('school_id', sid).eq('status', 'active').eq('is_deleted', false),
+        supabase.from('staff').select('id', { count: 'exact', head: true }).eq('school_id', sid).eq('is_active', true),
+        supabase.from('classes').select('id', { count: 'exact', head: true }).eq('school_id', sid),
         supabase.from('fee_records').select('total_amount, paid_amount, status, month_year, student_id, students!inner(is_deleted)').eq('school_id', sid).eq('students.is_deleted', false).is('deleted_at', null),
         supabase.from('attendance').select('status').eq('school_id', sid).eq('date', today),
         supabase.from('classes').select('id, name, section').eq('school_id', sid),
-        supabase.from('students').select('class_id').eq('school_id', sid).eq('status', 'active').eq('is_deleted', false),
-        supabase.from('financial_transactions').select('type, amount, date, category').eq('school_id', sid).gte('date', sixMonthsAgoStr),
+        supabase.from('financial_transactions').select('type, amount, date, category').eq('school_id', sid).gte('date', sixMonthsAgoStr).limit(1000),
         supabase.from('fee_records').select('total_amount, paid_amount, status, month_year, invoice_number, paid_at, students!inner(is_deleted)').eq('school_id', sid).eq('students.is_deleted', false).is('deleted_at', null).neq('status', 'pending').order('paid_at', { ascending: false }).limit(5),
         supabase.from('schools').select('name').eq('id', sid).maybeSingle(),
-        supabase.from('complaints').select('*', { count: 'exact', head: true }).eq('school_id', sid).eq('status', 'open'),
-        supabase.from('leave_requests').select('*', { count: 'exact', head: true }).eq('school_id', sid).eq('status', 'pending'),
-        supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', sid).eq('is_deleted', false).gte('created_at', sevenDaysAgo),
+        supabase.from('complaints').select('id', { count: 'exact', head: true }).eq('school_id', sid).eq('status', 'open'),
+        supabase.from('leave_requests').select('id', { count: 'exact', head: true }).eq('school_id', sid).eq('status', 'pending'),
+        supabase.from('students').select('id', { count: 'exact', head: true }).eq('school_id', sid).eq('is_deleted', false).gte('created_at', sevenDaysAgo),
         supabase.from('attendance').select('status').eq('school_id', sid).eq('date', today).not('staff_id', 'is', null),
       ]);
 

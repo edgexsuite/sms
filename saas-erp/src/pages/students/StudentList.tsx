@@ -1121,6 +1121,7 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
                 <div className="flex items-start gap-5">
                   {selectedStudent.photograph_url ? (
                     <img src={selectedStudent.photograph_url} alt={selectedStudent.full_name}
+                      loading="lazy"
                       className="w-20 h-20 rounded-2xl object-cover border-2 border-white/20 shadow-xl shrink-0" />
                   ) : (
                     <div className="w-20 h-20 rounded-2xl bg-indigo-600/40 border-2 border-indigo-400/30 flex items-center justify-center text-3xl font-black text-white shadow-xl shrink-0">

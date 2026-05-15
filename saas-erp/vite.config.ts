@@ -48,11 +48,15 @@ export default defineConfig(({mode}) => {
       rollupOptions: {
         output: {
           manualChunks: {
-            'vendor-ui': ['lucide-react', 'motion', 'clsx', 'tailwind-merge'],
-            'vendor-charts': ['recharts'],
-            'vendor-utils': ['xlsx', 'jspdf', 'jspdf-autotable', 'html2canvas'],
-            'vendor-supabase': ['@supabase/supabase-js'],
-            'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+            'vendor-ui':      ['lucide-react', 'motion', 'clsx', 'tailwind-merge'],
+            'vendor-charts':  ['recharts'],
+            'vendor-supabase':['@supabase/supabase-js'],
+            'vendor-react':   ['react', 'react-dom', 'react-router-dom'],
+            // Heavy libs used only on specific pages — loaded lazily, not on initial load
+            'vendor-xlsx':    ['xlsx'],
+            'vendor-pdf':     ['jspdf', 'jspdf-autotable'],
+            'vendor-canvas':  ['html2canvas'],
+            'vendor-qr':      ['html5-qrcode', 'react-qr-code'],
           },
         },
       },
