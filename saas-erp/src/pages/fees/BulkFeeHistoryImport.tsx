@@ -76,11 +76,12 @@ export default function BulkFeeHistoryImport() {
   useEffect(() => {
     if (!userRole?.school_id) return;
     supabase.from('students')
-      .select('id, full_name, father_name, roll_number, class_id, classes(name, section)')
+      .select('id, full_name, father_name, roll_number, class_id, is_deleted, class:class_id(name, section)')
       .eq('school_id', userRole.school_id)
       .eq('status', 'active')
+      .eq('is_deleted', false)
       .then(({ data, error }) => {
-        if (error) console.error('Student fetch error:', error);
+        if (error) console.error('Student fetch error:', error.message, error.details);
         if (data) setAllStudents(data);
       });
   }, [userRole]);
@@ -93,7 +94,7 @@ export default function BulkFeeHistoryImport() {
     const normFather = normalize(fatherName);
 
     // Filter by class first
-    const inClass = allStudents.filter(s => parseClassNum(s.classes?.name) === normClass);
+    const inClass = allStudents.filter(s => parseClassNum(s.class?.name) === normClass);
     const pool    = inClass.length > 0 ? inClass : allStudents;
 
     // Exact name match
@@ -212,7 +213,7 @@ export default function BulkFeeHistoryImport() {
             candidates:        m.candidates.map(c => ({
               id: c.id, full_name: c.full_name,
               father_name: c.father_name ?? '',
-              className: c.classes?.name ?? '',
+              className: c.class?.name ?? '',
             })),
             skip: m.status === 'unmatched',
           };
@@ -525,7 +526,7 @@ export default function BulkFeeHistoryImport() {
                               )}
                               <optgroup label="All Students">
                                 {allStudents.map(s => (
-                                  <option key={s.id} value={s.id}>{s.full_name} — Class {s.classes?.name ?? '?'}</option>
+                                  <option key={s.id} value={s.id}>{s.full_name} — Class {s.class?.name ?? '?'}</option>
                                 ))}
                               </optgroup>
                             </select>
