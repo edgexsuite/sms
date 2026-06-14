@@ -23,7 +23,7 @@ const RELIGIONS = ['Islam', 'Christianity', 'Hinduism', 'Sikhism', 'Buddhism', '
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Unknown'];
 
 const initialStudentState = {
-  full_name: '', dob: '', gender: '', religion: 'Islam', hobbies: '',
+  full_name: '', b_form_cnic: '', dob: '', gender: '', religion: 'Islam', hobbies: '',
   class_id: '', last_school: '', remarks: '', other_kids: '', reason_for_choosing: '',
   admission_date: new Date().toISOString().split('T')[0],
   insurance_opt_in: false,
@@ -162,6 +162,7 @@ export default function RegisterStudent() {
         // Set student data
         setStudents([{
           full_name: student.full_name || '',
+          b_form_cnic: student.b_form_cnic || '',
           dob: student.dob || '',
           gender: student.gender || '',
           religion: student.religion || 'Islam',
@@ -533,6 +534,7 @@ export default function RegisterStudent() {
         const { error: studentUpdateErr } = await supabase.from('students').update({
           class_id: stu.class_id || null,
           full_name: stu.full_name,
+          b_form_cnic: stu.b_form_cnic || null,
           gender: stu.gender || null,
           dob: stu.dob || null,
           religion: stu.religion || null,
@@ -677,6 +679,7 @@ export default function RegisterStudent() {
           student_unique_id: studentUniqueId,
           auth_password: studentPassword,
           full_name: stu.full_name,
+          b_form_cnic: stu.b_form_cnic || null,
           gender: stu.gender || null,
           dob: stu.dob || null,
           religion: stu.religion || null,
@@ -1155,9 +1158,13 @@ export default function RegisterStudent() {
                 <h4 className="text-md border-b pb-2 mb-4 font-medium text-gray-800">Basic Information</h4>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="md:col-span-3 grid grid-cols-2 gap-6">
-                    <div className="col-span-2">
+                    <div className="col-span-2 md:col-span-1">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
                       <input type="text" required name="full_name" value={student.full_name} onChange={(e) => handleStudentChange(index, e)} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500" />
+                    </div>
+                    <div className="col-span-2 md:col-span-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Form-B / CNIC</label>
+                      <input type="text" name="b_form_cnic" value={student.b_form_cnic} onChange={(e) => handleStudentChange(index, e)} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500" placeholder="00000-0000000-0" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth *</label>
