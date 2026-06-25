@@ -61,6 +61,7 @@ const HelpSupport = lazy(() => import('./pages/HelpSupport'));
 const TransportLayout = lazy(() => import('./pages/transport/TransportLayout'));
 const AutoTimetable = lazy(() => import('./pages/AutoTimetable'));
 const AuditLog = lazy(() => import('./pages/AuditLog'));
+const DemoRegister = lazy(() => import('./pages/DemoRegister'));
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { session, loading, roleNotFound, signOut } = useAuth();
@@ -120,6 +121,7 @@ export default function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<SignUp />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/register" element={<DemoRegister />} />
               <Route path="/parent-portal" element={<ParentPortal />} />
               <Route path="/student-portal" element={<StudentPortal />} />
               <Route path="/admin" element={<Navigate to="/dashboard" replace />} />

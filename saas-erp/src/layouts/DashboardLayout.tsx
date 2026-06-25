@@ -66,15 +66,51 @@ export default function DashboardLayout() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [schoolBrand, setSchoolBrand] = useState<{ name: string; logo_url: string | null } | null>(null);
+  const [demoExpiry, setDemoExpiry] = useState<{ expiresAt: Date; daysLeft: number } | null>(null);
+  const [demoBannerDismissed, setDemoBannerDismissed] = useState(false);
 
   useEffect(() => {
     if (userRole?.school_id) {
        fetchNotifications();
        fetchSchoolBrand();
+       checkDemoExpiry();
     }
   }, [userRole]);
 
   const BRAND_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+
+  const checkDemoExpiry = async () => {
+    if (!userRole?.school_id || userRole?.role !== 'admin') return;
+    try {
+      const { data } = await supabase
+        .from('schools')
+        .select('status, demo_expires_at')
+        .eq('id', userRole.school_id)
+        .maybeSingle();
+
+      if (!data || data.status !== 'demo' || !data.demo_expires_at) return;
+
+      const expiresAt = new Date(data.demo_expires_at);
+      const now = new Date();
+      const msLeft = expiresAt.getTime() - now.getTime();
+      const daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
+
+      // Auto-suspend if expired
+      if (msLeft <= 0) {
+        await supabase.from('schools').update({ status: 'suspended' }).eq('id', userRole.school_id);
+        await signOut();
+        alert('Your 2-month demo has expired. Please contact us to continue.');
+        return;
+      }
+
+      // Show banner if 7 days or fewer remain
+      if (daysLeft <= 7) {
+        setDemoExpiry({ expiresAt, daysLeft });
+      }
+    } catch (err) {
+      console.error('Demo expiry check failed:', err);
+    }
+  };
 
   const fetchSchoolBrand = async () => {
     if (!userRole?.school_id) return;
@@ -557,6 +593,24 @@ export default function DashboardLayout() {
             </button>
           </div>
         </header>
+
+        {/* Demo expiry warning banner */}
+        {demoExpiry && !demoBannerDismissed && (
+          <div className="print:hidden mx-2 sm:mx-6 mt-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3 shadow-sm">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <p className="text-sm font-semibold text-amber-800 flex-1">
+              ⏳ Your free demo expires in <strong className="text-amber-900">{demoExpiry.daysLeft} day{demoExpiry.daysLeft !== 1 ? 's' : ''}</strong>
+              {' '}({demoExpiry.expiresAt.toLocaleDateString('en-PK')}).
+              Contact us to continue using the system.
+            </p>
+            <button
+              onClick={() => setDemoBannerDismissed(true)}
+              className="text-amber-500 hover:text-amber-700 font-bold text-xs shrink-0"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* Dashboard Alerts bar */}
         <div className="print:hidden">
