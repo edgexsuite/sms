@@ -7,7 +7,17 @@
       "Bash(find /c/sms/saas-erp/src/pages -name '*.tsx' -type f -exec sh -c 'lines=$\\(wc -l < \"$1\"\\); if [ \"$lines\" -lt 30 ]; then echo \"$\\(basename $1\\) \\($lines lines\\)\"; fi' _ '{}' ';')",
       "Bash(echo \"Total TSX/TS files: $\\(find /c/sms/saas-erp/src -name \"*.tsx\" -o -name \"*.ts\")",
       "Bash(find /c/sms/saas-erp/src/pages -name '*.tsx' -type f -exec sh -c 'lines=$\\(wc -l < \"$1\"\\); if [ \"$lines\" -ge 30 ]; then echo \"✓ $\\(basename $1\\)\"; fi' _ '{}' ';')",
-      "Bash(wc -l /c/sms/saas-erp/src/i18n/locales/*.json)"
+      "Bash(wc -l /c/sms/saas-erp/src/i18n/locales/*.json)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npx tsc *)",
+      "Bash(Select-String -Pattern \"TeacherDiary\")",
+      "Bash(findstr /i \"CLAUDE\\\\|README\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(npm run *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\sms\\\\saas-erp\\\\src\\\\pages\" -Directory)",
+      "Bash(Select-Object Name)"
     ]
   }
 }
