@@ -16,7 +16,7 @@ import {
   PieChart, Pie, Cell, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip
 } from 'recharts';
 import { formatDate, cn } from '../lib/utils';
-import { PageHeader, Card, Btn, Badge, EmptyState, StatCard, WelcomeBanner, CountUp } from '../components/ui';
+import { PageHeader, Card, Btn, Badge, EmptyState, StatCard, CountUp } from '../components/ui';
 import { motion, AnimatePresence } from 'motion/react';
 
 const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#6366f1'];
@@ -319,12 +319,7 @@ export default function Dashboard() {
         animate="show"
         className="max-w-7xl mx-auto space-y-6"
       >
-        <motion.div variants={item}>
-          <WelcomeBanner 
-            userName={userRole?.full_name || 'Admin'} 
-            schoolName={schoolName || 'School ERP'} 
-          />
-        </motion.div>
+
 
         {/* Header Section */}
         <motion.div 
