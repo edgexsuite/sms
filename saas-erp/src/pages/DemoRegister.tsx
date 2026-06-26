@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Building2, Phone, Mail, MapPin, Users, User, ChevronRight, CheckCircle, Sparkles, GraduationCap, BookOpen, Award } from 'lucide-react';
+import { Building2, Phone, Mail, MapPin, Users, User, ChevronRight, CheckCircle, Sparkles, GraduationCap, BookOpen, Award, Check } from 'lucide-react';
 
 const SCHOOL_TYPES = ['Primary School', 'Secondary School', 'Higher Secondary', 'College', 'Academy / Tuition Centre', 'Other'];
 const CONTACT_ROLES = ['Principal', 'Admin / Manager', 'Owner / Director', 'IT Coordinator', 'Other'];
@@ -82,29 +82,29 @@ export default function DemoRegister() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-slate-900 to-violet-950 flex items-center justify-center p-4">
-        <div className="max-w-lg w-full text-center">
-          <div className="w-20 h-20 bg-emerald-400/20 border-2 border-emerald-400/40 rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_60px_rgba(52,211,153,0.3)]">
-            <CheckCircle className="w-10 h-10 text-emerald-400" />
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 select-none">
+        <div className="max-w-md w-full bg-white rounded-2xl border border-slate-200/80 shadow-[0_8px_30px_rgba(0,0,0,0.03)] p-8 text-center">
+          <div className="w-16 h-16 bg-emerald-50 border border-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle className="w-9 h-9 text-emerald-600" />
           </div>
-          <h1 className="text-3xl font-black text-white mb-3">Application Submitted!</h1>
-          <p className="text-slate-300 text-lg mb-2">
-            Thank you, <span className="text-white font-bold">{form.contact_person_name || 'there'}</span>!
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">Application Submitted!</h1>
+          <p className="text-slate-600 text-sm mb-4">
+            Thank you, <span className="text-slate-900 font-semibold">{form.contact_person_name || 'there'}</span>!
           </p>
-          <p className="text-slate-400 mb-8 leading-relaxed">
-            We've received your demo request for <span className="text-white font-semibold">{form.school_name}</span>. 
+          <p className="text-slate-500 text-sm mb-6 leading-relaxed">
+            We have received your demo request for <span className="text-slate-900 font-semibold">{form.school_name}</span>. 
             Our team will review your application and send your login credentials via WhatsApp within 24 hours.
           </p>
-          <div className="bg-white/[0.05] border border-white/10 rounded-2xl p-5 text-left space-y-3">
-            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">What happens next?</p>
+          <div className="bg-slate-50 rounded-xl p-5 text-start space-y-3.5 border border-slate-100">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">What happens next?</p>
             {[
-              { step: '1', text: 'Our team reviews your application' },
-              { step: '2', text: 'You receive login credentials on WhatsApp' },
-              { step: '3', text: '60 days of full-access demo — completely free' },
+              { step: '1', text: 'Our team reviews your details' },
+              { step: '2', text: 'Credentials sent to your WhatsApp number' },
+              { step: '3', text: '60 days of full-access demo starts' },
             ].map(({ step, text }) => (
               <div key={step} className="flex items-center gap-3">
-                <div className="w-6 h-6 rounded-full bg-indigo-500/30 border border-indigo-400/30 flex items-center justify-center text-indigo-300 text-xs font-black shrink-0">{step}</div>
-                <span className="text-slate-300 text-sm">{text}</span>
+                <div className="w-5.5 h-5.5 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 text-[10px] font-black shrink-0">{step}</div>
+                <span className="text-slate-600 text-xs font-medium">{text}</span>
               </div>
             ))}
           </div>
@@ -114,241 +114,299 @@ export default function DemoRegister() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-slate-900 to-violet-950">
-      {/* Hero header */}
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(99,102,241,0.15),transparent_70%)]" />
-        <div className="max-w-2xl mx-auto px-4 pt-14 pb-10 text-center relative z-10">
-          {/* Logo mark */}
-          <div className="inline-flex items-center gap-2 bg-white/[0.06] border border-white/10 rounded-full px-4 py-1.5 mb-8">
-            <Dot className="bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-            <span className="text-xs font-black text-slate-300 uppercase tracking-widest">Free 2-Month Demo</span>
+    <div className="min-h-screen flex bg-slate-50/50">
+      {/* Left Column: Value Proposition & Branding (Desktop) */}
+      <div className="hidden lg:flex lg:w-1/2 xl:w-[45%] relative bg-[#0a0f1d] overflow-hidden flex-col justify-between p-12 select-none border-r border-white/5">
+        {/* Subtle grid pattern */}
+        <div className="absolute inset-0 opacity-[0.02]"
+          style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
+        
+        {/* Soft, top-left illumination */}
+        <div className="absolute top-0 left-0 w-[400px] h-[400px] bg-indigo-600/10 rounded-full blur-[100px] pointer-events-none" />
+
+        {/* Branding header */}
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-12">
+            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-900/40">
+              <GraduationCap className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <p className="text-white font-bold text-sm uppercase tracking-widest leading-none">EdgeX Suite</p>
+              <p className="text-indigo-400/80 text-[10px] font-bold uppercase tracking-[0.2em] mt-1">Management Portal</p>
+            </div>
           </div>
 
-          <h1 className="text-4xl sm:text-5xl font-black text-white mb-4 leading-tight">
-            Start Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-violet-400">Free Demo</span>
+          <h1 className="text-4xl xl:text-5xl font-extrabold text-white leading-tight mb-5 tracking-tight">
+            Start your <br />
+            <span className="text-indigo-400">free 60-day demo.</span>
           </h1>
-          <p className="text-slate-400 text-lg mb-8 leading-relaxed">
-            Try our complete School ERP — students, fees, attendance, staff, results and more. 
-            No credit card required.
+          <p className="text-slate-400 text-base leading-relaxed max-w-md font-medium">
+            Join other leading institutions using EdgeX to automate student management, class diaries, fees, examinations, and communication.
           </p>
+        </div>
 
-          {/* Trust badges */}
-          <div className="flex items-center justify-center gap-6 flex-wrap text-slate-500 text-xs font-semibold">
-            {[
-              { icon: GraduationCap, label: 'Trusted by Schools' },
-              { icon: BookOpen, label: 'Full Feature Access' },
-              { icon: Award, label: '60 Days Free' },
-            ].map(({ icon: Icon, label }) => (
-              <div key={label} className="flex items-center gap-1.5">
-                <Icon className="w-3.5 h-3.5 text-indigo-400" />
-                <span>{label}</span>
+        {/* Features Checklist */}
+        <div className="relative z-10 space-y-6 my-8 max-w-sm">
+          {[
+            { title: 'Full Feature Access', desc: 'No locked modules or restricted actions. Test the complete ERP.' },
+            { title: 'No Credit Card Needed', desc: 'Start completely free. No payment details required during trial.' },
+            { title: 'Multi-Portal Environment', desc: 'Separate customized views for parents, students, staff, and admins.' },
+            { title: 'Activation within 24h', desc: 'We verify and configure your database setup in under one business day.' }
+          ].map(f => (
+            <div key={f.title} className="flex gap-4">
+              <div className="w-5 h-5 rounded-full bg-indigo-500/15 border border-indigo-400/20 flex items-center justify-center text-indigo-300 shrink-0 mt-0.5">
+                <Check className="w-3.5 h-3.5" />
               </div>
-            ))}
-          </div>
+              <div>
+                <p className="text-slate-200 text-sm font-bold tracking-tight">{f.title}</p>
+                <p className="text-slate-400 text-xs mt-0.5 leading-relaxed font-medium">{f.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer info */}
+        <div className="relative z-10 flex items-center justify-between text-slate-500 text-[10px] font-bold uppercase tracking-widest pt-6 border-t border-white/[0.05]">
+          <span>Request Workspace</span>
+          <span>v2.4.0</span>
         </div>
       </div>
 
-      {/* Form card */}
-      <div className="max-w-2xl mx-auto px-4 pb-16">
-        <div className="bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-3xl shadow-2xl overflow-hidden">
-          <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-8">
-
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-sm text-red-300 flex items-start gap-2">
-                <span className="shrink-0 mt-0.5">⚠️</span>
-                {error}
-              </div>
-            )}
-
-            {/* School Information */}
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-7 h-7 rounded-lg bg-blue-500/20 border border-blue-400/20 flex items-center justify-center">
-                  <Building2 className="w-3.5 h-3.5 text-blue-400" />
-                </div>
-                <h2 className="text-sm font-black text-white uppercase tracking-widest">School Information</h2>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                    School / Institution Name <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    placeholder="e.g. The Bright Future Academy"
-                    value={form.school_name}
-                    onChange={e => set('school_name', e.target.value)}
-                    className="w-full bg-white/[0.06] border border-white/[0.10] rounded-xl px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 text-sm transition"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">City <span className="text-red-400">*</span></label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-600" />
-                    <input
-                      required
-                      type="text"
-                      placeholder="e.g. Lahore"
-                      value={form.city}
-                      onChange={e => set('city', e.target.value)}
-                      className="w-full bg-white/[0.06] border border-white/[0.10] rounded-xl pl-10 pr-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-sm transition"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">School Type</label>
-                  <select
-                    value={form.school_type}
-                    onChange={e => set('school_type', e.target.value)}
-                    className="w-full bg-white/[0.06] border border-white/[0.10] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition appearance-none cursor-pointer"
-                    style={{ background: 'rgba(255,255,255,0.06)' }}
-                  >
-                    <option value="" className="bg-slate-800">-- Select type --</option>
-                    {SCHOOL_TYPES.map(t => <option key={t} value={t} className="bg-slate-800">{t}</option>)}
-                  </select>
-                </div>
-              </div>
+      {/* Right Column: Registration Card */}
+      <div className="flex-1 flex flex-col justify-center items-center p-6 lg:p-12 overflow-y-auto">
+        <div className="w-full max-w-xl flex flex-col items-center">
+          
+          {/* Mobile branding header */}
+          <div className="lg:hidden flex items-center gap-3 mb-8 justify-center">
+            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-900/20">
+              <GraduationCap className="w-6 h-6 text-white" />
             </div>
-
-            {/* Number of Students */}
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-7 h-7 rounded-lg bg-emerald-500/20 border border-emerald-400/20 flex items-center justify-center">
-                  <Users className="w-3.5 h-3.5 text-emerald-400" />
-                </div>
-                <h2 className="text-sm font-black text-white uppercase tracking-widest">Approx. Number of Students <span className="text-red-400">*</span></h2>
-              </div>
-              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                {STUDENT_RANGES.map(({ label, value }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => set('approx_students', value)}
-                    className={`py-2.5 rounded-xl border text-sm font-bold transition-all ${
-                      form.approx_students === value
-                        ? 'bg-indigo-500/30 border-indigo-400/60 text-indigo-300 shadow-[0_0_20px_rgba(99,102,241,0.2)]'
-                        : 'bg-white/[0.04] border-white/[0.08] text-slate-400 hover:border-white/20 hover:text-slate-200'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+              <span className="block font-black text-slate-900 text-lg uppercase tracking-wider leading-none">EdgeX Suite</span>
+              <span className="block text-indigo-600 text-[9px] font-bold uppercase tracking-[0.2em] mt-1">Management Portal</span>
             </div>
+          </div>
 
-            {/* Contact Information */}
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-7 h-7 rounded-lg bg-violet-500/20 border border-violet-400/20 flex items-center justify-center">
-                  <User className="w-3.5 h-3.5 text-violet-400" />
-                </div>
-                <h2 className="text-sm font-black text-white uppercase tracking-widest">Contact Person</h2>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Full Name <span className="text-red-400">*</span></label>
-                  <div className="relative">
-                    <User className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-600" />
-                    <input
-                      required
-                      type="text"
-                      placeholder="Your name"
-                      value={form.contact_person_name}
-                      onChange={e => set('contact_person_name', e.target.value)}
-                      className="w-full bg-white/[0.06] border border-white/[0.10] rounded-xl pl-10 pr-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-sm transition"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Your Role</label>
-                  <select
-                    value={form.contact_person_role}
-                    onChange={e => set('contact_person_role', e.target.value)}
-                    className="w-full bg-white/[0.06] border border-white/[0.10] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition appearance-none cursor-pointer"
-                    style={{ background: 'rgba(255,255,255,0.06)' }}
-                  >
-                    <option value="" className="bg-slate-800">-- Your role --</option>
-                    {CONTACT_ROLES.map(r => <option key={r} value={r} className="bg-slate-800">{r}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">WhatsApp / Phone <span className="text-red-400">*</span></label>
-                  <div className="relative">
-                    <Phone className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-600" />
-                    <input
-                      required
-                      type="tel"
-                      placeholder="03XX-XXXXXXX"
-                      value={form.contact_phone}
-                      onChange={e => set('contact_phone', e.target.value)}
-                      className="w-full bg-white/[0.06] border border-white/[0.10] rounded-xl pl-10 pr-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-sm transition"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Email Address <span className="text-red-400">*</span></label>
-                  <div className="relative">
-                    <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-600" />
-                    <input
-                      required
-                      type="email"
-                      placeholder="you@school.com"
-                      value={form.contact_email}
-                      onChange={e => set('contact_email', e.target.value)}
-                      className="w-full bg-white/[0.06] border border-white/[0.10] rounded-xl pl-10 pr-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-sm transition"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
+          {/* Form Header */}
+          <div className="mb-6 text-center lg:text-start w-full">
+            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Request School Demo</h2>
+            <p className="text-slate-500 mt-1.5 text-sm">Please fill in details about your institution to start your trial.</p>
+          </div>
 
-            {/* How did you hear */}
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">How did you hear about us?</label>
-              <div className="flex flex-wrap gap-2">
-                {HOW_HEARD.map(h => (
-                  <button
-                    key={h}
-                    type="button"
-                    onClick={() => set('how_heard', h)}
-                    className={`px-4 py-2 rounded-xl border text-xs font-bold transition-all ${
-                      form.how_heard === h
-                        ? 'bg-violet-500/20 border-violet-400/50 text-violet-300'
-                        : 'bg-white/[0.04] border-white/[0.08] text-slate-500 hover:border-white/20 hover:text-slate-300'
-                    }`}
-                  >
-                    {h}
-                  </button>
-                ))}
-              </div>
-            </div>
+          {/* Main Card */}
+          <div className="w-full bg-white rounded-2xl border border-slate-200/80 shadow-[0_8px_30px_rgba(0,0,0,0.02)] p-6 sm:p-8">
+            <form onSubmit={handleSubmit} className="space-y-6">
 
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={loading || !form.approx_students}
-              className="w-full flex items-center justify-center gap-3 py-4 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-black text-sm rounded-2xl shadow-xl shadow-indigo-900/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] uppercase tracking-widest"
-            >
-              {loading ? (
-                <>
-                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Submitting...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  Start My Free Demo
-                  <ChevronRight className="w-4 h-4" />
-                </>
+              {error && (
+                <div className="bg-rose-50 border border-rose-100 text-rose-700 px-4 py-3 rounded-xl text-sm flex items-start gap-2.5 animate-fadeIn">
+                  <span className="shrink-0 mt-0.5">⚠️</span>
+                  <span className="leading-snug">{error}</span>
+                </div>
               )}
-            </button>
-            <p className="text-center text-xs text-slate-600">No credit card required · 60-day full access · Cancel anytime</p>
-          </form>
+
+              {/* School Information */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                  <Building2 className="w-4 h-4 text-indigo-500" />
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest">School Information</h3>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                      School / Institution Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      required
+                      type="text"
+                      placeholder="e.g., The Bright Future Academy"
+                      value={form.school_name}
+                      onChange={e => set('school_name', e.target.value)}
+                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder-slate-400 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                      City <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        required
+                        type="text"
+                        placeholder="e.g., Lahore"
+                        value={form.city}
+                        onChange={e => set('city', e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder-slate-400 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                      School Type
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={form.school_type}
+                        onChange={e => set('school_type', e.target.value)}
+                        className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition appearance-none cursor-pointer"
+                      >
+                        <option value="">-- Select type --</option>
+                        {SCHOOL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
+                        <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Number of Students */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                  <Users className="w-4 h-4 text-indigo-500" />
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest">Approx. Number of Students <span className="text-red-500">*</span></h3>
+                </div>
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                  {STUDENT_RANGES.map(({ label, value }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => set('approx_students', value)}
+                      className={`py-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                        form.approx_students === value
+                          ? 'bg-indigo-50 border-indigo-500 text-indigo-700 font-bold shadow-sm shadow-indigo-500/5'
+                          : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Contact Information */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                  <User className="w-4 h-4 text-indigo-500" />
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest">Contact Person</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                      Full Name <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        required
+                        type="text"
+                        placeholder="Your name"
+                        value={form.contact_person_name}
+                        onChange={e => set('contact_person_name', e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder-slate-400 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                      Your Role
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={form.contact_person_role}
+                        onChange={e => set('contact_person_role', e.target.value)}
+                        className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition appearance-none cursor-pointer"
+                      >
+                        <option value="">-- Your role --</option>
+                        {CONTACT_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
+                        <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                      WhatsApp / Phone <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        required
+                        type="tel"
+                        placeholder="03XX-XXXXXXX"
+                        value={form.contact_phone}
+                        onChange={e => set('contact_phone', e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder-slate-400 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                      Email Address <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        required
+                        type="email"
+                        placeholder="you@school.com"
+                        value={form.contact_email}
+                        onChange={e => set('contact_email', e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder-slate-400 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* How did you hear */}
+              <div className="space-y-2">
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">How did you hear about us?</label>
+                <div className="flex flex-wrap gap-2">
+                  {HOW_HEARD.map(h => (
+                    <button
+                      key={h}
+                      type="button"
+                      onClick={() => set('how_heard', h)}
+                      className={`px-4 py-2.5 rounded-xl border text-xs font-semibold tracking-tight transition-all cursor-pointer ${
+                        form.how_heard === h
+                          ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-sm'
+                          : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      {h}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={loading || !form.approx_students}
+                className="w-full flex items-center justify-center gap-2 py-4 bg-[#0d1526] hover:bg-[#16213a] active:bg-[#070b13] text-white font-bold text-sm rounded-xl transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer uppercase tracking-wider"
+              >
+                {loading ? (
+                  <>
+                    <svg className="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <span>Start My Free Demo</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+              <p className="text-center text-[11px] text-slate-400 font-semibold">No credit card required · 60-day full access · Activate via WhatsApp</p>
+            </form>
+          </div>
         </div>
       </div>
     </div>
