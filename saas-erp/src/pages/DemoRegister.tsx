@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Building2, Phone, Mail, MapPin, Users, User, ChevronRight, CheckCircle, Sparkles, GraduationCap, BookOpen, Award, Check } from 'lucide-react';
+import { Building2, Phone, Mail, MapPin, Users, User, ChevronRight, CheckCircle, Sparkles, GraduationCap, BookOpen, Award, Check, Briefcase } from 'lucide-react';
 
 const SCHOOL_TYPES = ['Primary School', 'Secondary School', 'Higher Secondary', 'College', 'Academy / Tuition Centre', 'Other'];
 const CONTACT_ROLES = ['Principal', 'Admin / Manager', 'Owner / Director', 'IT Coordinator', 'Other'];
@@ -82,8 +82,8 @@ export default function DemoRegister() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 select-none">
-        <div className="max-w-md w-full bg-white rounded-2xl border border-slate-200/80 shadow-[0_8px_30px_rgba(0,0,0,0.03)] p-8 text-center">
+      <div className="min-h-screen bg-slate-50/50 flex items-center justify-center p-6 select-none">
+        <div className="max-w-md w-full bg-white rounded-2xl border border-slate-200/80 shadow-[0_8px_30px_rgba(0,0,0,0.03)] p-8 text-center animate-aura-in">
           <div className="w-16 h-16 bg-emerald-50 border border-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="w-9 h-9 text-emerald-600" />
           </div>
@@ -114,7 +114,7 @@ export default function DemoRegister() {
   }
 
   return (
-    <div className="min-h-screen flex bg-slate-50/50">
+    <div className="min-h-screen flex bg-slate-50/30">
       {/* Left Column: Value Proposition & Branding (Desktop) */}
       <div className="hidden lg:flex lg:w-1/2 xl:w-[45%] relative bg-[#0a0f1d] overflow-hidden flex-col justify-between p-12 select-none border-r border-white/5">
         {/* Subtle grid pattern */}
@@ -193,90 +193,96 @@ export default function DemoRegister() {
             <p className="text-slate-500 mt-1.5 text-sm">Please fill in details about your institution to start your trial.</p>
           </div>
 
-          {/* Main Card */}
-          <div className="w-full bg-white rounded-2xl border border-slate-200/80 shadow-[0_8px_30px_rgba(0,0,0,0.02)] p-6 sm:p-8">
-            <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="w-full space-y-6">
+            {error && (
+              <div className="bg-rose-50 border border-rose-100 text-rose-700 px-4 py-3 rounded-xl text-sm flex items-start gap-2.5 animate-fadeIn">
+                <span className="shrink-0 mt-0.5">⚠️</span>
+                <span className="leading-snug">{error}</span>
+              </div>
+            )}
 
-              {error && (
-                <div className="bg-rose-50 border border-rose-100 text-rose-700 px-4 py-3 rounded-xl text-sm flex items-start gap-2.5 animate-fadeIn">
-                  <span className="shrink-0 mt-0.5">⚠️</span>
-                  <span className="leading-snug">{error}</span>
+            {/* Card 1: School Information */}
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-6 sm:p-8 shadow-[0_4px_25px_rgba(0,0,0,0.015)] space-y-5 animate-aura-in">
+              <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+                <Building2 className="w-5 h-5 text-indigo-500" />
+                <div>
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest">School Details</h3>
+                  <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Tell us about your educational institution</p>
                 </div>
-              )}
+              </div>
 
-              {/* School Information */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-                  <Building2 className="w-4 h-4 text-indigo-500" />
-                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest">School Information</h3>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="sm:col-span-2">
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                      School / Institution Name <span className="text-red-500">*</span>
-                    </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2 space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    School / Institution Name <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative group">
+                    <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors duration-200" />
                     <input
                       required
                       type="text"
                       placeholder="e.g., The Bright Future Academy"
                       value={form.school_name}
                       onChange={e => set('school_name', e.target.value)}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder-slate-400 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition"
+                      className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder-slate-400 bg-slate-50/50 hover:bg-slate-50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all duration-200"
                     />
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                      City <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <input
-                        required
-                        type="text"
-                        placeholder="e.g., Lahore"
-                        value={form.city}
-                        onChange={e => set('city', e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder-slate-400 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition"
-                      />
-                    </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    City <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative group">
+                    <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors duration-200" />
+                    <input
+                      required
+                      type="text"
+                      placeholder="e.g., Lahore"
+                      value={form.city}
+                      onChange={e => set('city', e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder-slate-400 bg-slate-50/50 hover:bg-slate-50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all duration-200"
+                    />
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                      School Type
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={form.school_type}
-                        onChange={e => set('school_type', e.target.value)}
-                        className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition appearance-none cursor-pointer"
-                      >
-                        <option value="">-- Select type --</option>
-                        {SCHOOL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
-                        <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-                      </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    School Type
+                  </label>
+                  <div className="relative group">
+                    <GraduationCap className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors duration-200" />
+                    <select
+                      value={form.school_type}
+                      onChange={e => set('school_type', e.target.value)}
+                      className="w-full pl-10 pr-10 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 bg-slate-50/50 hover:bg-slate-50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all duration-200 appearance-none cursor-pointer"
+                    >
+                      <option value="">-- Select type --</option>
+                      {SCHOOL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-slate-400 group-focus-within:text-indigo-500 transition-colors duration-200">
+                      <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                        <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+                      </svg>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Number of Students */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-                  <Users className="w-4 h-4 text-indigo-500" />
-                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest">Approx. Number of Students <span className="text-red-500">*</span></h3>
-                </div>
+              <div className="space-y-3 pt-2">
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                  Approx. Number of Students <span className="text-red-500">*</span>
+                </label>
                 <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                   {STUDENT_RANGES.map(({ label, value }) => (
                     <button
                       key={value}
                       type="button"
                       onClick={() => set('approx_students', value)}
-                      className={`py-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                      className={`py-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.99] duration-150 ${
                         form.approx_students === value
-                          ? 'bg-indigo-50 border-indigo-500 text-indigo-700 font-bold shadow-sm shadow-indigo-500/5'
+                          ? 'bg-indigo-50/70 border-indigo-500 text-indigo-700 font-bold shadow-sm shadow-indigo-500/5'
                           : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
                       }`}
                     >
@@ -285,85 +291,95 @@ export default function DemoRegister() {
                   ))}
                 </div>
               </div>
+            </div>
 
-              {/* Contact Information */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-                  <User className="w-4 h-4 text-indigo-500" />
-                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest">Contact Person</h3>
+            {/* Card 2: Contact Details */}
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-6 sm:p-8 shadow-[0_4px_25px_rgba(0,0,0,0.015)] space-y-5 animate-aura-in">
+              <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+                <User className="w-5 h-5 text-indigo-500" />
+                <div>
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest">Primary Contact</h3>
+                  <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Information for portal setup and communication</p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                      Full Name <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <input
-                        required
-                        type="text"
-                        placeholder="Your name"
-                        value={form.contact_person_name}
-                        onChange={e => set('contact_person_name', e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder-slate-400 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition"
-                      />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    Full Name <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative group">
+                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors duration-200" />
+                    <input
+                      required
+                      type="text"
+                      placeholder="Your name"
+                      value={form.contact_person_name}
+                      onChange={e => set('contact_person_name', e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder-slate-400 bg-slate-50/50 hover:bg-slate-50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all duration-200"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    Your Role
+                  </label>
+                  <div className="relative group">
+                    <Briefcase className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors duration-200" />
+                    <select
+                      value={form.contact_person_role}
+                      onChange={e => set('contact_person_role', e.target.value)}
+                      className="w-full pl-10 pr-10 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 bg-slate-50/50 hover:bg-slate-50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all duration-200 appearance-none cursor-pointer"
+                    >
+                      <option value="">-- Your role --</option>
+                      {CONTACT_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-slate-400 group-focus-within:text-indigo-500 transition-colors duration-200">
+                      <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                        <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+                      </svg>
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                      Your Role
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={form.contact_person_role}
-                        onChange={e => set('contact_person_role', e.target.value)}
-                        className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition appearance-none cursor-pointer"
-                      >
-                        <option value="">-- Your role --</option>
-                        {CONTACT_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                      </select>
-                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
-                        <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-                      </div>
-                    </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    WhatsApp / Phone <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative group">
+                    <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors duration-200" />
+                    <input
+                      required
+                      type="tel"
+                      placeholder="03XX-XXXXXXX"
+                      value={form.contact_phone}
+                      onChange={e => set('contact_phone', e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder-slate-400 bg-slate-50/50 hover:bg-slate-50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all duration-200"
+                    />
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                      WhatsApp / Phone <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <input
-                        required
-                        type="tel"
-                        placeholder="03XX-XXXXXXX"
-                        value={form.contact_phone}
-                        onChange={e => set('contact_phone', e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder-slate-400 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                      Email Address <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <input
-                        required
-                        type="email"
-                        placeholder="you@school.com"
-                        value={form.contact_email}
-                        onChange={e => set('contact_email', e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder-slate-400 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition"
-                      />
-                    </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    Email Address <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative group">
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors duration-200" />
+                    <input
+                      required
+                      type="email"
+                      placeholder="you@school.com"
+                      value={form.contact_email}
+                      onChange={e => set('contact_email', e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder-slate-400 bg-slate-50/50 hover:bg-slate-50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all duration-200"
+                    />
                   </div>
                 </div>
               </div>
 
               {/* How did you hear */}
-              <div className="space-y-2">
+              <div className="space-y-2 pt-2">
                 <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">How did you hear about us?</label>
                 <div className="flex flex-wrap gap-2">
                   {HOW_HEARD.map(h => (
@@ -371,7 +387,7 @@ export default function DemoRegister() {
                       key={h}
                       type="button"
                       onClick={() => set('how_heard', h)}
-                      className={`px-4 py-2.5 rounded-xl border text-xs font-semibold tracking-tight transition-all cursor-pointer ${
+                      className={`px-4 py-2.5 rounded-xl border text-xs font-semibold tracking-tight transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.99] duration-150 ${
                         form.how_heard === h
                           ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-sm'
                           : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
@@ -382,12 +398,14 @@ export default function DemoRegister() {
                   ))}
                 </div>
               </div>
+            </div>
 
-              {/* Submit */}
+            {/* Submit */}
+            <div className="space-y-3.5 pt-2">
               <button
                 type="submit"
                 disabled={loading || !form.approx_students}
-                className="w-full flex items-center justify-center gap-2 py-4 bg-[#0d1526] hover:bg-[#16213a] active:bg-[#070b13] text-white font-bold text-sm rounded-xl transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer uppercase tracking-wider"
+                className="group w-full flex items-center justify-center gap-2 py-4 bg-[#0d1526] hover:bg-[#16213a] active:bg-[#070b13] hover:shadow-[0_8px_25px_rgba(13,21,38,0.12)] active:scale-[0.99] text-white font-bold text-sm rounded-xl transition-all duration-200 cursor-pointer uppercase tracking-wider"
               >
                 {loading ? (
                   <>
@@ -400,13 +418,13 @@ export default function DemoRegister() {
                 ) : (
                   <>
                     <span>Start My Free Demo</span>
-                    <ChevronRight className="w-4 h-4" />
+                    <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-200" />
                   </>
                 )}
               </button>
               <p className="text-center text-[11px] text-slate-400 font-semibold">No credit card required · 60-day full access · Activate via WhatsApp</p>
-            </form>
-          </div>
+            </div>
+          </form>
         </div>
       </div>
     </div>
