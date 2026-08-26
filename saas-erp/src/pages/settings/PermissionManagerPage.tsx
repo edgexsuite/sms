@@ -492,44 +492,71 @@ export default function PermissionManagerPage() {
                   </div>
                 </div>
 
-                {/* Power actions */}
-                <div className="space-y-3">
-                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                    <AlertCircle className="w-3.5 h-3.5" /> Power Actions
-                  </h3>
-
-                  <div className="space-y-2">
-                    {ACTIONS.map(action => {
-                      const on = !!editPerms.actions[action.id];
-                      return (
-                        <button
-                          key={action.id}
-                          onClick={() => toggleAction(action.id)}
-                          className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border-2 transition-all text-left ${
-                            on
-                              ? 'bg-red-50 border-red-200'
-                              : 'bg-white border-slate-100 hover:border-slate-200'
-                          }`}
-                        >
-                          <Trash2 className={`w-4 h-4 shrink-0 ${on ? 'text-red-500' : 'text-slate-300'}`} />
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-black ${on ? 'text-red-700' : 'text-slate-400'}`}>{action.name}</p>
-                            <p className={`text-[10px] mt-0.5 ${on ? 'text-red-400' : 'text-slate-300'}`}>{action.desc}</p>
-                          </div>
-                          {/* Toggle switch */}
-                          <div className={`w-11 h-6 rounded-full relative transition-colors shrink-0 ${on ? 'bg-red-500' : 'bg-slate-200'}`}>
-                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${on ? 'left-6' : 'left-1'}`} />
-                          </div>
-                        </button>
-                      );
-                    })}
+                {/* Functional Action Permissions */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5" /> Action Permissions
+                    </h3>
+                    <div className="flex gap-1.5">
+                      <button onClick={() => { const a: Record<string,boolean> = {}; ACTIONS.forEach(act => { a[act.id] = true; }); setEditPerms(p => ({ ...p, actions: a })); setSaved(false); }}
+                        className="text-[10px] font-black text-indigo-600 hover:underline">All on</button>
+                      <span className="text-slate-200">·</span>
+                      <button onClick={() => { const a: Record<string,boolean> = {}; ACTIONS.forEach(act => { a[act.id] = false; }); setEditPerms(p => ({ ...p, actions: a })); setSaved(false); }}
+                        className="text-[10px] font-black text-slate-400 hover:underline">All off</button>
+                    </div>
                   </div>
 
+                  {['Academic', 'Exams', 'Students', 'Danger'].map(cat => {
+                    const categoryActions = ACTIONS.filter(a => (a.category || 'Danger') === cat);
+                    if (categoryActions.length === 0) return null;
+                    return (
+                      <div key={cat} className="space-y-2">
+                        <p className={`text-[10px] font-black uppercase tracking-wider ${
+                          cat === 'Danger' ? 'text-rose-500' : 'text-slate-500'
+                        }`}>
+                          {cat === 'Danger' ? '⚠️ Sensitive & Danger' : `${cat} Capabilities`}
+                        </p>
+                        <div className="space-y-1.5">
+                          {categoryActions.map(action => {
+                            const on = !!editPerms.actions[action.id];
+                            const isDanger = cat === 'Danger';
+                            return (
+                              <button
+                                key={action.id}
+                                onClick={() => toggleAction(action.id)}
+                                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl border transition-all text-left ${
+                                  on
+                                    ? isDanger ? 'bg-red-50 border-red-200' : 'bg-indigo-50/80 border-indigo-200'
+                                    : 'bg-white border-slate-100 hover:border-slate-200'
+                                }`}
+                              >
+                                {isDanger ? (
+                                  <Trash2 className={`w-4 h-4 shrink-0 ${on ? 'text-red-500' : 'text-slate-300'}`} />
+                                ) : (
+                                  <ShieldCheck className={`w-4 h-4 shrink-0 ${on ? 'text-indigo-600' : 'text-slate-300'}`} />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <p className={`text-xs font-black ${on ? (isDanger ? 'text-red-700' : 'text-indigo-900') : 'text-slate-600'}`}>{action.name}</p>
+                                  <p className={`text-[10px] truncate ${on ? (isDanger ? 'text-red-500' : 'text-indigo-600/70') : 'text-slate-400'}`}>{action.desc}</p>
+                                </div>
+                                {/* Toggle switch */}
+                                <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${on ? (isDanger ? 'bg-red-500' : 'bg-indigo-600') : 'bg-slate-200'}`}>
+                                  <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${on ? 'left-4.5' : 'left-0.5'}`} />
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+
                   {/* Warning */}
-                  <div className="p-4 bg-orange-50 rounded-xl border border-orange-100">
+                  <div className="p-3.5 bg-orange-50 rounded-xl border border-orange-100">
                     <p className="text-[10px] text-orange-700 font-bold leading-relaxed flex gap-2">
                       <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                      Power Actions allow this user to move records to Trash. Final deletion still requires Director verification.
+                      Class Incharges automatically have contextual permission for their assigned class diary & exams.
                     </p>
                   </div>
 
@@ -541,7 +568,9 @@ export default function PermissionManagerPage() {
                         <span key={m.id} className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-black rounded-full">{m.name}</span>
                       ))}
                       {ACTIONS.filter(a => editPerms.actions[a.id]).map(a => (
-                        <span key={a.id} className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-black rounded-full">{a.name}</span>
+                        <span key={a.id} className={`px-2 py-0.5 text-[10px] font-black rounded-full ${
+                          a.category === 'Danger' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+                        }`}>{a.name}</span>
                       ))}
                       {Object.values(editPerms.modules).every(v => !v) && Object.values(editPerms.actions).every(v => !v) && (
                         <span className="text-[10px] text-slate-300 italic">No permissions set</span>

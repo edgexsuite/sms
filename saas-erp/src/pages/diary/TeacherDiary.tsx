@@ -55,9 +55,11 @@ const getSubjectMeta = (name: string = '') => {
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 export default function TeacherDiary() {
-  const { userRole } = useAuth();
+  const { userRole, isClassIncharge, canManageClassDiary, inchargeClassIds } = useAuth();
   const isTeacher = userRole?.role === 'teacher';
-  const isAdmin = !isTeacher;
+  const isExecutive = ['admin', 'director', 'principal', 'vice_principal', 'academic_coordinator', 'campus_coordinator', 'section_coordinator'].includes(userRole?.role || '');
+  const isAdmin = isExecutive || canManageClassDiary();
+  const canClassView = isAdmin || isClassIncharge();
 
   const [myStaffId, setMyStaffId] = useState<string | null>(null);
   const [allTeachers, setAllTeachers] = useState<any[]>([]);
@@ -66,7 +68,7 @@ export default function TeacherDiary() {
   const [selectedTeacherName, setSelectedTeacherName] = useState('');
   const [selectedClassId, setSelectedClassId] = useState('');
   const [selectedClassName, setSelectedClassName] = useState('');
-  const [viewMode, setViewMode] = useState<'teacher' | 'class'>('teacher');
+  const [viewMode, setViewMode] = useState<'teacher' | 'class'>(canClassView && !isAdmin ? 'class' : 'teacher');
   const [assignedSlots, setAssignedSlots] = useState<Slot[]>([]);
   const [viewDate, setViewDate] = useState(new Date().toISOString().split('T')[0]);
   const [rows, setRows] = useState<DiaryRow[]>([]);
@@ -156,11 +158,31 @@ export default function TeacherDiary() {
   const fetchAllClasses = async () => {
     const { data } = await supabase
       .from('classes')
-      .select('id, name, section')
+      .select('id, name, section, class_teacher_id')
       .eq('school_id', userRole?.school_id)
       .order('name');
-    if (data) setAllClasses(data);
+    if (data) {
+      setAllClasses(data);
+      // Auto select incharge class if in class view mode
+      if (inchargeClassIds.length > 0 && !selectedClassId) {
+        const inchargeCls = data.find((c: any) => inchargeClassIds.includes(c.id));
+        if (inchargeCls) {
+          setSelectedClassId(inchargeCls.id);
+          setSelectedClassName(`${inchargeCls.name} ${inchargeCls.section}`);
+        }
+      }
+    }
   };
+
+  useEffect(() => {
+    if (viewMode === 'class' && inchargeClassIds.length > 0 && !selectedClassId && allClasses.length > 0) {
+      const inchargeCls = allClasses.find((c: any) => inchargeClassIds.includes(c.id));
+      if (inchargeCls) {
+        setSelectedClassId(inchargeCls.id);
+        setSelectedClassName(`${inchargeCls.name} ${inchargeCls.section}`);
+      }
+    }
+  }, [viewMode, inchargeClassIds, allClasses]);
 
   useEffect(() => {
     if (viewMode === 'teacher') {
@@ -244,10 +266,6 @@ export default function TeacherDiary() {
     setLoading(true);
 
     // ── Diary Schedule filter ──────────────────────────────────────────────
-    // diary_schedule is per-class per-day. In class view: filter to that
-    // class's schedule. In teacher view: apply each class's schedule
-    // independently so only scheduled subjects show per class, with fallback
-    // to all teacher subjects for classes that have no schedule configured.
     const DAYS_EN = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     const dayOfWeek = DAYS_EN[new Date(viewDate).getDay()];
 
@@ -276,7 +294,7 @@ export default function TeacherDiary() {
             section:      cls?.section || '',
             subject_id:   r.subject_id,
             subject_name: (r.subjects as any)?.subject_name || existing?.subject_name || '—',
-            teacher_id:   existing?.teacher_id,
+            teacher_id:   existing?.teacher_id || myStaffId || undefined,
             teacher_name: existing?.teacher_name || 'Unassigned',
           };
         });
@@ -375,16 +393,18 @@ export default function TeacherDiary() {
       alert('Topic / Lesson Covered is required before saving.');
       return;
     }
-    // If topic is hidden, ensure at least homework is provided (homework is always enabled)
     if (!showTopic && !row.homework.trim()) {
       alert('Homework / Task is required before saving.');
       return;
     }
     setRows(prev => prev.map((r, i) => i === index ? { ...r, saving: true } : r));
     try {
+      const activeTeacherId = viewMode === 'teacher' ? selectedTeacherId : (row.slot.teacher_id || myStaffId || selectedTeacherId);
+      if (!activeTeacherId) throw new Error("No teacher assigned to this subject. Please select a teacher or ensure staff account is linked.");
+
       const payload = {
         school_id: userRole?.school_id,
-        teacher_id: viewMode === 'teacher' ? selectedTeacherId : row.slot.teacher_id,
+        teacher_id: activeTeacherId,
         class_id: row.slot.class_id,
         subject_id: row.slot.subject_id,
         diary_date: viewDate,
@@ -393,7 +413,6 @@ export default function TeacherDiary() {
         activity_notes: row.activity_notes || null,
         next_plan: row.next_plan || null,
       };
-      if (!payload.teacher_id) throw new Error("No teacher assigned to this subject.");
       const { error } = await supabase
         .from('teacher_diary')
         .upsert([payload], { onConflict: 'teacher_id,class_id,subject_id,diary_date' });
@@ -428,9 +447,7 @@ export default function TeacherDiary() {
     window.print();
   };
 
-
   const formattedDate = formatDate(viewDate);
-
   const filledCount = rows.filter(r => r.topic_covered.trim()).length;
 
   return (
@@ -467,7 +484,7 @@ export default function TeacherDiary() {
               : isTeacher ? 'Fill in your daily lesson plan.' : 'View diary entries by individual teacher.'}
         actions={
           <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto no-print">
-          {isAdmin && (
+          {canClassView && (
             <div className="bg-slate-100 p-1 rounded-xl flex items-center mr-2">
               <button onClick={() => setViewMode('teacher')} className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'teacher' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>Teacher</button>
               <button onClick={() => setViewMode('class')} className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'class' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>Class</button>
@@ -517,7 +534,14 @@ export default function TeacherDiary() {
               <select value={selectedClassId} onChange={e => { const c = allClasses.find(x => x.id === e.target.value); setSelectedClassId(e.target.value); setSelectedClassName(c ? `${c.name} ${c.section}` : ''); }}
                 className="w-full border border-slate-200 px-3 py-2.5 rounded-xl bg-slate-50 text-[13px] font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all">
                 <option value="">— Select Class —</option>
-                {allClasses.map(c => (<option key={c.id} value={c.id}>{c.name} {c.section}</option>))}
+                {allClasses.map(c => {
+                  const isIncharge = inchargeClassIds.includes(c.id);
+                  return (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.section} {isIncharge ? '⭐ (Incharge Class)' : ''}
+                    </option>
+                  );
+                })}
               </select>
             </motion.div>
           )}

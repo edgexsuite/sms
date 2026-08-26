@@ -45,9 +45,25 @@ export const MODULES = [
 // Action definitions — canonical IDs used by canDo() in AuthContext
 // NOTE: stored under permissions.actions.{id} in the DB
 export const ACTIONS = [
-  { id: 'delete_student', name: 'Delete Students', desc: 'Move student records to trash'   },
-  { id: 'delete_staff',   name: 'Delete Staff',    desc: 'Move staff records to trash'     },
-  { id: 'delete_expense', name: 'Delete Expenses', desc: 'Remove financial transactions'   },
+  // Academic & Diary
+  { id: 'manage_class_diary',    name: 'Manage Class Diary',    category: 'Academic', desc: 'Create, edit, and view complete class diary entries for assigned class' },
+  { id: 'print_class_diary',     name: 'Print Class Diary',     category: 'Academic', desc: 'Export and print formatted complete class diary reports' },
+  { id: 'manage_diary_schedule', name: 'Manage Diary Schedule', category: 'Academic', desc: 'Configure per-class day-wise subject diary schedule' },
+
+  // Exams & Results
+  { id: 'manage_exams',          name: 'Manage Exams',          category: 'Exams',    desc: 'Create, edit, and configure exams, exam types, and subject mark caps' },
+  { id: 'enter_marks',           name: 'Enter Marks',           category: 'Exams',    desc: 'Input and edit student marks for assigned classes and subjects' },
+  { id: 'publish_results',       name: 'Publish Results',       category: 'Exams',    desc: 'Lock marks and publish report cards to student & parent portals' },
+  { id: 'view_award_list',       name: 'View Award Lists',      category: 'Exams',    desc: 'Generate printable award lists and result summary sheets' },
+
+  // Students & Attendance
+  { id: 'approve_student_leave', name: 'Approve Student Leave', category: 'Students', desc: 'Approve or reject student leave applications for assigned class' },
+  { id: 'issue_certificates',    name: 'Issue Certificates',    category: 'Students', desc: 'Generate and issue leaving and character certificates' },
+
+  // Deletions & System
+  { id: 'delete_student',        name: 'Delete Students',       category: 'Danger',   desc: 'Move student records to trash' },
+  { id: 'delete_staff',          name: 'Delete Staff',          category: 'Danger',   desc: 'Move staff records to trash' },
+  { id: 'delete_expense',        name: 'Delete Expenses',       category: 'Danger',   desc: 'Remove financial transactions' },
 ];
 
 // Default permission presets per role
@@ -55,47 +71,102 @@ export const ACTIONS = [
 export const ROLE_PRESETS: Record<string, PermissionSet> = {
   director: {
     modules: { dashboard: true,  students: true,  staff: true,  finance: true,  academic: true,  services: true,  reports: true,  settings: true  },
-    actions: { delete_student: true,  delete_staff: true,  delete_expense: true  },
+    actions: {
+      manage_class_diary: true, print_class_diary: true, manage_diary_schedule: true,
+      manage_exams: true, enter_marks: true, publish_results: true, view_award_list: true,
+      approve_student_leave: true, issue_certificates: true,
+      delete_student: true, delete_staff: true, delete_expense: true
+    },
   },
   principal: {
     modules: { dashboard: true,  students: true,  staff: true,  finance: true,  academic: true,  services: true,  reports: true,  settings: false },
-    actions: { delete_student: true,  delete_staff: false, delete_expense: false },
+    actions: {
+      manage_class_diary: true, print_class_diary: true, manage_diary_schedule: true,
+      manage_exams: true, enter_marks: true, publish_results: true, view_award_list: true,
+      approve_student_leave: true, issue_certificates: true,
+      delete_student: true, delete_staff: false, delete_expense: false
+    },
   },
   vice_principal: {
     modules: { dashboard: true,  students: true,  staff: true,  finance: true,  academic: true,  services: true,  reports: true,  settings: false },
-    actions: { delete_student: false, delete_staff: false, delete_expense: false },
+    actions: {
+      manage_class_diary: true, print_class_diary: true, manage_diary_schedule: true,
+      manage_exams: true, enter_marks: true, publish_results: true, view_award_list: true,
+      approve_student_leave: true, issue_certificates: true,
+      delete_student: false, delete_staff: false, delete_expense: false
+    },
   },
   admin: {
     modules: { dashboard: true,  students: true,  staff: true,  finance: true,  academic: true,  services: true,  reports: true,  settings: true  },
-    actions: { delete_student: true,  delete_staff: true,  delete_expense: true  },
+    actions: {
+      manage_class_diary: true, print_class_diary: true, manage_diary_schedule: true,
+      manage_exams: true, enter_marks: true, publish_results: true, view_award_list: true,
+      approve_student_leave: true, issue_certificates: true,
+      delete_student: true, delete_staff: true, delete_expense: true
+    },
   },
   teacher: {
     modules: { dashboard: true,  students: true,  staff: false, finance: false, academic: true,  services: false, reports: false, settings: false },
-    actions: { delete_student: false, delete_staff: false, delete_expense: false },
+    actions: {
+      manage_class_diary: true, print_class_diary: true, manage_diary_schedule: false,
+      manage_exams: false, enter_marks: true, publish_results: false, view_award_list: true,
+      approve_student_leave: true, issue_certificates: false,
+      delete_student: false, delete_staff: false, delete_expense: false
+    },
   },
   staff: {
     modules: { dashboard: true,  students: true,  staff: false, finance: true,  academic: false, services: true,  reports: false, settings: false },
-    actions: { delete_student: false, delete_staff: false, delete_expense: false },
+    actions: {
+      manage_class_diary: false, print_class_diary: false, manage_diary_schedule: false,
+      manage_exams: false, enter_marks: false, publish_results: false, view_award_list: false,
+      approve_student_leave: false, issue_certificates: true,
+      delete_student: false, delete_staff: false, delete_expense: false
+    },
   },
   accountant: {
     modules: { dashboard: true,  students: false, staff: false, finance: true,  academic: false, services: false, reports: true,  settings: false },
-    actions: { delete_student: false, delete_staff: false, delete_expense: true  },
+    actions: {
+      manage_class_diary: false, print_class_diary: false, manage_diary_schedule: false,
+      manage_exams: false, enter_marks: false, publish_results: false, view_award_list: false,
+      approve_student_leave: false, issue_certificates: false,
+      delete_student: false, delete_staff: false, delete_expense: true
+    },
   },
   librarian: {
     modules: { dashboard: true,  students: true,  staff: false, finance: false, academic: false, services: true,  reports: false, settings: false },
-    actions: { delete_student: false, delete_staff: false, delete_expense: false },
+    actions: {
+      manage_class_diary: false, print_class_diary: false, manage_diary_schedule: false,
+      manage_exams: false, enter_marks: false, publish_results: false, view_award_list: false,
+      approve_student_leave: false, issue_certificates: false,
+      delete_student: false, delete_staff: false, delete_expense: false
+    },
   },
   campus_coordinator: {
     modules: { dashboard: true,  students: true,  staff: false, finance: false, academic: true,  services: true,  reports: true,  settings: false },
-    actions: { delete_student: false, delete_staff: false, delete_expense: false },
+    actions: {
+      manage_class_diary: true, print_class_diary: true, manage_diary_schedule: true,
+      manage_exams: true, enter_marks: true, publish_results: true, view_award_list: true,
+      approve_student_leave: true, issue_certificates: true,
+      delete_student: false, delete_staff: false, delete_expense: false
+    },
   },
   academic_coordinator: {
     modules: { dashboard: true,  students: true,  staff: false, finance: false, academic: true,  services: false, reports: true,  settings: false },
-    actions: { delete_student: false, delete_staff: false, delete_expense: false },
+    actions: {
+      manage_class_diary: true, print_class_diary: true, manage_diary_schedule: true,
+      manage_exams: true, enter_marks: true, publish_results: true, view_award_list: true,
+      approve_student_leave: true, issue_certificates: true,
+      delete_student: false, delete_staff: false, delete_expense: false
+    },
   },
   section_coordinator: {
     modules: { dashboard: true,  students: true,  staff: false, finance: false, academic: true,  services: false, reports: false, settings: false },
-    actions: { delete_student: false, delete_staff: false, delete_expense: false },
+    actions: {
+      manage_class_diary: true, print_class_diary: true, manage_diary_schedule: false,
+      manage_exams: true, enter_marks: true, publish_results: false, view_award_list: true,
+      approve_student_leave: true, issue_certificates: false,
+      delete_student: false, delete_staff: false, delete_expense: false
+    },
   },
 };
 

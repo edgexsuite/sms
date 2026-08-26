@@ -30,9 +30,14 @@ interface MarkData {
 }
 
 export default function Exams() {
-  const { userRole } = useAuth();
+  const { userRole, canManageExams, isClassIncharge } = useAuth();
   const [activeTab, setActiveTab] = useState<'exams' | 'marks'>('marks'); // default to marks for teachers
   
+  // Exam management authorization
+  const isExecutive = ['admin', 'director', 'principal', 'vice_principal', 'academic_coordinator', 'campus_coordinator'].includes(userRole?.role || '');
+  const canManageExamTerms = isExecutive || canManageExams();
+  const isStaffRole = !canManageExamTerms;
+
   // Data states
   const [exams, setExams] = useState<Exam[]>([]);
   const [classes, setClasses] = useState<ClassData[]>([]);
@@ -50,11 +55,7 @@ export default function Exams() {
   const [isAddExamModalOpen, setIsAddExamModalOpen] = useState(false);
   const [examForm, setExamForm] = useState({ name: '', start_date: '', end_date: '' });
 
-  // Teacher RBAC: allowed classes
-  const ADMIN_ROLES = ['admin', 'principal', 'director', 'vice principal', 'coordinator'];
-  const isStaffRole = !ADMIN_ROLES.includes((userRole?.role || '').toLowerCase());
   const [teacherClassIds, setTeacherClassIds] = useState<string[]>([]);
-
   const subjects = ['English', 'Mathematics', 'Science', 'Urdu', 'Islamic Studies', 'Social Studies', 'Computer Science'];
 
   useEffect(() => {
@@ -67,6 +68,19 @@ export default function Exams() {
       }
     }
   }, [userRole]);
+
+  const fetchClasses = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('classes')
+        .select('id, name, section')
+        .order('name', { ascending: true });
+      if (error) throw error;
+      setClasses(data || []);
+    } catch (error) {
+      console.error('Error fetching classes:', error);
+    }
+  };
 
   const resolveTeacherClasses = async () => {
     const schoolId = userRole?.school_id;
@@ -119,19 +133,6 @@ export default function Exams() {
     }
   };
 
-  const fetchClasses = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('classes')
-        .select('id, name, section')
-        .order('name', { ascending: true });
-      if (error) throw error;
-      setClasses(data || []);
-    } catch (error) {
-      console.error('Error fetching classes:', error);
-    }
-  };
-
   const fetchStudentsAndMarks = async () => {
     if (!userRole?.school_id) return;
     setLoading(true);
@@ -141,6 +142,7 @@ export default function Exams() {
       let studentsQuery = supabase
         .from('students')
         .select('id, full_name, roll_number')
+        .eq('school_id', userRole.school_id)
         .eq('status', 'active')
         .order('roll_number', { ascending: true });
 
@@ -265,7 +267,8 @@ export default function Exams() {
       if (error) throw error;
       alert('Marks saved successfully!');
     } catch (error: any) {
-      alert(error.message || 'Error saving marks');
+      console.error('Error saving marks:', error);
+      alert('Error saving marks: ' + error.message);
     } finally {
       setSaving(false);
     }
@@ -303,7 +306,7 @@ export default function Exams() {
             </button>
           )}
           
-          {activeTab === 'exams' && userRole?.role === 'admin' && (
+          {activeTab === 'exams' && canManageExamTerms && (
             <button 
               onClick={() => setIsAddExamModalOpen(true)}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700"
@@ -315,9 +318,9 @@ export default function Exams() {
         </div>
       </div>
 
-      {/* Tabs — hide Exam Terms tab for staff roles */}
+      {/* Tabs — show Exam Terms tab for executives and exam managers */}
       <div className="flex border-b border-gray-200">
-        {!isStaffRole && (
+        {canManageExamTerms && (
           <button
             onClick={() => setActiveTab('exams')}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
