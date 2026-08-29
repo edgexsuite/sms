@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme, ThemeName } from '../contexts/ThemeContext';
-import { Building2, CreditCard, Database, ShieldCheck, Save, Download, Upload, Play, Palette, Briefcase, Plus, Clock, Calendar, Trash2, X, ClipboardList } from 'lucide-react';
+import { Building2, CreditCard, Database, ShieldCheck, Save, Download, Upload, Play, Palette, Briefcase, Plus, Clock, Calendar, Trash2, X, ClipboardList, BarChart2, LayoutGrid, CheckCircle2 } from 'lucide-react';
 import { seedDemoData } from '../lib/seedData';
 import { uploadFile } from '../lib/uploadUtils';
 import { formatDate } from '../lib/utils';
@@ -11,6 +11,15 @@ export default function Settings() {
   const { userRole } = useAuth();
   const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<'school' | 'fees' | 'data' | 'plan' | 'recruitment' | 'attendance' | 'appearance' | 'diary'>('school');
+  const [densityMode, setDensityMode] = useState<'comfortable' | 'compact'>(
+    () => (localStorage.getItem('density') as any) || 'comfortable'
+  );
+
+  const handleSetDensity = (mode: 'comfortable' | 'compact') => {
+    setDensityMode(mode);
+    localStorage.setItem('density', mode);
+    window.dispatchEvent(new Event('density-change'));
+  };
   
   // School Details State
   const [schoolData, setSchoolData] = useState({
@@ -779,6 +788,71 @@ export default function Settings() {
                     <p className="text-sm text-gray-500 mt-2">{option.description}</p>
                   </button>
                 ))}
+              </div>
+
+              {/* ── Table & Layout Density Mode ── */}
+              <div className="pt-6 border-t border-slate-200">
+                <h3 className="text-base font-bold text-gray-900 mb-1 flex items-center gap-2">
+                  <BarChart2 className="w-5 h-5 text-indigo-600" />
+                  Table & Interface Density Mode
+                </h3>
+                <p className="text-sm text-gray-500 mb-4">
+                  Set default information density for tables, fee reports, and student lists. (Can also be toggled anytime via the header button).
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Comfortable Mode */}
+                  <button
+                    type="button"
+                    onClick={() => handleSetDensity('comfortable')}
+                    className={`p-5 rounded-2xl border-2 text-left transition-all relative ${
+                      densityMode === 'comfortable'
+                        ? 'border-indigo-600 bg-indigo-50/50 shadow-md ring-2 ring-indigo-100'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <LayoutGrid className="w-5 h-5 text-slate-700" />
+                        <h4 className="font-black text-sm text-slate-900">Comfortable (Standard)</h4>
+                      </div>
+                      {densityMode === 'comfortable' && (
+                        <span className="px-2 py-0.5 bg-indigo-600 text-white rounded-md text-[10px] font-black uppercase">
+                          Active Default
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Generous table padding, spacious cards, and standard font sizing. Recommended for tablets and general view.
+                    </p>
+                  </button>
+
+                  {/* Compact ERP Mode */}
+                  <button
+                    type="button"
+                    onClick={() => handleSetDensity('compact')}
+                    className={`p-5 rounded-2xl border-2 text-left transition-all relative ${
+                      densityMode === 'compact'
+                        ? 'border-indigo-600 bg-indigo-50/50 shadow-md ring-2 ring-indigo-100'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <BarChart2 className="w-5 h-5 text-indigo-600" />
+                        <h4 className="font-black text-sm text-slate-900">Compact ERP (High-Density)</h4>
+                      </div>
+                      {densityMode === 'compact' && (
+                        <span className="px-2 py-0.5 bg-indigo-600 text-white rounded-md text-[10px] font-black uppercase">
+                          Active Default
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Maximum visible rows without scrolling, 1-line KPI strips, compact padding, and tabular figures. Perfect for accountants and administrators.
+                    </p>
+                  </button>
+                </div>
               </div>
             </div>
           )}

@@ -393,6 +393,7 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
         .from('fee_records')
         .select('*')
         .eq('student_id', student.id)
+        .is('deleted_at', null)
         .order('month_year', { ascending: false });
       setDetailFees(data || []);
     }

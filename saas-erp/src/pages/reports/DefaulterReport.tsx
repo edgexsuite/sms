@@ -75,9 +75,8 @@ export default function DefaulterReport() {
             id,
             full_name,
             roll_number,
-            father_name,
             parent_id,
-            parents (whatsapp_number),
+            parents (father_name, whatsapp_number),
             class_id,
             is_deleted,
             classes (name, section)
@@ -111,7 +110,7 @@ export default function DefaulterReport() {
             roll_number: student.roll_number,
             class_name: student.classes?.name || 'N/A',
             section: student.classes?.section || 'N/A',
-            father_name: student.father_name || 'N/A',
+            father_name: student.parents?.father_name || 'N/A',
             father_contact: student.parents?.whatsapp_number || 'N/A',
             total_pending: 0,
             unpaid_months: []

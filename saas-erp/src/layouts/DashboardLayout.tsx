@@ -30,7 +30,20 @@ export default function DashboardLayout() {
     const next = !densityCompact;
     setDensityCompact(next);
     localStorage.setItem('density', next ? 'compact' : 'comfortable');
+    window.dispatchEvent(new Event('density-change'));
   };
+
+  useEffect(() => {
+    const syncDensity = () => {
+      setDensityCompact(localStorage.getItem('density') === 'compact');
+    };
+    window.addEventListener('storage', syncDensity);
+    window.addEventListener('density-change', syncDensity);
+    return () => {
+      window.removeEventListener('storage', syncDensity);
+      window.removeEventListener('density-change', syncDensity);
+    };
+  }, []);
 
   // Clear manual override whenever the user navigates to a new path
   useEffect(() => {

@@ -113,7 +113,8 @@ export default function CustomStudentList() {
     if (needsFinance && filtered.length > 0) {
       const { data: fees } = await supabase.from('fee_records')
         .select('student_id, total_amount, paid_amount')
-        .in('student_id', filtered.map(s => s.id));
+        .in('student_id', filtered.map(s => s.id))
+        .is('deleted_at', null);
       fees?.forEach(f => {
         const cur = feeMap.get(f.student_id) || { total: 0, paid: 0 };
         cur.total += Number(f.total_amount || 0);
@@ -238,11 +239,12 @@ export default function CustomStudentList() {
       head: [['#', ...activeCols.map(c => c.label)]],
       body: rows.map((r, i) => [
         String(i + 1),
-        ...activeCols.map(c =>
-          c.category === 'Finance'
-            ? `PKR ${Number(r[c.key] || 0).toLocaleString()}`
-            : formatDate(r[c.key]) || '-'
-        ),
+        ...activeCols.map(c => {
+          if (c.category === 'Finance') return `PKR ${Number(r[c.key] || 0).toLocaleString()}`;
+          if (c.key === 'dob' || c.key === 'admission_date') return formatDate(r[c.key]) || '-';
+          return String(r[c.key] ?? '-');
+        }),
+
       ]),
       startY: y,
       styles: { fontSize: 6.5, cellPadding: 1.8 },
@@ -652,7 +654,9 @@ export default function CustomStudentList() {
                                 </span>
                               ) : col.category === 'Finance'
                                 ? `PKR ${Number(row[col.key] || 0).toLocaleString()}`
-                                : formatDate(row[col.key]) || '—'
+                                : (col.key === 'dob' || col.key === 'admission_date')
+                                  ? (formatDate(row[col.key]) || '—')
+                                  : (String(row[col.key] ?? '—'))
                               }
                             </td>
                           ))}

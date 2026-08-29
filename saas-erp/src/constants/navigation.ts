@@ -6,7 +6,7 @@ import {
   Banknote, DollarSign, Scale, BarChart3, BarChart2, ClipboardCheck, UserX,
   LineChart, Library, Home, Bell, Key, Trash2, Box, Package, Clock, Palette,
   Receipt, Layers, BookMarked, Landmark, BarChart, LifeBuoy, Users2, Bus, MapPin, Truck,
-  Radio, Inbox, Tag, History, Printer, Wand2, Trophy
+  Radio, Inbox, Tag, History, Printer, Wand2, Trophy, CalendarDays, Table2
 } from 'lucide-react';
 
 export const ALL_ADMIN    = ['admin', 'principal', 'director', 'vice_principal'];
@@ -98,8 +98,10 @@ export const NAV_SECTIONS = [
       },
       { name: 'Timetable',          path: '/timetable',       icon: Calendar,  roles: ALL_ACADEMIC },
       { name: 'Auto Timetable',     path: '/auto-timetable',   icon: Wand2,     roles: ALL_ADMIN    },
-      { name: 'Teacher Diary', path: '/diary',       icon: ClipboardList,roles: ALL_ACADEMIC },
-      { name: 'Evaluation',    path: '/evaluation',  icon: Star,         roles: ALL_ACADEMIC },
+      { name: 'Teacher Substitution', path: '/timetable/substitution', icon: Users, roles: ALL_ACADEMIC },
+      { name: 'Teacher Diary',  path: '/diary',       icon: ClipboardList, roles: ALL_ACADEMIC },
+      { name: 'Lesson Planner', path: '/planner',     icon: CalendarDays,  roles: ALL_ACADEMIC },
+      { name: 'Evaluation',     path: '/evaluation',  icon: Star,          roles: ALL_ACADEMIC },
     ],
   },
 
@@ -259,10 +261,16 @@ export const NAV_SECTIONS = [
     color: '#0ea5e9',
     roles: ALL_REPORTS,
     items: [
-      { name: 'Master Summary',    path: '/reports/master-summary', icon: BarChart,   roles: ALL_REPORTS },
-      { name: 'Collection Report', path: '/reports/collection',     icon: CreditCard, roles: ALL_REPORTS },
-      { name: 'Invoice Report',    path: '/fees/invoice-report',    icon: Receipt,    roles: ALL_FINANCE },
-      { name: 'Student Reports',   path: '/students/reports',       icon: BarChart3,  roles: ALL_ADMIN   },
+      { name: 'Master Summary',        path: '/reports/master-summary',       icon: BarChart,       roles: ALL_REPORTS },
+      { name: 'Collection Report',     path: '/reports/collection',           icon: CreditCard,     roles: ALL_REPORTS },
+      { name: 'Fee Status Report',     path: '/reports/fee-status',           icon: ClipboardCheck, roles: ALL_REPORTS },
+      { name: 'Monthly Consolidated',  path: '/reports/monthly-consolidated', icon: Calendar,       roles: ALL_REPORTS },
+      { name: 'Arrears Report',        path: '/reports/arrears',              icon: AlertTriangle,  roles: ALL_REPORTS },
+      { name: 'Class Fee Summary',     path: '/reports/class-fee-summary',    icon: BarChart3,      roles: ALL_REPORTS },
+      { name: 'Class Fee Matrix',      path: '/reports/class-fee-matrix',     icon: Table2,         roles: ALL_REPORTS },
+      { name: 'Student Fee Ledger',    path: '/reports/student-ledger',       icon: BookOpen,       roles: ALL_REPORTS },
+      { name: 'Invoice Report',        path: '/fees/invoice-report',          icon: Receipt,        roles: ALL_FINANCE },
+      { name: 'Student Reports',       path: '/students/reports',             icon: BarChart3,      roles: ALL_ADMIN   },
     ],
   },
 
@@ -277,6 +285,7 @@ export const NAV_SECTIONS = [
     items: [
       { name: 'Broadcast & Messaging', path: '/communication', icon: MessageSquare, roles: ALL_ADMIN },
       { name: 'Front Desk',            path: '/frontdesk',     icon: Home,          roles: ALL_STAFF },
+      { name: 'Gate Pass System',      path: '/frontdesk/gate-pass', icon: ShieldCheck, roles: ALL_STAFF },
     ],
   },
 

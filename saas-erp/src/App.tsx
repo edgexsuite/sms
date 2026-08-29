@@ -40,6 +40,7 @@ const Complaints = lazy(() => import('./pages/Complaints'));
 const LeaveLayout = lazy(() => import('./pages/leave/LeaveLayout'));
 const TeacherDiary = lazy(() => import('./pages/diary/TeacherDiary'));
 const DiarySchedule = lazy(() => import('./pages/diary/DiarySchedule'));
+const TeacherPlanner = lazy(() => import('./pages/diary/TeacherPlanner'));
 const PayrollLayout = lazy(() => import('./pages/payroll/PayrollLayout'));
 const AccountingLayout = lazy(() => import('./pages/accounting/AccountingLayout'));
 const LibraryLayout = lazy(() => import('./pages/library/LibraryLayout'));
@@ -60,6 +61,8 @@ const CoordinatorDashboard = lazy(() => import('./pages/CoordinatorDashboard'));
 const HelpSupport = lazy(() => import('./pages/HelpSupport'));
 const TransportLayout = lazy(() => import('./pages/transport/TransportLayout'));
 const AutoTimetable = lazy(() => import('./pages/AutoTimetable'));
+const TeacherSubstitution = lazy(() => import('./pages/timetable/TeacherSubstitution'));
+const GatePass = lazy(() => import('./pages/frontdesk/GatePass'));
 const AuditLog = lazy(() => import('./pages/AuditLog'));
 const DemoRegister = lazy(() => import('./pages/DemoRegister'));
 
@@ -151,6 +154,10 @@ export default function App() {
                 <Route path="expenses/*" element={<ExpensesLayout />} />
                 <Route path="timetable" element={<Timetable />} />
                 <Route path="auto-timetable" element={<AutoTimetable />} />
+                <Route path="timetable/substitution" element={<TeacherSubstitution />} />
+                <Route path="substitution" element={<TeacherSubstitution />} />
+                <Route path="gate-pass" element={<GatePass />} />
+                <Route path="frontdesk/gate-pass" element={<GatePass />} />
                 <Route path="evaluation" element={<Evaluation />} />
                 <Route path="credentials" element={<CredentialDispatch />} />
                 <Route path="communication" element={<Communication />} />
@@ -161,6 +168,8 @@ export default function App() {
                 <Route path="leave/*" element={<LeaveLayout />} />
                 <Route path="diary" element={<TeacherDiary />} />
                 <Route path="diary/schedule" element={<DiarySchedule />} />
+                <Route path="planner" element={<TeacherPlanner />} />
+                <Route path="diary/planner" element={<TeacherPlanner />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="payroll/*" element={<PayrollLayout />} />
                 <Route path="accounting/*" element={<AccountingLayout />} />
