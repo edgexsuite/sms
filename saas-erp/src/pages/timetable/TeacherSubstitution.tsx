@@ -391,6 +391,24 @@ export default function TeacherSubstitution() {
     window.open(`https://wa.me/${cleanPhone}?text=${msg}`, '_blank');
   };
 
+  const isAuthorized = userRole?.role && [
+    'admin', 'principal', 'director', 'vice_principal', 'campus_coordinator', 'academic_coordinator'
+  ].includes(userRole.role);
+
+  if (!isAuthorized) {
+    return (
+      <div className="max-w-md mx-auto my-16 p-8 bg-white rounded-3xl border border-slate-200 text-center shadow-lg space-y-4">
+        <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto">
+          <Shield className="w-7 h-7" />
+        </div>
+        <h2 className="text-base font-black text-slate-900 uppercase">Access Restricted</h2>
+        <p className="text-xs text-slate-500 font-bold leading-relaxed">
+          Teacher Substitution & Period Arrangement is restricted to Academic Coordinators, Campus Coordinators, and School Administration.
+        </p>
+      </div>
+    );
+  }
+
   const assignedCount = vacantSlots.filter(v => v.assigned_substitute_id).length;
 
   return (

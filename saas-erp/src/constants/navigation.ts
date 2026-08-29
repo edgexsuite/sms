@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 
 export const ALL_ADMIN    = ['admin', 'principal', 'director', 'vice_principal'];
+export const ALL_COORDINATORS = ['admin', 'principal', 'director', 'vice_principal', 'campus_coordinator', 'academic_coordinator'];
 export const ALL_STAFF    = ['admin', 'principal', 'director', 'vice_principal', 'staff', 'campus_coordinator', 'academic_coordinator', 'section_coordinator'];
 export const ALL_ACADEMIC = ['admin', 'principal', 'director', 'vice_principal', 'teacher', 'staff', 'campus_coordinator', 'academic_coordinator', 'section_coordinator'];
 export const ALL_FINANCE  = ['admin', 'staff', 'accountant', 'principal', 'director', 'vice_principal'];
@@ -98,7 +99,7 @@ export const NAV_SECTIONS = [
       },
       { name: 'Timetable',          path: '/timetable',       icon: Calendar,  roles: ALL_ACADEMIC },
       { name: 'Auto Timetable',     path: '/auto-timetable',   icon: Wand2,     roles: ALL_ADMIN    },
-      { name: 'Teacher Substitution', path: '/timetable/substitution', icon: Users, roles: ALL_ACADEMIC },
+      { name: 'Teacher Substitution', path: '/timetable/substitution', icon: Users, roles: ALL_COORDINATORS },
       { name: 'Teacher Diary',  path: '/diary',       icon: ClipboardList, roles: ALL_ACADEMIC },
       { name: 'Lesson Planner', path: '/planner',     icon: CalendarDays,  roles: ALL_ACADEMIC },
       { name: 'Evaluation',     path: '/evaluation',  icon: Star,          roles: ALL_ACADEMIC },

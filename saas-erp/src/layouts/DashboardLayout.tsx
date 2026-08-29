@@ -248,14 +248,14 @@ export default function DashboardLayout() {
       {/* Mobile Sidebar Overlay */}
       {isMobileMenuOpen && (
         <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden no-print"
+          className="fixed inset-0 bg-black/60 z-[55] md:hidden no-print backdrop-blur-xs transition-opacity duration-300"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
 
       {/* ── Sidebar ─────────────────────────────────────────── */}
       <aside className={cn(
-        `fixed md:sticky md:top-0 inset-y-0 left-0 z-50 h-screen flex flex-col shrink-0 no-print transition-all duration-300 ${isSidebarCollapsed ? 'w-[64px]' : 'w-[220px]'}`,
+        `fixed md:sticky md:top-0 inset-y-0 left-0 z-[60] h-screen flex flex-col shrink-0 no-print transition-all duration-300 ${isSidebarCollapsed ? 'w-[64px]' : 'w-[260px] md:w-[220px]'}`,
         "bg-[#0d1526]",
         "shadow-[4px_0_24px_rgba(0,0,0,0.35)]",
         "transition-transform duration-300 ease-in-out",
@@ -307,7 +307,7 @@ export default function DashboardLayout() {
         </div>
 
         {/* ── Navigation ── */}
-        <nav className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar py-3 px-2.5">
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar py-3 px-2.5 pb-24 md:pb-3">
           {navSections.map((section, sectionIdx) => {
             const visibleItems = section.items.filter(item => userRole?.role && item.roles.includes(userRole.role));
             if (visibleItems.length === 0) return null;
@@ -452,7 +452,7 @@ export default function DashboardLayout() {
         </nav>
 
         {/* ── User card / footer ── */}
-        <div className="shrink-0 px-2 pt-2 pb-3 border-t border-white/[0.06]">
+        <div className="shrink-0 px-2 pt-2 pb-6 md:pb-3 border-t border-white/[0.06] safe-area-pb">
           {isSidebarCollapsed ? (
             <div className="flex flex-col items-center gap-1">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-black text-[11px] uppercase shadow-md">
@@ -667,7 +667,10 @@ export default function DashboardLayout() {
         </main>
 
         {/* Mobile Bottom Tab Bar */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200 flex items-center justify-around px-2 py-1 safe-area-pb no-print">
+        <nav className={cn(
+          "md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 flex items-center justify-around px-2 py-1 safe-area-pb no-print transition-all duration-200",
+          isMobileMenuOpen ? "opacity-0 pointer-events-none translate-y-2" : "opacity-100 translate-y-0"
+        )}>
           {(() => {
             const defaultItem = { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' };
             const allowedItems: any[] = [];
