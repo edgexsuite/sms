@@ -1896,113 +1896,122 @@ export default function TeacherPlanner() {
 
       {/* ── Import Lesson Plan Modal ── */}
       {showImportModal && (
-
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs no-print animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-xl w-full p-6 space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div 
+          className="fixed inset-0 z-[9999] overflow-y-auto flex items-center justify-center p-3 sm:p-6 bg-slate-900/70 backdrop-blur-xs no-print animate-in fade-in duration-150"
+          onClick={() => setShowImportModal(false)}
+        >
+          <div 
+            className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-200 p-5 sm:p-6 space-y-4 my-auto max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-purple-50 text-purple-600 rounded-2xl border border-purple-100">
-                  <FileSpreadsheet className="w-6 h-6" />
+                <div className="p-2.5 bg-purple-50 text-purple-600 rounded-2xl border border-purple-100 shrink-0">
+                  <FileSpreadsheet className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-slate-900">Import Lesson Plans from Excel / CSV</h3>
-                  <p className="text-xs text-slate-500 font-semibold">Upload an Excel (.xlsx) or CSV file to import plans for week {activeRange.start}</p>
+                  <h3 className="text-sm sm:text-base font-black text-slate-900">Import Lesson Plans from Excel / CSV</h3>
+                  <p className="text-[11px] sm:text-xs text-slate-500 font-semibold">Upload spreadsheet for week starting <b>{activeRange.start}</b></p>
                 </div>
               </div>
               <button
                 onClick={() => setShowImportModal(false)}
-                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Template Help & Download */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-slate-800">Need the standard format?</span>
-                <button
-                  onClick={downloadExcelTemplate}
-                  className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-700 hover:text-emerald-800 bg-emerald-100/60 hover:bg-emerald-100 px-3 py-1.5 rounded-xl transition-all"
-                >
-                  <Download className="w-3.5 h-3.5" /> Download Template (.xlsx)
-                </button>
+            {/* Modal Scrollable Body */}
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+              {/* Template Help & Download */}
+              <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 sm:p-4 space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <span className="text-xs font-black text-slate-800">Need the standard spreadsheet format?</span>
+                  <button
+                    onClick={downloadExcelTemplate}
+                    className="inline-flex items-center justify-center gap-1.5 text-xs font-black text-emerald-700 hover:text-emerald-800 bg-emerald-100/70 hover:bg-emerald-100 px-3 py-1.5 rounded-xl transition-all cursor-pointer shadow-2xs"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Download Template (.xlsx)
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                  The spreadsheet contains columns for <b>Class Name</b>, <b>Subject Name</b>, <b>Unit/Chapter</b>, <b>SLOs</b>, and day columns (<b>Mon Topic</b>, <b>Mon Classwork</b>, <b>Mon Homework</b>, <b>Mon Quiz</b>, etc.).
+                </p>
               </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
-                The spreadsheet includes columns for <b>Class Name</b>, <b>Subject Name</b>, <b>Unit/Chapter</b>, <b>SLOs</b>, and day columns (<b>Mon Topic</b>, <b>Mon Classwork</b>, <b>Mon Homework</b>, <b>Mon Quiz</b>, etc.).
-              </p>
-            </div>
 
-            {/* File Upload Zone */}
-            <div className="border-2 border-dashed border-purple-200 hover:border-purple-400 bg-purple-50/20 hover:bg-purple-50/40 transition-all rounded-2xl p-6 text-center">
-              <input
-                type="file"
-                id="lesson-plan-file-input"
-                accept=".xlsx,.xls,.csv"
-                className="hidden"
-                disabled={importLoading}
-                onChange={e => {
-                  const file = e.target.files?.[0];
-                  if (file) processImportFile(file);
-                }}
-              />
-              <label htmlFor="lesson-plan-file-input" className="cursor-pointer flex flex-col items-center justify-center space-y-2">
-                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 shadow-xs">
-                  {importLoading ? (
-                    <RefreshCw className="w-6 h-6 animate-spin text-purple-600" />
-                  ) : (
-                    <UploadCloud className="w-6 h-6 text-purple-600" />
+              {/* File Upload Zone */}
+              <div className="border-2 border-dashed border-purple-200 hover:border-purple-400 bg-purple-50/20 hover:bg-purple-50/50 transition-all rounded-2xl p-5 sm:p-6 text-center">
+                <input
+                  type="file"
+                  id="lesson-plan-file-input"
+                  accept=".xlsx,.xls,.csv"
+                  className="hidden"
+                  disabled={importLoading}
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) processImportFile(file);
+                  }}
+                />
+                <label htmlFor="lesson-plan-file-input" className="cursor-pointer flex flex-col items-center justify-center space-y-2">
+                  <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 shadow-xs">
+                    {importLoading ? (
+                      <RefreshCw className="w-6 h-6 animate-spin text-purple-600" />
+                    ) : (
+                      <UploadCloud className="w-6 h-6 text-purple-600" />
+                    )}
+                  </div>
+                  <div className="text-xs sm:text-sm font-black text-slate-800">
+                    {importLoading ? 'Processing & Importing Plans...' : 'Click to Browse or Drag & Drop File'}
+                  </div>
+                  <div className="text-[11px] text-slate-400 font-semibold">Supports .xlsx, .xls, and .csv files</div>
+                </label>
+              </div>
+
+              {/* Status & Logs */}
+              {importStatus && (
+                <div className="space-y-2">
+                  {importStatus.success && (
+                    <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-black flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>{importStatus.success}</span>
+                    </div>
+                  )}
+                  {importStatus.error && (
+                    <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-black flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span>{importStatus.error}</span>
+                    </div>
+                  )}
+
+                  {importStatus.logs && importStatus.logs.length > 0 && (
+                    <div className="max-h-36 overflow-y-auto bg-slate-900 text-slate-100 p-3 rounded-xl text-[11px] font-mono space-y-1">
+                      {importStatus.logs.map((log, lIdx) => (
+                        <div key={lIdx} className="text-slate-300">
+                          {log}
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
-                <div className="text-xs font-black text-slate-800">
-                  {importLoading ? 'Processing & Importing Plans...' : 'Click to Browse or Drag & Drop File'}
-                </div>
-                <div className="text-[11px] text-slate-400 font-semibold">Supports .xlsx, .xls, and .csv files</div>
-              </label>
+              )}
             </div>
 
-            {/* Status & Logs */}
-            {importStatus && (
-              <div className="space-y-2">
-                {importStatus.success && (
-                  <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-black flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>{importStatus.success}</span>
-                  </div>
-                )}
-                {importStatus.error && (
-                  <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-black flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                    <span>{importStatus.error}</span>
-                  </div>
-                )}
-
-                {importStatus.logs && importStatus.logs.length > 0 && (
-                  <div className="max-h-36 overflow-y-auto bg-slate-900 text-slate-100 p-3 rounded-xl text-[11px] font-mono space-y-1">
-                    {importStatus.logs.map((log, lIdx) => (
-                      <div key={lIdx} className="text-slate-300">
-                        {log}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* Footer Actions */}
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <Btn
-                variant="outline"
-                size="sm"
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 shrink-0">
+              <button
+                type="button"
                 onClick={() => setShowImportModal(false)}
-                className="text-xs font-bold"
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
               >
                 Close
-              </Btn>
+              </button>
             </div>
           </div>
         </div>
       )}
+
     </div>
   );
 }
