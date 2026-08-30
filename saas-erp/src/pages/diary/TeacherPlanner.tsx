@@ -393,12 +393,27 @@ export default function TeacherPlanner() {
 
         // Ensure every date in rangeDays has a default object
         const populatedDays: Record<string, DayPlanDetail> = {};
-        rangeDays.forEach(d => {
+        const savedDayEntries = Object.entries(savedDays);
+
+        rangeDays.forEach((d, dayIndex) => {
+          let matched = savedDays[d.date];
+
+          if (!matched || (!matched.topic && !matched.classwork && !matched.homework && !matched.quiz_test)) {
+            const foundBySub = savedDayEntries.find(([k, v]) => (k === d.date || k.includes(d.date) || d.date.includes(k)) && (v?.topic || v?.classwork || v?.homework || v?.quiz_test));
+            if (foundBySub) matched = foundBySub[1];
+          }
+
+          if (!matched || (!matched.topic && !matched.classwork && !matched.homework && !matched.quiz_test)) {
+            if (savedDayEntries[dayIndex] && (savedDayEntries[dayIndex][1]?.topic || savedDayEntries[dayIndex][1]?.classwork || savedDayEntries[dayIndex][1]?.homework || savedDayEntries[dayIndex][1]?.quiz_test)) {
+              matched = savedDayEntries[dayIndex][1];
+            }
+          }
+
           populatedDays[d.date] = {
-            topic: savedDays[d.date]?.topic || '',
-            classwork: savedDays[d.date]?.classwork || '',
-            homework: savedDays[d.date]?.homework || '',
-            quiz_test: savedDays[d.date]?.quiz_test || '',
+            topic: matched?.topic || '',
+            classwork: matched?.classwork || '',
+            homework: matched?.homework || '',
+            quiz_test: matched?.quiz_test || '',
           };
         });
 
@@ -626,11 +641,17 @@ export default function TeacherPlanner() {
         }
       ]);
 
-      rangeDays.forEach(d => {
+      rangeDays.forEach((d, dayIndex) => {
         let dayDetail = item.days?.[d.date];
         if (!dayDetail || (!dayDetail.topic && !dayDetail.classwork && !dayDetail.homework && !dayDetail.quiz_test)) {
           const entry = Object.entries(item.days || {}).find(([k, v]) => (k === d.date || k.includes(d.date) || d.date.includes(k)) && (v.topic || v.classwork || v.homework || v.quiz_test));
           if (entry) dayDetail = entry[1];
+        }
+        if (!dayDetail || (!dayDetail.topic && !dayDetail.classwork && !dayDetail.homework && !dayDetail.quiz_test)) {
+          const allDayVals = Object.values(item.days || {});
+          if (allDayVals[dayIndex] && (allDayVals[dayIndex].topic || allDayVals[dayIndex].classwork || allDayVals[dayIndex].homework || allDayVals[dayIndex].quiz_test)) {
+            dayDetail = allDayVals[dayIndex];
+          }
         }
         dayDetail = dayDetail || { topic: '', classwork: '', homework: '', quiz_test: '' };
 
