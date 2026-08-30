@@ -198,6 +198,32 @@ export default function TeacherPlanner() {
 
   // Active Selected Day for Single-Day Filter Tab View (optional 'all' or specific date)
   const [activeDayFilter, setActiveDayFilter] = useState<string>('all');
+  const [printLayoutMode, setPrintLayoutMode] = useState<'daywise' | 'subjectwise'>('daywise');
+
+  // Trigger Native Nastaleeq Day-Wise Print / PDF
+  const triggerDayWisePrint = (targetDate?: string) => {
+    if (planItems.length === 0) {
+      alert('No lesson plan data found for this selection to export.');
+      return;
+    }
+    if (targetDate) setActiveDayFilter(targetDate);
+    setPrintLayoutMode('daywise');
+    setTimeout(() => {
+      window.print();
+    }, 80);
+  };
+
+  // Trigger Native Nastaleeq Subject-Wise Print / PDF
+  const triggerSubjectWisePrint = () => {
+    if (planItems.length === 0) {
+      alert('No lesson plan data found for this selection to export.');
+      return;
+    }
+    setPrintLayoutMode('subjectwise');
+    setTimeout(() => {
+      window.print();
+    }, 80);
+  };
 
   // Range Computation
   const activeRange = useMemo(() => {
@@ -934,23 +960,22 @@ export default function TeacherPlanner() {
 
           <div className="h-8 w-px bg-slate-200 mx-1 hidden sm:block" />
 
-          {/* High-Definition Print & Save as PDF Buttons */}
+          {/* High-Definition Print & Save as PDF Buttons (100% Nastaleeq) */}
           <Btn
             variant="outline"
             size="sm"
-            onClick={() => window.print()}
+            onClick={() => triggerDayWisePrint()}
             className="text-xs h-9 px-3 border-indigo-300 text-indigo-700 bg-indigo-50/60 hover:bg-indigo-100 font-black shadow-xs"
             title="Print or Save as PDF with full Nastaleeq Urdu typography"
           >
             <Printer className="w-4 h-4 mr-1.5 text-indigo-600" />
-            Print / Save PDF (Nastaleeq)
+            Print Sheet
           </Btn>
           
-          {/* Dual PDF Options */}
           <Btn
             variant="outline"
             size="sm"
-            onClick={() => handleDayWisePDFExport(activeDayFilter !== 'all' ? activeDayFilter : undefined)}
+            onClick={() => triggerDayWisePrint(activeDayFilter !== 'all' ? activeDayFilter : undefined)}
             className="text-xs h-9 px-3 border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 font-bold"
             title="Download Day-Wise Lesson Plan PDF grouped by Day/Date"
           >
@@ -961,8 +986,8 @@ export default function TeacherPlanner() {
           <Btn
             variant="outline"
             size="sm"
-            onClick={handleSubjectWisePDFExport}
-            className="text-xs h-9 px-3 border-slate-200 font-bold"
+            onClick={triggerSubjectWisePrint}
+            className="text-xs h-9 px-3 border-slate-200 font-bold hover:bg-slate-50"
             title="Download Subject-Wise Lesson Plan PDF grouped by Subject"
           >
             <BookOpen className="w-4 h-4 mr-1.5 text-slate-600" />
@@ -1382,51 +1407,123 @@ export default function TeacherPlanner() {
               <span>{viewMode === 'class' ? `CLASS: ${selectedClsObj?.name} ${selectedClsObj?.section}` : `FACULTY: ${allTeachers.find(t => t.id === (selectedTeacherId || myStaffId))?.full_name || 'Assigned Teacher'}`}</span>
             </div>
 
-            {/* Day-by-Day Table */}
-            {displayDays.map(d => (
-              <div key={d.date} style={{ marginBottom: '14px', pageBreakInside: 'avoid' }}>
-                <div style={{ background: '#1e1b4b', color: 'white', padding: '4px 10px', fontWeight: '900', fontSize: '10px', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', borderRadius: '3px 3px 0 0' }}>
-                  <span>📅 {d.dayName.toUpperCase()} — {d.formattedDate}</span>
-                  <span>{d.date}</span>
-                </div>
-                <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #1e1b4b', tableLayout: 'fixed' }}>
-                  <thead>
-                    <tr style={{ background: '#f1f5f9', color: '#1e1b4b', fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }}>
-                      <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '15%', textAlign: 'center' }}>Subject &amp; Teacher</th>
-                      <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '28%', textAlign: 'center' }}>Lesson / Topic Covered</th>
-                      <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '26%', textAlign: 'center' }}>Classwork &amp; In-Class Task</th>
-                      <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '21%', textAlign: 'center' }}>Homework / Assignment</th>
-                      <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '10%', textAlign: 'center' }}>Quiz / Test</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {planItems.map((item, itemIdx) => {
-                      const dayDetail = item.days[d.date] || { topic: '', classwork: '', homework: '', quiz_test: '' };
-                      return (
-                        <tr key={itemIdx} style={{ background: itemIdx % 2 === 0 ? 'white' : '#f8fafc', fontSize: '9.5px' }}>
-                          <td style={{ border: '1px solid #cbd5e1', padding: '6px', fontWeight: '800', textAlign: 'center' }}>
-                            <div style={{ color: '#1e1b4b', fontWeight: '900' }}>{item.subject_name}</div>
-                            <div style={{ color: '#64748b', fontSize: '8.5px', marginTop: '2px' }}>{item.class_name} · {item.teacher_name}</div>
-                          </td>
-                          <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'start' }}>
-                            {dayDetail.topic || '—'}
-                          </td>
-                          <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'start' }}>
-                            {dayDetail.classwork || '—'}
-                          </td>
-                          <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'start' }}>
-                            {dayDetail.homework || '—'}
-                          </td>
-                          <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'center' }}>
-                            {dayDetail.quiz_test || '—'}
-                          </td>
+            {/* Dual Print Layout Rendering */}
+            {printLayoutMode === 'subjectwise' ? (
+              /* ── Subject-Wise Print Blocks ── */
+              <div>
+                {planItems.map((item, itemIdx) => (
+                  <div key={itemIdx} style={{ marginBottom: '16px', pageBreakInside: 'avoid' }}>
+                    {/* Subject Header Banner */}
+                    <div style={{ background: '#1e1b4b', color: 'white', padding: '6px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: '4px 4px 0 0' }}>
+                      <span style={{ fontWeight: '900', fontSize: '11px', textTransform: 'uppercase' }}>
+                        📚 {item.subject_name} ({item.class_name}) — Teacher: {item.teacher_name}
+                      </span>
+                      <span style={{ fontSize: '9px', opacity: 0.8, textTransform: 'uppercase' }}>
+                        {duration.toUpperCase()} ({activeRange.label})
+                      </span>
+                    </div>
+
+                    {/* Unit & SLOs Strip */}
+                    <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderTop: 'none', padding: '6px 10px', fontSize: '9px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      <div className="urdu-text" dir="auto" style={{ fontWeight: '800', color: '#1e1b4b' }}>
+                        📖 <strong>Unit / Chapter:</strong> {item.unit_chapter || 'In Progress'}
+                      </div>
+                      {item.learning_outcomes && (
+                        <div className="urdu-text" dir="auto" style={{ fontWeight: '700', color: '#4338ca' }}>
+                          🎯 <strong>Learning Outcomes (SLOs):</strong> {item.learning_outcomes}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Subject Days Table */}
+                    <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #1e1b4b', tableLayout: 'fixed' }}>
+                      <thead>
+                        <tr style={{ background: '#f1f5f9', color: '#1e1b4b', fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }}>
+                          <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '15%', textAlign: 'center' }}>Day &amp; Date</th>
+                          <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '28%', textAlign: 'center' }}>Topic / Lesson Covered</th>
+                          <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '26%', textAlign: 'center' }}>Classwork &amp; Activities</th>
+                          <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '21%', textAlign: 'center' }}>Homework / Assignment</th>
+                          <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '10%', textAlign: 'center' }}>Quiz / Test</th>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                      </thead>
+                      <tbody>
+                        {rangeDays.map((d, dIdx) => {
+                          const dayDetail = item.days[d.date] || { topic: '', classwork: '', homework: '', quiz_test: '' };
+                          return (
+                            <tr key={dIdx} style={{ background: dIdx % 2 === 0 ? 'white' : '#f8fafc', fontSize: '9.5px' }}>
+                              <td style={{ border: '1px solid #cbd5e1', padding: '6px', fontWeight: '900', textAlign: 'center' }}>
+                                <div style={{ color: '#1e1b4b' }}>{d.dayName}</div>
+                                <div style={{ color: '#64748b', fontSize: '8.5px' }}>{d.formattedDate}</div>
+                              </td>
+                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'start' }}>
+                                {dayDetail.topic || '—'}
+                              </td>
+                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'start' }}>
+                                {dayDetail.classwork || '—'}
+                              </td>
+                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'start' }}>
+                                {dayDetail.homework || '—'}
+                              </td>
+                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'center' }}>
+                                {dayDetail.quiz_test || '—'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : (
+              /* ── Day-Wise Print Blocks ── */
+              <div>
+                {displayDays.map(d => (
+                  <div key={d.date} style={{ marginBottom: '14px', pageBreakInside: 'avoid' }}>
+                    <div style={{ background: '#1e1b4b', color: 'white', padding: '4px 10px', fontWeight: '900', fontSize: '10px', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', borderRadius: '3px 3px 0 0' }}>
+                      <span>📅 {d.dayName.toUpperCase()} — {d.formattedDate}</span>
+                      <span>{d.date}</span>
+                    </div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #1e1b4b', tableLayout: 'fixed' }}>
+                      <thead>
+                        <tr style={{ background: '#f1f5f9', color: '#1e1b4b', fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }}>
+                          <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '15%', textAlign: 'center' }}>Subject &amp; Teacher</th>
+                          <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '28%', textAlign: 'center' }}>Lesson / Topic Covered</th>
+                          <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '26%', textAlign: 'center' }}>Classwork &amp; In-Class Task</th>
+                          <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '21%', textAlign: 'center' }}>Homework / Assignment</th>
+                          <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '10%', textAlign: 'center' }}>Quiz / Test</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {planItems.map((item, itemIdx) => {
+                          const dayDetail = item.days[d.date] || { topic: '', classwork: '', homework: '', quiz_test: '' };
+                          return (
+                            <tr key={itemIdx} style={{ background: itemIdx % 2 === 0 ? 'white' : '#f8fafc', fontSize: '9.5px' }}>
+                              <td style={{ border: '1px solid #cbd5e1', padding: '6px', fontWeight: '800', textAlign: 'center' }}>
+                                <div style={{ color: '#1e1b4b', fontWeight: '900' }}>{item.subject_name}</div>
+                                <div style={{ color: '#64748b', fontSize: '8.5px', marginTop: '2px' }}>{item.class_name} · {item.teacher_name}</div>
+                              </td>
+                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'start' }}>
+                                {dayDetail.topic || '—'}
+                              </td>
+                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'start' }}>
+                                {dayDetail.classwork || '—'}
+                              </td>
+                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'start' }}>
+                                {dayDetail.homework || '—'}
+                              </td>
+                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'center' }}>
+                                {dayDetail.quiz_test || '—'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Signature Area */}
             <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', margin: '30px 0 10px 0', pageBreakInside: 'avoid' }}>
