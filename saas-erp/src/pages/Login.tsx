@@ -303,6 +303,25 @@ export default function Login() {
               </div>
             </Link>
           </div>
+
+          {/* Public 1-Month Free Trial Banner */}
+          <div className="mt-5 w-full">
+            <Link
+              to="/trial"
+              className="w-full py-3 px-4 bg-gradient-to-r from-indigo-50 via-purple-50 to-indigo-50 hover:from-indigo-100 hover:to-purple-100 border border-indigo-200/80 rounded-2xl flex items-center justify-between text-xs font-bold text-indigo-900 transition-all shadow-xs group"
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="text-base">🌟</span>
+                <div>
+                  <p className="font-black text-indigo-950">New School? Get 1-Month Free Trial</p>
+                  <p className="text-[10px] text-indigo-600 font-medium">Explore all features with 0 setup fees</p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider group-hover:translate-x-0.5 transition-transform">
+                Register Free →
+              </span>
+            </Link>
+          </div>
         </div>
       </div>
     </div>

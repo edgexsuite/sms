@@ -213,17 +213,25 @@ export default function TeacherPlanner() {
   useEffect(() => {
     if (!userRole?.school_id) return;
     const fetchInit = async () => {
+      let resolvedStaffId = userRole.staff_id || null;
+
       const [
         { data: cls },
         { data: teachers },
         { data: sch },
-        { data: myStaff }
+        { data: staffLookup }
       ] = await Promise.all([
         supabase.from('classes').select('id, name, section, class_teacher_id').eq('school_id', userRole.school_id).order('name'),
         supabase.from('staff').select('id, full_name, role').eq('school_id', userRole.school_id).eq('is_active', true).eq('is_deleted', false).order('full_name'),
         supabase.from('schools').select('*').eq('id', userRole.school_id).single(),
-        userRole.id ? supabase.from('staff').select('id, full_name').eq('user_id', userRole.id).maybeSingle() : Promise.resolve({ data: null })
+        (!resolvedStaffId && userRole.user_id) 
+          ? supabase.from('staff').select('id, full_name').eq('school_id', userRole.school_id).eq('user_id', userRole.user_id).maybeSingle()
+          : Promise.resolve({ data: null })
       ]);
+
+      if (staffLookup?.data) {
+        resolvedStaffId = staffLookup.data.id;
+      }
 
       if (cls) {
         setAllClasses(cls);
@@ -234,11 +242,16 @@ export default function TeacherPlanner() {
           setSelectedClassId(cls[0].id);
         }
       }
+
       if (teachers) setAllTeachers(teachers);
       if (sch) setSchoolInfo(sch);
-      if (myStaff?.data) {
-        setMyStaffId(myStaff.data.id);
-        if (!selectedTeacherId) setSelectedTeacherId(myStaff.data.id);
+
+      if (resolvedStaffId) {
+        setMyStaffId(resolvedStaffId);
+        if (userRole.role === 'teacher' || !selectedTeacherId) {
+          setSelectedTeacherId(resolvedStaffId);
+          setViewMode('teacher');
+        }
       } else if (teachers && teachers.length > 0 && !selectedTeacherId) {
         setSelectedTeacherId(teachers[0].id);
       }
@@ -263,7 +276,7 @@ export default function TeacherPlanner() {
       const cls = allClasses.find(c => c.id === selectedClassId);
       const seen = new Set<string>();
       (data || []).forEach((s: any) => {
-        if (!seen.has(s.subject_id)) {
+        if (s.subject_id && !seen.has(s.subject_id)) {
           seen.add(s.subject_id);
           slots.push({
             class_id: selectedClassId,
@@ -272,10 +285,29 @@ export default function TeacherPlanner() {
             subject_id: s.subject_id,
             subject_name: s.subjects?.subject_name || 'Subject',
             teacher_id: s.teacher_id,
-            teacher_name: s.staff?.full_name || 'Unassigned',
+            teacher_name: s.staff?.full_name || 'Assigned Faculty',
           });
         }
       });
+
+      // Fallback: If no slots created yet, load all subjects for this class
+      if (slots.length === 0) {
+        const { data: subData } = await supabase
+          .from('subjects')
+          .select('id, subject_name, class_id, classes(name, section)')
+          .eq('class_id', selectedClassId)
+          .eq('school_id', userRole.school_id);
+        (subData || []).forEach((s: any) => {
+          slots.push({
+            class_id: selectedClassId,
+            class_name: cls?.name || s.classes?.name || 'Class',
+            section: cls?.section || s.classes?.section || '',
+            subject_id: s.id,
+            subject_name: s.subject_name || 'Subject',
+            teacher_name: 'Assigned Faculty',
+          });
+        });
+      }
     } else if (viewMode === 'teacher' && (selectedTeacherId || myStaffId)) {
       const tid = selectedTeacherId || myStaffId;
       const { data } = await supabase
@@ -286,20 +318,43 @@ export default function TeacherPlanner() {
 
       const seen = new Set<string>();
       (data || []).forEach((s: any) => {
-        const key = `${s.class_id}__${s.subject_id}`;
-        if (!seen.has(key)) {
-          seen.add(key);
+        if (s.class_id && s.subject_id) {
+          const key = `${s.class_id}__${s.subject_id}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            slots.push({
+              class_id: s.class_id,
+              class_name: s.classes?.name || 'Class',
+              section: s.classes?.section || '',
+              subject_id: s.subject_id,
+              subject_name: s.subjects?.subject_name || 'Subject',
+              teacher_id: tid,
+              teacher_name: allTeachers.find(t => t.id === tid)?.full_name || 'Me',
+            });
+          }
+        }
+      });
+
+      // Fallback: If no timetable slots, check subjects assigned directly to teacher
+      if (slots.length === 0 && tid) {
+        const { data: subData } = await supabase
+          .from('subjects')
+          .select('id, subject_name, class_id, classes(name, section)')
+          .eq('teacher_id', tid)
+          .eq('school_id', userRole.school_id);
+
+        (subData || []).forEach((s: any) => {
           slots.push({
             class_id: s.class_id,
             class_name: s.classes?.name || 'Class',
             section: s.classes?.section || '',
-            subject_id: s.subject_id,
-            subject_name: s.subjects?.subject_name || 'Subject',
+            subject_id: s.id,
+            subject_name: s.subject_name || 'Subject',
             teacher_id: tid,
             teacher_name: allTeachers.find(t => t.id === tid)?.full_name || 'Me',
           });
-        }
-      });
+        });
+      }
     }
 
     setAssignedSlots(slots);
@@ -383,49 +438,103 @@ export default function TeacherPlanner() {
     }));
   };
 
-  // ─── Save All ──────────────────────────────────────────────────────────────
+  // ─── Save Helper Function (Resilient Update or Insert) ──────────────────────
+  const persistPlansToDatabase = async (itemsToSave: PlanItem[]) => {
+    if (!userRole?.school_id) return false;
+
+    const plansMap: Record<string, any> = {};
+    itemsToSave.forEach(item => {
+      const key = `${item.class_id}__${item.subject_id}`;
+      plansMap[key] = {
+        unit_chapter: item.unit_chapter || '',
+        learning_outcomes: item.learning_outcomes || '',
+        resources_needed: item.resources_needed || '',
+        teacher_remarks: item.teacher_remarks || '',
+        teacher_name: item.teacher_name || '',
+        subject_name: item.subject_name || '',
+        class_name: item.class_name || '',
+        days: item.days,
+        updated_at: new Date().toISOString(),
+      };
+    });
+
+    const payload = {
+      period_type: duration,
+      start_date: activeRange.start,
+      end_date: activeRange.end,
+      plans: plansMap,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Check existing record first to guarantee 100% database compatibility
+    const { data: existing } = await supabase
+      .from('form_settings')
+      .select('id, sections_config')
+      .eq('school_id', userRole.school_id)
+      .eq('form_name', storageFormKey)
+      .maybeSingle();
+
+    if (existing?.id) {
+      const mergedPlans = { ...(existing.sections_config?.plans || {}), ...plansMap };
+      const { error } = await supabase
+        .from('form_settings')
+        .update({
+          sections_config: {
+            ...payload,
+            plans: mergedPlans,
+          }
+        })
+        .eq('id', existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase
+        .from('form_settings')
+        .insert([{
+          school_id: userRole.school_id,
+          form_name: storageFormKey,
+          sections_config: payload,
+        }]);
+      if (error) throw error;
+    }
+
+    return true;
+  };
+
+  // ─── Save All Plans ────────────────────────────────────────────────────────
   const saveAllPlans = async () => {
     if (!userRole?.school_id) return;
     setSavingAll(true);
 
     try {
-      const plansMap: Record<string, any> = {};
-      planItems.forEach(item => {
-        const key = `${item.class_id}__${item.subject_id}`;
-        plansMap[key] = {
-          unit_chapter: item.unit_chapter,
-          learning_outcomes: item.learning_outcomes,
-          resources_needed: item.resources_needed,
-          teacher_remarks: item.teacher_remarks,
-          teacher_name: item.teacher_name,
-          subject_name: item.subject_name,
-          class_name: item.class_name,
-          days: item.days,
-          updated_at: new Date().toISOString(),
-        };
-      });
-
-      const { error } = await supabase.from('form_settings').upsert({
-        school_id: userRole.school_id,
-        form_name: storageFormKey,
-        sections_config: {
-          period_type: duration,
-          start_date: activeRange.start,
-          end_date: activeRange.end,
-          plans: plansMap,
-        }
-      }, { onConflict: 'school_id,form_name' });
-
-      if (error) throw error;
-
+      await persistPlansToDatabase(planItems);
       setPlanItems(prev => prev.map(item => ({ ...item, saved: true, saving: false })));
       setTimeout(() => {
         setPlanItems(prev => prev.map(item => ({ ...item, saved: false })));
-      }, 3000);
+      }, 4000);
     } catch (err: any) {
       alert('Error saving planner: ' + err.message);
     } finally {
       setSavingAll(false);
+    }
+  };
+
+  // ─── Save Individual Subject Plan ──────────────────────────────────────────
+  const saveSingleSubjectPlan = async (subjectIdx: number) => {
+    if (!userRole?.school_id) return;
+    const targetItem = planItems[subjectIdx];
+    if (!targetItem) return;
+
+    setPlanItems(prev => prev.map((item, i) => i === subjectIdx ? { ...item, saving: true } : item));
+
+    try {
+      await persistPlansToDatabase(planItems);
+      setPlanItems(prev => prev.map((item, i) => i === subjectIdx ? { ...item, saving: false, saved: true } : item));
+      setTimeout(() => {
+        setPlanItems(prev => prev.map((item, i) => i === subjectIdx ? { ...item, saved: false } : item));
+      }, 4000);
+    } catch (err: any) {
+      setPlanItems(prev => prev.map((item, i) => i === subjectIdx ? { ...item, saving: false } : item));
+      alert('Error saving lesson plan: ' + err.message);
     }
   };
 
@@ -444,6 +553,11 @@ export default function TeacherPlanner() {
 
   // ─── PDF Export ────────────────────────────────────────────────────────────
   const handlePDFExport = async () => {
+    if (planItems.length === 0) {
+      alert('No lesson plan data found for this selection to export. Please select a class or teacher with subjects.');
+      return;
+    }
+
     const doc = new jsPDF('l', 'mm', 'a4');
     const pw = doc.internal.pageSize.width;
     const ph = doc.internal.pageSize.height;
@@ -467,8 +581,8 @@ export default function TeacherPlanner() {
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     const targetLabel = viewMode === 'class'
-      ? `CLASS CURRICULUM & LESSON PLANNER — ${allClasses.find(c => c.id === selectedClassId)?.name || ''} ${allClasses.find(c => c.id === selectedClassId)?.section || ''}`
-      : `TEACHER LESSON PLANNER — ${allTeachers.find(t => t.id === (selectedTeacherId || myStaffId))?.full_name || 'Teacher'}`;
+      ? `CLASS CURRICULUM & LESSON PLANNER — ${allClasses.find(c => c.id === selectedClassId)?.name || 'Class'} ${allClasses.find(c => c.id === selectedClassId)?.section || ''}`
+      : `TEACHER LESSON PLANNER — ${allTeachers.find(t => t.id === (selectedTeacherId || myStaffId))?.full_name || 'Faculty'}`;
     doc.text(targetLabel.toUpperCase(), pw / 2, 30, { align: 'center' });
 
     doc.setFontSize(9);
@@ -479,16 +593,28 @@ export default function TeacherPlanner() {
     doc.setLineWidth(0.3);
     doc.line(14, 39, pw - 14, 39);
 
-    // Build Day-by-Day Comprehensive Table
-    const head = [['Subject', 'Teacher', 'Day & Date', 'Topic / Lesson Covered', 'Classwork & Activities', 'Homework & Assignments', 'Test / Quiz']];
+    // Build Day-by-Day Comprehensive Table with Section Headers
+    const head = [['Subject / Course', 'Class / Teacher', 'Day & Date', 'Topic / Lesson Covered', 'Classwork & Activities', 'Homework & Assignments', 'Test / Quiz']];
     const body: any[] = [];
 
     planItems.forEach(item => {
+      // Subheader for each subject
+      const unitText = item.unit_chapter ? `Unit / Chapter: ${item.unit_chapter}` : 'Unit / Chapter: In Progress';
+      const outcomesText = item.learning_outcomes ? ` | Outcomes: ${item.learning_outcomes}` : '';
+      
+      body.push([
+        {
+          content: `${item.subject_name.toUpperCase()} (${item.class_name}) — Teacher: ${item.teacher_name || 'Faculty'}\n${unitText}${outcomesText}`,
+          colSpan: 7,
+          styles: { fillColor: [240, 244, 255], textColor: [30, 58, 138], fontStyle: 'bold', fontSize: 8, cellPadding: 3 }
+        }
+      ]);
+
       rangeDays.forEach(d => {
         const dayDetail = item.days[d.date] || { topic: '', classwork: '', homework: '', quiz_test: '' };
         body.push([
           item.subject_name,
-          viewMode === 'class' ? (item.teacher_name || 'Unassigned') : item.class_name,
+          viewMode === 'class' ? (item.teacher_name || 'Faculty') : item.class_name,
           `${d.dayShort}\n${d.formattedDate}`,
           dayDetail.topic || '—',
           dayDetail.classwork || '—',
@@ -604,28 +730,26 @@ export default function TeacherPlanner() {
         
         {/* Mode Selector (Teacher View vs Class View) */}
         <div className="md:col-span-4 flex items-center gap-2">
-          {canClassView && (
-            <div className="bg-slate-100 p-1 rounded-xl flex gap-1 border border-slate-200 w-full">
-              <button
-                onClick={() => setViewMode('teacher')}
-                className={cn(
-                  'flex-1 py-1.5 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5',
-                  viewMode === 'teacher' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                )}
-              >
-                <PenTool className="w-3.5 h-3.5" /> Teacher Mode
-              </button>
-              <button
-                onClick={() => setViewMode('class')}
-                className={cn(
-                  'flex-1 py-1.5 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5',
-                  viewMode === 'class' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                )}
-              >
-                <Users className="w-3.5 h-3.5" /> Class Incharge View
-              </button>
-            </div>
-          )}
+          <div className="bg-slate-100 p-1 rounded-xl flex gap-1 border border-slate-200 w-full">
+            <button
+              onClick={() => setViewMode('teacher')}
+              className={cn(
+                'flex-1 py-1.5 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5',
+                viewMode === 'teacher' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              )}
+            >
+              <PenTool className="w-3.5 h-3.5" /> Teacher Mode
+            </button>
+            <button
+              onClick={() => setViewMode('class')}
+              className={cn(
+                'flex-1 py-1.5 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5',
+                viewMode === 'class' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              )}
+            >
+              <Users className="w-3.5 h-3.5" /> Class Incharge View
+            </button>
+          </div>
         </div>
 
         {/* Dropdown for Selection (Class or Teacher) */}
@@ -635,7 +759,7 @@ export default function TeacherPlanner() {
               <select
                 value={selectedClassId}
                 onChange={e => setSelectedClassId(e.target.value)}
-                className="w-full px-3.5 py-2 text-xs font-black bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3.5 py-2 text-xs font-black bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
               >
                 {allClasses.map(c => (
                   <option key={c.id} value={c.id}>
@@ -649,12 +773,11 @@ export default function TeacherPlanner() {
               <select
                 value={selectedTeacherId || myStaffId || ''}
                 onChange={e => setSelectedTeacherId(e.target.value)}
-                disabled={isTeacher && !isAdmin}
-                className="w-full px-3.5 py-2 text-xs font-black bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-80"
+                className="w-full px-3.5 py-2 text-xs font-black bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
               >
                 {allTeachers.map(t => (
                   <option key={t.id} value={t.id}>
-                    Teacher: {t.full_name} {t.id === myStaffId ? '(You)' : ''}
+                    Teacher: {t.full_name} {t.id === myStaffId ? '(You)' : ''} {t.role ? `· ${t.role}` : ''}
                   </option>
                 ))}
               </select>
@@ -821,6 +944,16 @@ export default function TeacherPlanner() {
                         <Check className="w-3.5 h-3.5" /> Saved
                       </span>
                     )}
+                    <Btn
+                      variant="outline"
+                      size="sm"
+                      onClick={() => saveSingleSubjectPlan(idx)}
+                      disabled={item.saving || savingAll}
+                      className="text-xs h-8 px-3 font-bold border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                    >
+                      <Save className="w-3.5 h-3.5 mr-1" />
+                      {item.saving ? 'Saving...' : 'Save Subject'}
+                    </Btn>
                   </div>
                 </div>
 
