@@ -13,6 +13,12 @@ export default defineConfig(({mode}) => {
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['icon.svg'],
+        workbox: {
+          cleanupOutdatedCaches: true,
+          skipWaiting: true,
+          clientsClaim: true,
+          navigateFallbackDenylist: [/^\/rest\/v1/, /^\/auth\/v1/],
+        },
         manifest: {
           name: 'School ERP Management System',
           short_name: 'School ERP',
