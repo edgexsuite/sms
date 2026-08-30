@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -1895,9 +1896,9 @@ export default function TeacherPlanner() {
       </div>
 
       {/* ── Import Lesson Plan Modal ── */}
-      {showImportModal && (
+      {showImportModal && createPortal(
         <div 
-          className="fixed inset-0 z-[9999] overflow-y-auto flex items-center justify-center p-3 sm:p-6 bg-slate-900/70 backdrop-blur-xs no-print animate-in fade-in duration-150"
+          className="fixed inset-0 z-[99999] overflow-y-auto flex items-center justify-center p-3 sm:p-6 bg-slate-900/70 backdrop-blur-xs no-print animate-in fade-in duration-150"
           onClick={() => setShowImportModal(false)}
         >
           <div 
@@ -2009,10 +2010,11 @@ export default function TeacherPlanner() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-
     </div>
   );
 }
+
 
