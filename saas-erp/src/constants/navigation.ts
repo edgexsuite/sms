@@ -101,8 +101,16 @@ export const NAV_SECTIONS = [
       { name: 'Auto Timetable',     path: '/auto-timetable',   icon: Wand2,     roles: ALL_ADMIN    },
       { name: 'Teacher Substitution', path: '/timetable/substitution', icon: Users, roles: ALL_COORDINATORS },
       { name: 'Teacher Diary',  path: '/diary',       icon: ClipboardList, roles: ALL_ACADEMIC },
-      { name: 'Lesson Planner', path: '/planner',     icon: CalendarDays,  roles: ALL_ACADEMIC },
-      { name: 'Planner Audit Matrix', path: '/planner/report', icon: CheckCircle2, roles: ALL_COORDINATORS },
+      {
+        name: 'Lesson Planner',
+        path: '/planner',
+        icon: CalendarDays,
+        roles: ALL_ACADEMIC,
+        subItems: [
+          { name: 'Lesson Planner', path: '/planner', exact: true, icon: CalendarDays, roles: ALL_ACADEMIC },
+          { name: 'Lesson Planner Report', path: '/planner/report', icon: CheckCircle2, roles: ALL_COORDINATORS },
+        ],
+      },
       { name: 'Evaluation',     path: '/evaluation',  icon: Star,          roles: ALL_ACADEMIC },
     ],
   },

@@ -99,6 +99,7 @@ interface ClassSubmissionSummary {
 export default function PlannerReport() {
   const { userRole } = useAuth();
   const navigate = useNavigate();
+  const isExecutive = ['admin', 'director', 'principal', 'vice_principal', 'academic_coordinator', 'campus_coordinator', 'section_coordinator'].includes(userRole?.role || '');
 
   // State
   const [baseDate, setBaseDate] = useState(toLocalDateStr(new Date()));
@@ -440,8 +441,25 @@ export default function PlannerReport() {
     const wsClass = XLSX.utils.json_to_sheet(classData);
     XLSX.utils.book_append_sheet(wb, wsClass, 'Class Subject Plans');
 
-    XLSX.writeFile(wb, `Lesson_Planner_Audit_Report_${activeRange.start}_to_${activeRange.end}.xlsx`);
   };
+
+  // Role Restriction: Accessible only to Coordinators, Principals, and Admins
+  if (userRole && !isExecutive) {
+    return (
+      <div className="max-w-xl mx-auto py-20 text-center space-y-4 no-print">
+        <div className="w-16 h-16 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto shadow-sm">
+          <AlertCircle className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">Access Restricted</h2>
+        <p className="text-xs text-slate-500 font-medium max-w-md mx-auto">
+          The Lesson Planner Audit &amp; Compliance Report is only accessible to Academic Coordinators, Principals, and System Administrators.
+        </p>
+        <Btn variant="primary" onClick={() => navigate('/planner')} className="font-bold text-xs">
+          Return to My Lesson Planner
+        </Btn>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-4">
