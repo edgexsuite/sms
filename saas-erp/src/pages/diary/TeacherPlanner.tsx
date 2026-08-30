@@ -75,23 +75,39 @@ const getSubjectMeta = (name: string = '') => {
   return { icon: BookOpen, color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-200' };
 };
 
+// Local Timezone-Safe Date formatters
+const toLocalDateStr = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+const parseLocalDate = (str: string): Date => {
+  if (!str) return new Date();
+  const parts = str.split('-').map(Number);
+  if (parts.length === 3) {
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+  }
+  return new Date(str);
+};
+
 // Date helpers
 const getWeekRange = (dateStr: string) => {
-  const d = new Date(dateStr);
+  const d = parseLocalDate(dateStr);
   const day = d.getDay(); // 0 is Sun, 1 is Mon
   const diffToMon = d.getDate() - day + (day === 0 ? -6 : 1);
-  const mon = new Date(d.setDate(diffToMon));
-  const sat = new Date(mon);
-  sat.setDate(mon.getDate() + 5);
+  const mon = new Date(d.getFullYear(), d.getMonth(), diffToMon);
+  const sat = new Date(d.getFullYear(), d.getMonth(), diffToMon + 5);
   return {
-    start: mon.toISOString().slice(0, 10),
-    end: sat.toISOString().slice(0, 10),
+    start: toLocalDateStr(mon),
+    end: toLocalDateStr(sat),
     label: `${formatDate(mon)} — ${formatDate(sat)}`
   };
 };
 
 const get15DaysRange = (dateStr: string) => {
-  const d = new Date(dateStr);
+  const d = parseLocalDate(dateStr);
   const year = d.getFullYear();
   const month = d.getMonth();
   const day = d.getDate();
@@ -99,31 +115,31 @@ const get15DaysRange = (dateStr: string) => {
     const start = new Date(year, month, 1);
     const end = new Date(year, month, 15);
     return {
-      start: start.toISOString().slice(0, 10),
-      end: end.toISOString().slice(0, 10),
+      start: toLocalDateStr(start),
+      end: toLocalDateStr(end),
       label: `1st Half: 01-${String(month + 1).padStart(2, '0')}-${year} to 15-${String(month + 1).padStart(2, '0')}-${year}`
     };
   } else {
     const start = new Date(year, month, 16);
     const end = new Date(year, month + 1, 0); // Last day of month
     return {
-      start: start.toISOString().slice(0, 10),
-      end: end.toISOString().slice(0, 10),
+      start: toLocalDateStr(start),
+      end: toLocalDateStr(end),
       label: `2nd Half: 16-${String(month + 1).padStart(2, '0')}-${year} to ${end.getDate()}-${String(month + 1).padStart(2, '0')}-${year}`
     };
   }
 };
 
 const getMonthRange = (dateStr: string) => {
-  const d = new Date(dateStr);
+  const d = parseLocalDate(dateStr);
   const year = d.getFullYear();
   const month = d.getMonth();
   const start = new Date(year, month, 1);
   const end = new Date(year, month + 1, 0);
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   return {
-    start: start.toISOString().slice(0, 10),
-    end: end.toISOString().slice(0, 10),
+    start: toLocalDateStr(start),
+    end: toLocalDateStr(end),
     label: `${monthNames[month]} ${year} (Full Month)`
   };
 };
@@ -131,21 +147,21 @@ const getMonthRange = (dateStr: string) => {
 // Generate list of working days between start & end
 const generateDaysInRange = (startStr: string, endStr: string): RangeDay[] => {
   const days: RangeDay[] = [];
-  const start = new Date(startStr);
-  const end = new Date(endStr);
-  const cur = new Date(start);
+  const start = parseLocalDate(startStr);
+  const end = parseLocalDate(endStr);
+  const cur = new Date(start.getFullYear(), start.getMonth(), start.getDate());
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const dayShorts = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   while (cur <= end) {
     const dayOfWeek = cur.getDay();
     if (dayOfWeek !== 0) { // Skip Sunday for standard school calendar
-      const dStr = cur.toISOString().slice(0, 10);
+      const dStr = toLocalDateStr(cur);
       days.push({
         date: dStr,
         dayName: dayNames[dayOfWeek],
         dayShort: dayShorts[dayOfWeek],
-        formattedDate: formatDate(dStr),
+        formattedDate: formatDate(cur),
       });
     }
     cur.setDate(cur.getDate() + 1);
@@ -162,9 +178,9 @@ export default function TeacherPlanner() {
 
   // State
   const [duration, setDuration] = useState<PlanDuration>('weekly');
-  const [baseDate, setBaseDate] = useState(new Date().toISOString().slice(0, 10));
-  const [customStart, setCustomStart] = useState(new Date().toISOString().slice(0, 10));
-  const [customEnd, setCustomEnd] = useState(new Date().toISOString().slice(0, 10));
+  const [baseDate, setBaseDate] = useState(toLocalDateStr(new Date()));
+  const [customStart, setCustomStart] = useState(toLocalDateStr(new Date()));
+  const [customEnd, setCustomEnd] = useState(toLocalDateStr(new Date()));
 
   const [viewMode, setViewMode] = useState<'teacher' | 'class'>(canClassView && !isTeacher ? 'class' : 'teacher');
   const [allClasses, setAllClasses] = useState<any[]>([]);
@@ -540,7 +556,7 @@ export default function TeacherPlanner() {
 
   // Shift Dates
   const shiftPeriod = (direction: -1 | 1) => {
-    const d = new Date(baseDate);
+    const d = parseLocalDate(baseDate);
     if (duration === 'weekly') {
       d.setDate(d.getDate() + direction * 7);
     } else if (duration === '15days') {
@@ -548,7 +564,7 @@ export default function TeacherPlanner() {
     } else if (duration === 'monthly') {
       d.setMonth(d.getMonth() + direction);
     }
-    setBaseDate(d.toISOString().slice(0, 10));
+    setBaseDate(toLocalDateStr(d));
   };
 
   // ─── PDF Export ────────────────────────────────────────────────────────────
@@ -611,7 +627,13 @@ export default function TeacherPlanner() {
       ]);
 
       rangeDays.forEach(d => {
-        const dayDetail = item.days[d.date] || { topic: '', classwork: '', homework: '', quiz_test: '' };
+        let dayDetail = item.days?.[d.date];
+        if (!dayDetail || (!dayDetail.topic && !dayDetail.classwork && !dayDetail.homework && !dayDetail.quiz_test)) {
+          const entry = Object.entries(item.days || {}).find(([k, v]) => (k === d.date || k.includes(d.date) || d.date.includes(k)) && (v.topic || v.classwork || v.homework || v.quiz_test));
+          if (entry) dayDetail = entry[1];
+        }
+        dayDetail = dayDetail || { topic: '', classwork: '', homework: '', quiz_test: '' };
+
         body.push([
           item.subject_name,
           viewMode === 'class' ? (item.teacher_name || 'Faculty') : item.class_name,
