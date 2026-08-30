@@ -14,6 +14,33 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('demo') === 'true') {
+      setIdentifier('demo@edgexsuite.com');
+      setPassword('Demo@1234');
+    }
+  }, []);
+
+  const handleDemoLogin = async () => {
+    setIdentifier('demo@edgexsuite.com');
+    setPassword('Demo@1234');
+    setLoading(true);
+    setError(null);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: 'demo@edgexsuite.com',
+        password: 'Demo@1234',
+      });
+      if (error) throw error;
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err.message || 'Error logging into demo account.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -276,6 +303,20 @@ export default function Login() {
                   </>
                 ) : t('login.submit')}
               </button>
+
+              {/* 1-Click Instant Demo Login */}
+              <div className="mt-4 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={handleDemoLogin}
+                  disabled={loading}
+                  className="w-full py-3 px-4 bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-900 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all shadow-xs group cursor-pointer"
+                >
+                  <span className="text-sm">⚡</span>
+                  <span>1-Click Demo Campus Login (Full Access)</span>
+                  <span className="text-sky-600 group-hover:translate-x-0.5 transition-transform">→</span>
+                </button>
+              </div>
             </form>
           </div>
 

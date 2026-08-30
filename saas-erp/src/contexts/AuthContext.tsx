@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useMemo, useCall
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { logActivity } from '../lib/auditLog';
+import { cleanupDemoSchoolModifications, DEMO_SCHOOL_ID } from '../lib/demoReset';
 
 export interface PermissionSet {
   modules: Record<string, boolean>;
@@ -228,6 +229,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signOut = async () => {
+    if (userRole?.school_id === DEMO_SCHOOL_ID) {
+      try {
+        await cleanupDemoSchoolModifications(userRole.school_id);
+      } catch (err) {
+        console.error('Error cleaning demo school data on sign out:', err);
+      }
+    }
     await supabase.auth.signOut();
   };
 

@@ -83,15 +83,20 @@ export default function TrialRegistration() {
     setError('');
     setLoading(true);
 
-    const whatsappText = `*New 1-Month Free Trial Request - EdgeX SMS*
-🏫 *School:* ${form.school_name.trim()}
-📍 *City:* ${form.city.trim()}
+    const whatsappText = `Assalam-o-Alaikum / Hello EdgeX Digital Team,
+
+I have submitted a request for the *1-Month Free Trial (30 Days Full Access)* of EdgeX School Management System (EdgeX SMS). Here are our institution details:
+
+🏫 *School / Institution:* ${form.school_name.trim()}
+📍 *City / Location:* ${form.city.trim()}
 👤 *Contact Person:* ${form.contact_person_name.trim()} (${form.contact_person_role})
-📱 *Phone:* ${form.contact_phone.trim()}
-✉️ *Email:* ${form.contact_email.trim()}
-🎓 *Type:* ${form.school_type}
-👥 *Students:* ${form.approx_students}
-📝 *Notes:* ${form.notes.trim() || 'None'}`;
+📱 *WhatsApp Mobile:* ${form.contact_phone.trim()}
+✉️ *Admin Email:* ${form.contact_email.trim()}
+🎓 *Institution Type:* ${form.school_type}
+👥 *Approx. Students:* ${form.approx_students}
+📝 *Special Notes:* ${form.notes.trim() || 'Please activate our 1-Month Free Access & assist with setup.'}
+
+Please share our portal login credentials and onboarding guide. Thank you!`;
 
     const waUrl = `https://wa.me/923012616367?text=${encodeURIComponent(whatsappText)}`;
     setWhatsappLink(waUrl);
@@ -235,6 +240,12 @@ export default function TrialRegistration() {
             </div>
 
             <div className="hidden md:flex items-center gap-3">
+              <a
+                href="/login?demo=true"
+                className="rounded-xl bg-slate-900 hover:bg-slate-800 px-4 py-2.5 text-white text-xs font-black shadow-sm transition-all flex items-center gap-1.5"
+              >
+                <span>⚡</span> Live Demo Login
+              </a>
               <a href="tel:03012616367" className="font-bold text-slate-800 hover:text-[#087fe5] text-sm">
                 0301-2616367
               </a>
@@ -320,10 +331,16 @@ export default function TrialRegistration() {
               
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <a
+                  href="/login?demo=true"
+                  className="rounded-xl bg-slate-950 hover:bg-slate-900 px-6 py-4 text-center font-extrabold text-white shadow-xl shadow-slate-900/10 transition-all hover:shadow-2xl hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                >
+                  <span>⚡</span> Test Drive Demo Portal
+                </a>
+                <a
                   href="#trial"
                   className="rounded-xl bg-[#087fe5] hover:bg-[#0770cb] px-6 py-4 text-center font-extrabold text-white shadow-xl shadow-sky-200 transition-all hover:shadow-2xl hover:-translate-y-0.5"
                 >
-                  Register for 1-Month Free Trial →
+                  Register 1-Month Free Trial →
                 </a>
                 <a
                   href="https://wa.me/923012616367?text=Hello%20EdgeX%20Digital%2C%20I%20want%20a%20live%20demo%20of%20EdgeX%20SMS."
@@ -331,7 +348,7 @@ export default function TrialRegistration() {
                   rel="noopener noreferrer"
                   className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-6 py-4 text-center font-extrabold text-slate-800 transition-all shadow-xs flex items-center justify-center gap-2"
                 >
-                  <WhatsAppIcon className="w-5 h-5 text-[#25D366]" /> Book WhatsApp Demo
+                  <WhatsAppIcon className="w-5 h-5 text-[#25D366]" /> WhatsApp Demo
                 </a>
               </div>
               
