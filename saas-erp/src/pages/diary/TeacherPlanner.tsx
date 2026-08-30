@@ -8,12 +8,15 @@ import {
   Calculator, FlaskConical, PenTool, Book, Globe, Cpu, Palette,
   Users, UserCheck, Sparkles, FileText, Check, AlertCircle, Eye,
   Layers, Clock, Award, ShieldCheck, ClipboardCheck, Calendar,
-  Copy, LayoutGrid, List
+  Copy, LayoutGrid, List, FileSpreadsheet, Upload, UploadCloud, FileUp, X
 } from 'lucide-react';
+
+import * as XLSX from 'xlsx';
 import { cn, formatDate, formatDateTime, getBase64Image } from '../../lib/utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { PageHeader, Card, Btn, Badge } from '../../components/ui';
+
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type PlanDuration = 'weekly' | '15days' | 'monthly' | 'custom';
@@ -199,9 +202,27 @@ export default function TeacherPlanner() {
   const [loading, setLoading] = useState(false);
   const [savingAll, setSavingAll] = useState(false);
 
+  // Import Modal & Template State
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  // Export Dropdown & Print State
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Active Selected Day for Single-Day Filter Tab View (optional 'all' or specific date)
   const [activeDayFilter, setActiveDayFilter] = useState<string>('all');
   const [printLayoutMode, setPrintLayoutMode] = useState<'daywise' | 'subjectwise'>('daywise');
+
 
   // Trigger Native Nastaleeq Day-Wise Print / PDF
   const triggerDayWisePrint = (targetDate?: string) => {
@@ -227,6 +248,215 @@ export default function TeacherPlanner() {
       window.print();
     }, 80);
   };
+
+  // ─── Download Excel Template for Lesson Plans ──────────────────────────────
+  const downloadExcelTemplate = () => {
+    const headers = [
+      'Class Name',
+      'Subject Name',
+      'Teacher Name',
+      'Week Start',
+      'Unit / Chapter',
+      'Learning Outcomes (SLOs)',
+      'Resources Needed',
+      'Teacher Remarks',
+      'Mon Topic', 'Mon Classwork', 'Mon Homework', 'Mon Quiz/Test',
+      'Tue Topic', 'Tue Classwork', 'Tue Homework', 'Tue Quiz/Test',
+      'Wed Topic', 'Wed Classwork', 'Wed Homework', 'Wed Quiz/Test',
+      'Thu Topic', 'Thu Classwork', 'Thu Homework', 'Thu Quiz/Test',
+      'Fri Topic', 'Fri Classwork', 'Fri Homework', 'Fri Quiz/Test',
+      'Sat Topic', 'Sat Classwork', 'Sat Homework', 'Sat Quiz/Test',
+    ];
+
+    const rows: any[][] = [];
+    const dDates = rangeDays.map(rd => rd.date);
+
+    if (assignedSlots.length > 0) {
+      assignedSlots.forEach(slot => {
+        const item = planItems.find(p => p.class_id === slot.class_id && p.subject_id === slot.subject_id);
+        const d = item?.days || {};
+        rows.push([
+          `${slot.class_name} ${slot.section}`.trim(),
+          slot.subject_name,
+          slot.teacher_name || allTeachers.find(t => t.id === (selectedTeacherId || myStaffId))?.full_name || '',
+          activeRange.start,
+          item?.unit_chapter || '',
+          item?.learning_outcomes || '',
+          item?.resources_needed || '',
+          item?.teacher_remarks || '',
+          d[dDates[0]]?.topic || '', d[dDates[0]]?.classwork || '', d[dDates[0]]?.homework || '', d[dDates[0]]?.quiz_test || '',
+          d[dDates[1]]?.topic || '', d[dDates[1]]?.classwork || '', d[dDates[1]]?.homework || '', d[dDates[1]]?.quiz_test || '',
+          d[dDates[2]]?.topic || '', d[dDates[2]]?.classwork || '', d[dDates[2]]?.homework || '', d[dDates[2]]?.quiz_test || '',
+          d[dDates[3]]?.topic || '', d[dDates[3]]?.classwork || '', d[dDates[3]]?.homework || '', d[dDates[3]]?.quiz_test || '',
+          d[dDates[4]]?.topic || '', d[dDates[4]]?.classwork || '', d[dDates[4]]?.homework || '', d[dDates[4]]?.quiz_test || '',
+          d[dDates[5]]?.topic || '', d[dDates[5]]?.classwork || '', d[dDates[5]]?.homework || '', d[dDates[5]]?.quiz_test || '',
+        ]);
+      });
+    } else {
+      rows.push([
+        'Grade 4',
+        'Urdu',
+        allTeachers.find(t => t.id === (selectedTeacherId || myStaffId))?.full_name || 'Mariyam Munir',
+        activeRange.start,
+        'حروفِ جار اور قواعد',
+        'طلبہ حروفِ جار، اسمِ معرفہ اور اسمِ صفت کی پہچان کر سکیں گے۔',
+        'درسی کتاب صفحہ 12-15، وائٹ بورڈ، فلیش کارڈز',
+        'ہفتہ وار جائزہ اور دہرائی کا انعقاد کیا جائے گا۔',
+        'حروفِ جار (تعارف اور تفہیم)', 'حروفِ جار (کا، کی، کے، کو، سے، میں، پر) کی تعریف اور بورڈ پر مشق', 'کتاب کا صفحہ نمبر 14 مشق سوال 1 حل کریں', '',
+        'اسمِ معرفہ اور اسمِ نکرہ', 'خاص ناموں (معرفہ) اور عام ناموں (نکرہ) کی مثالوں کے ساتھ وضاحت', 'پانچ معرفہ اور پانچ نکرہ اسماء کاپی پر لکھ کر لائیں', 'مختصر زبانی سوالات',
+        'اسمِ صفت (خوبیاں اور خصوصیات)', 'جملوں میں اسمِ صفت کی شناخت اور ان کا استعمال سمجھنا', 'کتاب کی مشق نمبر 3 مکمل کریں', 'اسم صفت کی مثالوں کا ٹیسٹ',
+        'جملہ سازی اور قواعد کا عملی استعمال', 'حروفِ جار اور اسمِ معرفہ/نکرہ کو ملا کر جملے بنانے کی مشق', 'دیے گئے پانچ الفاظ پر مشتمل بامعنی جملے بنائیں', '',
+        'دہرائی اور تفہیمی سرگرمی', 'ہفتے بھر کے اسباق کی اجتماعی دہرائی اور فلیش کارڈ گیم', 'ہفتہ وار ٹیسٹ کی مکمل تیاری کر کے آئیں', '',
+        'ہفتہ وار تحریری جائزہ (Weekly Quiz)', 'قواعد کے تمام اسباق پر مشتمل 15 منٹ کا تحریری کوئز', 'اگلے ہفتے کے سبق کی ریڈنگ', 'Urdu Grammar Quiz 1'
+      ]);
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    ws['!cols'] = [
+      { wch: 14 }, { wch: 16 }, { wch: 18 }, { wch: 12 },
+      { wch: 22 }, { wch: 30 }, { wch: 20 }, { wch: 20 },
+      { wch: 25 }, { wch: 25 }, { wch: 25 }, { wch: 15 },
+      { wch: 25 }, { wch: 25 }, { wch: 25 }, { wch: 15 },
+      { wch: 25 }, { wch: 25 }, { wch: 25 }, { wch: 15 },
+      { wch: 25 }, { wch: 25 }, { wch: 25 }, { wch: 15 },
+      { wch: 25 }, { wch: 25 }, { wch: 25 }, { wch: 15 },
+      { wch: 25 }, { wch: 25 }, { wch: 25 }, { wch: 15 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Lesson_Plan_Template');
+    XLSX.writeFile(wb, `Lesson_Plan_Template_${activeRange.start}.xlsx`);
+  };
+
+  // ─── Process Excel / CSV Import File ───────────────────────────────────────
+  const processImportFile = async (file: File) => {
+    if (!userRole?.school_id) return;
+    setImportLoading(true);
+    setImportStatus(null);
+    const logs: string[] = [];
+
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, { type: 'array' });
+      const firstSheetName = wb.SheetNames[0];
+      const ws = wb.Sheets[firstSheetName];
+      const rawRows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+      if (rawRows.length === 0) {
+        throw new Error('The uploaded spreadsheet contains no data rows.');
+      }
+
+      logs.push(`Found ${rawRows.length} rows in "${firstSheetName}".`);
+
+      const upsertRows: any[] = [];
+      const dDates = rangeDays.map(rd => rd.date);
+
+      rawRows.forEach((row, idx) => {
+        const norm: Record<string, string> = {};
+        Object.entries(row).forEach(([k, v]) => {
+          norm[k.toLowerCase().replace(/[^a-z0-9]/g, '')] = String(v).trim();
+        });
+
+        const rawClassName = norm['classname'] || norm['class'] || '';
+        const rawSubjectName = norm['subjectname'] || norm['subject'] || '';
+        const rawTeacherName = norm['teachername'] || norm['teacher'] || norm['faculty'] || '';
+        const rawWeekStart = norm['weekstart'] || norm['week'] || activeRange.start;
+
+        // Match Class
+        const matchedClass = allClasses.find(c => {
+          const full = `${c.name} ${c.section}`.toLowerCase().trim();
+          const simple = c.name.toLowerCase().trim();
+          const target = rawClassName.toLowerCase().trim();
+          return full === target || simple === target || full.includes(target) || target.includes(simple);
+        }) || (selectedClassId ? allClasses.find(c => c.id === selectedClassId) : null);
+
+        // Match Subject
+        const matchedSubject = allSubjects.find(s => {
+          const sName = s.subject_name.toLowerCase().trim();
+          const target = rawSubjectName.toLowerCase().trim();
+          const classMatch = matchedClass ? s.class_id === matchedClass.id : true;
+          return classMatch && (sName === target || sName.includes(target) || target.includes(sName));
+        });
+
+        // Match Teacher
+        const matchedTeacher = allTeachers.find(t => {
+          const tName = t.full_name.toLowerCase().trim();
+          const target = rawTeacherName.toLowerCase().trim();
+          return tName === target || tName.includes(target) || target.includes(tName);
+        }) || allTeachers.find(t => t.id === (selectedTeacherId || myStaffId)) || null;
+
+        const resolvedTeacherId = matchedTeacher?.id || selectedTeacherId || myStaffId || null;
+
+        if (!matchedClass || !matchedSubject || !resolvedTeacherId) {
+          logs.push(`Row ${idx + 1}: Skipped (Class: "${rawClassName}", Subject: "${rawSubjectName}") — could not match class/subject.`);
+          return;
+        }
+
+        // Parse 6 Days (Mon - Sat)
+        const daysMap: Record<string, DayPlanDetail> = {};
+        const prefixes = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+        prefixes.forEach((pref, pIdx) => {
+          const dayDate = dDates[pIdx] || '';
+          if (!dayDate) return;
+
+          const topic = norm[`${pref}topic`] || norm[`${pref}topiccovered`] || norm[`${pref}topiclesson`] || '';
+          const classwork = norm[`${pref}classwork`] || norm[`${pref}cw`] || norm[`${pref}classworkactivities`] || '';
+          const homework = norm[`${pref}homework`] || norm[`${pref}hw`] || norm[`${pref}homeworkassignments`] || '';
+          const quiz = norm[`${pref}quiz`] || norm[`${pref}quiztest`] || norm[`${pref}test`] || '';
+
+          daysMap[dayDate] = {
+            topic,
+            classwork,
+            homework,
+            quiz_test: quiz,
+          };
+        });
+
+        upsertRows.push({
+          school_id: userRole.school_id,
+          teacher_id: resolvedTeacherId,
+          class_id: matchedClass.id,
+          subject_id: matchedSubject.id,
+          week_start: rawWeekStart || activeRange.start,
+          week_end: activeRange.end,
+          unit_chapter: norm['unitchapter'] || norm['unit'] || norm['chapter'] || '',
+          learning_outcomes: norm['learningoutcomes'] || norm['learningoutcomesslos'] || norm['slos'] || norm['slo'] || '',
+          resources_needed: norm['resourcesneeded'] || norm['resources'] || norm['materials'] || '',
+          teacher_remarks: norm['teacherremarks'] || norm['remarks'] || norm['notes'] || '',
+          days: daysMap,
+          updated_at: new Date().toISOString()
+        });
+
+        logs.push(`Row ${idx + 1}: Matched → ${matchedClass.name} | ${matchedSubject.subject_name} | ${matchedTeacher?.full_name || 'Faculty'}`);
+      });
+
+      if (upsertRows.length === 0) {
+        throw new Error('No rows could be matched to existing Classes and Subjects. Please verify names in your sheet.');
+      }
+
+      // Upsert into Supabase
+      const { error: upsertErr } = await supabase
+        .from('lesson_plans')
+        .upsert(upsertRows, { onConflict: 'school_id,teacher_id,class_id,subject_id,week_start' });
+
+      if (upsertErr) throw upsertErr;
+
+      setImportStatus({
+        success: `Successfully imported ${upsertRows.length} subject lesson plans for week ${activeRange.start}!`,
+        logs,
+      });
+
+      await fetchSlots();
+    } catch (err: any) {
+      console.error('[TeacherPlanner] Import error:', err);
+      setImportStatus({
+        error: err.message || 'Failed to import lesson plan file.',
+        logs,
+      });
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
 
   // Range Computation
   const activeRange = useMemo(() => {
@@ -938,100 +1168,171 @@ export default function TeacherPlanner() {
       `}</style>
 
       {/* ── Control Header ── */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm no-print">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-100">
-            <CalendarDays className="w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="text-lg font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
-              Curriculum & Lesson Planner
-              <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-[10px] font-black tracking-widest uppercase">
-                {duration}
-              </span>
-            </h1>
-            <p className="text-xs text-slate-500 font-bold">
-              Day-by-day lesson planning with exact dates, topics, classwork, and homework
-            </p>
-          </div>
-        </div>
-
-        {/* Action Controls */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Duration Mode Switcher */}
-          <div className="bg-slate-100 p-1 rounded-xl flex gap-1 border border-slate-200">
-            {(['weekly', '15days', 'monthly', 'custom'] as PlanDuration[]).map(d => (
-              <button
-                key={d}
-                onClick={() => {
-                  setDuration(d);
-                  setActiveDayFilter('all');
-                }}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg text-xs font-black transition-all uppercase tracking-wider',
-                  duration === d ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-500 hover:text-slate-800'
-                )}
-              >
-                {d === 'weekly' ? 'Weekly' : d === '15days' ? '15 Days' : d === 'monthly' ? 'Monthly' : 'Custom'}
-              </button>
-            ))}
-          </div>
-
-          <div className="h-8 w-px bg-slate-200 mx-1 hidden sm:block" />
-
-          {/* High-Definition Print & Save as PDF Buttons (100% Nastaleeq) */}
-          <Btn
-            variant="outline"
-            size="sm"
-            onClick={() => triggerDayWisePrint()}
-            className="text-xs h-9 px-3 border-indigo-300 text-indigo-700 bg-indigo-50/60 hover:bg-indigo-100 font-black shadow-xs"
-            title="Print or Save as PDF with full Nastaleeq Urdu typography"
-          >
-            <Printer className="w-4 h-4 mr-1.5 text-indigo-600" />
-            Print Sheet
-          </Btn>
+      <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-sm no-print space-y-3.5">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           
-          <Btn
-            variant="outline"
-            size="sm"
-            onClick={() => triggerDayWisePrint(activeDayFilter !== 'all' ? activeDayFilter : undefined)}
-            className="text-xs h-9 px-3 border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 font-bold"
-            title="Download Day-Wise Lesson Plan PDF grouped by Day/Date"
-          >
-            <Download className="w-4 h-4 mr-1.5 text-indigo-600" />
-            {activeDayFilter !== 'all' ? '📄 Day PDF' : '📄 Day-Wise PDF'}
-          </Btn>
+          {/* Left: Branding & Title */}
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 bg-gradient-to-tr from-indigo-600 to-indigo-500 rounded-2xl flex items-center justify-center text-white shadow-md shadow-indigo-200">
+              <CalendarDays className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-tight">
+                  Curriculum & Lesson Planner
+                </h1>
+                <span className="px-2.5 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-full text-[10px] font-black tracking-widest uppercase">
+                  {duration}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 font-semibold">
+                Weekly syllabus, SLOs, topics & daily diary entries
+              </p>
+            </div>
+          </div>
 
-          <Btn
-            variant="outline"
-            size="sm"
-            onClick={triggerSubjectWisePrint}
-            className="text-xs h-9 px-3 border-slate-200 font-bold hover:bg-slate-50"
-            title="Download Subject-Wise Lesson Plan PDF grouped by Subject"
-          >
-            <BookOpen className="w-4 h-4 mr-1.5 text-slate-600" />
-            📚 Subject-Wise PDF
-          </Btn>
+          {/* Right: Actions Bar */}
+          <div className="flex flex-wrap items-center gap-2">
+            
+            {/* Duration Mode Switcher */}
+            <div className="bg-slate-100 p-1 rounded-2xl flex gap-1 border border-slate-200">
+              {(['weekly', '15days', 'monthly', 'custom'] as PlanDuration[]).map(d => (
+                <button
+                  key={d}
+                  onClick={() => {
+                    setDuration(d);
+                    setActiveDayFilter('all');
+                  }}
+                  className={cn(
+                    'px-3 py-1.5 rounded-xl text-xs font-black transition-all capitalize',
+                    duration === d ? 'bg-white shadow-xs text-indigo-700' : 'text-slate-500 hover:text-slate-900'
+                  )}
+                >
+                  {d === 'weekly' ? 'Weekly' : d === '15days' ? '15 Days' : d === 'monthly' ? 'Monthly' : 'Custom'}
+                </button>
+              ))}
+            </div>
 
-          {/* Submission & Audit Report Button (Restricted to Coordinators & Admins) */}
-          {isAdmin && (
-            <Btn
-              variant="outline"
-              size="sm"
-              onClick={() => navigate('/planner/report')}
-              className="text-xs h-9 px-3 border-emerald-300 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100 font-black shadow-xs"
-              title="Open Lesson Planner Submission & Compliance Report"
+            <div className="h-6 w-px bg-slate-200 mx-0.5 hidden sm:block" />
+
+            {/* Print & PDF Dropdown */}
+            <div className="relative" ref={exportMenuRef}>
+              <button
+                type="button"
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                className="h-9 px-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 text-indigo-700 text-xs font-black flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+              >
+                <Printer className="w-4 h-4 text-indigo-600" />
+                <span>Print & PDF</span>
+                <ChevronRight className={cn('w-3.5 h-3.5 transition-transform', showExportMenu ? '-rotate-90' : 'rotate-90')} />
+              </button>
+
+              {showExportMenu && (
+                <div className="absolute right-0 top-full mt-1.5 w-60 bg-white rounded-2xl shadow-xl border border-slate-200 p-1.5 z-40 space-y-1 animate-in fade-in-50 zoom-in-95 duration-100">
+                  <button
+                    onClick={() => {
+                      setShowExportMenu(false);
+                      triggerDayWisePrint();
+                    }}
+                    className="w-full px-3 py-2 text-left rounded-xl hover:bg-indigo-50/70 text-slate-700 hover:text-indigo-700 text-xs font-black flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <Printer className="w-4 h-4 text-indigo-600 shrink-0" />
+                    <div>
+                      <div>Print Gazette (Nastaleeq)</div>
+                      <div className="text-[10px] text-slate-400 font-normal">Day-wise landscape print sheet</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowExportMenu(false);
+                      handleDayWisePDFExport(activeDayFilter !== 'all' ? activeDayFilter : undefined);
+                    }}
+                    className="w-full px-3 py-2 text-left rounded-xl hover:bg-indigo-50/70 text-slate-700 hover:text-indigo-700 text-xs font-black flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 text-indigo-600 shrink-0" />
+                    <div>
+                      <div>Download Day-Wise PDF</div>
+                      <div className="text-[10px] text-slate-400 font-normal">Standard PDF export</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowExportMenu(false);
+                      triggerSubjectWisePrint();
+                    }}
+                    className="w-full px-3 py-2 text-left rounded-xl hover:bg-indigo-50/70 text-slate-700 hover:text-indigo-700 text-xs font-black flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <BookOpen className="w-4 h-4 text-indigo-600 shrink-0" />
+                    <div>
+                      <div>Subject-Wise Syllabus PDF</div>
+                      <div className="text-[10px] text-slate-400 font-normal">Grouped by course/subject</div>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Template Download */}
+            <button
+              onClick={downloadExcelTemplate}
+              className="h-9 px-3 rounded-xl border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100 text-emerald-800 text-xs font-black flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+              title="Download pre-filled Excel spreadsheet template for this week"
             >
-              <CheckCircle2 className="w-4 h-4 mr-1.5 text-emerald-600" />
-              📊 Lesson Planner Report
-            </Btn>
-          )}
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              <span className="hidden sm:inline">Excel</span> Template
+            </button>
 
-          <Btn variant="primary" size="sm" onClick={saveAllPlans} disabled={savingAll} className="text-xs h-9 px-4 font-black shadow-md shadow-indigo-100">
-            <Save className="w-4 h-4 mr-1.5" /> {savingAll ? 'Saving...' : 'Save All Plans'}
-          </Btn>
+            {/* Import Button */}
+            <button
+              onClick={() => {
+                setImportStatus(null);
+                setShowImportModal(true);
+              }}
+              className="h-9 px-3 rounded-xl border border-purple-200 bg-purple-50/60 hover:bg-purple-100 text-purple-800 text-xs font-black flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+              title="Import Lesson Plans from Excel or CSV file"
+            >
+              <Upload className="w-4 h-4 text-purple-600" />
+              Import Plan
+            </button>
+
+            {/* Compliance Report (Coordinators & Admins) */}
+            {isAdmin && (
+              <button
+                onClick={() => navigate('/planner/report')}
+                className="h-9 px-3 rounded-xl border border-teal-200 bg-teal-50/60 hover:bg-teal-100 text-teal-800 text-xs font-black flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                title="Open Lesson Planner Submission & Compliance Report"
+              >
+                <CheckCircle2 className="w-4 h-4 text-teal-600" />
+                <span className="hidden sm:inline">Audit</span> Report
+              </button>
+            )}
+
+            {/* Save All Plans Button */}
+            <button
+              onClick={saveAllPlans}
+              disabled={savingAll}
+              className="h-9 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-98 disabled:opacity-50 text-white text-xs font-black flex items-center gap-2 transition-all shadow-md shadow-indigo-200 cursor-pointer"
+            >
+              {savingAll ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 text-white" />
+                  <span>Save All Plans</span>
+                </>
+              )}
+            </button>
+
+          </div>
         </div>
       </div>
+
+
 
       {/* ── Perspective & Date Controls Bar ── */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-sm no-print items-center">
@@ -1589,6 +1890,117 @@ export default function TeacherPlanner() {
           </div>
         </div>
       </div>
+
+      {/* ── Import Lesson Plan Modal ── */}
+      {showImportModal && (
+
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs no-print animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-xl w-full p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-purple-50 text-purple-600 rounded-2xl border border-purple-100">
+                  <FileSpreadsheet className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">Import Lesson Plans from Excel / CSV</h3>
+                  <p className="text-xs text-slate-500 font-semibold">Upload an Excel (.xlsx) or CSV file to import plans for week {activeRange.start}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowImportModal(false)}
+                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Template Help & Download */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-slate-800">Need the standard format?</span>
+                <button
+                  onClick={downloadExcelTemplate}
+                  className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-700 hover:text-emerald-800 bg-emerald-100/60 hover:bg-emerald-100 px-3 py-1.5 rounded-xl transition-all"
+                >
+                  <Download className="w-3.5 h-3.5" /> Download Template (.xlsx)
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                The spreadsheet includes columns for <b>Class Name</b>, <b>Subject Name</b>, <b>Unit/Chapter</b>, <b>SLOs</b>, and day columns (<b>Mon Topic</b>, <b>Mon Classwork</b>, <b>Mon Homework</b>, <b>Mon Quiz</b>, etc.).
+              </p>
+            </div>
+
+            {/* File Upload Zone */}
+            <div className="border-2 border-dashed border-purple-200 hover:border-purple-400 bg-purple-50/20 hover:bg-purple-50/40 transition-all rounded-2xl p-6 text-center">
+              <input
+                type="file"
+                id="lesson-plan-file-input"
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+                disabled={importLoading}
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) processImportFile(file);
+                }}
+              />
+              <label htmlFor="lesson-plan-file-input" className="cursor-pointer flex flex-col items-center justify-center space-y-2">
+                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 shadow-xs">
+                  {importLoading ? (
+                    <RefreshCw className="w-6 h-6 animate-spin text-purple-600" />
+                  ) : (
+                    <UploadCloud className="w-6 h-6 text-purple-600" />
+                  )}
+                </div>
+                <div className="text-xs font-black text-slate-800">
+                  {importLoading ? 'Processing & Importing Plans...' : 'Click to Browse or Drag & Drop File'}
+                </div>
+                <div className="text-[11px] text-slate-400 font-semibold">Supports .xlsx, .xls, and .csv files</div>
+              </label>
+            </div>
+
+            {/* Status & Logs */}
+            {importStatus && (
+              <div className="space-y-2">
+                {importStatus.success && (
+                  <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-black flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{importStatus.success}</span>
+                  </div>
+                )}
+                {importStatus.error && (
+                  <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-black flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>{importStatus.error}</span>
+                  </div>
+                )}
+
+                {importStatus.logs && importStatus.logs.length > 0 && (
+                  <div className="max-h-36 overflow-y-auto bg-slate-900 text-slate-100 p-3 rounded-xl text-[11px] font-mono space-y-1">
+                    {importStatus.logs.map((log, lIdx) => (
+                      <div key={lIdx} className="text-slate-300">
+                        {log}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Footer Actions */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <Btn
+                variant="outline"
+                size="sm"
+                onClick={() => setShowImportModal(false)}
+                className="text-xs font-bold"
+              >
+                Close
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
