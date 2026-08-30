@@ -6,7 +6,7 @@ import {
   Banknote, DollarSign, Scale, BarChart3, BarChart2, ClipboardCheck, UserX,
   LineChart, Library, Home, Bell, Key, Trash2, Box, Package, Clock, Palette,
   Receipt, Layers, BookMarked, Landmark, BarChart, LifeBuoy, Users2, Bus, MapPin, Truck,
-  Radio, Inbox, Tag, History, Printer, Wand2, Trophy, CalendarDays, Table2
+  Radio, Inbox, Tag, History, Printer, Wand2, Trophy, CalendarDays, Table2, CheckCircle2
 } from 'lucide-react';
 
 export const ALL_ADMIN    = ['admin', 'principal', 'director', 'vice_principal'];
@@ -102,6 +102,7 @@ export const NAV_SECTIONS = [
       { name: 'Teacher Substitution', path: '/timetable/substitution', icon: Users, roles: ALL_COORDINATORS },
       { name: 'Teacher Diary',  path: '/diary',       icon: ClipboardList, roles: ALL_ACADEMIC },
       { name: 'Lesson Planner', path: '/planner',     icon: CalendarDays,  roles: ALL_ACADEMIC },
+      { name: 'Planner Audit Matrix', path: '/planner/report', icon: CheckCircle2, roles: ALL_COORDINATORS },
       { name: 'Evaluation',     path: '/evaluation',  icon: Star,          roles: ALL_ACADEMIC },
     ],
   },

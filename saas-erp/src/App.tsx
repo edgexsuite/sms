@@ -41,6 +41,7 @@ const LeaveLayout = lazy(() => import('./pages/leave/LeaveLayout'));
 const TeacherDiary = lazy(() => import('./pages/diary/TeacherDiary'));
 const DiarySchedule = lazy(() => import('./pages/diary/DiarySchedule'));
 const TeacherPlanner = lazy(() => import('./pages/diary/TeacherPlanner'));
+const PlannerReport = lazy(() => import('./pages/diary/PlannerReport'));
 const PayrollLayout = lazy(() => import('./pages/payroll/PayrollLayout'));
 const AccountingLayout = lazy(() => import('./pages/accounting/AccountingLayout'));
 const LibraryLayout = lazy(() => import('./pages/library/LibraryLayout'));
@@ -173,7 +174,9 @@ export default function App() {
                 <Route path="diary" element={<TeacherDiary />} />
                 <Route path="diary/schedule" element={<DiarySchedule />} />
                 <Route path="planner" element={<TeacherPlanner />} />
+                <Route path="planner/report" element={<PlannerReport />} />
                 <Route path="diary/planner" element={<TeacherPlanner />} />
+                <Route path="diary/planner-report" element={<PlannerReport />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="payroll/*" element={<PayrollLayout />} />
                 <Route path="accounting/*" element={<AccountingLayout />} />

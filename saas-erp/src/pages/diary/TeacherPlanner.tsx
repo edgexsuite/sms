@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -170,6 +171,7 @@ const generateDaysInRange = (startStr: string, endStr: string): RangeDay[] => {
 };
 
 export default function TeacherPlanner() {
+  const navigate = useNavigate();
   const { userRole, isClassIncharge, canManageClassDiary, inchargeClassIds } = useAuth();
   const isTeacher = userRole?.role === 'teacher';
   const isExecutive = ['admin', 'director', 'principal', 'vice_principal', 'academic_coordinator', 'campus_coordinator', 'section_coordinator'].includes(userRole?.role || '');
@@ -992,6 +994,18 @@ export default function TeacherPlanner() {
           >
             <BookOpen className="w-4 h-4 mr-1.5 text-slate-600" />
             📚 Subject-Wise PDF
+          </Btn>
+
+          {/* Submission & Audit Report Button */}
+          <Btn
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/planner/report')}
+            className="text-xs h-9 px-3 border-emerald-300 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100 font-black shadow-xs"
+            title="Open Teacher Submission & Compliance Audit Matrix"
+          >
+            <CheckCircle2 className="w-4 h-4 mr-1.5 text-emerald-600" />
+            📊 Submission Audit Matrix
           </Btn>
 
           <Btn variant="primary" size="sm" onClick={saveAllPlans} disabled={savingAll} className="text-xs h-9 px-4 font-black shadow-md shadow-indigo-100">
