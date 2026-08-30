@@ -334,21 +334,26 @@ export default function TeacherPlanner() {
         }
       });
 
-      // Fallback: If no slots created yet, load all subjects for this class
+      // Fallback: If no timetable slots for this class, load all subjects for this class
       if (slots.length === 0) {
         const { data: subData } = await supabase
           .from('subjects')
-          .select('id, subject_name, class_id, classes(name, section)')
+          .select('id, subject_name, class_id')
           .eq('class_id', selectedClassId)
           .eq('school_id', userRole.school_id);
+
+        const assignedTeacherId = cls?.class_teacher_id || myStaffId || undefined;
+        const assignedTeacherName = allTeachers.find(t => t.id === assignedTeacherId)?.full_name || 'Class Incharge';
+
         (subData || []).forEach((s: any) => {
           slots.push({
             class_id: selectedClassId,
-            class_name: cls?.name || s.classes?.name || 'Class',
-            section: cls?.section || s.classes?.section || '',
+            class_name: cls?.name || 'Class',
+            section: cls?.section || '',
             subject_id: s.id,
             subject_name: s.subject_name || 'Subject',
-            teacher_name: 'Assigned Faculty',
+            teacher_id: assignedTeacherId,
+            teacher_name: assignedTeacherName,
           });
         });
       }
@@ -356,7 +361,7 @@ export default function TeacherPlanner() {
       const tid = selectedTeacherId || myStaffId;
       const { data } = await supabase
         .from('timetable_slots')
-        .select('class_id, classes(name, section), subject_id, subjects(subject_name)')
+        .select('class_id, subject_id')
         .eq('teacher_id', tid)
         .eq('school_id', userRole.school_id);
 
@@ -366,12 +371,14 @@ export default function TeacherPlanner() {
           const key = `${s.class_id}__${s.subject_id}`;
           if (!seen.has(key)) {
             seen.add(key);
+            const cls = allClasses.find(c => c.id === s.class_id);
+            const sub = allSubjects.find(sub => sub.id === s.subject_id);
             slots.push({
               class_id: s.class_id,
-              class_name: s.classes?.name || 'Class',
-              section: s.classes?.section || '',
+              class_name: cls?.name || 'Class',
+              section: cls?.section || '',
               subject_id: s.subject_id,
-              subject_name: s.subjects?.subject_name || 'Subject',
+              subject_name: sub?.subject_name || 'Subject',
               teacher_id: tid,
               teacher_name: allTeachers.find(t => t.id === tid)?.full_name || 'Me',
             });
@@ -379,58 +386,66 @@ export default function TeacherPlanner() {
         }
       });
 
-      // Fallback: If no timetable slots, check subjects assigned directly to teacher
+      // Fallback: If no timetable slots, check classes where this teacher is Class Incharge
       if (slots.length === 0 && tid) {
-        const { data: subData } = await supabase
-          .from('subjects')
-          .select('id, subject_name, class_id, classes(name, section)')
-          .eq('teacher_id', tid)
-          .eq('school_id', userRole.school_id);
+        const inchargeClasses = allClasses.filter(c => c.class_teacher_id === tid);
+        if (inchargeClasses.length > 0) {
+          const classIds = inchargeClasses.map(c => c.id);
+          const { data: subData } = await supabase
+            .from('subjects')
+            .select('id, subject_name, class_id')
+            .in('class_id', classIds)
+            .eq('school_id', userRole.school_id);
 
-        (subData || []).forEach((s: any) => {
-          slots.push({
-            class_id: s.class_id,
-            class_name: s.classes?.name || 'Class',
-            section: s.classes?.section || '',
-            subject_id: s.id,
-            subject_name: s.subject_name || 'Subject',
-            teacher_id: tid,
-            teacher_name: allTeachers.find(t => t.id === tid)?.full_name || 'Me',
+          (subData || []).forEach((s: any) => {
+            const cls = inchargeClasses.find(c => c.id === s.class_id);
+            slots.push({
+              class_id: s.class_id,
+              class_name: cls?.name || 'Class',
+              section: cls?.section || '',
+              subject_id: s.id,
+              subject_name: s.subject_name || 'Subject',
+              teacher_id: tid,
+              teacher_name: allTeachers.find(t => t.id === tid)?.full_name || 'Me',
+            });
           });
-        });
+        }
       }
     }
 
+
     setAssignedSlots(slots);
 
-    // ─── Fetch Saved Plans from form_settings (Cross-Sync Teacher & Class Views) ───
+    // ─── Fetch Saved Plans from lesson_plans table ───────────────────────────
     try {
-      const periodId = `${duration}_${activeRange.start}_${activeRange.end}`;
-      
-      // Fetch both the specific key and all period-matching forms for this school
-      const { data: formRows } = await supabase
-        .from('form_settings')
-        .select('form_name, sections_config')
+      // Build query filtered by week and scope (teacher or class)
+      let plansQuery = supabase
+        .from('lesson_plans')
+        .select('class_id, subject_id, teacher_id, unit_chapter, learning_outcomes, resources_needed, teacher_remarks, days')
         .eq('school_id', userRole.school_id)
-        .ilike('form_name', `%planner%${periodId}%`);
+        .eq('week_start', activeRange.start);
 
+      if (viewMode === 'teacher') {
+        const tid = selectedTeacherId || myStaffId;
+        if (tid) plansQuery = plansQuery.eq('teacher_id', tid);
+      } else if (viewMode === 'class' && selectedClassId) {
+        plansQuery = plansQuery.eq('class_id', selectedClassId);
+      }
+
+      const { data: planRows, error: plansError } = await plansQuery;
+      if (plansError) console.warn('lesson_plans fetch error:', plansError.message);
+
+      // Build a map keyed by class_id__subject_id
       const savedPlansMap: Record<string, any> = {};
-
-      // Merge plans across all relevant forms for this period
-      (formRows || []).forEach(row => {
-        const plans = row.sections_config?.plans || {};
-        Object.entries(plans).forEach(([key, planVal]) => {
-          if (planVal && typeof planVal === 'object') {
-            savedPlansMap[key] = {
-              ...(savedPlansMap[key] || {}),
-              ...planVal,
-              days: {
-                ...(savedPlansMap[key]?.days || {}),
-                ...(planVal as any)?.days || {}
-              }
-            };
-          }
-        });
+      (planRows || []).forEach(row => {
+        const key = `${row.class_id}__${row.subject_id}`;
+        savedPlansMap[key] = {
+          unit_chapter: row.unit_chapter || '',
+          learning_outcomes: row.learning_outcomes || '',
+          resources_needed: row.resources_needed || '',
+          teacher_remarks: row.teacher_remarks || '',
+          days: row.days || {},
+        };
       });
 
       const items: PlanItem[] = slots.map(slot => {
@@ -487,7 +502,8 @@ export default function TeacherPlanner() {
     } finally {
       setLoading(false);
     }
-  }, [userRole?.school_id, viewMode, selectedClassId, selectedTeacherId, myStaffId, allClasses, allTeachers, storageFormKey, rangeDays]);
+  // Note: storageFormKey removed — no longer using form_settings
+  }, [userRole?.school_id, viewMode, selectedClassId, selectedTeacherId, myStaffId, allClasses, allTeachers, rangeDays, activeRange.start]);
 
   useEffect(() => {
     fetchSlots();
@@ -524,65 +540,36 @@ export default function TeacherPlanner() {
     });
   };
 
-  // ─── Save Helper Function (Resilient Update or Insert) ──────────────────────
+  // ─── Save to lesson_plans Table (Upsert one row per class+subject+week) ─────
   const persistPlansToDatabase = async (itemsToSave: PlanItem[]) => {
     if (!userRole?.school_id) return false;
 
-    const plansMap: Record<string, any> = {};
-    itemsToSave.forEach(item => {
-      const key = `${item.class_id}__${item.subject_id}`;
-      plansMap[key] = {
-        unit_chapter: item.unit_chapter || '',
-        learning_outcomes: item.learning_outcomes || '',
-        resources_needed: item.resources_needed || '',
-        teacher_remarks: item.teacher_remarks || '',
-        teacher_name: item.teacher_name || '',
-        subject_name: item.subject_name || '',
-        class_name: item.class_name || '',
-        days: item.days,
-        updated_at: new Date().toISOString(),
-      };
-    });
+    const teacherId = selectedTeacherId || myStaffId || null;
 
-    const payload = {
-      period_type: duration,
-      start_date: activeRange.start,
-      end_date: activeRange.end,
-      plans: plansMap,
+    // Build upsert rows — one per class+subject combination
+    const upsertRows = itemsToSave.map(item => ({
+      school_id: userRole.school_id,
+      teacher_id: item.teacher_id || teacherId,
+      class_id: item.class_id,
+      subject_id: item.subject_id,
+      week_start: activeRange.start,
+      week_end: activeRange.end,
+      unit_chapter: item.unit_chapter || '',
+      learning_outcomes: item.learning_outcomes || '',
+      resources_needed: item.resources_needed || '',
+      teacher_remarks: item.teacher_remarks || '',
+      days: item.days || {},
       updated_at: new Date().toISOString(),
-    };
+    }));
 
-    // Check existing record first to guarantee 100% database compatibility
-    const { data: existing } = await supabase
-      .from('form_settings')
-      .select('id, sections_config')
-      .eq('school_id', userRole.school_id)
-      .eq('form_name', storageFormKey)
-      .maybeSingle();
+    const { error } = await supabase
+      .from('lesson_plans')
+      .upsert(upsertRows, {
+        onConflict: 'school_id,teacher_id,class_id,subject_id,week_start',
+        ignoreDuplicates: false,
+      });
 
-    if (existing?.id) {
-      const mergedPlans = { ...(existing.sections_config?.plans || {}), ...plansMap };
-      const { error } = await supabase
-        .from('form_settings')
-        .update({
-          sections_config: {
-            ...payload,
-            plans: mergedPlans,
-          }
-        })
-        .eq('id', existing.id);
-      if (error) throw error;
-    } else {
-      const { error } = await supabase
-        .from('form_settings')
-        .insert([{
-          school_id: userRole.school_id,
-          form_name: storageFormKey,
-          sections_config: payload,
-        }]);
-      if (error) throw error;
-    }
-
+    if (error) throw error;
     return true;
   };
 

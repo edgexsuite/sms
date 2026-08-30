@@ -103,10 +103,20 @@ export default function PlannerReport() {
 
   // State
   const [baseDate, setBaseDate] = useState(toLocalDateStr(new Date()));
-  const [viewMode, setViewMode] = useState<'teacher' | 'class' | 'matrix'>('teacher');
+  const [viewMode, setViewMode] = useState<'teacher' | 'class'>('teacher');
   const [filterStatus, setFilterStatus] = useState<'all' | 'submitted' | 'pending'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [hideZeroSubjectStaff, setHideZeroSubjectStaff] = useState(true);
   const [loading, setLoading] = useState(false);
+
+  // Plan Detail Modal State
+  const [activePlanModal, setActivePlanModal] = useState<{
+    teacherName: string;
+    className: string;
+    section: string;
+    subjectName: string;
+    plan: any;
+  } | null>(null);
 
   // Data
   const [schoolInfo, setSchoolInfo] = useState<any>(null);
@@ -125,38 +135,54 @@ export default function PlannerReport() {
     setBaseDate(toLocalDateStr(d));
   };
 
-  // ─── Fetch All Metadata & Saved Form Data ──────────────────────────────────
   const fetchReportData = useCallback(async () => {
     if (!userRole?.school_id) return;
     setLoading(true);
+    const sid = userRole.school_id;
 
     try {
-      const periodId = `weekly_${activeRange.start}_${activeRange.end}`;
-
-      const [
-        { data: sch },
-        { data: staff },
-        { data: cls },
-        { data: subs },
-        { data: slots },
-        { data: forms },
-      ] = await Promise.all([
-        supabase.from('schools').select('*').eq('id', userRole.school_id).single(),
-        supabase.from('staff').select('id, full_name, role, phone, is_active').eq('school_id', userRole.school_id).eq('is_active', true).eq('is_deleted', false).order('full_name'),
-        supabase.from('classes').select('id, name, section, class_teacher_id').eq('school_id', userRole.school_id).order('name'),
-        supabase.from('subjects').select('id, subject_name, class_id, teacher_id').eq('school_id', userRole.school_id),
-        supabase.from('timetable_slots').select('id, class_id, subject_id, teacher_id').eq('school_id', userRole.school_id),
-        supabase.from('form_settings').select('id, form_name, sections_config, created_at, updated_at').eq('school_id', userRole.school_id).ilike('form_name', `%planner%${periodId}%`),
+      const [schRes, staffRes, clsRes, subsRes, slotsRes, formsRes] = await Promise.allSettled([
+        // School info
+        supabase.from('schools').select('*').eq('id', sid).single(),
+        // Staff — exclude deleted
+        supabase.from('staff')
+          .select('id, full_name, role')
+          .eq('school_id', sid)
+          .eq('is_deleted', false)
+          .order('full_name'),
+        // Classes
+        supabase.from('classes').select('id, name, section, class_teacher_id').eq('school_id', sid).order('name'),
+        // Subjects
+        supabase.from('subjects').select('id, subject_name, class_id').eq('school_id', sid),
+        // Timetable slots
+        supabase.from('timetable_slots').select('id, class_id, subject_id, teacher_id').eq('school_id', sid),
+        // lesson_plans for the selected week
+        supabase.from('lesson_plans')
+          .select('teacher_id, class_id, subject_id, unit_chapter, learning_outcomes, resources_needed, teacher_remarks, days, updated_at')
+          .eq('school_id', sid)
+          .eq('week_start', activeRange.start),
       ]);
 
-      if (sch) setSchoolInfo(sch);
-      if (staff) setAllStaff(staff);
-      if (cls) setAllClasses(cls);
-      if (subs) setAllSubjects(subs);
-      if (slots) setAllTimetableSlots(slots);
-      if (forms) setFormRecords(forms);
+      // School
+      if (schRes.status === 'fulfilled' && schRes.value.data) {
+        setSchoolInfo(schRes.value.data);
+      }
+
+      // Staff
+      const staffList = (staffRes.status === 'fulfilled' ? staffRes.value.data : null) || [];
+      const clsList = (clsRes.status === 'fulfilled' ? clsRes.value.data : null) || [];
+      const subsList = (subsRes.status === 'fulfilled' ? subsRes.value.data : null) || [];
+      const slotsList = (slotsRes.status === 'fulfilled' ? slotsRes.value.data : null) || [];
+      const plansList = (formsRes.status === 'fulfilled' ? formsRes.value.data : null) || [];
+
+      setAllStaff(staffList);
+      setAllClasses(clsList);
+      setAllSubjects(subsList);
+      setAllTimetableSlots(slotsList);
+      setFormRecords(plansList);
+
     } catch (err) {
-      console.error('Error fetching planner report data:', err);
+      console.error('[PlannerReport] Unexpected error:', err);
     } finally {
       setLoading(false);
     }
@@ -166,73 +192,140 @@ export default function PlannerReport() {
     fetchReportData();
   }, [fetchReportData]);
 
-  // ─── Compile Merged Plan Lookup Map for Active Week ─────────────────────────
+  // ─── Quick Assign Class Incharge ──────────────────────────────────────────
+  const handleAssignIncharge = async (classId: string, teacherId: string) => {
+    try {
+      const { error } = await supabase
+        .from('classes')
+        .update({ class_teacher_id: teacherId || null })
+        .eq('id', classId)
+        .eq('school_id', userRole?.school_id);
+
+      if (error) throw error;
+      fetchReportData();
+    } catch (err: any) {
+      alert('Error updating incharge: ' + err.message);
+    }
+  };
+
+  // ─── Content Detection Helper ─────────────────────────────────────────────
+  const isDayFilled = (d: any) => {
+    if (!d || typeof d !== 'object') return false;
+    return Boolean(
+      (typeof d.topic === 'string' && d.topic.trim()) ||
+      (typeof d.classwork === 'string' && d.classwork.trim()) ||
+      (typeof d.homework === 'string' && d.homework.trim()) ||
+      (typeof d.quiz_test === 'string' && d.quiz_test.trim())
+    );
+  };
+
+  const isPlanFilled = (plan: any) => {
+    if (!plan) return false;
+    if (plan.unit_chapter && String(plan.unit_chapter).trim()) return true;
+    if (plan.learning_outcomes && String(plan.learning_outcomes).trim()) return true;
+    if (plan.resources_needed && String(plan.resources_needed).trim()) return true;
+    if (plan.teacher_remarks && String(plan.teacher_remarks).trim()) return true;
+    const daysArr = Object.values(plan.days || {});
+    return daysArr.some(isDayFilled);
+  };
+
+  const countPlanDays = (plan: any) => {
+    if (!plan?.days) return 0;
+    return Object.values(plan.days).filter(isDayFilled).length;
+  };
+
+  // ─── Build Plan Lookup Maps from lesson_plans rows ───────────────────────────
+  // Map 1: by class+subject (for class view)
   const activeWeekPlansMap = useMemo(() => {
     const map: Record<string, any> = {};
-    formRecords.forEach(row => {
-      const plans = row.sections_config?.plans || {};
-      Object.entries(plans).forEach(([key, planVal]) => {
-        if (planVal && typeof planVal === 'object') {
-          map[key] = {
-            ...(map[key] || {}),
-            ...planVal,
-            days: {
-              ...(map[key]?.days || {}),
-              ...(planVal as any)?.days || {},
-            },
-          };
-        }
-      });
+    formRecords.forEach((row: any) => {
+      const key = `${row.class_id}__${row.subject_id}`;
+      const existing = map[key];
+      const newPlan = {
+        unit_chapter: row.unit_chapter || '',
+        learning_outcomes: row.learning_outcomes || '',
+        resources_needed: row.resources_needed || '',
+        teacher_remarks: row.teacher_remarks || '',
+        days: row.days || {},
+        updated_at: row.updated_at,
+        teacher_id: row.teacher_id,
+      };
+      if (!existing || (!isPlanFilled(existing) && isPlanFilled(newPlan)) || (newPlan.updated_at && (!existing.updated_at || newPlan.updated_at > existing.updated_at))) {
+        map[key] = newPlan;
+      }
+    });
+    return map;
+  }, [formRecords]);
+
+  // Map 2: by teacher+class+subject (for teacher view — exact match)
+  const teacherPlansMap = useMemo(() => {
+    const map: Record<string, any> = {};
+    formRecords.forEach((row: any) => {
+      if (row.teacher_id) {
+        const key = `${row.teacher_id}__${row.class_id}__${row.subject_id}`;
+        map[key] = {
+          unit_chapter: row.unit_chapter || '',
+          learning_outcomes: row.learning_outcomes || '',
+          resources_needed: row.resources_needed || '',
+          teacher_remarks: row.teacher_remarks || '',
+          days: row.days || {},
+          updated_at: row.updated_at,
+          teacher_id: row.teacher_id,
+        };
+      }
     });
     return map;
   }, [formRecords]);
 
   // ─── Build Teacher Submission Summaries ────────────────────────────────────
   const teacherSummaries: TeacherSubmissionSummary[] = useMemo(() => {
-    // Determine teaching staff (staff assigned in timetable slots or subjects)
     const activeTeachers = allStaff.filter(st => {
-      const isTeacherRole = ['teacher', 'faculty', 'instructor', 'coordinator'].some(r => (st.role || '').toLowerCase().includes(r));
+      const roleStr = (st.role || '').toLowerCase();
+      const nonTeachingRoles = ['driver', 'conductor', 'guard', 'security', 'peon', 'ayah', 'cleaner', 'sweeper', 'maid'];
+      const isNonTeaching = nonTeachingRoles.some(r => roleStr.includes(r));
       const hasSlots = allTimetableSlots.some(s => s.teacher_id === st.id);
-      const hasSubs = allSubjects.some(s => s.teacher_id === st.id);
-      return isTeacherRole || hasSlots || hasSubs;
+      const hasPlans = formRecords.some((r: any) => r.teacher_id === st.id);
+      return !isNonTeaching || hasSlots || hasPlans;
     });
 
     return activeTeachers.map(teacher => {
-      // Find assigned teaching slots
       const slotMap = new Map<string, { class_id: string; class_name: string; section: string; subject_id: string; subject_name: string }>();
 
-      // From Timetable
-      allTimetableSlots.filter(s => s.teacher_id === teacher.id).forEach(s => {
-        const cls = allClasses.find(c => c.id === s.class_id);
-        const sub = allSubjects.find(sub => sub.id === s.subject_id);
-        if (s.class_id && s.subject_id && sub) {
+      // 1. From timetable slots
+      allTimetableSlots
+        .filter(s => s.teacher_id === teacher.id && s.class_id && s.subject_id)
+        .forEach(s => {
           const key = `${s.class_id}__${s.subject_id}`;
-          slotMap.set(key, {
-            class_id: s.class_id,
-            class_name: cls?.name || 'Class',
-            section: cls?.section || '',
-            subject_id: s.subject_id,
-            subject_name: sub?.subject_name || 'Subject',
-          });
-        }
-      });
-
-      // From Direct Subject Assignment
-      allSubjects.filter(s => s.teacher_id === teacher.id).forEach(s => {
-        const cls = allClasses.find(c => c.id === s.class_id);
-        if (s.class_id && s.id) {
-          const key = `${s.class_id}__${s.id}`;
           if (!slotMap.has(key)) {
+            const cls = allClasses.find(c => c.id === s.class_id);
+            const sub = allSubjects.find(sub => sub.id === s.subject_id);
             slotMap.set(key, {
               class_id: s.class_id,
               class_name: cls?.name || 'Class',
               section: cls?.section || '',
-              subject_id: s.id,
-              subject_name: s.subject_name || 'Subject',
+              subject_id: s.subject_id,
+              subject_name: sub?.subject_name || 'Subject',
             });
           }
-        }
-      });
+        });
+
+      // 2. From actual lesson_plans entered by this teacher
+      formRecords
+        .filter((r: any) => r.teacher_id === teacher.id && r.class_id && r.subject_id)
+        .forEach((r: any) => {
+          const key = `${r.class_id}__${r.subject_id}`;
+          if (!slotMap.has(key)) {
+            const cls = allClasses.find(c => c.id === r.class_id);
+            const sub = allSubjects.find(sub => sub.id === r.subject_id);
+            slotMap.set(key, {
+              class_id: r.class_id,
+              class_name: cls?.name || 'Class',
+              section: cls?.section || '',
+              subject_id: r.subject_id,
+              subject_name: sub?.subject_name || 'Subject',
+            });
+          }
+        });
 
       const assignedSlots = Array.from(slotMap.values());
 
@@ -243,16 +336,17 @@ export default function PlannerReport() {
       const plansDetail: Record<string, any> = {};
 
       assignedSlots.forEach(slot => {
-        const key = `${slot.class_id}__${slot.subject_id}`;
-        const plan = activeWeekPlansMap[key];
+        const classSubKey = `${slot.class_id}__${slot.subject_id}`;
+        const tKey = `${teacher.id}__${slot.class_id}__${slot.subject_id}`;
+        const plan = teacherPlansMap[tKey] || activeWeekPlansMap[classSubKey];
 
         if (plan) {
-          plansDetail[key] = plan;
-          const daysWithContent = Object.values(plan.days || {}).filter((d: any) => d.topic || d.classwork || d.homework || d.quiz_test);
-          if (daysWithContent.length > 0 || plan.unit_chapter) {
+          plansDetail[classSubKey] = plan;
+          const daysCount = countPlanDays(plan);
+          if (isPlanFilled(plan)) {
             submittedCount++;
-            totalTopics += daysWithContent.length;
-            if (plan.learning_outcomes) hasSLOs = true;
+            totalTopics += daysCount;
+            if (plan.learning_outcomes && String(plan.learning_outcomes).trim()) hasSLOs = true;
             if (plan.updated_at && (!lastUpdated || plan.updated_at > lastUpdated)) {
               lastUpdated = plan.updated_at;
             }
@@ -273,7 +367,7 @@ export default function PlannerReport() {
         staff_id: teacher.id,
         full_name: teacher.full_name,
         role: teacher.role || 'Teacher',
-        phone: teacher.phone,
+        phone: undefined,
         assigned_slots: assignedSlots,
         submitted_subjects_count: submittedCount,
         total_subjects_count: assignedSlots.length,
@@ -284,38 +378,102 @@ export default function PlannerReport() {
         plans_detail: plansDetail,
       };
     });
-  }, [allStaff, allTimetableSlots, allSubjects, allClasses, activeWeekPlansMap]);
+  }, [allStaff, allTimetableSlots, allSubjects, allClasses, activeWeekPlansMap, teacherPlansMap, formRecords]);
 
   // ─── Build Class Submission Summaries ──────────────────────────────────────
   const classSummaries: ClassSubmissionSummary[] = useMemo(() => {
     return allClasses.map(cls => {
-      const clsTeacher = allStaff.find(s => s.id === cls.class_teacher_id);
-      const classSubs = allSubjects.filter(s => s.class_id === cls.id);
+      const clsTeacher = (cls as any).staff?.full_name || allStaff.find(s => s.id === cls.class_teacher_id)?.full_name;
 
-      const subjectsData = classSubs.map(sub => {
-        // Find assigned teacher
-        let teacher = allStaff.find(s => s.id === sub.teacher_id);
-        if (!teacher) {
-          const slot = allTimetableSlots.find(s => s.class_id === cls.id && s.subject_id === sub.id && s.teacher_id);
-          if (slot) teacher = allStaff.find(s => s.id === slot.teacher_id);
+      const subMap = new Map<string, {
+        subject_id: string;
+        subject_name: string;
+        teacher_id?: string;
+        teacher_name: string;
+        teacher_phone?: string;
+      }>();
+
+      // 1. From Timetable Slots
+      allTimetableSlots.filter(s => s.class_id === cls.id && s.subject_id).forEach(s => {
+        const sub = allSubjects.find(sub => sub.id === s.subject_id);
+        const teacher = allStaff.find(st => st.id === s.teacher_id);
+        const subName = sub?.subject_name || 'Subject';
+        const teacherName = teacher?.full_name || 'Unassigned';
+
+        if (!subMap.has(s.subject_id)) {
+          subMap.set(s.subject_id, {
+            subject_id: s.subject_id,
+            subject_name: subName,
+            teacher_id: s.teacher_id,
+            teacher_name: teacherName,
+            teacher_phone: undefined,
+          });
+        } else if (s.teacher_id && subMap.get(s.subject_id)?.teacher_name === 'Unassigned') {
+          const existing = subMap.get(s.subject_id)!;
+          existing.teacher_id = s.teacher_id;
+          existing.teacher_name = teacherName;
+        }
+      });
+
+      // 2. From Subjects table
+      allSubjects.filter(s => s.class_id === cls.id).forEach(sub => {
+        if (!subMap.has(sub.id)) {
+          subMap.set(sub.id, {
+            subject_id: sub.id,
+            subject_name: sub.subject_name,
+            teacher_id: undefined,
+            teacher_name: 'Unassigned',
+            teacher_phone: undefined,
+          });
+        }
+      });
+
+      // 3. From actual Lesson Plans for this class
+      formRecords.filter((r: any) => r.class_id === cls.id && r.subject_id).forEach((r: any) => {
+        const teacher = allStaff.find(st => st.id === r.teacher_id);
+        const sub = allSubjects.find(sub => sub.id === r.subject_id);
+        const subName = sub?.subject_name || 'Subject';
+        const teacherName = teacher?.full_name || 'Unassigned';
+
+        if (!subMap.has(r.subject_id)) {
+          subMap.set(r.subject_id, {
+            subject_id: r.subject_id,
+            subject_name: subName,
+            teacher_id: r.teacher_id,
+            teacher_name: teacherName,
+            teacher_phone: undefined,
+          });
+        } else if (r.teacher_id && subMap.get(r.subject_id)?.teacher_name === 'Unassigned') {
+          const existing = subMap.get(r.subject_id)!;
+          existing.teacher_id = r.teacher_id;
+          existing.teacher_name = teacherName;
+        }
+      });
+
+      const subjectsData = Array.from(subMap.values()).map(sub => {
+        const key = `${cls.id}__${sub.subject_id}`;
+        const plan = activeWeekPlansMap[key];
+        const daysCount = countPlanDays(plan);
+        const isSubmitted = isPlanFilled(plan);
+
+        let resolvedTeacherName = sub.teacher_name;
+        if (resolvedTeacherName === 'Unassigned' && plan?.teacher_id) {
+          const teacher = allStaff.find(st => st.id === plan.teacher_id);
+          if (teacher) resolvedTeacherName = teacher.full_name;
         }
 
-        const key = `${cls.id}__${sub.id}`;
-        const plan = activeWeekPlansMap[key];
-        const daysWithContent = Object.values(plan?.days || {}).filter((d: any) => d.topic || d.classwork || d.homework || d.quiz_test);
-        const isSubmitted = daysWithContent.length > 0 || !!plan?.unit_chapter;
-
         return {
-          subject_id: sub.id,
+          subject_id: sub.subject_id,
           subject_name: sub.subject_name,
-          teacher_id: teacher?.id,
-          teacher_name: teacher?.full_name || 'Unassigned',
-          teacher_phone: teacher?.phone,
+          teacher_id: sub.teacher_id || plan?.teacher_id,
+          teacher_name: resolvedTeacherName,
+          teacher_phone: sub.teacher_phone,
           is_submitted: isSubmitted,
-          topics_count: daysWithContent.length,
+          topics_count: daysCount,
           unit_chapter: plan?.unit_chapter,
           learning_outcomes: plan?.learning_outcomes,
           last_updated_at: plan?.updated_at,
+          plan_raw: plan,
         };
       });
 
@@ -327,33 +485,51 @@ export default function PlannerReport() {
         class_id: cls.id,
         class_name: cls.name,
         section: cls.section || '',
-        class_teacher_name: clsTeacher?.full_name || 'Not Appointed',
+        class_teacher_name: clsTeacher || 'Not Appointed',
         subjects: subjectsData,
         submitted_count: submittedCount,
         total_count: totalCount,
         completion_pct: completionPct,
       };
     });
-  }, [allClasses, allSubjects, allStaff, allTimetableSlots, activeWeekPlansMap]);
+  }, [allClasses, allSubjects, allStaff, allTimetableSlots, activeWeekPlansMap, formRecords]);
 
-  // ─── Filtered Data Lists ───────────────────────────────────────────────────
+  // ─── Filtered Data Lists with Flexible Search ──────────────────────────────
   const filteredTeachers = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
     return teacherSummaries.filter(t => {
-      const matchSearch = t.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.assigned_slots.some(s => s.subject_name.toLowerCase().includes(searchQuery.toLowerCase()) || s.class_name.toLowerCase().includes(searchQuery.toLowerCase()));
-      if (!matchSearch) return false;
+      // Hide staff with 0 assigned and 0 submitted if toggle is on
+      if (hideZeroSubjectStaff && t.total_subjects_count === 0 && t.submitted_subjects_count === 0) {
+        return false;
+      }
+      if (q) {
+        const matchName = t.full_name.toLowerCase().includes(q);
+        const matchRole = (t.role || '').toLowerCase().includes(q);
+        const matchSlots = t.assigned_slots.some(s =>
+          s.subject_name.toLowerCase().includes(q) ||
+          s.class_name.toLowerCase().includes(q) ||
+          `${s.class_name} ${s.section}`.toLowerCase().includes(q)
+        );
+        if (!matchName && !matchRole && !matchSlots) return false;
+      }
       if (filterStatus === 'submitted') return t.status === 'submitted';
       if (filterStatus === 'pending') return t.status === 'pending' || t.status === 'partial';
       return true;
     });
-  }, [teacherSummaries, searchQuery, filterStatus]);
+  }, [teacherSummaries, searchQuery, filterStatus, hideZeroSubjectStaff]);
 
   const filteredClasses = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
     return classSummaries.filter(c => {
-      const matchSearch = c.class_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.section.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.subjects.some(s => s.subject_name.toLowerCase().includes(searchQuery.toLowerCase()) || s.teacher_name.toLowerCase().includes(searchQuery.toLowerCase()));
-      if (!matchSearch) return false;
+      if (q) {
+        const matchClassName = c.class_name.toLowerCase().includes(q) || `${c.class_name} ${c.section}`.toLowerCase().includes(q);
+        const matchIncharge = (c.class_teacher_name || '').toLowerCase().includes(q);
+        const matchSubjects = c.subjects.some(s =>
+          s.subject_name.toLowerCase().includes(q) ||
+          s.teacher_name.toLowerCase().includes(q)
+        );
+        if (!matchClassName && !matchIncharge && !matchSubjects) return false;
+      }
       if (filterStatus === 'submitted') return c.completion_pct === 100;
       if (filterStatus === 'pending') return c.completion_pct < 100;
       return true;
@@ -362,14 +538,15 @@ export default function PlannerReport() {
 
   // ─── Executive KPI Metrics ─────────────────────────────────────────────────
   const stats = useMemo(() => {
-    const totalTeachers = teacherSummaries.length;
-    const submittedTeachers = teacherSummaries.filter(t => t.status === 'submitted').length;
-    const partialTeachers = teacherSummaries.filter(t => t.status === 'partial').length;
-    const pendingTeachers = teacherSummaries.filter(t => t.status === 'pending').length;
+    const activeFaculty = teacherSummaries.filter(t => t.total_subjects_count > 0 || t.submitted_subjects_count > 0);
+    const totalTeachers = activeFaculty.length;
+    const submittedTeachers = activeFaculty.filter(t => t.status === 'submitted').length;
+    const partialTeachers = activeFaculty.filter(t => t.status === 'partial').length;
+    const pendingTeachers = activeFaculty.filter(t => t.status === 'pending').length;
 
-    const totalSubjects = teacherSummaries.reduce((acc, t) => acc + t.total_subjects_count, 0);
-    const submittedSubjects = teacherSummaries.reduce((acc, t) => acc + t.submitted_subjects_count, 0);
-    const totalTopics = teacherSummaries.reduce((acc, t) => acc + t.total_topics_planned, 0);
+    const totalSubjects = activeFaculty.reduce((acc, t) => acc + t.total_subjects_count, 0);
+    const submittedSubjects = activeFaculty.reduce((acc, t) => acc + t.submitted_subjects_count, 0);
+    const totalTopics = activeFaculty.reduce((acc, t) => acc + t.total_topics_planned, 0);
 
     const complianceRate = totalTeachers > 0 ? Math.round(((submittedTeachers + partialTeachers * 0.5) / totalTeachers) * 100) : 0;
 
@@ -385,44 +562,24 @@ export default function PlannerReport() {
     };
   }, [teacherSummaries]);
 
-  // ─── WhatsApp Reminder Generator ──────────────────────────────────────────
-  const sendWhatsAppReminder = (teacher: TeacherSubmissionSummary) => {
-    const phone = teacher.phone ? teacher.phone.replace(/[^0-9]/g, '') : '';
-    const cleanPhone = phone.startsWith('0') ? '92' + phone.slice(1) : phone.startsWith('92') ? phone : '92' + phone;
-
-    const message = encodeURIComponent(
-      `Assalam-o-Alaikum ${teacher.full_name} Sahib/Madam,\n\n` +
-      `This is a gentle reminder from *${schoolInfo?.name || 'School Administration'}* regarding the *Curriculum & Lesson Planner* for the week of *${activeRange.label}*.\n\n` +
-      `Your current submission status is: *${teacher.status.toUpperCase()}* (${teacher.submitted_subjects_count}/${teacher.total_subjects_count} Subjects Filled).\n\n` +
-      `Kindly log in to the School Portal and finalize your lesson plans.\n\n` +
-      `Portal Link: ${window.location.origin}/diary/planner\n\n` +
-      `Thank you for your dedication to academic excellence.`
-    );
-
-    window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
-  };
-
   // ─── Export to Excel (.xlsx) ────────────────────────────────────────────────
   const handleExportExcel = () => {
     const wb = XLSX.utils.book_new();
 
-    // 1. Teacher Compliance Sheet
     const teacherData = teacherSummaries.map(t => ({
       'Teacher Name': t.full_name,
-      'Designation / Role': t.role,
-      'Contact Phone': t.phone || 'N/A',
-      'Assigned Subjects': t.assigned_slots.map(s => `${s.subject_name} (${s.class_name} ${s.section})`).join(', '),
+      'Designation': t.role,
+      'Assigned Subjects': t.assigned_slots.map(s => `${s.subject_name} (${s.class_name})`).join(', '),
       'Total Assigned': t.total_subjects_count,
       'Submitted Subjects': t.submitted_subjects_count,
       'Submission Status': t.status.toUpperCase(),
-      'Total Days/Topics Planned': t.total_topics_planned,
-      'Learning Outcomes Added': t.has_learning_outcomes ? 'YES' : 'NO',
+      'Total Teaching Days Logged': t.total_topics_planned,
+      'SLOs Defined': t.has_learning_outcomes ? 'YES' : 'NO',
       'Last Updated': t.last_updated_at ? new Date(t.last_updated_at).toLocaleString() : 'Not updated',
     }));
     const wsTeacher = XLSX.utils.json_to_sheet(teacherData);
     XLSX.utils.book_append_sheet(wb, wsTeacher, 'Teacher Compliance');
 
-    // 2. Class Coverage Sheet
     const classData: any[] = [];
     classSummaries.forEach(c => {
       c.subjects.forEach(s => {
@@ -441,6 +598,7 @@ export default function PlannerReport() {
     const wsClass = XLSX.utils.json_to_sheet(classData);
     XLSX.utils.book_append_sheet(wb, wsClass, 'Class Subject Plans');
 
+    XLSX.writeFile(wb, `Lesson_Planner_Compliance_${activeRange.start}.xlsx`);
   };
 
   // Role Restriction: Accessible only to Coordinators, Principals, and Admins
@@ -454,7 +612,7 @@ export default function PlannerReport() {
         <p className="text-xs text-slate-500 font-medium max-w-md mx-auto">
           The Lesson Planner Audit &amp; Compliance Report is only accessible to Academic Coordinators, Principals, and System Administrators.
         </p>
-        <Btn variant="primary" onClick={() => navigate('/planner')} className="font-bold text-xs">
+        <Btn variant="primary" onClick={() => navigate('/diary/planner')} className="font-bold text-xs">
           Return to My Lesson Planner
         </Btn>
       </div>
@@ -487,7 +645,7 @@ export default function PlannerReport() {
             <h1 className="text-lg font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
               Lesson Planner Compliance &amp; Audit Report
               <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-black tracking-widest uppercase">
-                Audit Matrix
+                Live Audit
               </span>
             </h1>
             <p className="text-xs text-slate-500 font-bold">
@@ -533,7 +691,7 @@ export default function PlannerReport() {
             size="sm"
             onClick={fetchReportData}
             disabled={loading}
-            className="text-xs h-9 px-3 bg-emerald-600 hover:bg-emerald-700"
+            className="text-xs h-9 px-3 bg-emerald-600 hover:bg-emerald-700 font-bold"
           >
             <RefreshCw className={cn('w-3.5 h-3.5 mr-1.5', loading && 'animate-spin')} />
             Refresh
@@ -614,7 +772,7 @@ export default function PlannerReport() {
                 viewMode === 'teacher' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
               )}
             >
-              <Users className="w-3.5 h-3.5" /> Teacher View
+              <Users className="w-3.5 h-3.5" /> Faculty View
             </button>
             <button
               onClick={() => setViewMode('class')}
@@ -677,9 +835,34 @@ export default function PlannerReport() {
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search teacher, class, subject..."
-              className="w-full pl-8 pr-3 py-1.5 text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
+              className="w-full pl-8 pr-8 py-1.5 text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
             />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-0.5"
+                title="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
+        </div>
+
+        {/* Sub-toolbar: Hide Unassigned Toggle */}
+        <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+          <label className="flex items-center gap-2 font-bold text-slate-600 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={hideZeroSubjectStaff}
+              onChange={e => setHideZeroSubjectStaff(e.target.checked)}
+              className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+            />
+            <span>Hide non-teaching staff (staff with 0 assigned subjects)</span>
+          </label>
+          <span className="text-[11px] font-bold text-slate-400">
+            Showing {viewMode === 'teacher' ? `${filteredTeachers.length} Faculty Members` : `${filteredClasses.length} Classes`}
+          </span>
         </div>
       </div>
 
@@ -709,7 +892,7 @@ export default function PlannerReport() {
                 {filteredTeachers.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-12 text-center text-slate-400 font-bold">
-                      No matching faculty records found for this filter.
+                      No matching faculty records found.
                     </td>
                   </tr>
                 ) : (
@@ -743,36 +926,65 @@ export default function PlannerReport() {
                             ) : (
                               teacher.assigned_slots.map(s => {
                                 const key = `${s.class_id}__${s.subject_id}`;
-                                const isFilled = !!teacher.plans_detail[key];
+                                const plan = teacher.plans_detail[key];
+                                const isFilled = isPlanFilled(plan);
                                 return (
-                                  <span
+                                  <button
                                     key={key}
+                                    onClick={() => {
+                                      if (plan) {
+                                        setActivePlanModal({
+                                          teacherName: teacher.full_name,
+                                          className: s.class_name,
+                                          section: s.section,
+                                          subjectName: s.subject_name,
+                                          plan,
+                                        });
+                                      }
+                                    }}
                                     className={cn(
-                                      'px-2 py-0.5 rounded-md text-[10px] font-bold border flex items-center gap-1',
+                                      'px-2 py-0.5 rounded-md text-[10px] font-bold border flex items-center gap-1 transition-all',
                                       isFilled
-                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                                        : 'bg-slate-50 border-slate-200 text-slate-500'
+                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300 cursor-pointer'
+                                        : 'bg-slate-50 border-slate-200 text-slate-500 opacity-80 cursor-default'
                                     )}
+                                    title={isFilled ? 'Click to preview plan details' : 'Not submitted yet'}
                                   >
                                     {isFilled ? <Check className="w-2.5 h-2.5 text-emerald-600" /> : <X className="w-2.5 h-2.5 text-slate-400" />}
                                     {s.subject_name} ({s.class_name})
-                                  </span>
+                                  </button>
                                 );
                               })
                             )}
                           </div>
                         </td>
 
-                        {/* Coverage Count */}
-                        <td className="py-3.5 px-4 text-center">
-                          <div className="flex flex-col items-center">
-                            <span className="text-xs font-black text-slate-900">
-                              {teacher.submitted_subjects_count} / {teacher.total_subjects_count}
-                            </span>
-                            <span className="text-[9px] font-bold text-slate-400">
-                              {teacher.total_topics_planned} Lessons
+                        {/* Coverage Progress Bar */}
+                        <td className="py-3.5 px-4 min-w-[140px]">
+                          <div className="flex items-center justify-between text-[11px] font-black mb-1">
+                            <span className="text-slate-800">{teacher.submitted_subjects_count} of {teacher.total_subjects_count} Sub</span>
+                            <span className={cn(
+                              teacher.submitted_subjects_count === teacher.total_subjects_count && teacher.total_subjects_count > 0
+                                ? 'text-emerald-600'
+                                : teacher.submitted_subjects_count > 0 ? 'text-amber-600' : 'text-slate-400'
+                            )}>
+                              {teacher.total_subjects_count > 0 ? Math.round((teacher.submitted_subjects_count / teacher.total_subjects_count) * 100) : 0}%
                             </span>
                           </div>
+                          <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                            <div
+                              className={cn(
+                                'h-full transition-all duration-300 rounded-full',
+                                teacher.submitted_subjects_count === teacher.total_subjects_count && teacher.total_subjects_count > 0
+                                  ? 'bg-emerald-500'
+                                  : teacher.submitted_subjects_count > 0 ? 'bg-amber-500' : 'bg-slate-200'
+                              )}
+                              style={{ width: `${teacher.total_subjects_count > 0 ? (teacher.submitted_subjects_count / teacher.total_subjects_count) * 100 : 0}%` }}
+                            />
+                          </div>
+                          <span className="text-[9px] font-bold text-slate-400 mt-1 block">
+                            {teacher.total_topics_planned} Teaching Days Logged
+                          </span>
                         </td>
 
                         {/* Status Badge */}
@@ -813,25 +1025,40 @@ export default function PlannerReport() {
                         {/* Action Buttons */}
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                            {teacher.submitted_subjects_count > 0 && (
+                              <Btn
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  // Open the first submitted plan in modal
+                                  const firstKey = Object.keys(teacher.plans_detail)[0];
+                                  if (firstKey) {
+                                    const slot = teacher.assigned_slots.find(s => `${s.class_id}__${s.subject_id}` === firstKey);
+                                    setActivePlanModal({
+                                      teacherName: teacher.full_name,
+                                      className: slot?.class_name || 'Class',
+                                      section: slot?.section || '',
+                                      subjectName: slot?.subject_name || 'Subject',
+                                      plan: teacher.plans_detail[firstKey],
+                                    });
+                                  }
+                                }}
+                                className="text-[10px] h-7 px-2.5 font-bold border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                                title="Inspect Lesson Plan"
+                              >
+                                👁️ View Plan
+                              </Btn>
+                            )}
+
                             <Btn
                               variant="outline"
                               size="sm"
                               onClick={() => navigate(`/diary/planner`)}
-                              className="text-[10px] h-7 px-2.5 font-bold border-indigo-200 text-indigo-700 hover:bg-indigo-50"
-                              title="Open Planner"
+                              className="text-[10px] h-7 px-2.5 font-bold border-slate-200 text-slate-700 hover:bg-slate-50"
+                              title="Open Planner Editor"
                             >
-                              <ArrowUpRight className="w-3 h-3 mr-1" /> View Plan
+                              <ArrowUpRight className="w-3 h-3 mr-1" /> Edit
                             </Btn>
-
-                            {!isCompleted && teacher.phone && (
-                              <button
-                                onClick={() => sendWhatsAppReminder(teacher)}
-                                className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 flex items-center justify-center transition shadow-xs"
-                                title="Send WhatsApp Reminder"
-                              >
-                                <Send className="w-3 h-3" />
-                              </button>
-                            )}
                           </div>
                         </td>
                       </tr>
@@ -853,9 +1080,26 @@ export default function PlannerReport() {
                   <h3 className="text-base font-black text-slate-900 uppercase tracking-tight">
                     {cls.class_name} {cls.section}
                   </h3>
-                  <p className="text-[10px] font-bold text-slate-400">
-                    Incharge: <span className="text-slate-700">{cls.class_teacher_name}</span>
-                  </p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="text-[10px] font-bold text-slate-400">Incharge:</span>
+                    {isExecutive ? (
+                      <select
+                        value={allClasses.find(c => c.id === cls.class_id)?.class_teacher_id || ''}
+                        onChange={e => handleAssignIncharge(cls.class_id, e.target.value)}
+                        className="text-[11px] font-black text-indigo-700 bg-indigo-50/70 border border-indigo-200 rounded-lg px-2 py-0.5 outline-none hover:bg-indigo-100 transition cursor-pointer"
+                        title="Change or set Class Incharge"
+                      >
+                        <option value="">-- Not Appointed --</option>
+                        {allStaff.map(st => (
+                          <option key={st.id} value={st.id}>
+                            {st.full_name} ({st.role || 'Staff'})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="text-xs font-black text-slate-700">{cls.class_teacher_name}</span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="text-right">
@@ -873,7 +1117,7 @@ export default function PlannerReport() {
               </div>
 
               {/* Progress Bar */}
-              <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                 <div
                   className={cn(
                     'h-full transition-all duration-500 rounded-full',
@@ -885,40 +1129,209 @@ export default function PlannerReport() {
 
               {/* Subject Breakdown List */}
               <div className="space-y-1.5 pt-1">
-                {cls.subjects.map(s => (
-                  <div
-                    key={s.subject_id}
-                    className="flex items-center justify-between p-2 rounded-xl bg-slate-50/70 border border-slate-100 text-xs"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className={cn(
-                        'w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0 font-black',
-                        s.is_submitted ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-600'
-                      )}>
-                        {s.is_submitted ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
-                      </div>
-                      <div>
-                        <b className="text-slate-900 font-bold block leading-tight">{s.subject_name}</b>
-                        <small className="text-[10px] text-slate-400">{s.teacher_name}</small>
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      {s.is_submitted ? (
-                        <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-                          {s.topics_count} Days Logged
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-bold text-rose-500 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md">
-                          Pending
-                        </span>
-                      )}
-                    </div>
+                {cls.subjects.length === 0 ? (
+                  <div className="p-3 text-center text-slate-400 text-xs font-bold bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                    No subjects scheduled for this class.
                   </div>
-                ))}
+                ) : (
+                  cls.subjects.map(s => (
+                    <div
+                      key={s.subject_id}
+                      onClick={() => {
+                        if (s.is_submitted && s.plan_raw) {
+                          setActivePlanModal({
+                            teacherName: s.teacher_name,
+                            className: cls.class_name,
+                            section: cls.section,
+                            subjectName: s.subject_name,
+                            plan: s.plan_raw,
+                          });
+                        }
+                      }}
+                      className={cn(
+                        'flex items-center justify-between p-2 rounded-xl border text-xs transition-all',
+                        s.is_submitted
+                          ? 'bg-emerald-50/40 border-emerald-100 hover:bg-emerald-50 cursor-pointer'
+                          : 'bg-slate-50/70 border-slate-100 cursor-default'
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className={cn(
+                          'w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0 font-black',
+                          s.is_submitted ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-600'
+                        )}>
+                          {s.is_submitted ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                        </div>
+                        <div>
+                          <b className="text-slate-900 font-bold block leading-tight">{s.subject_name}</b>
+                          <small className="text-[10px] text-slate-400">{s.teacher_name}</small>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        {s.is_submitted ? (
+                          <span className="text-[10px] font-black text-emerald-700 bg-emerald-100/70 border border-emerald-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                            👁️ {s.topics_count} Days Logged
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-rose-500 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md">
+                            Pending
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── INTERACTIVE PLAN PREVIEW MODAL ── */}
+      {activePlanModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs no-print animate-fade-in">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-scale-up">
+            {/* Modal Header */}
+            <div className="p-5 bg-slate-900 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <BookOpen className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black uppercase tracking-tight flex items-center gap-2">
+                    {activePlanModal.subjectName} — {activePlanModal.className} {activePlanModal.section}
+                  </h3>
+                  <p className="text-xs text-slate-400 font-bold">
+                    Faculty: <span className="text-emerald-400">{activePlanModal.teacherName}</span> | Week: {activeRange.label}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Btn
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.print()}
+                  className="text-xs h-8 px-3 border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 font-bold"
+                >
+                  <Printer className="w-3.5 h-3.5 mr-1 text-slate-300" />
+                  Print Plan
+                </Btn>
+                <button
+                  onClick={() => setActivePlanModal(null)}
+                  className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <div className="p-6 overflow-y-auto space-y-5">
+              {/* Unit & SLOs Banner */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-3.5 rounded-2xl bg-indigo-50/60 border border-indigo-100">
+                  <span className="text-[10px] font-black text-indigo-600 uppercase tracking-wider block mb-1">
+                    📖 Unit / Chapter / Theme
+                  </span>
+                  <p className="text-xs font-black text-slate-900 urdu-text">
+                    {activePlanModal.plan?.unit_chapter || <span className="text-slate-400 font-normal italic">Not specified</span>}
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-100">
+                  <span className="text-[10px] font-black text-emerald-700 uppercase tracking-wider block mb-1">
+                    🎯 Student Learning Outcomes (SLOs)
+                  </span>
+                  <p className="text-xs font-medium text-slate-800 urdu-text whitespace-pre-wrap">
+                    {activePlanModal.plan?.learning_outcomes || <span className="text-slate-400 font-normal italic">Not specified</span>}
+                  </p>
+                </div>
+              </div>
+
+              {/* Day-by-Day Lesson Table */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-200 text-[10px] font-black text-slate-700 uppercase tracking-wider">
+                      <th className="py-2.5 px-3 w-[15%]">Date / Day</th>
+                      <th className="py-2.5 px-3 w-[30%]">Topic &amp; Concepts</th>
+                      <th className="py-2.5 px-3 w-[30%]">Classwork / Activity</th>
+                      <th className="py-2.5 px-3 w-[25%]">Homework / Assessment</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {Object.entries(activePlanModal.plan?.days || {}).length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-8 text-center text-slate-400 font-bold">
+                          No daily entries logged for this week.
+                        </td>
+                      </tr>
+                    ) : (
+                      Object.entries(activePlanModal.plan.days).map(([dayKey, d]: [string, any], idx) => {
+                        const dayName = new Date(dayKey + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' });
+                        return (
+                          <tr key={dayKey} className={cn('hover:bg-slate-50/70 transition-colors', idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30')}>
+                            <td className="py-3 px-3 align-top font-black text-slate-800">
+                              <span className="block text-[11px]">{dayName}</span>
+                              <span className="text-[9px] text-slate-400 font-bold">{dayKey}</span>
+                            </td>
+                            <td className="py-3 px-3 align-top urdu-text font-bold text-slate-900 leading-relaxed">
+                              {d.topic || <span className="text-slate-300 font-normal">—</span>}
+                            </td>
+                            <td className="py-3 px-3 align-top urdu-text text-slate-700 leading-relaxed">
+                              {d.classwork || <span className="text-slate-300 font-normal">—</span>}
+                            </td>
+                            <td className="py-3 px-3 align-top urdu-text text-slate-700 leading-relaxed">
+                              {d.homework || d.quiz_test || <span className="text-slate-300 font-normal">—</span>}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Additional Remarks */}
+              {(activePlanModal.plan?.resources_needed || activePlanModal.plan?.teacher_remarks) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                  {activePlanModal.plan.resources_needed && (
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                        📦 Teaching Resources / AV Aids
+                      </span>
+                      <p className="text-slate-800 font-medium urdu-text">{activePlanModal.plan.resources_needed}</p>
+                    </div>
+                  )}
+                  {activePlanModal.plan.teacher_remarks && (
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                        📝 Faculty Self-Evaluation / Notes
+                      </span>
+                      <p className="text-slate-800 font-medium urdu-text">{activePlanModal.plan.teacher_remarks}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
+              <span className="text-[10px] font-bold text-slate-400">
+                Last updated: {activePlanModal.plan?.updated_at ? new Date(activePlanModal.plan.updated_at).toLocaleString() : 'N/A'}
+              </span>
+              <Btn
+                variant="primary"
+                size="sm"
+                onClick={() => setActivePlanModal(null)}
+                className="text-xs px-5 bg-slate-900 hover:bg-slate-800 font-bold"
+              >
+                Close Preview
+              </Btn>
+            </div>
+          </div>
         </div>
       )}
 
@@ -959,7 +1372,7 @@ export default function PlannerReport() {
               </tr>
             </thead>
             <tbody>
-              {teacherSummaries.map((t, idx) => (
+              {filteredTeachers.map((t, idx) => (
                 <tr key={idx} style={{ background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
                   <td style={{ border: '1px solid #cbd5e1', padding: '6px', fontWeight: '800' }}>{t.full_name}</td>
                   <td style={{ border: '1px solid #cbd5e1', padding: '6px' }}>{t.role}</td>
@@ -997,3 +1410,4 @@ export default function PlannerReport() {
     </div>
   );
 }
+
