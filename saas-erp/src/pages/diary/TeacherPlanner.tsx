@@ -590,8 +590,8 @@ export default function TeacherPlanner() {
     setBaseDate(toLocalDateStr(d));
   };
 
-  // ─── PDF Export ────────────────────────────────────────────────────────────
-  const handlePDFExport = async () => {
+  // ─── Subject-Wise PDF Export ──────────────────────────────────────────────
+  const handleSubjectWisePDFExport = async () => {
     if (planItems.length === 0) {
       alert('No lesson plan data found for this selection to export. Please select a class or teacher with subjects.');
       return;
@@ -620,8 +620,8 @@ export default function TeacherPlanner() {
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     const targetLabel = viewMode === 'class'
-      ? `CLASS CURRICULUM & LESSON PLANNER — ${allClasses.find(c => c.id === selectedClassId)?.name || 'Class'} ${allClasses.find(c => c.id === selectedClassId)?.section || ''}`
-      : `TEACHER LESSON PLANNER — ${allTeachers.find(t => t.id === (selectedTeacherId || myStaffId))?.full_name || 'Faculty'}`;
+      ? `SUBJECT-WISE CURRICULUM & LESSON PLANNER — ${allClasses.find(c => c.id === selectedClassId)?.name || 'Class'} ${allClasses.find(c => c.id === selectedClassId)?.section || ''}`
+      : `SUBJECT-WISE TEACHER LESSON PLANNER — ${allTeachers.find(t => t.id === (selectedTeacherId || myStaffId))?.full_name || 'Faculty'}`;
     doc.text(targetLabel.toUpperCase(), pw / 2, 30, { align: 'center' });
 
     doc.setFontSize(9);
@@ -637,7 +637,6 @@ export default function TeacherPlanner() {
     const body: any[] = [];
 
     planItems.forEach(item => {
-      // Subheader for each subject
       const unitText = item.unit_chapter ? `Unit / Chapter: ${item.unit_chapter}` : 'Unit / Chapter: In Progress';
       const outcomesText = item.learning_outcomes ? ` | Outcomes: ${item.learning_outcomes}` : '';
       
@@ -708,7 +707,131 @@ export default function TeacherPlanner() {
       doc.text('Principal / Coordinator Approval', pw - 70, finalY + 5);
     }
 
-    doc.save(`Lesson_Planner_${duration}_${activeRange.start}.pdf`);
+    doc.save(`SubjectWise_Planner_${duration}_${activeRange.start}.pdf`);
+  };
+
+  // ─── Day-Wise PDF Export ───────────────────────────────────────────────────
+  const handleDayWisePDFExport = async (targetDate?: string) => {
+    if (planItems.length === 0) {
+      alert('No lesson plan data found for this selection to export.');
+      return;
+    }
+
+    const doc = new jsPDF('l', 'mm', 'a4');
+    const pw = doc.internal.pageSize.width;
+    const ph = doc.internal.pageSize.height;
+
+    // School Header
+    if (schoolInfo?.logo_url) {
+      try {
+        const b64 = await getBase64Image(schoolInfo.logo_url);
+        doc.addImage(b64, 'PNG', 14, 8, 20, 20);
+      } catch (err) {}
+    }
+
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text(schoolInfo?.name || 'School Report', pw / 2, 16, { align: 'center' });
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(schoolInfo?.address || '', pw / 2, 22, { align: 'center' });
+
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    const targetLabel = viewMode === 'class'
+      ? `DAY-WISE CLASS LESSON SCHEDULE — ${allClasses.find(c => c.id === selectedClassId)?.name || 'Class'} ${allClasses.find(c => c.id === selectedClassId)?.section || ''}`
+      : `DAY-WISE TEACHER LESSON SCHEDULE — ${allTeachers.find(t => t.id === (selectedTeacherId || myStaffId))?.full_name || 'Faculty'}`;
+    doc.text(targetLabel.toUpperCase(), pw / 2, 30, { align: 'center' });
+
+    const daysToExport = targetDate ? rangeDays.filter(d => d.date === targetDate) : rangeDays;
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    const subTitle = targetDate 
+      ? `Day: ${daysToExport[0]?.dayName || ''} (${daysToExport[0]?.formattedDate || targetDate}) | Generated: ${formatDate(new Date())}`
+      : `Duration: ${duration.toUpperCase()} | Range: ${activeRange.label} | Generated: ${formatDate(new Date())}`;
+    doc.text(subTitle, pw / 2, 36, { align: 'center' });
+
+    doc.setDrawColor(200);
+    doc.setLineWidth(0.3);
+    doc.line(14, 39, pw - 14, 39);
+
+    const head = [['Subject / Course', 'Class', 'Teacher', 'Topic / Lesson Covered', 'Classwork & Activities', 'Homework & Assignments', 'Test / Quiz']];
+    const body: any[] = [];
+
+    daysToExport.forEach((d, dayIndex) => {
+      body.push([
+        {
+          content: `${d.dayName.toUpperCase()} — Date: ${d.formattedDate}`,
+          colSpan: 7,
+          styles: { fillColor: [13, 21, 38], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9, cellPadding: 3.5 }
+        }
+      ]);
+
+      planItems.forEach(item => {
+        let dayDetail = item.days?.[d.date];
+        if (!dayDetail || (!dayDetail.topic && !dayDetail.classwork && !dayDetail.homework && !dayDetail.quiz_test)) {
+          const entry = Object.entries(item.days || {}).find(([k, v]) => (k === d.date || k.includes(d.date) || d.date.includes(k)) && (v.topic || v.classwork || v.homework || v.quiz_test));
+          if (entry) dayDetail = entry[1];
+        }
+        if (!dayDetail || (!dayDetail.topic && !dayDetail.classwork && !dayDetail.homework && !dayDetail.quiz_test)) {
+          const allDayVals = Object.values(item.days || {});
+          if (allDayVals[dayIndex] && (allDayVals[dayIndex].topic || allDayVals[dayIndex].classwork || allDayVals[dayIndex].homework || allDayVals[dayIndex].quiz_test)) {
+            dayDetail = allDayVals[dayIndex];
+          }
+        }
+        dayDetail = dayDetail || { topic: '', classwork: '', homework: '', quiz_test: '' };
+
+        body.push([
+          item.subject_name,
+          item.class_name,
+          item.teacher_name || 'Faculty',
+          dayDetail.topic || '—',
+          dayDetail.classwork || '—',
+          dayDetail.homework || '—',
+          dayDetail.quiz_test || '—',
+        ]);
+      });
+    });
+
+    autoTable(doc, {
+      startY: 42,
+      head: head,
+      body: body,
+      theme: 'grid',
+      headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+      styles: { fontSize: 7.5, cellPadding: 2.5, overflow: 'linebreak' },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: {
+        0: { cellWidth: 28, fontStyle: 'bold' },
+        1: { cellWidth: 20 },
+        2: { cellWidth: 28 },
+        3: { cellWidth: 62 },
+        4: { cellWidth: 55 },
+        5: { cellWidth: 55 },
+        6: { cellWidth: 22 },
+      },
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY + 12;
+    if (finalY < ph - 25) {
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text('_____________________________', 20, finalY);
+      doc.text('Subject Teacher Signature', 20, finalY + 5);
+
+      doc.text('_____________________________', pw / 2 - 25, finalY);
+      doc.text('Class Incharge Signature', pw / 2 - 25, finalY + 5);
+
+      doc.text('_____________________________', pw - 70, finalY);
+      doc.text('Principal / Coordinator Approval', pw - 70, finalY + 5);
+    }
+
+    const filename = targetDate
+      ? `Day_Lesson_Plan_${targetDate}.pdf`
+      : `DayWise_Lesson_Planner_${duration}_${activeRange.start}.pdf`;
+    doc.save(filename);
   };
 
   const selectedClsObj = allClasses.find(c => c.id === selectedClassId);
@@ -767,9 +890,30 @@ export default function TeacherPlanner() {
           <Btn variant="outline" size="sm" onClick={() => window.print()} className="text-xs h-9 px-3">
             <Printer className="w-4 h-4 mr-1.5" /> Print Sheet
           </Btn>
-          <Btn variant="outline" size="sm" onClick={handlePDFExport} className="text-xs h-9 px-3">
-            <Download className="w-4 h-4 mr-1.5" /> PDF
+          
+          {/* Dual PDF Options */}
+          <Btn
+            variant="outline"
+            size="sm"
+            onClick={() => handleDayWisePDFExport(activeDayFilter !== 'all' ? activeDayFilter : undefined)}
+            className="text-xs h-9 px-3 border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 font-bold"
+            title="Download Day-Wise Lesson Plan PDF grouped by Day/Date"
+          >
+            <Download className="w-4 h-4 mr-1.5 text-indigo-600" />
+            {activeDayFilter !== 'all' ? '📄 Day PDF' : '📄 Day-Wise PDF'}
           </Btn>
+
+          <Btn
+            variant="outline"
+            size="sm"
+            onClick={handleSubjectWisePDFExport}
+            className="text-xs h-9 px-3 border-slate-200 font-bold"
+            title="Download Subject-Wise Lesson Plan PDF grouped by Subject"
+          >
+            <BookOpen className="w-4 h-4 mr-1.5 text-slate-600" />
+            📚 Subject-Wise PDF
+          </Btn>
+
           <Btn variant="primary" size="sm" onClick={saveAllPlans} disabled={savingAll} className="text-xs h-9 px-4 font-black shadow-md shadow-indigo-100">
             <Save className="w-4 h-4 mr-1.5" /> {savingAll ? 'Saving...' : 'Save All Plans'}
           </Btn>
