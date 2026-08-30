@@ -375,16 +375,35 @@ export default function TeacherPlanner() {
 
     setAssignedSlots(slots);
 
-    // ─── Fetch Saved Plans from form_settings ───
+    // ─── Fetch Saved Plans from form_settings (Cross-Sync Teacher & Class Views) ───
     try {
-      const { data: formRes } = await supabase
+      const periodId = `${duration}_${activeRange.start}_${activeRange.end}`;
+      
+      // Fetch both the specific key and all period-matching forms for this school
+      const { data: formRows } = await supabase
         .from('form_settings')
-        .select('sections_config')
+        .select('form_name, sections_config')
         .eq('school_id', userRole.school_id)
-        .eq('form_name', storageFormKey)
-        .maybeSingle();
+        .ilike('form_name', `%planner%${periodId}%`);
 
-      const savedPlansMap: Record<string, any> = formRes?.sections_config?.plans || {};
+      const savedPlansMap: Record<string, any> = {};
+
+      // Merge plans across all relevant forms for this period
+      (formRows || []).forEach(row => {
+        const plans = row.sections_config?.plans || {};
+        Object.entries(plans).forEach(([key, planVal]) => {
+          if (planVal && typeof planVal === 'object') {
+            savedPlansMap[key] = {
+              ...(savedPlansMap[key] || {}),
+              ...planVal,
+              days: {
+                ...(savedPlansMap[key]?.days || {}),
+                ...(planVal as any)?.days || {}
+              }
+            };
+          }
+        });
+      });
 
       const items: PlanItem[] = slots.map(slot => {
         const key = `${slot.class_id}__${slot.subject_id}`;
