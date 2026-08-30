@@ -187,6 +187,7 @@ export default function TeacherPlanner() {
   const [viewMode, setViewMode] = useState<'teacher' | 'class'>(canClassView && !isTeacher ? 'class' : 'teacher');
   const [allClasses, setAllClasses] = useState<any[]>([]);
   const [allTeachers, setAllTeachers] = useState<any[]>([]);
+  const [allSubjects, setAllSubjects] = useState<any[]>([]);
   const [myStaffId, setMyStaffId] = useState<string | null>(null);
 
   const [selectedClassId, setSelectedClassId] = useState('');
@@ -259,166 +260,197 @@ export default function TeacherPlanner() {
     const fetchInit = async () => {
       let resolvedStaffId = userRole.staff_id || null;
 
-      const [
-        { data: cls },
-        { data: teachers },
-        { data: sch },
-        { data: staffLookup }
-      ] = await Promise.all([
-        supabase.from('classes').select('id, name, section, class_teacher_id').eq('school_id', userRole.school_id).order('name'),
-        supabase.from('staff').select('id, full_name, role').eq('school_id', userRole.school_id).eq('is_active', true).eq('is_deleted', false).order('full_name'),
-        supabase.from('schools').select('*').eq('id', userRole.school_id).single(),
-        (!resolvedStaffId && userRole.user_id) 
-          ? supabase.from('staff').select('id, full_name').eq('school_id', userRole.school_id).eq('user_id', userRole.user_id).maybeSingle()
-          : Promise.resolve({ data: null })
-      ]);
+      try {
+        const [
+          { data: cls },
+          { data: teachers },
+          { data: subs },
+          { data: sch },
+          { data: staffByUid }
+        ] = await Promise.all([
+          supabase.from('classes').select('id, name, section, class_teacher_id').eq('school_id', userRole.school_id).order('name'),
+          supabase.from('staff').select('id, full_name, role').eq('school_id', userRole.school_id).eq('is_deleted', false).order('full_name'),
+          supabase.from('subjects').select('id, subject_name, class_id').eq('school_id', userRole.school_id),
+          supabase.from('schools').select('*').eq('id', userRole.school_id).single(),
+          (!resolvedStaffId && userRole.user_id) 
+            ? supabase.from('staff').select('id, full_name').eq('school_id', userRole.school_id).eq('user_id', userRole.user_id).maybeSingle()
+            : Promise.resolve({ data: null })
+        ]);
 
-      if (staffLookup?.data) {
-        resolvedStaffId = staffLookup.data.id;
-      }
-
-      if (cls) {
-        setAllClasses(cls);
-        if (inchargeClassIds.length > 0) {
-          const ic = cls.find((c: any) => inchargeClassIds.includes(c.id));
-          if (ic) setSelectedClassId(ic.id);
-        } else if (cls.length > 0) {
-          setSelectedClassId(cls[0].id);
+        if (staffByUid?.id) {
+          resolvedStaffId = staffByUid.id;
         }
-      }
 
-      if (teachers) setAllTeachers(teachers);
-      if (sch) setSchoolInfo(sch);
+        if (cls) {
+          setAllClasses(cls);
+          if (inchargeClassIds && inchargeClassIds.length > 0) {
+            const ic = cls.find((c: any) => inchargeClassIds.includes(c.id));
+            if (ic) setSelectedClassId(ic.id);
+            else if (cls.length > 0) setSelectedClassId(cls[0].id);
+          } else if (cls.length > 0) {
+            setSelectedClassId(cls[0].id);
+          }
+        }
 
-      if (resolvedStaffId) {
-        setMyStaffId(resolvedStaffId);
-        if (userRole.role === 'teacher' || !selectedTeacherId) {
+        if (teachers) setAllTeachers(teachers);
+        if (subs) setAllSubjects(subs);
+        if (sch) setSchoolInfo(sch);
+
+        if (resolvedStaffId) {
+          setMyStaffId(resolvedStaffId);
           setSelectedTeacherId(resolvedStaffId);
-          setViewMode('teacher');
+          if (!isExecutive && !canClassView) {
+            setViewMode('teacher');
+          }
+        } else if (teachers && teachers.length > 0 && !selectedTeacherId) {
+          setSelectedTeacherId(teachers[0].id);
         }
-      } else if (teachers && teachers.length > 0 && !selectedTeacherId) {
-        setSelectedTeacherId(teachers[0].id);
+      } catch (err) {
+        console.error('[TeacherPlanner] Error in fetchInit:', err);
       }
     };
     fetchInit();
-  }, [userRole]);
+  }, [userRole?.school_id, userRole?.staff_id, userRole?.user_id]);
+
+
 
   // ─── Fetch Slots & Saved Plans ──────────────────────────────────────────────
   const fetchSlots = useCallback(async () => {
     if (!userRole?.school_id) return;
     setLoading(true);
 
-    let slots: Slot[] = [];
+    try {
+      let slots: Slot[] = [];
 
-    if (viewMode === 'class' && selectedClassId) {
-      const { data } = await supabase
-        .from('timetable_slots')
-        .select('subject_id, subjects(subject_name), teacher_id, staff(full_name)')
-        .eq('class_id', selectedClassId)
-        .eq('school_id', userRole.school_id);
-
-      const cls = allClasses.find(c => c.id === selectedClassId);
-      const seen = new Set<string>();
-      (data || []).forEach((s: any) => {
-        if (s.subject_id && !seen.has(s.subject_id)) {
-          seen.add(s.subject_id);
-          slots.push({
-            class_id: selectedClassId,
-            class_name: cls?.name || 'Class',
-            section: cls?.section || '',
-            subject_id: s.subject_id,
-            subject_name: s.subjects?.subject_name || 'Subject',
-            teacher_id: s.teacher_id,
-            teacher_name: s.staff?.full_name || 'Assigned Faculty',
-          });
-        }
-      });
-
-      // Fallback: If no timetable slots for this class, load all subjects for this class
-      if (slots.length === 0) {
-        const { data: subData } = await supabase
-          .from('subjects')
-          .select('id, subject_name, class_id')
+      if (viewMode === 'class' && selectedClassId) {
+        const { data } = await supabase
+          .from('timetable_slots')
+          .select('subject_id, teacher_id')
           .eq('class_id', selectedClassId)
           .eq('school_id', userRole.school_id);
 
-        const assignedTeacherId = cls?.class_teacher_id || myStaffId || undefined;
-        const assignedTeacherName = allTeachers.find(t => t.id === assignedTeacherId)?.full_name || 'Class Incharge';
-
-        (subData || []).forEach((s: any) => {
-          slots.push({
-            class_id: selectedClassId,
-            class_name: cls?.name || 'Class',
-            section: cls?.section || '',
-            subject_id: s.id,
-            subject_name: s.subject_name || 'Subject',
-            teacher_id: assignedTeacherId,
-            teacher_name: assignedTeacherName,
-          });
-        });
-      }
-    } else if (viewMode === 'teacher' && (selectedTeacherId || myStaffId)) {
-      const tid = selectedTeacherId || myStaffId;
-      const { data } = await supabase
-        .from('timetable_slots')
-        .select('class_id, subject_id')
-        .eq('teacher_id', tid)
-        .eq('school_id', userRole.school_id);
-
-      const seen = new Set<string>();
-      (data || []).forEach((s: any) => {
-        if (s.class_id && s.subject_id) {
-          const key = `${s.class_id}__${s.subject_id}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            const cls = allClasses.find(c => c.id === s.class_id);
+        const cls = allClasses.find(c => c.id === selectedClassId);
+        const seen = new Set<string>();
+        (data || []).forEach((s: any) => {
+          if (s.subject_id && !seen.has(s.subject_id)) {
+            seen.add(s.subject_id);
             const sub = allSubjects.find(sub => sub.id === s.subject_id);
+            const teacher = allTeachers.find(t => t.id === s.teacher_id);
             slots.push({
-              class_id: s.class_id,
+              class_id: selectedClassId,
               class_name: cls?.name || 'Class',
               section: cls?.section || '',
               subject_id: s.subject_id,
               subject_name: sub?.subject_name || 'Subject',
-              teacher_id: tid,
-              teacher_name: allTeachers.find(t => t.id === tid)?.full_name || 'Me',
+              teacher_id: s.teacher_id,
+              teacher_name: teacher?.full_name || 'Assigned Faculty',
             });
           }
-        }
-      });
+        });
 
-      // Fallback: If no timetable slots, check classes where this teacher is Class Incharge
-      if (slots.length === 0 && tid) {
-        const inchargeClasses = allClasses.filter(c => c.class_teacher_id === tid);
-        if (inchargeClasses.length > 0) {
-          const classIds = inchargeClasses.map(c => c.id);
-          const { data: subData } = await supabase
-            .from('subjects')
-            .select('id, subject_name, class_id')
-            .in('class_id', classIds)
-            .eq('school_id', userRole.school_id);
+        // Fallback: If no timetable slots for this class, load all subjects for this class
+        if (slots.length === 0) {
+          const classSubs = allSubjects.filter(s => s.class_id === selectedClassId);
+          const assignedTeacherId = cls?.class_teacher_id || myStaffId || undefined;
+          const assignedTeacherName = allTeachers.find(t => t.id === assignedTeacherId)?.full_name || 'Class Incharge';
 
-          (subData || []).forEach((s: any) => {
-            const cls = inchargeClasses.find(c => c.id === s.class_id);
+          classSubs.forEach((s: any) => {
             slots.push({
-              class_id: s.class_id,
+              class_id: selectedClassId,
               class_name: cls?.name || 'Class',
               section: cls?.section || '',
               subject_id: s.id,
               subject_name: s.subject_name || 'Subject',
-              teacher_id: tid,
-              teacher_name: allTeachers.find(t => t.id === tid)?.full_name || 'Me',
+              teacher_id: assignedTeacherId,
+              teacher_name: assignedTeacherName,
             });
           });
         }
+      } else if (viewMode === 'teacher' && (selectedTeacherId || myStaffId)) {
+        const tid = selectedTeacherId || myStaffId;
+        const { data } = await supabase
+          .from('timetable_slots')
+          .select('class_id, subject_id')
+          .eq('teacher_id', tid)
+          .eq('school_id', userRole.school_id);
+
+        const seen = new Set<string>();
+        (data || []).forEach((s: any) => {
+          if (s.class_id && s.subject_id) {
+            const key = `${s.class_id}__${s.subject_id}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              const cls = allClasses.find(c => c.id === s.class_id);
+              const sub = allSubjects.find(sub => sub.id === s.subject_id);
+              slots.push({
+                class_id: s.class_id,
+                class_name: cls?.name || 'Class',
+                section: cls?.section || '',
+                subject_id: s.subject_id,
+                subject_name: sub?.subject_name || 'Subject',
+                teacher_id: tid,
+                teacher_name: allTeachers.find(t => t.id === tid)?.full_name || 'Me',
+              });
+            }
+          }
+        });
+
+        // Fallback 1: If no timetable slots, check classes where this teacher is Class Incharge
+        if (slots.length === 0 && tid) {
+          const inchargeClasses = allClasses.filter(c => c.class_teacher_id === tid);
+          if (inchargeClasses.length > 0) {
+            const classIds = inchargeClasses.map(c => c.id);
+            const subData = allSubjects.filter(s => classIds.includes(s.class_id));
+
+            subData.forEach((s: any) => {
+              const cls = inchargeClasses.find(c => c.id === s.class_id);
+              slots.push({
+                class_id: s.class_id,
+                class_name: cls?.name || 'Class',
+                section: cls?.section || '',
+                subject_id: s.id,
+                subject_name: s.subject_name || 'Subject',
+                teacher_id: tid,
+                teacher_name: allTeachers.find(t => t.id === tid)?.full_name || 'Me',
+              });
+            });
+          }
+        }
+
+        // Fallback 2: Check if any lesson_plans exist for this teacher
+        if (slots.length === 0 && tid) {
+          const { data: lpRows } = await supabase
+            .from('lesson_plans')
+            .select('class_id, subject_id')
+            .eq('teacher_id', tid)
+            .eq('school_id', userRole.school_id);
+
+          const lpSeen = new Set<string>();
+          (lpRows || []).forEach((lp: any) => {
+            if (lp.class_id && lp.subject_id) {
+              const key = `${lp.class_id}__${lp.subject_id}`;
+              if (!lpSeen.has(key)) {
+                lpSeen.add(key);
+                const cls = allClasses.find(c => c.id === lp.class_id);
+                const sub = allSubjects.find(sub => sub.id === lp.subject_id);
+                slots.push({
+                  class_id: lp.class_id,
+                  class_name: cls?.name || 'Class',
+                  section: cls?.section || '',
+                  subject_id: lp.subject_id,
+                  subject_name: sub?.subject_name || 'Subject',
+                  teacher_id: tid,
+                  teacher_name: allTeachers.find(t => t.id === tid)?.full_name || 'Me',
+                });
+              }
+            }
+          });
+        }
       }
-    }
 
+      setAssignedSlots(slots);
 
-    setAssignedSlots(slots);
-
-    // ─── Fetch Saved Plans from lesson_plans table ───────────────────────────
-    try {
-      // Build query filtered by week and scope (teacher or class)
+      // ─── Fetch Saved Plans from lesson_plans table ───────────────────────────
       let plansQuery = supabase
         .from('lesson_plans')
         .select('class_id, subject_id, teacher_id, unit_chapter, learning_outcomes, resources_needed, teacher_remarks, days')
@@ -435,7 +467,6 @@ export default function TeacherPlanner() {
       const { data: planRows, error: plansError } = await plansQuery;
       if (plansError) console.warn('lesson_plans fetch error:', plansError.message);
 
-      // Build a map keyed by class_id__subject_id
       const savedPlansMap: Record<string, any> = {};
       (planRows || []).forEach(row => {
         const key = `${row.class_id}__${row.subject_id}`;
@@ -453,7 +484,6 @@ export default function TeacherPlanner() {
         const saved = savedPlansMap[key] || {};
         const savedDays: Record<string, DayPlanDetail> = saved.days || {};
 
-        // Ensure every date in rangeDays has a default object
         const populatedDays: Record<string, DayPlanDetail> = {};
         const savedDayEntries = Object.entries(savedDays);
 
@@ -498,16 +528,16 @@ export default function TeacherPlanner() {
 
       setPlanItems(items);
     } catch (err) {
-      console.error('Error fetching planner:', err);
+      console.error('[TeacherPlanner] Error in fetchSlots:', err);
     } finally {
       setLoading(false);
     }
-  // Note: storageFormKey removed — no longer using form_settings
-  }, [userRole?.school_id, viewMode, selectedClassId, selectedTeacherId, myStaffId, allClasses, allTeachers, rangeDays, activeRange.start]);
+  }, [userRole?.school_id, viewMode, selectedClassId, selectedTeacherId, myStaffId, allClasses, allTeachers, allSubjects, rangeDays, activeRange.start]);
 
   useEffect(() => {
     fetchSlots();
   }, [fetchSlots]);
+
 
   // ─── Update Item Field (Deep Immutable) ───────────────────────────────────
   const updateGeneralField = (subjectIdx: number, field: keyof PlanItem, value: string) => {
@@ -1008,26 +1038,33 @@ export default function TeacherPlanner() {
         
         {/* Mode Selector (Teacher View vs Class View) */}
         <div className="md:col-span-4 flex items-center gap-2">
-          <div className="bg-slate-100 p-1 rounded-xl flex gap-1 border border-slate-200 w-full">
-            <button
-              onClick={() => setViewMode('teacher')}
-              className={cn(
-                'flex-1 py-1.5 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5',
-                viewMode === 'teacher' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
-              )}
-            >
-              <PenTool className="w-3.5 h-3.5" /> Teacher Mode
-            </button>
-            <button
-              onClick={() => setViewMode('class')}
-              className={cn(
-                'flex-1 py-1.5 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5',
-                viewMode === 'class' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
-              )}
-            >
-              <Users className="w-3.5 h-3.5" /> Class Incharge View
-            </button>
-          </div>
+          {canClassView ? (
+            <div className="bg-slate-100 p-1 rounded-xl flex gap-1 border border-slate-200 w-full">
+              <button
+                onClick={() => setViewMode('teacher')}
+                className={cn(
+                  'flex-1 py-1.5 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5',
+                  viewMode === 'teacher' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                )}
+              >
+                <PenTool className="w-3.5 h-3.5" /> My Planner
+              </button>
+              <button
+                onClick={() => setViewMode('class')}
+                className={cn(
+                  'flex-1 py-1.5 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5',
+                  viewMode === 'class' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                )}
+              >
+                <Users className="w-3.5 h-3.5" /> Class Incharge View
+              </button>
+            </div>
+          ) : (
+            <div className="bg-indigo-50 border border-indigo-200 px-3.5 py-1.5 rounded-xl text-xs font-black text-indigo-800 flex items-center gap-2 w-full">
+              <PenTool className="w-4 h-4 text-indigo-600" />
+              <span>Faculty Lesson Planner</span>
+            </div>
+          )}
         </div>
 
         {/* Dropdown for Selection (Class or Teacher) */}
@@ -1039,12 +1076,20 @@ export default function TeacherPlanner() {
                 onChange={e => setSelectedClassId(e.target.value)}
                 className="w-full px-3.5 py-2 text-xs font-black bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
               >
-                {allClasses.map(c => (
+                {(isExecutive ? allClasses : allClasses.filter(c => inchargeClassIds.includes(c.id) || c.class_teacher_id === myStaffId)).map(c => (
                   <option key={c.id} value={c.id}>
                     Class: {c.name} {c.section} {inchargeClassIds.includes(c.id) ? '★ (My Incharge Class)' : ''}
                   </option>
                 ))}
               </select>
+            </div>
+          ) : !isExecutive ? (
+            <div className="w-full px-3.5 py-2 text-xs font-black bg-slate-50 border border-slate-200 rounded-xl text-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span>Faculty: <b>{allTeachers.find(t => t.id === (selectedTeacherId || myStaffId))?.full_name || 'My Planner'}</b></span>
+              </div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Logged In</span>
             </div>
           ) : (
             <div className="relative">
@@ -1062,6 +1107,7 @@ export default function TeacherPlanner() {
             </div>
           )}
         </div>
+
 
         {/* Date Navigator Strip */}
         <div className="md:col-span-4 flex items-center justify-end gap-2">
