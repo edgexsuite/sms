@@ -871,17 +871,25 @@ export default function TeacherPlanner() {
           text-align: start;
         }
         @media print {
-          @page { size: landscape; margin: 8mm; }
+          body { background: white !important; margin: 0 !important; padding: 0 !important; }
           .no-print { display: none !important; }
-          body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+          .print-only { display: block !important; width: 100% !important; }
+          @page { size: landscape; margin: 6mm; }
+          .planner-print-layout {
+            width: 100%;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            margin: 0 !important;
+          }
           .urdu-text, .font-nastaleeq {
             font-family: 'Noto Nastaliq Urdu', 'Inter', serif !important;
             unicode-bidi: plaintext !important;
             text-align: start !important;
           }
-          table { width: 100% !important; border-collapse: collapse !important; }
-          th, td { border: 1px solid #94a3b8 !important; padding: 4px 6px !important; }
+          table { page-break-after: auto; width: 100% !important; border-collapse: collapse !important; }
+          tr { page-break-inside: avoid !important; }
         }
+        .print-only { display: none; }
       `}</style>
 
       {/* ── Control Header ── */}
@@ -926,9 +934,16 @@ export default function TeacherPlanner() {
 
           <div className="h-8 w-px bg-slate-200 mx-1 hidden sm:block" />
 
-          {/* Print & PDF Buttons */}
-          <Btn variant="outline" size="sm" onClick={() => window.print()} className="text-xs h-9 px-3">
-            <Printer className="w-4 h-4 mr-1.5" /> Print Sheet
+          {/* High-Definition Print & Save as PDF Buttons */}
+          <Btn
+            variant="outline"
+            size="sm"
+            onClick={() => window.print()}
+            className="text-xs h-9 px-3 border-indigo-300 text-indigo-700 bg-indigo-50/60 hover:bg-indigo-100 font-black shadow-xs"
+            title="Print or Save as PDF with full Nastaleeq Urdu typography"
+          >
+            <Printer className="w-4 h-4 mr-1.5 text-indigo-600" />
+            Print / Save PDF (Nastaleeq)
           </Btn>
           
           {/* Dual PDF Options */}
@@ -1110,23 +1125,9 @@ export default function TeacherPlanner() {
         })}
       </div>
 
-      {/* ── Printable Header (Only Visible When Printing) ── */}
-      <div className="hidden print:flex flex-col items-center justify-center p-6 border-b-2 border-slate-200 mb-6 text-center">
-        {schoolInfo?.logo_url && (
-          <img src={schoolInfo.logo_url} className="w-16 h-16 object-contain mb-2" alt="Logo" />
-        )}
-        <h2 className="text-2xl font-black uppercase tracking-widest text-[#0d1526]">{schoolInfo?.name || 'School Planner'}</h2>
-        <p className="text-xs text-slate-500 font-bold">{schoolInfo?.address || ''}</p>
-        <div className="mt-3 px-4 py-1 bg-slate-100 rounded-full border border-slate-300 inline-block">
-          <span className="text-xs font-black uppercase text-slate-800">
-            {viewMode === 'class' ? `Class Planner: ${selectedClsObj?.name} ${selectedClsObj?.section}` : 'Teacher Lesson Planner'}
-            {' · '}{duration.toUpperCase()} ({activeRange.label})
-          </span>
-        </div>
-      </div>
-
-      {/* ── Planner Editor & Viewer ── */}
-      {loading ? (
+      {/* ── Planner Editor & Viewer (Screen Only) ── */}
+      <div className="no-print space-y-4">
+        {loading ? (
         <Card className="py-20 flex flex-col items-center justify-center shadow-sm border-slate-100">
           <div className="w-10 h-10 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
           <p className="text-xs font-black text-slate-400 uppercase tracking-widest mt-4">Loading Lesson Plan...</p>
@@ -1346,20 +1347,100 @@ export default function TeacherPlanner() {
           </div>
         </div>
       )}
+      </div>
 
-      {/* ── Print Signatures Footer (Only visible on paper print) ── */}
-      <div className="hidden print:grid grid-cols-3 gap-8 pt-12 text-center text-xs font-bold text-slate-800">
-        <div>
-          <div className="border-b border-slate-400 mb-2" />
-          <p>Subject Teacher Signature</p>
-        </div>
-        <div>
-          <div className="border-b border-slate-400 mb-2" />
-          <p>Class Incharge Signature</p>
-        </div>
-        <div>
-          <div className="border-b border-slate-400 mb-2" />
-          <p>Principal / Coordinator Approval</p>
+      {/* ── PRINT ONLY HIGH-DEFINITION HTML LAYOUT (Rendered on window.print() / Save as PDF) ── */}
+      <div className="print-only">
+        <div className="planner-print-layout" style={{ padding: '0 0 15px 0', background: 'white' }}>
+          {/* Top Banner */}
+          <div style={{ height: '8px', background: 'linear-gradient(90deg, #1e1b4b, #4338ca, #087fe5)', marginBottom: '12px' }} />
+
+          {/* Header */}
+          <div style={{ padding: '0 25px', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', alignItems: 'center', width: '100%', paddingBottom: '6px', borderBottom: '2px solid #1e1b4b', marginBottom: '8px' }}>
+              {schoolInfo?.logo_url && (
+                <img src={schoolInfo.logo_url} crossOrigin="anonymous" style={{ width: '50px', height: '50px', objectFit: 'contain', marginRight: '15px' }} alt="logo" />
+              )}
+              <div style={{ flexGrow: 1, textAlign: 'center' }}>
+                <h1 style={{ fontSize: '20px', fontWeight: '900', color: '#1e1b4b', margin: '0', textTransform: 'uppercase', letterSpacing: '-0.3px' }}>
+                  {schoolInfo?.name || 'School Planner'}
+                </h1>
+                <p style={{ fontSize: '10px', color: '#475569', fontWeight: '700', margin: '2px 0 0 0' }}>{schoolInfo?.address || ''}</p>
+                <div style={{ marginTop: '4px' }}>
+                  <span style={{ background: '#1e1b4b', color: 'white', padding: '3px 20px', borderRadius: '50px', fontWeight: '900', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                    {viewMode === 'class' ? `Class Lesson Plan: Grade ${selectedClsObj?.name} ${selectedClsObj?.section}` : `Teacher Lesson Plan: ${allTeachers.find(t => t.id === (selectedTeacherId || myStaffId))?.full_name || 'Staff'}`}
+                    {' · '}{duration.toUpperCase()} ({activeRange.label})
+                  </span>
+                </div>
+              </div>
+              <div style={{ width: '50px' }} />
+            </div>
+
+            {/* Range & Details Bar */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontWeight: '900', fontSize: '11px', border: '1.5px solid #1e1b4b', padding: '6px 15px', background: '#f8fafc', color: '#1e1b4b', borderRadius: '4px', marginBottom: '10px' }}>
+              <span>PERIOD: {activeRange.label} ({rangeDays.length} Teaching Days)</span>
+              <span>{viewMode === 'class' ? `CLASS: ${selectedClsObj?.name} ${selectedClsObj?.section}` : `FACULTY: ${allTeachers.find(t => t.id === (selectedTeacherId || myStaffId))?.full_name || 'Assigned Teacher'}`}</span>
+            </div>
+
+            {/* Day-by-Day Table */}
+            {displayDays.map(d => (
+              <div key={d.date} style={{ marginBottom: '14px', pageBreakInside: 'avoid' }}>
+                <div style={{ background: '#1e1b4b', color: 'white', padding: '4px 10px', fontWeight: '900', fontSize: '10px', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', borderRadius: '3px 3px 0 0' }}>
+                  <span>📅 {d.dayName.toUpperCase()} — {d.formattedDate}</span>
+                  <span>{d.date}</span>
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #1e1b4b', tableLayout: 'fixed' }}>
+                  <thead>
+                    <tr style={{ background: '#f1f5f9', color: '#1e1b4b', fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }}>
+                      <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '15%', textAlign: 'center' }}>Subject &amp; Teacher</th>
+                      <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '28%', textAlign: 'center' }}>Lesson / Topic Covered</th>
+                      <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '26%', textAlign: 'center' }}>Classwork &amp; In-Class Task</th>
+                      <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '21%', textAlign: 'center' }}>Homework / Assignment</th>
+                      <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '10%', textAlign: 'center' }}>Quiz / Test</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {planItems.map((item, itemIdx) => {
+                      const dayDetail = item.days[d.date] || { topic: '', classwork: '', homework: '', quiz_test: '' };
+                      return (
+                        <tr key={itemIdx} style={{ background: itemIdx % 2 === 0 ? 'white' : '#f8fafc', fontSize: '9.5px' }}>
+                          <td style={{ border: '1px solid #cbd5e1', padding: '6px', fontWeight: '800', textAlign: 'center' }}>
+                            <div style={{ color: '#1e1b4b', fontWeight: '900' }}>{item.subject_name}</div>
+                            <div style={{ color: '#64748b', fontSize: '8.5px', marginTop: '2px' }}>{item.class_name} · {item.teacher_name}</div>
+                          </td>
+                          <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'start' }}>
+                            {dayDetail.topic || '—'}
+                          </td>
+                          <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'start' }}>
+                            {dayDetail.classwork || '—'}
+                          </td>
+                          <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'start' }}>
+                            {dayDetail.homework || '—'}
+                          </td>
+                          <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'center' }}>
+                            {dayDetail.quiz_test || '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+
+            {/* Signature Area */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', margin: '30px 0 10px 0', pageBreakInside: 'avoid' }}>
+              <div style={{ textAlign: 'center', width: '200px' }}>
+                <div style={{ borderTop: '1.5px solid #1e1b4b', paddingTop: '6px', fontWeight: '900', color: '#1e1b4b', fontSize: '10px', textTransform: 'uppercase' }}>Subject Teacher Signature</div>
+              </div>
+              <div style={{ textAlign: 'center', width: '200px' }}>
+                <div style={{ borderTop: '1.5px solid #1e1b4b', paddingTop: '6px', fontWeight: '900', color: '#1e1b4b', fontSize: '10px', textTransform: 'uppercase' }}>Class Incharge Signature</div>
+              </div>
+              <div style={{ textAlign: 'center', width: '200px' }}>
+                <div style={{ borderTop: '1.5px solid #1e1b4b', paddingTop: '6px', fontWeight: '900', color: '#1e1b4b', fontSize: '10px', textTransform: 'uppercase' }}>Principal / Coordinator</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
