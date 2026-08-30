@@ -446,27 +446,35 @@ export default function TeacherPlanner() {
     fetchSlots();
   }, [fetchSlots]);
 
-  // ─── Update Item Field ──────────────────────────────────────────────────────
+  // ─── Update Item Field (Deep Immutable) ───────────────────────────────────
   const updateGeneralField = (subjectIdx: number, field: keyof PlanItem, value: string) => {
-    setPlanItems(prev => prev.map((item, i) => i === subjectIdx ? { ...item, [field]: value, saved: false } : item));
+    setPlanItems(prev => {
+      const next = [...prev];
+      if (!next[subjectIdx]) return prev;
+      next[subjectIdx] = {
+        ...next[subjectIdx],
+        [field]: value,
+        saved: false,
+      };
+      return next;
+    });
   };
 
   const updateDayField = (subjectIdx: number, dateKey: string, field: keyof DayPlanDetail, value: string) => {
-    setPlanItems(prev => prev.map((item, i) => {
-      if (i !== subjectIdx) return item;
-      const currentDay = item.days[dateKey] || { topic: '', classwork: '', homework: '', quiz_test: '' };
-      return {
-        ...item,
-        saved: false,
-        days: {
-          ...item.days,
-          [dateKey]: {
-            ...currentDay,
-            [field]: value,
-          }
-        }
-      };
-    }));
+    setPlanItems(prev => {
+      const next = [...prev];
+      if (!next[subjectIdx]) return prev;
+      const target = { ...next[subjectIdx] };
+      const currentDays = { ...(target.days || {}) };
+      const currentDay = { ...(currentDays[dateKey] || { topic: '', classwork: '', homework: '', quiz_test: '' }) };
+      
+      currentDay[field] = value;
+      currentDays[dateKey] = currentDay;
+      target.days = currentDays;
+      target.saved = false;
+      next[subjectIdx] = target;
+      return next;
+    });
   };
 
   // ─── Save Helper Function (Resilient Update or Insert) ──────────────────────
@@ -1068,7 +1076,7 @@ export default function TeacherPlanner() {
                               </label>
                               <input
                                 type="text"
-                                value={dayDetail.topic}
+                                value={dayDetail.topic || ''}
                                 onChange={e => updateDayField(idx, d.date, 'topic', e.target.value)}
                                 placeholder="Topic name / exercise..."
                                 className="w-full px-3 py-1.5 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
@@ -1082,7 +1090,7 @@ export default function TeacherPlanner() {
                               </label>
                               <input
                                 type="text"
-                                value={dayDetail.classwork}
+                                value={dayDetail.classwork || ''}
                                 onChange={e => updateDayField(idx, d.date, 'classwork', e.target.value)}
                                 placeholder="Reading, problem solving..."
                                 className="w-full px-3 py-1.5 text-xs font-semibold bg-emerald-50/40 border border-emerald-100 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
@@ -1096,7 +1104,7 @@ export default function TeacherPlanner() {
                               </label>
                               <input
                                 type="text"
-                                value={dayDetail.homework}
+                                value={dayDetail.homework || ''}
                                 onChange={e => updateDayField(idx, d.date, 'homework', e.target.value)}
                                 placeholder="Q1 to Q5 on notebook..."
                                 className="w-full px-3 py-1.5 text-xs font-semibold bg-amber-50/40 border border-amber-100 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
