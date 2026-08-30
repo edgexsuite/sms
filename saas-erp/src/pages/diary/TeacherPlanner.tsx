@@ -844,6 +844,27 @@ export default function TeacherPlanner() {
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-4">
+      {/* ── Urdu Nastaleeq & Print Layout Stylesheet ── */}
+      <style>{`
+        .urdu-text, .font-nastaleeq {
+          font-family: 'Noto Nastaliq Urdu', 'Inter', serif !important;
+          unicode-bidi: plaintext;
+          text-align: start;
+        }
+        @media print {
+          @page { size: landscape; margin: 8mm; }
+          .no-print { display: none !important; }
+          body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+          .urdu-text, .font-nastaleeq {
+            font-family: 'Noto Nastaliq Urdu', 'Inter', serif !important;
+            unicode-bidi: plaintext !important;
+            text-align: start !important;
+          }
+          table { width: 100% !important; border-collapse: collapse !important; }
+          th, td { border: 1px solid #94a3b8 !important; padding: 4px 6px !important; }
+        }
+      `}</style>
+
       {/* ── Control Header ── */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm no-print">
         <div className="flex items-center gap-3">
@@ -1160,10 +1181,11 @@ export default function TeacherPlanner() {
                     </label>
                     <input
                       type="text"
+                      dir="auto"
                       value={item.unit_chapter}
                       onChange={e => updateGeneralField(idx, 'unit_chapter', e.target.value)}
-                      placeholder="e.g. Unit 4: Linear Equations & Word Problems"
-                      className="w-full px-3 py-2 text-xs font-bold bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                      placeholder="e.g. Unit 4: Linear Equations / سبق نمبر 4"
+                      className="w-full px-3 py-2 text-xs font-bold bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 urdu-text font-['Noto_Nastaliq_Urdu',_'Inter',_serif]"
                     />
                   </div>
                   <div className="space-y-1">
@@ -1172,10 +1194,11 @@ export default function TeacherPlanner() {
                     </label>
                     <input
                       type="text"
+                      dir="auto"
                       value={item.learning_outcomes}
                       onChange={e => updateGeneralField(idx, 'learning_outcomes', e.target.value)}
-                      placeholder="e.g. Students will solve 2-variable linear equations"
-                      className="w-full px-3 py-2 text-xs font-bold bg-white border border-indigo-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                      placeholder="e.g. Students will solve word problems / تدریسی مقاصد"
+                      className="w-full px-3 py-2 text-xs font-bold bg-white border border-indigo-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 urdu-text font-['Noto_Nastaliq_Urdu',_'Inter',_serif]"
                     />
                   </div>
                 </div>
@@ -1220,10 +1243,11 @@ export default function TeacherPlanner() {
                               </label>
                               <input
                                 type="text"
+                                dir="auto"
                                 value={dayDetail.topic || ''}
                                 onChange={e => updateDayField(idx, d.date, 'topic', e.target.value)}
-                                placeholder="Topic name / exercise..."
-                                className="w-full px-3 py-1.5 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+                                placeholder="Topic name / سبق کا عنوان..."
+                                className="w-full px-3 py-1.5 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white urdu-text font-['Noto_Nastaliq_Urdu',_'Inter',_serif]"
                               />
                             </div>
 
@@ -1234,10 +1258,11 @@ export default function TeacherPlanner() {
                               </label>
                               <input
                                 type="text"
+                                dir="auto"
                                 value={dayDetail.classwork || ''}
                                 onChange={e => updateDayField(idx, d.date, 'classwork', e.target.value)}
-                                placeholder="Reading, problem solving..."
-                                className="w-full px-3 py-1.5 text-xs font-semibold bg-emerald-50/40 border border-emerald-100 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
+                                placeholder="Reading, problem solving / جماعت کا کام..."
+                                className="w-full px-3 py-1.5 text-xs font-semibold bg-emerald-50/40 border border-emerald-100 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white urdu-text font-['Noto_Nastaliq_Urdu',_'Inter',_serif]"
                               />
                             </div>
 
@@ -1248,10 +1273,11 @@ export default function TeacherPlanner() {
                               </label>
                               <input
                                 type="text"
+                                dir="auto"
                                 value={dayDetail.homework || ''}
                                 onChange={e => updateDayField(idx, d.date, 'homework', e.target.value)}
-                                placeholder="Q1 to Q5 on notebook..."
-                                className="w-full px-3 py-1.5 text-xs font-semibold bg-amber-50/40 border border-amber-100 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                                placeholder="Q1 to Q5 / گھر کا کام..."
+                                className="w-full px-3 py-1.5 text-xs font-semibold bg-amber-50/40 border border-amber-100 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white urdu-text font-['Noto_Nastaliq_Urdu',_'Inter',_serif]"
                               />
                             </div>
 
@@ -1262,10 +1288,11 @@ export default function TeacherPlanner() {
                               </label>
                               <input
                                 type="text"
+                                dir="auto"
                                 value={dayDetail.quiz_test || ''}
                                 onChange={e => updateDayField(idx, d.date, 'quiz_test', e.target.value)}
-                                placeholder="Friday test, oral quiz..."
-                                className="w-full px-3 py-1.5 text-xs font-semibold bg-rose-50/40 border border-rose-100 rounded-lg outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white"
+                                placeholder="Friday test, oral quiz / ٹیسٹ..."
+                                className="w-full px-3 py-1.5 text-xs font-semibold bg-rose-50/40 border border-rose-100 rounded-lg outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white urdu-text font-['Noto_Nastaliq_Urdu',_'Inter',_serif]"
                               />
                             </div>
                           </div>

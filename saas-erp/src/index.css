@@ -52,6 +52,14 @@ h1, h2, h3, h4, .font-display {
   font-family: var(--font-display);
 }
 
+/* Urdu Nastaleeq Support */
+.font-nastaleeq, .urdu-text {
+  font-family: 'Noto Nastaliq Urdu', 'Inter', serif !important;
+  unicode-bidi: plaintext;
+  text-align: start;
+  line-height: 1.8;
+}
+
 /* Glassmorphism Utilities */
 .aura-glass {
   background: var(--glass-bg);
