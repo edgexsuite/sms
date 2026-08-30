@@ -205,6 +205,8 @@ export default function TeacherPlanner() {
   // Import Modal & Template State
   const [showImportModal, setShowImportModal] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
+  const [importStatus, setImportStatus] = useState<{ success?: string; error?: string; logs?: string[] } | null>(null);
+
   // Export Dropdown & Print State
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
@@ -218,6 +220,7 @@ export default function TeacherPlanner() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
 
   // Active Selected Day for Single-Day Filter Tab View (optional 'all' or specific date)
   const [activeDayFilter, setActiveDayFilter] = useState<string>('all');
