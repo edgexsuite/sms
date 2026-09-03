@@ -1341,51 +1341,51 @@ export default function PlannerReport() {
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'center', borderBottom: '2px solid #1e1b4b', paddingBottom: '8px', marginBottom: '12px' }}>
             {schoolInfo?.logo_url && (
-              <img src={schoolInfo.logo_url} crossOrigin="anonymous" style={{ width: '45px', height: '45px', objectFit: 'contain', marginRight: '15px' }} alt="logo" />
+              <img src={schoolInfo.logo_url} crossOrigin="anonymous" style={{ width: '50px', height: '50px', objectFit: 'contain', marginRight: '15px' }} alt="logo" />
             )}
             <div style={{ flexGrow: 1, textAlign: 'center' }}>
-              <h1 style={{ fontSize: '18px', fontWeight: '900', color: '#1e1b4b', margin: 0, textTransform: 'uppercase' }}>
+              <h1 style={{ fontSize: '22px', fontWeight: '900', color: '#1e1b4b', margin: 0, textTransform: 'uppercase' }}>
                 {schoolInfo?.name || 'School Report'}
               </h1>
-              <p style={{ fontSize: '10px', color: '#64748b', margin: '2px 0 0 0', fontWeight: '700' }}>
+              <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0 0', fontWeight: '700' }}>
                 LESSON PLANNER COMPLIANCE &amp; SUBMISSION AUDIT GAZETTE
               </p>
               <div style={{ marginTop: '4px' }}>
-                <span style={{ background: '#1e1b4b', color: 'white', padding: '2px 16px', borderRadius: '50px', fontSize: '9px', fontWeight: '900' }}>
+                <span style={{ background: '#1e1b4b', color: 'white', padding: '3px 18px', borderRadius: '50px', fontSize: '10px', fontWeight: '900' }}>
                   WEEK: {activeRange.label} (COMPLIANCE: {stats.complianceRate}%)
                 </span>
               </div>
             </div>
-            <div style={{ width: '45px' }} />
+            <div style={{ width: '50px' }} />
           </div>
 
           {/* Table */}
-          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #1e1b4b', fontSize: '9px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #1e1b4b', fontSize: '11px' }}>
             <thead>
               <tr style={{ background: '#1e1b4b', color: 'white', fontWeight: '900', textTransform: 'uppercase' }}>
-                <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '22%' }}>Teacher Name</th>
-                <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '15%' }}>Designation</th>
-                <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '33%' }}>Assigned Subjects</th>
-                <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '10%', textAlign: 'center' }}>Status</th>
-                <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '10%', textAlign: 'center' }}>Coverage</th>
-                <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '10%', textAlign: 'center' }}>SLOs</th>
+                <th style={{ border: '1px solid #cbd5e1', padding: '7px', width: '22%' }}>Teacher Name</th>
+                <th style={{ border: '1px solid #cbd5e1', padding: '7px', width: '15%' }}>Designation</th>
+                <th style={{ border: '1px solid #cbd5e1', padding: '7px', width: '33%' }}>Assigned Subjects</th>
+                <th style={{ border: '1px solid #cbd5e1', padding: '7px', width: '10%', textAlign: 'center' }}>Status</th>
+                <th style={{ border: '1px solid #cbd5e1', padding: '7px', width: '10%', textAlign: 'center' }}>Coverage</th>
+                <th style={{ border: '1px solid #cbd5e1', padding: '7px', width: '10%', textAlign: 'center' }}>SLOs</th>
               </tr>
             </thead>
             <tbody>
               {filteredTeachers.map((t, idx) => (
                 <tr key={idx} style={{ background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
-                  <td style={{ border: '1px solid #cbd5e1', padding: '6px', fontWeight: '800' }}>{t.full_name}</td>
-                  <td style={{ border: '1px solid #cbd5e1', padding: '6px' }}>{t.role}</td>
-                  <td style={{ border: '1px solid #cbd5e1', padding: '6px' }}>
+                  <td style={{ border: '1px solid #cbd5e1', padding: '7px', fontWeight: '800' }}>{t.full_name}</td>
+                  <td style={{ border: '1px solid #cbd5e1', padding: '7px' }}>{t.role}</td>
+                  <td style={{ border: '1px solid #cbd5e1', padding: '7px' }}>
                     {t.assigned_slots.map(s => `${s.subject_name} (${s.class_name})`).join(', ')}
                   </td>
-                  <td style={{ border: '1px solid #cbd5e1', padding: '6px', textAlign: 'center', fontWeight: '900', color: t.status === 'submitted' ? '#059669' : t.status === 'partial' ? '#d97706' : '#dc2626' }}>
+                  <td style={{ border: '1px solid #cbd5e1', padding: '7px', textAlign: 'center', fontWeight: '900', color: t.status === 'submitted' ? '#059669' : t.status === 'partial' ? '#d97706' : '#dc2626' }}>
                     {t.status.toUpperCase()}
                   </td>
-                  <td style={{ border: '1px solid #cbd5e1', padding: '6px', textAlign: 'center', fontWeight: '800' }}>
+                  <td style={{ border: '1px solid #cbd5e1', padding: '7px', textAlign: 'center', fontWeight: '800' }}>
                     {t.submitted_subjects_count} / {t.total_subjects_count}
                   </td>
-                  <td style={{ border: '1px solid #cbd5e1', padding: '6px', textAlign: 'center' }}>
+                  <td style={{ border: '1px solid #cbd5e1', padding: '7px', textAlign: 'center' }}>
                     {t.has_learning_outcomes ? 'YES' : 'NO'}
                   </td>
                 </tr>
@@ -1396,13 +1396,13 @@ export default function PlannerReport() {
           {/* Signatures */}
           <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', margin: '40px 0 10px 0', pageBreakInside: 'avoid' }}>
             <div style={{ textAlign: 'center', width: '200px' }}>
-              <div style={{ borderTop: '1.5px solid #1e1b4b', paddingTop: '6px', fontWeight: '900', color: '#1e1b4b', fontSize: '9px', textTransform: 'uppercase' }}>Academic Coordinator</div>
+              <div style={{ borderTop: '1.5px solid #1e1b4b', paddingTop: '6px', fontWeight: '900', color: '#1e1b4b', fontSize: '11px', textTransform: 'uppercase' }}>Academic Coordinator</div>
             </div>
             <div style={{ textAlign: 'center', width: '200px' }}>
-              <div style={{ borderTop: '1.5px solid #1e1b4b', paddingTop: '6px', fontWeight: '900', color: '#1e1b4b', fontSize: '9px', textTransform: 'uppercase' }}>Vice Principal</div>
+              <div style={{ borderTop: '1.5px solid #1e1b4b', paddingTop: '6px', fontWeight: '900', color: '#1e1b4b', fontSize: '11px', textTransform: 'uppercase' }}>Vice Principal</div>
             </div>
             <div style={{ textAlign: 'center', width: '200px' }}>
-              <div style={{ borderTop: '1.5px solid #1e1b4b', paddingTop: '6px', fontWeight: '900', color: '#1e1b4b', fontSize: '9px', textTransform: 'uppercase' }}>Principal / Director</div>
+              <div style={{ borderTop: '1.5px solid #1e1b4b', paddingTop: '6px', fontWeight: '900', color: '#1e1b4b', fontSize: '11px', textTransform: 'uppercase' }}>Principal / Director</div>
             </div>
           </div>
         </div>

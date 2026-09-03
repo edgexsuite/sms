@@ -184,7 +184,12 @@ export default function Login() {
 
       throw new Error('Invalid credentials. Please check your Email/ID and password.');
     } catch (err: any) {
-      setError(err.message || t('login.error') || 'Failed to authenticate.');
+      const rawMsg = err?.message || '';
+      if (rawMsg.toLowerCase().includes('failed to fetch') || rawMsg.toLowerCase().includes('network') || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+        setError('Network connection lost. Please check your internet connection and try again.');
+      } else {
+        setError(err.message || t('login.error') || 'Failed to authenticate.');
+      }
     } finally {
       setLoading(false);
     }

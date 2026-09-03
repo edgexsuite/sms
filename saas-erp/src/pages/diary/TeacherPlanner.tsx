@@ -9,7 +9,7 @@ import {
   Calculator, FlaskConical, PenTool, Book, Globe, Cpu, Palette,
   Users, UserCheck, Sparkles, FileText, Check, AlertCircle, Eye,
   Layers, Clock, Award, ShieldCheck, ClipboardCheck, Calendar,
-  Copy, LayoutGrid, List, FileSpreadsheet, Upload, UploadCloud, FileUp, X
+  Copy, LayoutGrid, List, FileSpreadsheet, Upload, UploadCloud, FileUp, X, Type
 } from 'lucide-react';
 
 import * as XLSX from 'xlsx';
@@ -21,6 +21,7 @@ import { PageHeader, Card, Btn, Badge } from '../../components/ui';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type PlanDuration = 'weekly' | '15days' | 'monthly' | 'custom';
+export type PrintFontSize = 'small' | 'medium' | 'large' | 'xl';
 
 interface Slot {
   class_id: string;
@@ -227,6 +228,125 @@ export default function TeacherPlanner() {
   const [activeDayFilter, setActiveDayFilter] = useState<string>('all');
   const [printLayoutMode, setPrintLayoutMode] = useState<'daywise' | 'subjectwise'>('daywise');
 
+  // Print & PDF Font Size Configuration
+  const [printFontSize, setPrintFontSize] = useState<PrintFontSize>(() => {
+    try {
+      const saved = localStorage.getItem('planner_print_font_size');
+      if (saved && ['small', 'medium', 'large', 'xl'].includes(saved)) {
+        return saved as PrintFontSize;
+      }
+    } catch (e) {}
+    return 'large';
+  });
+
+  const handleSetPrintFontSize = (size: PrintFontSize) => {
+    setPrintFontSize(size);
+    try {
+      localStorage.setItem('planner_print_font_size', size);
+    } catch (e) {}
+  };
+
+  const printFontConfig = useMemo(() => {
+    switch (printFontSize) {
+      case 'small':
+        return {
+          title: '20px',
+          subtitle: '10px',
+          badge: '9.5px',
+          bar: '11px',
+          groupHeader: '11.5px',
+          strip: '10.5px',
+          th: '10px',
+          td: '10.5px',
+          subTd: '9px',
+          signature: '10.5px',
+          lineHeight: '1.3',
+          cellPadding: '6px 5px',
+          pdfTitle: 15,
+          pdfSubTitle: 8.5,
+          pdfDocTitle: 11,
+          pdfMeta: 8.5,
+          pdfGroupHeader: 8.5,
+          pdfHead: 8.5,
+          pdfBody: 7.5,
+          pdfCellPadding: 2,
+          pdfSignature: 8
+        };
+      case 'medium':
+        return {
+          title: '22px',
+          subtitle: '11px',
+          badge: '10px',
+          bar: '12px',
+          groupHeader: '12px',
+          strip: '11px',
+          th: '10.5px',
+          td: '11.5px',
+          subTd: '9.5px',
+          signature: '11px',
+          lineHeight: '1.35',
+          cellPadding: '7px 6px',
+          pdfTitle: 16,
+          pdfSubTitle: 9,
+          pdfDocTitle: 12,
+          pdfMeta: 9,
+          pdfGroupHeader: 9,
+          pdfHead: 9,
+          pdfBody: 8.5,
+          pdfCellPadding: 2.5,
+          pdfSignature: 9
+        };
+      case 'large':
+      default:
+        return {
+          title: '24px',
+          subtitle: '11.5px',
+          badge: '11px',
+          bar: '12.5px',
+          groupHeader: '13px',
+          strip: '12px',
+          th: '11.5px',
+          td: '12.5px',
+          subTd: '10.5px',
+          signature: '11.5px',
+          lineHeight: '1.45',
+          cellPadding: '8px 7px',
+          pdfTitle: 18,
+          pdfSubTitle: 10,
+          pdfDocTitle: 13,
+          pdfMeta: 10,
+          pdfGroupHeader: 10,
+          pdfHead: 9.5,
+          pdfBody: 9,
+          pdfCellPadding: 3,
+          pdfSignature: 9.5
+        };
+      case 'xl':
+        return {
+          title: '26px',
+          subtitle: '12.5px',
+          badge: '12px',
+          bar: '13.5px',
+          groupHeader: '14.5px',
+          strip: '13.5px',
+          th: '12.5px',
+          td: '14px',
+          subTd: '11.5px',
+          signature: '12.5px',
+          lineHeight: '1.5',
+          cellPadding: '9px 8px',
+          pdfTitle: 20,
+          pdfSubTitle: 11,
+          pdfDocTitle: 14,
+          pdfMeta: 10.5,
+          pdfGroupHeader: 11,
+          pdfHead: 10.5,
+          pdfBody: 10,
+          pdfCellPadding: 3.5,
+          pdfSignature: 10.5
+        };
+    }
+  }, [printFontSize]);
 
   // Trigger Native Nastaleeq Day-Wise Print / PDF
   const triggerDayWisePrint = (targetDate?: string) => {
@@ -889,247 +1009,14 @@ export default function TeacherPlanner() {
   };
 
   // ─── Subject-Wise PDF Export ──────────────────────────────────────────────
-  const handleSubjectWisePDFExport = async () => {
-    if (planItems.length === 0) {
-      alert('No lesson plan data found for this selection to export. Please select a class or teacher with subjects.');
-      return;
-    }
-
-    const doc = new jsPDF('l', 'mm', 'a4');
-    const pw = doc.internal.pageSize.width;
-    const ph = doc.internal.pageSize.height;
-
-    // School Header
-    if (schoolInfo?.logo_url) {
-      try {
-        const b64 = await getBase64Image(schoolInfo.logo_url);
-        doc.addImage(b64, 'PNG', 14, 8, 20, 20);
-      } catch (err) {}
-    }
-
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text(schoolInfo?.name || 'School Report', pw / 2, 16, { align: 'center' });
-
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text(schoolInfo?.address || '', pw / 2, 22, { align: 'center' });
-
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    const targetLabel = viewMode === 'class'
-      ? `SUBJECT-WISE CURRICULUM & LESSON PLANNER — ${allClasses.find(c => c.id === selectedClassId)?.name || 'Class'} ${allClasses.find(c => c.id === selectedClassId)?.section || ''}`
-      : `SUBJECT-WISE TEACHER LESSON PLANNER — ${allTeachers.find(t => t.id === (selectedTeacherId || myStaffId))?.full_name || 'Faculty'}`;
-    doc.text(targetLabel.toUpperCase(), pw / 2, 30, { align: 'center' });
-
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Duration: ${duration.toUpperCase()} | Range: ${activeRange.label} | Generated: ${formatDate(new Date())}`, pw / 2, 36, { align: 'center' });
-
-    doc.setDrawColor(200);
-    doc.setLineWidth(0.3);
-    doc.line(14, 39, pw - 14, 39);
-
-    // Build Day-by-Day Comprehensive Table with Section Headers
-    const head = [['Subject / Course', 'Class / Teacher', 'Day & Date', 'Topic / Lesson Covered', 'Classwork & Activities', 'Homework & Assignments', 'Test / Quiz']];
-    const body: any[] = [];
-
-    planItems.forEach(item => {
-      const unitText = item.unit_chapter ? `Unit / Chapter: ${item.unit_chapter}` : 'Unit / Chapter: In Progress';
-      const outcomesText = item.learning_outcomes ? ` | Outcomes: ${item.learning_outcomes}` : '';
-      
-      body.push([
-        {
-          content: `${item.subject_name.toUpperCase()} (${item.class_name}) — Teacher: ${item.teacher_name || 'Faculty'}\n${unitText}${outcomesText}`,
-          colSpan: 7,
-          styles: { fillColor: [240, 244, 255], textColor: [30, 58, 138], fontStyle: 'bold', fontSize: 8, cellPadding: 3 }
-        }
-      ]);
-
-      rangeDays.forEach((d, dayIndex) => {
-        let dayDetail = item.days?.[d.date];
-        if (!dayDetail || (!dayDetail.topic && !dayDetail.classwork && !dayDetail.homework && !dayDetail.quiz_test)) {
-          const entry = Object.entries(item.days || {}).find(([k, v]) => (k === d.date || k.includes(d.date) || d.date.includes(k)) && (v.topic || v.classwork || v.homework || v.quiz_test));
-          if (entry) dayDetail = entry[1];
-        }
-        if (!dayDetail || (!dayDetail.topic && !dayDetail.classwork && !dayDetail.homework && !dayDetail.quiz_test)) {
-          const allDayVals = Object.values(item.days || {});
-          if (allDayVals[dayIndex] && (allDayVals[dayIndex].topic || allDayVals[dayIndex].classwork || allDayVals[dayIndex].homework || allDayVals[dayIndex].quiz_test)) {
-            dayDetail = allDayVals[dayIndex];
-          }
-        }
-        dayDetail = dayDetail || { topic: '', classwork: '', homework: '', quiz_test: '' };
-
-        body.push([
-          item.subject_name,
-          viewMode === 'class' ? (item.teacher_name || 'Faculty') : item.class_name,
-          `${d.dayShort}\n${d.formattedDate}`,
-          dayDetail.topic || '—',
-          dayDetail.classwork || '—',
-          dayDetail.homework || '—',
-          dayDetail.quiz_test || '—',
-        ]);
-      });
-    });
-
-    autoTable(doc, {
-      startY: 42,
-      head: head,
-      body: body,
-      theme: 'grid',
-      headStyles: { fillColor: [13, 21, 38], textColor: 255, fontStyle: 'bold', fontSize: 8 },
-      styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-      columnStyles: {
-        0: { cellWidth: 26, fontStyle: 'bold' },
-        1: { cellWidth: 26 },
-        2: { cellWidth: 24, fontStyle: 'bold', halign: 'center' },
-        3: { cellWidth: 55 },
-        4: { cellWidth: 55 },
-        5: { cellWidth: 55 },
-        6: { cellWidth: 25 },
-      },
-    });
-
-    const finalY = (doc as any).lastAutoTable.finalY + 12;
-    if (finalY < ph - 25) {
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
-      doc.text('_____________________________', 20, finalY);
-      doc.text('Subject Teacher Signature', 20, finalY + 5);
-
-      doc.text('_____________________________', pw / 2 - 25, finalY);
-      doc.text('Class Incharge Signature', pw / 2 - 25, finalY + 5);
-
-      doc.text('_____________________________', pw - 70, finalY);
-      doc.text('Principal / Coordinator Approval', pw - 70, finalY + 5);
-    }
-
-    doc.save(`SubjectWise_Planner_${duration}_${activeRange.start}.pdf`);
+  // ─── High-Definition Urdu Nastaleeq PDF & Print Handlers ──────────────────
+  // Native HTML Print/PDF engine preserves full HarfBuzz Urdu Nastaleeq typography and RTL ligatures
+  const handleSubjectWisePDFExport = () => {
+    triggerSubjectWisePrint();
   };
 
-  // ─── Day-Wise PDF Export ───────────────────────────────────────────────────
-  const handleDayWisePDFExport = async (targetDate?: string) => {
-    if (planItems.length === 0) {
-      alert('No lesson plan data found for this selection to export.');
-      return;
-    }
-
-    const doc = new jsPDF('l', 'mm', 'a4');
-    const pw = doc.internal.pageSize.width;
-    const ph = doc.internal.pageSize.height;
-
-    // School Header
-    if (schoolInfo?.logo_url) {
-      try {
-        const b64 = await getBase64Image(schoolInfo.logo_url);
-        doc.addImage(b64, 'PNG', 14, 8, 20, 20);
-      } catch (err) {}
-    }
-
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text(schoolInfo?.name || 'School Report', pw / 2, 16, { align: 'center' });
-
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text(schoolInfo?.address || '', pw / 2, 22, { align: 'center' });
-
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    const targetLabel = viewMode === 'class'
-      ? `DAY-WISE CLASS LESSON SCHEDULE — ${allClasses.find(c => c.id === selectedClassId)?.name || 'Class'} ${allClasses.find(c => c.id === selectedClassId)?.section || ''}`
-      : `DAY-WISE TEACHER LESSON SCHEDULE — ${allTeachers.find(t => t.id === (selectedTeacherId || myStaffId))?.full_name || 'Faculty'}`;
-    doc.text(targetLabel.toUpperCase(), pw / 2, 30, { align: 'center' });
-
-    const daysToExport = targetDate ? rangeDays.filter(d => d.date === targetDate) : rangeDays;
-
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    const subTitle = targetDate 
-      ? `Day: ${daysToExport[0]?.dayName || ''} (${daysToExport[0]?.formattedDate || targetDate}) | Generated: ${formatDate(new Date())}`
-      : `Duration: ${duration.toUpperCase()} | Range: ${activeRange.label} | Generated: ${formatDate(new Date())}`;
-    doc.text(subTitle, pw / 2, 36, { align: 'center' });
-
-    doc.setDrawColor(200);
-    doc.setLineWidth(0.3);
-    doc.line(14, 39, pw - 14, 39);
-
-    const head = [['Subject / Course', 'Class', 'Teacher', 'Topic / Lesson Covered', 'Classwork & Activities', 'Homework & Assignments', 'Test / Quiz']];
-    const body: any[] = [];
-
-    daysToExport.forEach((d, dayIndex) => {
-      body.push([
-        {
-          content: `${d.dayName.toUpperCase()} — Date: ${d.formattedDate}`,
-          colSpan: 7,
-          styles: { fillColor: [13, 21, 38], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9, cellPadding: 3.5 }
-        }
-      ]);
-
-      planItems.forEach(item => {
-        let dayDetail = item.days?.[d.date];
-        if (!dayDetail || (!dayDetail.topic && !dayDetail.classwork && !dayDetail.homework && !dayDetail.quiz_test)) {
-          const entry = Object.entries(item.days || {}).find(([k, v]) => (k === d.date || k.includes(d.date) || d.date.includes(k)) && (v.topic || v.classwork || v.homework || v.quiz_test));
-          if (entry) dayDetail = entry[1];
-        }
-        if (!dayDetail || (!dayDetail.topic && !dayDetail.classwork && !dayDetail.homework && !dayDetail.quiz_test)) {
-          const allDayVals = Object.values(item.days || {});
-          if (allDayVals[dayIndex] && (allDayVals[dayIndex].topic || allDayVals[dayIndex].classwork || allDayVals[dayIndex].homework || allDayVals[dayIndex].quiz_test)) {
-            dayDetail = allDayVals[dayIndex];
-          }
-        }
-        dayDetail = dayDetail || { topic: '', classwork: '', homework: '', quiz_test: '' };
-
-        body.push([
-          item.subject_name,
-          item.class_name,
-          item.teacher_name || 'Faculty',
-          dayDetail.topic || '—',
-          dayDetail.classwork || '—',
-          dayDetail.homework || '—',
-          dayDetail.quiz_test || '—',
-        ]);
-      });
-    });
-
-    autoTable(doc, {
-      startY: 42,
-      head: head,
-      body: body,
-      theme: 'grid',
-      headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 8 },
-      styles: { fontSize: 7.5, cellPadding: 2.5, overflow: 'linebreak' },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-      columnStyles: {
-        0: { cellWidth: 28, fontStyle: 'bold' },
-        1: { cellWidth: 20 },
-        2: { cellWidth: 28 },
-        3: { cellWidth: 62 },
-        4: { cellWidth: 55 },
-        5: { cellWidth: 55 },
-        6: { cellWidth: 22 },
-      },
-    });
-
-    const finalY = (doc as any).lastAutoTable.finalY + 12;
-    if (finalY < ph - 25) {
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
-      doc.text('_____________________________', 20, finalY);
-      doc.text('Subject Teacher Signature', 20, finalY + 5);
-
-      doc.text('_____________________________', pw / 2 - 25, finalY);
-      doc.text('Class Incharge Signature', pw / 2 - 25, finalY + 5);
-
-      doc.text('_____________________________', pw - 70, finalY);
-      doc.text('Principal / Coordinator Approval', pw - 70, finalY + 5);
-    }
-
-    const filename = targetDate
-      ? `Day_Lesson_Plan_${targetDate}.pdf`
-      : `DayWise_Lesson_Planner_${duration}_${activeRange.start}.pdf`;
-    doc.save(filename);
+  const handleDayWisePDFExport = (targetDate?: string) => {
+    triggerDayWisePrint(targetDate);
   };
 
   const selectedClsObj = allClasses.find(c => c.id === selectedClassId);
@@ -1145,9 +1032,10 @@ export default function TeacherPlanner() {
       {/* ── Urdu Nastaleeq & Print Layout Stylesheet ── */}
       <style>{`
         .urdu-text, .font-nastaleeq {
-          font-family: 'Noto Nastaliq Urdu', 'Inter', serif !important;
+          font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Nafees Nastaleeq', 'Urdu Typesetting', 'Inter', serif !important;
           unicode-bidi: plaintext;
           text-align: start;
+          line-height: 1.8 !important;
         }
         @media print {
           body { background: white !important; margin: 0 !important; padding: 0 !important; }
@@ -1161,9 +1049,10 @@ export default function TeacherPlanner() {
             margin: 0 !important;
           }
           .urdu-text, .font-nastaleeq {
-            font-family: 'Noto Nastaliq Urdu', 'Inter', serif !important;
+            font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Nafees Nastaleeq', 'Urdu Typesetting', 'Inter', serif !important;
             unicode-bidi: plaintext !important;
             text-align: start !important;
+            line-height: 1.8 !important;
           }
           table { page-break-after: auto; width: 100% !important; border-collapse: collapse !important; }
           tr { page-break-inside: avoid !important; }
@@ -1219,61 +1108,105 @@ export default function TeacherPlanner() {
 
             <div className="h-6 w-px bg-slate-200 mx-0.5 hidden sm:block" />
 
-            {/* Print & PDF Dropdown */}
+            {/* Print & PDF Dropdown with Font Size Selector */}
             <div className="relative" ref={exportMenuRef}>
               <button
                 type="button"
                 onClick={() => setShowExportMenu(!showExportMenu)}
-                className="h-9 px-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 text-indigo-700 text-xs font-black flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                className="h-9 px-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 text-indigo-700 text-xs font-black flex items-center gap-2 transition-all shadow-2xs cursor-pointer"
+                title="Print or Export Lesson Planner to PDF"
               >
-                <Printer className="w-4 h-4 text-indigo-600" />
-                <span>Print & PDF</span>
+                <Printer className="w-4 h-4 text-indigo-600 shrink-0" />
+                <span>Print &amp; PDF</span>
+                <span className="text-[10px] uppercase font-black bg-indigo-200/70 text-indigo-800 px-1.5 py-0.5 rounded-md">
+                  {printFontSize}
+                </span>
                 <ChevronRight className={cn('w-3.5 h-3.5 transition-transform', showExportMenu ? '-rotate-90' : 'rotate-90')} />
               </button>
 
               {showExportMenu && (
-                <div className="absolute right-0 top-full mt-1.5 w-60 bg-white rounded-2xl shadow-xl border border-slate-200 p-1.5 z-40 space-y-1 animate-in fade-in-50 zoom-in-95 duration-100">
-                  <button
-                    onClick={() => {
-                      setShowExportMenu(false);
-                      triggerDayWisePrint();
-                    }}
-                    className="w-full px-3 py-2 text-left rounded-xl hover:bg-indigo-50/70 text-slate-700 hover:text-indigo-700 text-xs font-black flex items-center gap-2.5 transition-colors cursor-pointer"
-                  >
-                    <Printer className="w-4 h-4 text-indigo-600 shrink-0" />
-                    <div>
-                      <div>Print Gazette (Nastaleeq)</div>
-                      <div className="text-[10px] text-slate-400 font-normal">Day-wise landscape print sheet</div>
+                <div className="absolute right-0 top-full mt-1.5 w-72 sm:w-80 bg-white rounded-2xl shadow-xl border border-slate-200 p-2.5 z-40 space-y-2 animate-in fade-in-50 zoom-in-95 duration-100">
+                  {/* Font Size Selector Before Printing */}
+                  <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-black text-slate-700 flex items-center gap-1.5">
+                        <Type className="w-3.5 h-3.5 text-indigo-600" />
+                        Print / PDF Font Size
+                      </span>
+                      <span className="text-[10px] font-black text-indigo-700 uppercase bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+                        {printFontSize === 'xl' ? 'Extra Large' : printFontSize}
+                      </span>
                     </div>
-                  </button>
+                    <p className="text-[10px] text-slate-500 font-medium">Select text size before printing or exporting:</p>
+                    <div className="grid grid-cols-4 gap-1">
+                      {[
+                        { id: 'small', label: 'Small', sub: '10px' },
+                        { id: 'medium', label: 'Medium', sub: '11.5px' },
+                        { id: 'large', label: 'Large', sub: '12.5px' },
+                        { id: 'xl', label: 'XL', sub: '14px' },
+                      ].map(s => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSetPrintFontSize(s.id as PrintFontSize);
+                          }}
+                          className={cn(
+                            'py-1.5 px-1 text-center rounded-lg font-black transition-all cursor-pointer border text-xs',
+                            printFontSize === s.id
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-indigo-50 hover:text-indigo-700'
+                          )}
+                        >
+                          <div className="leading-tight">{s.label}</div>
+                          <div className={cn("text-[9px] font-medium mt-0.5", printFontSize === s.id ? "text-indigo-100" : "text-slate-400")}>{s.sub}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-                  <button
-                    onClick={() => {
-                      setShowExportMenu(false);
-                      handleDayWisePDFExport(activeDayFilter !== 'all' ? activeDayFilter : undefined);
-                    }}
-                    className="w-full px-3 py-2 text-left rounded-xl hover:bg-indigo-50/70 text-slate-700 hover:text-indigo-700 text-xs font-black flex items-center gap-2.5 transition-colors cursor-pointer"
-                  >
-                    <Download className="w-4 h-4 text-indigo-600 shrink-0" />
-                    <div>
-                      <div>Download Day-Wise PDF</div>
-                      <div className="text-[10px] text-slate-400 font-normal">Standard PDF export</div>
-                    </div>
-                  </button>
+                  <div className="space-y-1.5">
+                    <button
+                      onClick={() => {
+                        setShowExportMenu(false);
+                        triggerDayWisePrint();
+                      }}
+                      className="w-full px-3 py-2.5 text-left rounded-xl hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 text-xs font-black flex items-center gap-2.5 transition-colors cursor-pointer border border-transparent hover:border-indigo-100"
+                    >
+                      <Printer className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-black text-slate-800">Print / Save as PDF</span>
+                          <span className="text-[9px] bg-emerald-100 text-emerald-800 font-black px-1.5 py-0.5 rounded uppercase">Nastaleeq</span>
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-normal mt-0.5">Day-Wise Landscape Gazette ({printFontSize})</div>
+                      </div>
+                    </button>
 
-                  <button
-                    onClick={() => {
-                      setShowExportMenu(false);
-                      triggerSubjectWisePrint();
-                    }}
-                    className="w-full px-3 py-2 text-left rounded-xl hover:bg-indigo-50/70 text-slate-700 hover:text-indigo-700 text-xs font-black flex items-center gap-2.5 transition-colors cursor-pointer"
-                  >
-                    <BookOpen className="w-4 h-4 text-indigo-600 shrink-0" />
-                    <div>
-                      <div>Subject-Wise Syllabus PDF</div>
-                      <div className="text-[10px] text-slate-400 font-normal">Grouped by course/subject</div>
-                    </div>
-                  </button>
+                    <button
+                      onClick={() => {
+                        setShowExportMenu(false);
+                        triggerSubjectWisePrint();
+                      }}
+                      className="w-full px-3 py-2.5 text-left rounded-xl hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 text-xs font-black flex items-center gap-2.5 transition-colors cursor-pointer border border-transparent hover:border-indigo-100"
+                    >
+                      <BookOpen className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-black text-slate-800">Subject-Wise Syllabus PDF</span>
+                          <span className="text-[9px] bg-emerald-100 text-emerald-800 font-black px-1.5 py-0.5 rounded uppercase">Nastaleeq</span>
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-normal mt-0.5">Grouped by Course &amp; SLOs ({printFontSize})</div>
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* PDF Download Guidance Note */}
+                  <div className="p-2 bg-indigo-50/60 border border-indigo-100 rounded-xl text-[10px] text-indigo-900 leading-snug flex items-start gap-1.5">
+                    <span className="shrink-0 text-indigo-600 font-bold">💡</span>
+                    <span>To download as PDF, choose <b>"Save as PDF"</b> under <i>Destination</i> in the print window.</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -1736,27 +1669,27 @@ export default function TeacherPlanner() {
 
           {/* Header */}
           <div style={{ padding: '0 25px', boxSizing: 'border-box' }}>
-            <div style={{ display: 'flex', alignItems: 'center', width: '100%', paddingBottom: '6px', borderBottom: '2px solid #1e1b4b', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', width: '100%', paddingBottom: '8px', borderBottom: '2px solid #1e1b4b', marginBottom: '10px' }}>
               {schoolInfo?.logo_url && (
-                <img src={schoolInfo.logo_url} crossOrigin="anonymous" style={{ width: '50px', height: '50px', objectFit: 'contain', marginRight: '15px' }} alt="logo" />
+                <img src={schoolInfo.logo_url} crossOrigin="anonymous" style={{ width: '55px', height: '55px', objectFit: 'contain', marginRight: '15px' }} alt="logo" />
               )}
               <div style={{ flexGrow: 1, textAlign: 'center' }}>
-                <h1 style={{ fontSize: '20px', fontWeight: '900', color: '#1e1b4b', margin: '0', textTransform: 'uppercase', letterSpacing: '-0.3px' }}>
+                <h1 style={{ fontSize: printFontConfig.title, fontWeight: '900', color: '#1e1b4b', margin: '0', textTransform: 'uppercase', letterSpacing: '-0.3px' }}>
                   {schoolInfo?.name || 'School Planner'}
                 </h1>
-                <p style={{ fontSize: '10px', color: '#475569', fontWeight: '700', margin: '2px 0 0 0' }}>{schoolInfo?.address || ''}</p>
-                <div style={{ marginTop: '4px' }}>
-                  <span style={{ background: '#1e1b4b', color: 'white', padding: '3px 20px', borderRadius: '50px', fontWeight: '900', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                <p style={{ fontSize: printFontConfig.subtitle, color: '#475569', fontWeight: '700', margin: '3px 0 0 0' }}>{schoolInfo?.address || ''}</p>
+                <div style={{ marginTop: '5px' }}>
+                  <span style={{ background: '#1e1b4b', color: 'white', padding: '4px 24px', borderRadius: '50px', fontWeight: '900', fontSize: printFontConfig.badge, textTransform: 'uppercase', letterSpacing: '1px' }}>
                     {viewMode === 'class' ? `Class Lesson Plan: Grade ${selectedClsObj?.name} ${selectedClsObj?.section}` : `Teacher Lesson Plan: ${allTeachers.find(t => t.id === (selectedTeacherId || myStaffId))?.full_name || 'Staff'}`}
                     {' · '}{duration.toUpperCase()} ({activeRange.label})
                   </span>
                 </div>
               </div>
-              <div style={{ width: '50px' }} />
+              <div style={{ width: '55px' }} />
             </div>
 
             {/* Range & Details Bar */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontWeight: '900', fontSize: '11px', border: '1.5px solid #1e1b4b', padding: '6px 15px', background: '#f8fafc', color: '#1e1b4b', borderRadius: '4px', marginBottom: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontWeight: '900', fontSize: printFontConfig.bar, border: '1.5px solid #1e1b4b', padding: '8px 16px', background: '#f8fafc', color: '#1e1b4b', borderRadius: '4px', marginBottom: '12px' }}>
               <span>PERIOD: {activeRange.label} ({rangeDays.length} Teaching Days)</span>
               <span>{viewMode === 'class' ? `CLASS: ${selectedClsObj?.name} ${selectedClsObj?.section}` : `FACULTY: ${allTeachers.find(t => t.id === (selectedTeacherId || myStaffId))?.full_name || 'Assigned Teacher'}`}</span>
             </div>
@@ -1766,24 +1699,24 @@ export default function TeacherPlanner() {
               /* ── Subject-Wise Print Blocks ── */
               <div>
                 {planItems.map((item, itemIdx) => (
-                  <div key={itemIdx} style={{ marginBottom: '16px', pageBreakInside: 'avoid' }}>
+                  <div key={itemIdx} style={{ marginBottom: '18px', pageBreakInside: 'avoid' }}>
                     {/* Subject Header Banner */}
-                    <div style={{ background: '#1e1b4b', color: 'white', padding: '6px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: '4px 4px 0 0' }}>
-                      <span style={{ fontWeight: '900', fontSize: '11px', textTransform: 'uppercase' }}>
+                    <div style={{ background: '#1e1b4b', color: 'white', padding: '8px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: '4px 4px 0 0' }}>
+                      <span style={{ fontWeight: '900', fontSize: printFontConfig.groupHeader, textTransform: 'uppercase' }}>
                         📚 {item.subject_name} ({item.class_name}) — Teacher: {item.teacher_name}
                       </span>
-                      <span style={{ fontSize: '9px', opacity: 0.8, textTransform: 'uppercase' }}>
+                      <span style={{ fontSize: printFontConfig.subtitle, opacity: 0.85, textTransform: 'uppercase' }}>
                         {duration.toUpperCase()} ({activeRange.label})
                       </span>
                     </div>
 
                     {/* Unit & SLOs Strip */}
-                    <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderTop: 'none', padding: '6px 10px', fontSize: '9px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                      <div className="urdu-text" dir="auto" style={{ fontWeight: '800', color: '#1e1b4b' }}>
+                    <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderTop: 'none', padding: '8px 12px', fontSize: printFontConfig.strip, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div className="urdu-text" dir="auto" style={{ fontWeight: '800', color: '#1e1b4b', lineHeight: printFontConfig.lineHeight }}>
                         📖 <strong>Unit / Chapter:</strong> {item.unit_chapter || 'In Progress'}
                       </div>
                       {item.learning_outcomes && (
-                        <div className="urdu-text" dir="auto" style={{ fontWeight: '700', color: '#4338ca' }}>
+                        <div className="urdu-text" dir="auto" style={{ fontWeight: '700', color: '#4338ca', lineHeight: printFontConfig.lineHeight }}>
                           🎯 <strong>Learning Outcomes (SLOs):</strong> {item.learning_outcomes}
                         </div>
                       )}
@@ -1792,33 +1725,33 @@ export default function TeacherPlanner() {
                     {/* Subject Days Table */}
                     <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #1e1b4b', tableLayout: 'fixed' }}>
                       <thead>
-                        <tr style={{ background: '#f1f5f9', color: '#1e1b4b', fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }}>
-                          <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '15%', textAlign: 'center' }}>Day &amp; Date</th>
-                          <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '28%', textAlign: 'center' }}>Topic / Lesson Covered</th>
-                          <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '26%', textAlign: 'center' }}>Classwork &amp; Activities</th>
-                          <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '21%', textAlign: 'center' }}>Homework / Assignment</th>
-                          <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '10%', textAlign: 'center' }}>Quiz / Test</th>
+                        <tr style={{ background: '#f1f5f9', color: '#1e1b4b', fontSize: printFontConfig.th, fontWeight: '900', textTransform: 'uppercase' }}>
+                          <th style={{ border: '1px solid #cbd5e1', padding: printFontConfig.cellPadding, width: '15%', textAlign: 'center' }}>Day &amp; Date</th>
+                          <th style={{ border: '1px solid #cbd5e1', padding: printFontConfig.cellPadding, width: '28%', textAlign: 'center' }}>Topic / Lesson Covered</th>
+                          <th style={{ border: '1px solid #cbd5e1', padding: printFontConfig.cellPadding, width: '26%', textAlign: 'center' }}>Classwork &amp; Activities</th>
+                          <th style={{ border: '1px solid #cbd5e1', padding: printFontConfig.cellPadding, width: '21%', textAlign: 'center' }}>Homework / Assignment</th>
+                          <th style={{ border: '1px solid #cbd5e1', padding: printFontConfig.cellPadding, width: '10%', textAlign: 'center' }}>Quiz / Test</th>
                         </tr>
                       </thead>
                       <tbody>
                         {rangeDays.map((d, dIdx) => {
                           const dayDetail = item.days[d.date] || { topic: '', classwork: '', homework: '', quiz_test: '' };
                           return (
-                            <tr key={dIdx} style={{ background: dIdx % 2 === 0 ? 'white' : '#f8fafc', fontSize: '9.5px' }}>
-                              <td style={{ border: '1px solid #cbd5e1', padding: '6px', fontWeight: '900', textAlign: 'center' }}>
+                            <tr key={dIdx} style={{ background: dIdx % 2 === 0 ? 'white' : '#f8fafc', fontSize: printFontConfig.td }}>
+                              <td style={{ border: '1px solid #cbd5e1', padding: printFontConfig.cellPadding, fontWeight: '900', textAlign: 'center' }}>
                                 <div style={{ color: '#1e1b4b' }}>{d.dayName}</div>
-                                <div style={{ color: '#64748b', fontSize: '8.5px' }}>{d.formattedDate}</div>
+                                <div style={{ color: '#64748b', fontSize: printFontConfig.subTd }}>{d.formattedDate}</div>
                               </td>
-                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'start' }}>
+                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: printFontConfig.cellPadding, verticalAlign: 'top', textAlign: 'start', lineHeight: printFontConfig.lineHeight }}>
                                 {dayDetail.topic || '—'}
                               </td>
-                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'start' }}>
+                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: printFontConfig.cellPadding, verticalAlign: 'top', textAlign: 'start', lineHeight: printFontConfig.lineHeight }}>
                                 {dayDetail.classwork || '—'}
                               </td>
-                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'start' }}>
+                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: printFontConfig.cellPadding, verticalAlign: 'top', textAlign: 'start', lineHeight: printFontConfig.lineHeight }}>
                                 {dayDetail.homework || '—'}
                               </td>
-                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'center' }}>
+                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: printFontConfig.cellPadding, verticalAlign: 'top', textAlign: 'center', lineHeight: printFontConfig.lineHeight }}>
                                 {dayDetail.quiz_test || '—'}
                               </td>
                             </tr>
@@ -1833,40 +1766,40 @@ export default function TeacherPlanner() {
               /* ── Day-Wise Print Blocks ── */
               <div>
                 {displayDays.map(d => (
-                  <div key={d.date} style={{ marginBottom: '14px', pageBreakInside: 'avoid' }}>
-                    <div style={{ background: '#1e1b4b', color: 'white', padding: '4px 10px', fontWeight: '900', fontSize: '10px', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', borderRadius: '3px 3px 0 0' }}>
+                  <div key={d.date} style={{ marginBottom: '16px', pageBreakInside: 'avoid' }}>
+                    <div style={{ background: '#1e1b4b', color: 'white', padding: '6px 12px', fontWeight: '900', fontSize: printFontConfig.groupHeader, textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', borderRadius: '3px 3px 0 0' }}>
                       <span>📅 {d.dayName.toUpperCase()} — {d.formattedDate}</span>
                       <span>{d.date}</span>
                     </div>
                     <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #1e1b4b', tableLayout: 'fixed' }}>
                       <thead>
-                        <tr style={{ background: '#f1f5f9', color: '#1e1b4b', fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }}>
-                          <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '15%', textAlign: 'center' }}>Subject &amp; Teacher</th>
-                          <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '28%', textAlign: 'center' }}>Lesson / Topic Covered</th>
-                          <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '26%', textAlign: 'center' }}>Classwork &amp; In-Class Task</th>
-                          <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '21%', textAlign: 'center' }}>Homework / Assignment</th>
-                          <th style={{ border: '1px solid #cbd5e1', padding: '6px', width: '10%', textAlign: 'center' }}>Quiz / Test</th>
+                        <tr style={{ background: '#f1f5f9', color: '#1e1b4b', fontSize: printFontConfig.th, fontWeight: '900', textTransform: 'uppercase' }}>
+                          <th style={{ border: '1px solid #cbd5e1', padding: printFontConfig.cellPadding, width: '15%', textAlign: 'center' }}>Subject &amp; Teacher</th>
+                          <th style={{ border: '1px solid #cbd5e1', padding: printFontConfig.cellPadding, width: '28%', textAlign: 'center' }}>Lesson / Topic Covered</th>
+                          <th style={{ border: '1px solid #cbd5e1', padding: printFontConfig.cellPadding, width: '26%', textAlign: 'center' }}>Classwork &amp; In-Class Task</th>
+                          <th style={{ border: '1px solid #cbd5e1', padding: printFontConfig.cellPadding, width: '21%', textAlign: 'center' }}>Homework / Assignment</th>
+                          <th style={{ border: '1px solid #cbd5e1', padding: printFontConfig.cellPadding, width: '10%', textAlign: 'center' }}>Quiz / Test</th>
                         </tr>
                       </thead>
                       <tbody>
                         {planItems.map((item, itemIdx) => {
                           const dayDetail = item.days[d.date] || { topic: '', classwork: '', homework: '', quiz_test: '' };
                           return (
-                            <tr key={itemIdx} style={{ background: itemIdx % 2 === 0 ? 'white' : '#f8fafc', fontSize: '9.5px' }}>
-                              <td style={{ border: '1px solid #cbd5e1', padding: '6px', fontWeight: '800', textAlign: 'center' }}>
+                            <tr key={itemIdx} style={{ background: itemIdx % 2 === 0 ? 'white' : '#f8fafc', fontSize: printFontConfig.td }}>
+                              <td style={{ border: '1px solid #cbd5e1', padding: printFontConfig.cellPadding, fontWeight: '800', textAlign: 'center' }}>
                                 <div style={{ color: '#1e1b4b', fontWeight: '900' }}>{item.subject_name}</div>
-                                <div style={{ color: '#64748b', fontSize: '8.5px', marginTop: '2px' }}>{item.class_name} · {item.teacher_name}</div>
+                                <div style={{ color: '#64748b', fontSize: printFontConfig.subTd, marginTop: '2px' }}>{item.class_name} · {item.teacher_name}</div>
                               </td>
-                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'start' }}>
+                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: printFontConfig.cellPadding, verticalAlign: 'top', textAlign: 'start', lineHeight: printFontConfig.lineHeight }}>
                                 {dayDetail.topic || '—'}
                               </td>
-                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'start' }}>
+                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: printFontConfig.cellPadding, verticalAlign: 'top', textAlign: 'start', lineHeight: printFontConfig.lineHeight }}>
                                 {dayDetail.classwork || '—'}
                               </td>
-                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'start' }}>
+                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: printFontConfig.cellPadding, verticalAlign: 'top', textAlign: 'start', lineHeight: printFontConfig.lineHeight }}>
                                 {dayDetail.homework || '—'}
                               </td>
-                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: '6px', verticalAlign: 'top', textAlign: 'center' }}>
+                              <td className="urdu-text" dir="auto" style={{ border: '1px solid #cbd5e1', padding: printFontConfig.cellPadding, verticalAlign: 'top', textAlign: 'center', lineHeight: printFontConfig.lineHeight }}>
                                 {dayDetail.quiz_test || '—'}
                               </td>
                             </tr>
@@ -1881,14 +1814,14 @@ export default function TeacherPlanner() {
 
             {/* Signature Area */}
             <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', margin: '30px 0 10px 0', pageBreakInside: 'avoid' }}>
-              <div style={{ textAlign: 'center', width: '200px' }}>
-                <div style={{ borderTop: '1.5px solid #1e1b4b', paddingTop: '6px', fontWeight: '900', color: '#1e1b4b', fontSize: '10px', textTransform: 'uppercase' }}>Subject Teacher Signature</div>
+              <div style={{ textAlign: 'center', width: '220px' }}>
+                <div style={{ borderTop: '1.5px solid #1e1b4b', paddingTop: '6px', fontWeight: '900', color: '#1e1b4b', fontSize: printFontConfig.signature, textTransform: 'uppercase' }}>Subject Teacher Signature</div>
               </div>
-              <div style={{ textAlign: 'center', width: '200px' }}>
-                <div style={{ borderTop: '1.5px solid #1e1b4b', paddingTop: '6px', fontWeight: '900', color: '#1e1b4b', fontSize: '10px', textTransform: 'uppercase' }}>Class Incharge Signature</div>
+              <div style={{ textAlign: 'center', width: '220px' }}>
+                <div style={{ borderTop: '1.5px solid #1e1b4b', paddingTop: '6px', fontWeight: '900', color: '#1e1b4b', fontSize: printFontConfig.signature, textTransform: 'uppercase' }}>Class Incharge Signature</div>
               </div>
-              <div style={{ textAlign: 'center', width: '200px' }}>
-                <div style={{ borderTop: '1.5px solid #1e1b4b', paddingTop: '6px', fontWeight: '900', color: '#1e1b4b', fontSize: '10px', textTransform: 'uppercase' }}>Principal / Coordinator</div>
+              <div style={{ textAlign: 'center', width: '220px' }}>
+                <div style={{ borderTop: '1.5px solid #1e1b4b', paddingTop: '6px', fontWeight: '900', color: '#1e1b4b', fontSize: printFontConfig.signature, textTransform: 'uppercase' }}>Principal / Coordinator</div>
               </div>
             </div>
           </div>

@@ -101,7 +101,7 @@ export default function DashboardLayout() {
         .eq('id', userRole.school_id)
         .maybeSingle();
 
-      if (!data || data.status !== 'demo' || !data.demo_expires_at) return;
+      if (!data || !data.demo_expires_at || data.status === 'suspended' || data.status === 'expired') return;
 
       const expiresAt = new Date(data.demo_expires_at);
       const now = new Date();
