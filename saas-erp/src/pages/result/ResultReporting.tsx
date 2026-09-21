@@ -502,7 +502,7 @@ export default function ResultReporting() {
           <label className="block text-xs font-bold text-gray-600 uppercase mb-2">Exam</label>
           <select value={selectedExamType} onChange={e => setSelectedExamType(e.target.value)} className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-medium text-sm">
             <option value="">-- Select Exam --</option>
-            {examTypes.map(e => <option key={e.id} value={e.id}>{e.name} ({e.session})</option>)}
+            {examTypes.map(e => <option key={e.id} value={e.id}>{e.name}{e.month_year ? ` — ${e.month_year}` : ''} ({e.session})</option>)}
           </select>
         </div>
         <div>

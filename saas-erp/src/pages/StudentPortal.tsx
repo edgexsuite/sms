@@ -110,11 +110,12 @@ export default function StudentPortal() {
   const fetchResults = async () => {
     const { data } = await supabase
       .from('exam_results')
-      .select('obtained_marks, total_marks, grade, exam_types(name), subjects(subject_name)')
+      .select('id, exam_type_id, obtained_marks, total_marks, grade, is_absent, remarks, created_at, exam_types(id, name, session, month_year, show_pass_fail, weightage), subjects(id, subject_name)')
       .eq('student_id', studentData!.id)
       .order('created_at', { ascending: false });
     setResults(data || []);
   };
+
 
   const fetchNotices = async () => {
     const { data } = await supabase
@@ -760,83 +761,278 @@ function ResultsTab({ results }: { results: any[] }) {
     return (
       <div className="bg-white rounded-3xl border border-gray-100 p-16 text-center shadow-sm">
         <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-6">
-          <Trophy className="w-10 h-10 text-indigo-200" />
+          <Trophy className="w-10 h-10 text-indigo-300" />
         </div>
-        <p className="text-gray-900 font-black text-lg">Results pending</p>
-        <p className="text-gray-400 text-sm mt-1 max-w-xs mx-auto">No exam results has been recorded for your account yet.</p>
+        <p className="text-gray-900 font-black text-lg">Results Pending</p>
+        <p className="text-gray-400 text-sm mt-1 max-w-xs mx-auto">No exam results have been recorded for your account yet.</p>
       </div>
     );
   }
 
-  // Group by exam type
-  const examGroups = new Map<string, any[]>();
+  const MONTH_NAMES = [
+    'January','February','March','April','May','June',
+    'July','August','September','October','November','December',
+  ];
+
+  const formatMonthYear = (my?: string | null) => {
+    if (!my) return null;
+    const [y, m] = my.split('-');
+    const mIdx = parseInt(m, 10) - 1;
+    if (isNaN(mIdx) || mIdx < 0 || mIdx > 11) return my;
+    return `${MONTH_NAMES[mIdx]} ${y}`;
+  };
+
+  // Group by unique exam_type_id
+  const examMap = new Map<string, {
+    info: {
+      id: string;
+      name: string;
+      session?: string;
+      month_year?: string | null;
+      show_pass_fail?: boolean;
+      weightage?: number;
+    };
+    items: any[];
+  }>();
+
   results.forEach(r => {
-    const exam = r.exam_types?.name || 'General';
-    if (!examGroups.has(exam)) examGroups.set(exam, []);
-    examGroups.get(exam)!.push(r);
+    const et = r.exam_types;
+    const key = r.exam_type_id || et?.id || et?.name || 'general';
+    if (!examMap.has(key)) {
+      examMap.set(key, {
+        info: {
+          id: key,
+          name: et?.name || 'Examination',
+          session: et?.session || '',
+          month_year: et?.month_year || null,
+          show_pass_fail: et?.show_pass_fail !== false,
+          weightage: et?.weightage || 0,
+        },
+        items: [],
+      });
+    }
+    examMap.get(key)!.items.push(r);
   });
+
+  const availableExams = Array.from(examMap.values());
+  const [selectedExamId, setSelectedExamId] = React.useState<string>(() => availableExams[0]?.info.id || '');
+
+  React.useEffect(() => {
+    if (availableExams.length > 0 && (!selectedExamId || !examMap.has(selectedExamId))) {
+      setSelectedExamId(availableExams[0].info.id);
+    }
+  }, [results]);
+
+  const activeExamGroup = examMap.get(selectedExamId) || availableExams[0];
+  const items = activeExamGroup?.items || [];
+  const examInfo = activeExamGroup?.info;
+
+  // Compute metrics for the selected exam
+  const totalObtained = items.reduce((s, r) => s + (r.is_absent ? 0 : (Number(r.obtained_marks) || 0)), 0);
+  const totalMax = items.reduce((s, r) => s + (Number(r.total_marks) || 0), 0);
+  const overallPct = totalMax > 0 ? Math.round((totalObtained / totalMax) * 100) : 0;
+
+  const passedCount = items.filter(r => !r.is_absent && r.grade !== 'F' && r.grade !== 'Ab' && (r.total_marks > 0 ? (r.obtained_marks / r.total_marks) >= 0.33 : false)).length;
+  const absentCount = items.filter(r => r.is_absent || r.grade === 'Ab').length;
+  const failedCount = items.length - passedCount - absentCount;
 
   return (
     <div className="space-y-6">
-      {Array.from(examGroups.entries()).map(([examName, items]) => {
-        const totalObtained = items.reduce((s, r) => s + (Number(r.obtained_marks) || 0), 0);
-        const totalMax = items.reduce((s, r) => s + (Number(r.total_marks) || 0), 0);
-        const overall = totalMax > 0 ? Math.round((totalObtained / totalMax) * 100) : 0;
-
-        return (
-          <div key={examName} className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="font-black text-gray-900">{examName}</h3>
-              <div className={`px-3 py-1 rounded-lg text-[10px] font-black ${
-                overall >= 60 ? 'bg-emerald-100 text-emerald-700' : overall >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
-              }`}>
-                {overall}% OVERALL
-              </div>
+      {/* ── Exam Selection Bar ── */}
+      <div className="bg-white rounded-3xl border border-gray-100 p-5 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black">
+              <Trophy className="w-5 h-5" />
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-50">
-                    <th className="text-left px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Subject</th>
-                    <th className="text-center px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Marks</th>
-                    <th className="text-center px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Grade</th>
-                    <th className="text-center px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {items.map((r, i) => {
-                    const pct = r.total_marks > 0 ? Math.round((r.obtained_marks / r.total_marks) * 100) : 0;
-                    const pass = pct >= 40;
-                    return (
-                      <tr key={i} className="hover:bg-gray-50/50 transition">
-                        <td className="px-6 py-4 font-bold text-gray-900 leading-tight">{(r.subjects as any)?.subject_name || '—'}</td>
-                        <td className="px-4 py-4 text-center font-black text-gray-900">
-                          {r.obtained_marks}<span className="text-gray-300 font-medium text-xs">/{r.total_marks}</span>
-                        </td>
-                        <td className="px-4 py-4 text-center">
-                          <span className="w-9 h-9 rounded-xl bg-gray-900 text-white text-xs font-black inline-flex items-center justify-center shadow-sm">
-                            {r.grade || '—'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 text-center">
-                          <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg tracking-wider ${
-                            pass ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
-                          }`}>
-                            {pass ? 'PASS' : 'FAIL'}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div>
+              <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Selected Examination</p>
+              <h2 className="text-base font-black text-gray-900 leading-tight">
+                {examInfo?.name} {examInfo?.month_year && `(${formatMonthYear(examInfo.month_year)})`}
+              </h2>
             </div>
           </div>
-        );
-      })}
+
+          <div className="flex items-center gap-2">
+            <label htmlFor="student-exam-select" className="text-xs font-bold text-gray-500 whitespace-nowrap hidden md:inline">
+              Choose Exam:
+            </label>
+            <select
+              id="student-exam-select"
+              value={selectedExamId}
+              onChange={e => setSelectedExamId(e.target.value)}
+              className="w-full sm:w-auto px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-black text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition cursor-pointer"
+            >
+              {availableExams.map(ex => {
+                const my = formatMonthYear(ex.info.month_year);
+                return (
+                  <option key={ex.info.id} value={ex.info.id}>
+                    {ex.info.name}{my ? ` — ${my}` : ''}{ex.info.session ? ` (${ex.info.session})` : ''} [{ex.items.length} Subjects]
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+        </div>
+
+        {/* Metadata Chips */}
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-50 text-[11px] font-bold text-gray-500">
+          <span className="px-2.5 py-1 bg-gray-100 rounded-lg text-gray-700">
+            Session: <b className="text-gray-900">{examInfo?.session || 'Current'}</b>
+          </span>
+          {examInfo?.month_year && (
+            <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg">
+              Month: <b className="text-indigo-950">{formatMonthYear(examInfo.month_year)}</b>
+            </span>
+          )}
+          {examInfo?.weightage ? (
+            <span className="px-2.5 py-1 bg-violet-50 text-violet-700 rounded-lg">
+              Weightage: <b className="text-violet-950">{examInfo.weightage}%</b>
+            </span>
+          ) : null}
+          <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-slate-600 ml-auto">
+            {items.length} Subject{items.length !== 1 ? 's' : ''} Evaluated
+          </span>
+        </div>
+      </div>
+
+      {/* ── Summary Metrics Bar ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm text-center">
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Obtained</p>
+          <p className="text-2xl font-black text-gray-900 mt-1">
+            {totalObtained} <span className="text-xs text-gray-400 font-semibold">/ {totalMax}</span>
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm text-center">
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Overall Percentage</p>
+          <p className={`text-2xl font-black mt-1 ${
+            overallPct >= 60 ? 'text-emerald-600' : overallPct >= 40 ? 'text-amber-600' : 'text-rose-600'
+          }`}>
+            {overallPct}%
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm text-center">
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Passed Subjects</p>
+          <p className="text-2xl font-black text-emerald-600 mt-1">
+            {passedCount} <span className="text-xs text-gray-400 font-semibold">/ {items.length}</span>
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm text-center">
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Result Status</p>
+          <p className="mt-1">
+            <span className={`inline-flex items-center px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase ${
+              failedCount === 0 && absentCount === 0
+                ? 'bg-emerald-100 text-emerald-800'
+                : absentCount > 0
+                ? 'bg-amber-100 text-amber-800'
+                : 'bg-rose-100 text-rose-800'
+            }`}>
+              {failedCount === 0 && absentCount === 0 ? 'PASSED' : absentCount > 0 ? `${absentCount} ABSENT` : 'NEEDS ATTENTION'}
+            </span>
+          </p>
+        </div>
+      </div>
+
+      {/* ── Subject Breakdown Table ── */}
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 bg-gray-50/70 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-black text-gray-900 text-sm">Subject Breakdown</h3>
+          <span className="text-xs font-bold text-gray-400">Passing criteria: 33%</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50/30">
+                <th className="text-left px-6 py-3.5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Subject</th>
+                <th className="text-center px-4 py-3.5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Marks</th>
+                <th className="text-center px-4 py-3.5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Total</th>
+                <th className="text-center px-4 py-3.5 text-[10px] font-black text-gray-400 uppercase tracking-widest">%</th>
+                <th className="text-center px-4 py-3.5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Grade</th>
+                <th className="text-center px-4 py-3.5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
+                <th className="text-left px-4 py-3.5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Remarks</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {items.map((r, i) => {
+                const isAbsent = r.is_absent || r.grade === 'Ab';
+                const pct = !isAbsent && r.total_marks > 0 ? Math.round((r.obtained_marks / r.total_marks) * 100) : 0;
+                const isPass = !isAbsent && (r.total_marks > 0 ? (r.obtained_marks / r.total_marks) >= 0.33 : false);
+
+                return (
+                  <tr key={r.id || i} className="hover:bg-gray-50/50 transition">
+                    <td className="px-6 py-4 font-bold text-gray-900 leading-tight">
+                      {(r.subjects as any)?.subject_name || '—'}
+                    </td>
+                    <td className="px-4 py-4 text-center font-black text-gray-900">
+                      {isAbsent ? (
+                        <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-md text-xs font-black">
+                          Absent
+                        </span>
+                      ) : (
+                        r.obtained_marks ?? '—'
+                      )}
+                    </td>
+                    <td className="px-4 py-4 text-center text-gray-500 font-semibold">
+                      {r.total_marks ?? '—'}
+                    </td>
+                    <td className="px-4 py-4 text-center font-semibold text-gray-700">
+                      {isAbsent ? '—' : `${pct}%`}
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      <span className={`w-8 h-8 rounded-xl text-xs font-black inline-flex items-center justify-center shadow-2xs ${
+                        isAbsent
+                          ? 'bg-amber-100 text-amber-800'
+                          : r.grade === 'A+' || r.grade === 'A'
+                          ? 'bg-emerald-600 text-white'
+                          : r.grade === 'B' || r.grade === 'C'
+                          ? 'bg-indigo-600 text-white'
+                          : r.grade === 'D'
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-rose-600 text-white'
+                      }`}>
+                        {isAbsent ? 'Ab' : (r.grade || '—')}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg tracking-wider uppercase ${
+                        isAbsent
+                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                          : isPass
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-rose-50 text-rose-700 border border-rose-200'
+                      }`}>
+                        {isAbsent ? 'ABSENT' : isPass ? 'PASS' : 'FAIL'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-xs text-gray-400 font-medium">
+                      {r.remarks || '—'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot className="border-t border-gray-200 bg-gray-50/80 font-black">
+              <tr>
+                <td className="px-6 py-3.5 text-gray-800">Total</td>
+                <td className="px-4 py-3.5 text-center text-gray-900">{totalObtained}</td>
+                <td className="px-4 py-3.5 text-center text-gray-600">{totalMax}</td>
+                <td className="px-4 py-3.5 text-center text-indigo-600">{overallPct}%</td>
+                <td colSpan={3} className="px-4 py-3.5 text-right text-xs text-gray-500 font-semibold">
+                  {passedCount} Passed • {failedCount} Failed • {absentCount} Absent
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
+
 
 // ─── Fees Tab ─────────────────────────────────────────────────────────────────
 function FeesTab({ fees, pendingFees, fmt }: { fees: any[]; pendingFees: number; fmt: (n: number) => string }) {

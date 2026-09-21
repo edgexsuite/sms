@@ -48,6 +48,7 @@ export default function ImportResult() {
   const [classes, setClasses]     = useState<any[]>([]);
   const [subjects, setSubjects]   = useState<any[]>([]);
   const [students, setStudents]   = useState<any[]>([]);
+  const [examConfigs, setExamConfigs] = useState<Record<string, { total_marks: number; passing_marks: number }>>({});
 
   const [selectedExam,  setSelectedExam]  = useState('');
   const [selectedClass, setSelectedClass] = useState('');
@@ -60,11 +61,20 @@ export default function ImportResult() {
   const [saveError,  setSaveError]  = useState('');
 
   useEffect(() => { if (userRole?.school_id) fetchInit(); }, [userRole]);
+
   useEffect(() => {
     if (selectedClass) { fetchSubjects(); fetchStudents(); }
-    else { setSubjects([]); setStudents([]); }
+    else { setSubjects([]); setStudents([]); setExamConfigs({}); }
     setRows([]); setStep(1); setSaved(false); setSaveError('');
   }, [selectedClass]);
+
+  useEffect(() => {
+    if (selectedClass && selectedExam) {
+      fetchExamConfigs();
+    } else {
+      setExamConfigs({});
+    }
+  }, [selectedClass, selectedExam]);
 
   const fetchInit = async () => {
     const [{ data: et }, { data: cls }] = await Promise.all([
@@ -82,11 +92,31 @@ export default function ImportResult() {
     setSubjects(data || []);
   };
 
+  const fetchExamConfigs = async () => {
+    const { data } = await supabase.from('exam_subject_config')
+      .select('subject_id, total_marks, passing_marks')
+      .eq('exam_type_id', selectedExam)
+      .eq('class_id', selectedClass);
+    const map: Record<string, { total_marks: number; passing_marks: number }> = {};
+    (data || []).forEach(c => {
+      map[c.subject_id] = { total_marks: Number(c.total_marks), passing_marks: Number(c.passing_marks) };
+    });
+    setExamConfigs(map);
+  };
+
   const fetchStudents = async () => {
     const { data } = await supabase.from('students')
       .select('id,full_name,roll_number')
       .eq('class_id', selectedClass).eq('status', 'active').order('roll_number');
     setStudents(data || []);
+  };
+
+  const getSubjectMarks = (subj: any) => {
+    const cfg = examConfigs[subj.id];
+    return {
+      total: cfg?.total_marks ?? Number(subj.total_marks ?? 100),
+      passing: cfg?.passing_marks ?? Number(subj.passing_marks ?? 33),
+    };
   };
 
   /* ── Download template ─────────────────────────────────────────── */
@@ -109,12 +139,15 @@ export default function ImportResult() {
       [''],
       ['• Do NOT modify column headers (Row 1)'],
       ['• Roll No must match exactly as in the system'],
-      ['• Enter marks as numbers; leave blank for absent'],
-      ['• Each subject column uses that subject\'s total/passing marks from system'],
+      ['• Enter marks as numbers; leave blank or enter "Ab" for absent'],
+      ['• Each subject column uses that subject\'s total/passing marks from system/exam config'],
       [''],
       ['Subject details:'],
       ['Subject', 'Total Marks', 'Passing Marks'],
-      ...subjects.map(s => [s.subject_name, s.total_marks, s.passing_marks]),
+      ...subjects.map(s => {
+        const m = getSubjectMarks(s);
+        return [s.subject_name, m.total, m.passing];
+      }),
     ];
     const wsInfo = XLSX.utils.aoa_to_sheet(info);
     wsInfo['!cols'] = [{ wch: 30 }, { wch: 14 }, { wch: 14 }];
@@ -162,22 +195,25 @@ export default function ImportResult() {
                 total_marks: 100, passing_marks: 33,
                 obtained: null, grade: null, error: 'Subject not found in DB',
               };
+              const { total: totalMarks, passing: passingMarks } = getSubjectMarks(dbSubject);
               const rawVal = row[i + 2];
-              const obtained = rawVal === '' || rawVal === undefined || rawVal === null
-                ? null : Number(rawVal);
-              if (obtained !== null && (isNaN(obtained) || obtained < 0 || obtained > dbSubject.total_marks)) {
+              const strVal = String(rawVal ?? '').trim().toLowerCase();
+              const isAbsent = strVal === '' || strVal === 'ab' || strVal === 'absent' || strVal === 'a';
+              const obtained = isAbsent ? null : Number(rawVal);
+
+              if (!isAbsent && (isNaN(obtained!) || obtained! < 0 || obtained! > totalMarks)) {
                 return {
                   subject_id: dbSubject.id, subject_name: sName,
-                  total_marks: dbSubject.total_marks, passing_marks: dbSubject.passing_marks,
+                  total_marks: totalMarks, passing_marks: passingMarks,
                   obtained: null, grade: null,
-                  error: `Must be 0–${dbSubject.total_marks}`,
+                  error: `Must be 0–${totalMarks}`,
                 };
               }
-              const grade = obtained === null ? null
-                : getGrade((obtained / dbSubject.total_marks) * 100);
+              const grade = obtained === null ? 'Ab'
+                : getGrade((obtained / totalMarks) * 100);
               return {
                 subject_id: dbSubject.id, subject_name: sName,
-                total_marks: dbSubject.total_marks, passing_marks: dbSubject.passing_marks,
+                total_marks: totalMarks, passing_marks: passingMarks,
                 obtained, grade,
               };
             });
@@ -208,25 +244,26 @@ export default function ImportResult() {
     rows.forEach(student => {
       if (!student.found || !student.student_id) return;
       student.subjects.forEach(sm => {
-        if (!sm.subject_id || sm.obtained === null || sm.error) return;
+        if (!sm.subject_id || sm.error) return;
+        const isAbsent = sm.obtained === null;
         inserts.push({
           school_id:      userRole!.school_id,
           student_id:     student.student_id,
           exam_type_id:   selectedExam,
           subject_id:     sm.subject_id,
           class_id:       selectedClass,
-          obtained_marks: sm.obtained,
+          obtained_marks: isAbsent ? 0 : sm.obtained,
           total_marks:    sm.total_marks,
-          passing_marks:  sm.passing_marks,
-          grade:          sm.grade,
+          grade:          isAbsent ? 'Ab' : sm.grade,
+          is_absent:      isAbsent,
         });
       });
     });
 
     if (inserts.length === 0) { setSaveError('No valid marks to save.'); setSaving(false); return; }
 
-    const { error } = await supabase.from('results')
-      .upsert(inserts, { onConflict: 'student_id,exam_type_id,subject_id' });
+    const { error } = await supabase.from('exam_results')
+      .upsert(inserts, { onConflict: 'exam_type_id,student_id,subject_id' });
 
     if (error) setSaveError(error.message);
     else setSaved(true);
@@ -283,7 +320,7 @@ export default function ImportResult() {
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {[
-            { label: 'Exam Type', value: selectedExam, setter: setSelectedExam, opts: examTypes, getName: (e: any) => e.name },
+            { label: 'Exam Type', value: selectedExam, setter: setSelectedExam, opts: examTypes, getName: (e: any) => `${e.name}${e.month_year ? ` — ${e.month_year}` : ''}${e.session ? ` (${e.session})` : ''}` },
             { label: 'Class',     value: selectedClass, setter: (v: string) => setSelectedClass(v), opts: classes, getName: (c: any) => `${c.name} ${c.section}` },
           ].map(f => (
             <div key={f.label}>

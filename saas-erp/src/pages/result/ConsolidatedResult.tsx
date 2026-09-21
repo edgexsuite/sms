@@ -284,7 +284,7 @@ export default function ConsolidatedResult() {
           >
             <option value="">— Select Exam —</option>
             {examTypes.map(e => (
-              <option key={e.id} value={e.id}>{e.name} ({e.session})</option>
+              <option key={e.id} value={e.id}>{e.name}{e.month_year ? ` — ${e.month_year}` : ''} ({e.session})</option>
             ))}
           </select>
         </div>

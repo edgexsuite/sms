@@ -5,7 +5,8 @@ import {
   GraduationCap, LogOut, Download, MessageCircle, ChevronRight, Eye, EyeOff,
   BookOpen, LayoutDashboard, CreditCard, CalendarCheck, BarChart2, Clock, Bell,
   ChevronLeft, CheckCircle2, XCircle, AlertCircle, TrendingUp, Users, ClipboardList,
-  CalendarOff, Plus, X, Save, RefreshCw, Flag, Send, MessageSquare, CheckCircle, User
+  CalendarOff, Plus, X, Save, RefreshCw, Flag, Send, MessageSquare, CheckCircle, User,
+  Trophy
 } from 'lucide-react';
 import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, type ChallanConfig, ChallanRecord, SchoolInfo } from '../lib/challanUtils';
 import ChatInterface from '../components/ChatInterface';
@@ -54,6 +55,7 @@ const GRADE_COLORS: Record<string, string> = {
   'C': 'bg-yellow-100 text-yellow-700',
   'D': 'bg-orange-100 text-orange-700',
   'F': 'bg-red-100 text-red-700',
+  'Ab': 'bg-rose-100 text-rose-700',
 };
 
 export default function ParentPortal() {
@@ -216,7 +218,28 @@ export default function ParentPortal() {
         .order('date', { ascending: false }),
       // Results
       supabase.from('exam_results')
-        .select('obtained_marks, total_marks, grade, exam_types(name), subjects(subject_name)')
+        .select(`
+          id,
+          exam_type_id,
+          obtained_marks,
+          total_marks,
+          grade,
+          is_absent,
+          remarks,
+          created_at,
+          exam_types (
+            id,
+            name,
+            session,
+            month_year,
+            show_pass_fail,
+            weightage
+          ),
+          subjects (
+            id,
+            subject_name
+          )
+        `)
         .eq('school_id', parentData!.school_id)
         .eq('student_id', child.id)
         .order('created_at', { ascending: false }),
@@ -867,7 +890,7 @@ export default function ParentPortal() {
                 />
               )}
 
-              {activeTab === 'results' && <ResultsTab examGroups={examGroups} />}
+              {activeTab === 'results' && <ResultsTab results={examResults} urduMode={urduMode} />}
               {activeTab === 'timetable' && <TimetableTab slots={timetableSlots} todayName={todayName} />}
               {activeTab === 'notices' && <NoticesTab notices={notices} />}
               {activeTab === 'homework' && <HomeworkTab homework={homework} diarySettings={school.diary_settings} />}
@@ -1351,92 +1374,319 @@ function AttendanceTab({ attPct, attPresent, attAbsent, attLeave, attTotal, attM
 }
 
 // ─── RESULTS TAB ───────────────────────────────────────────────────────────
-function ResultsTab({ examGroups }: { examGroups: Record<string, any[]> }) {
-  const examNames = Object.keys(examGroups);
-
-  if (examNames.length === 0) {
+function ResultsTab({ results, urduMode }: { results: any[]; urduMode?: boolean }) {
+  if (!results || results.length === 0) {
     return (
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm py-16 text-center">
-        <BarChart2 className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-        <p className="text-gray-400">No results available yet.</p>
+      <div className="bg-white rounded-3xl border border-gray-100 p-16 text-center shadow-sm">
+        <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-6">
+          <Trophy className="w-10 h-10 text-indigo-300" />
+        </div>
+        <p className="text-gray-900 font-black text-lg">
+          {urduMode ? 'کوئی نتیجہ دستیاب نہیں' : 'Results Pending'}
+        </p>
+        <p className="text-gray-400 text-sm mt-1 max-w-xs mx-auto">
+          {urduMode
+            ? 'اس طالب علم کے لیے فی الحال امتحانی نتائج ریکارڈ نہیں ہوئے ہیں۔'
+            : 'No exam results have been recorded for this student yet.'}
+        </p>
       </div>
     );
   }
 
-  return (
-    <div className="space-y-5">
-      {examNames.map(examName => {
-        const results = examGroups[examName];
-        const totalObtained = results.reduce((s, r) => s + (r.obtained_marks || 0), 0);
-        const totalMax = results.reduce((s, r) => s + (r.total_marks || 0), 0);
-        const overallPct = totalMax > 0 ? Math.round((totalObtained / totalMax) * 100) : 0;
-        const passed = results.filter(r => r.grade && r.grade !== 'F').length;
+  const MONTH_NAMES = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
 
-        return (
-          <div key={examName} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="font-bold text-gray-900">{examName}</h3>
-              <div className="flex items-center gap-3 text-xs text-gray-500">
-                <span className="font-semibold text-blue-600">{overallPct}% overall</span>
-                <span>{passed}/{results.length} passed</span>
-              </div>
+  const formatMonthYear = (my?: string | null) => {
+    if (!my) return null;
+    const [y, m] = my.split('-');
+    const mIdx = parseInt(m, 10) - 1;
+    if (isNaN(mIdx) || mIdx < 0 || mIdx > 11) return my;
+    return `${MONTH_NAMES[mIdx]} ${y}`;
+  };
+
+  // Group uniquely by exam_type_id to avoid collision between multiple exams
+  const examMap = new Map<string, {
+    info: {
+      id: string;
+      name: string;
+      session?: string;
+      month_year?: string | null;
+      show_pass_fail?: boolean;
+      weightage?: number;
+    };
+    items: any[];
+  }>();
+
+  results.forEach(r => {
+    const et = r.exam_types;
+    const key = r.exam_type_id || et?.id || et?.name || 'general';
+    if (!examMap.has(key)) {
+      examMap.set(key, {
+        info: {
+          id: key,
+          name: et?.name || 'Examination',
+          session: et?.session || '',
+          month_year: et?.month_year || null,
+          show_pass_fail: et?.show_pass_fail !== false,
+          weightage: et?.weightage || 0,
+        },
+        items: [],
+      });
+    }
+    examMap.get(key)!.items.push(r);
+  });
+
+  const availableExams = Array.from(examMap.values());
+  const [selectedExamId, setSelectedExamId] = React.useState<string>(() => availableExams[0]?.info.id || '');
+
+  React.useEffect(() => {
+    if (availableExams.length > 0 && (!selectedExamId || !examMap.has(selectedExamId))) {
+      setSelectedExamId(availableExams[0].info.id);
+    }
+  }, [results]);
+
+  const activeExamGroup = examMap.get(selectedExamId) || availableExams[0];
+  const items = activeExamGroup?.items || [];
+  const examInfo = activeExamGroup?.info;
+
+  // Compute metrics for the selected exam
+  const totalObtained = items.reduce((s, r) => s + (r.is_absent ? 0 : (Number(r.obtained_marks) || 0)), 0);
+  const totalMax = items.reduce((s, r) => s + (Number(r.total_marks) || 0), 0);
+  const overallPct = totalMax > 0 ? Math.round((totalObtained / totalMax) * 100) : 0;
+
+  const passedCount = items.filter(r => !r.is_absent && r.grade !== 'F' && r.grade !== 'Ab' && (r.total_marks > 0 ? (r.obtained_marks / r.total_marks) >= 0.33 : false)).length;
+  const absentCount = items.filter(r => r.is_absent || r.grade === 'Ab').length;
+  const failedCount = items.length - passedCount - absentCount;
+
+  return (
+    <div className="space-y-6">
+      {/* ── Exam Selection Bar ── */}
+      <div className="bg-white rounded-3xl border border-gray-100 p-5 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black">
+              <Trophy className="w-5 h-5" />
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b border-gray-100">
-                  <tr>
-                    <th className="px-5 py-3 text-left font-medium text-gray-600">Subject</th>
-                    <th className="px-5 py-3 text-center font-medium text-gray-600">Marks</th>
-                    <th className="px-5 py-3 text-center font-medium text-gray-600">Total</th>
-                    <th className="px-5 py-3 text-center font-medium text-gray-600">%</th>
-                    <th className="px-5 py-3 text-center font-medium text-gray-600">Grade</th>
-                    <th className="px-5 py-3 text-center font-medium text-gray-600">Result</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {results.map((r, i) => {
-                    const pct = r.total_marks > 0 ? Math.round((r.obtained_marks / r.total_marks) * 100) : 0;
-                    const isPassed = r.grade && r.grade !== 'F';
-                    return (
-                      <tr key={i} className="hover:bg-gray-50">
-                        <td className="px-5 py-3 font-medium text-gray-900">
-                          {(r.subjects as any)?.subject_name || '—'}
-                        </td>
-                        <td className="px-5 py-3 text-center font-bold text-gray-900">{r.obtained_marks ?? '—'}</td>
-                        <td className="px-5 py-3 text-center text-gray-500">{r.total_marks ?? '—'}</td>
-                        <td className="px-5 py-3 text-center text-gray-700">{pct}%</td>
-                        <td className="px-5 py-3 text-center">
-                          {r.grade && (
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${GRADE_COLORS[r.grade] || 'bg-gray-100 text-gray-700'}`}>
-                              {r.grade}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-5 py-3 text-center">
-                          <span className={`flex items-center justify-center gap-1 text-xs font-semibold ${isPassed ? 'text-green-600' : 'text-red-500'}`}>
-                            {isPassed ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-                            {isPassed ? 'Pass' : 'Fail'}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot className="border-t border-gray-200 bg-gray-50">
-                  <tr>
-                    <td className="px-5 py-3 font-bold text-gray-800">Total</td>
-                    <td className="px-5 py-3 text-center font-black text-gray-900">{totalObtained}</td>
-                    <td className="px-5 py-3 text-center font-medium text-gray-600">{totalMax}</td>
-                    <td className="px-5 py-3 text-center font-black text-blue-600">{overallPct}%</td>
-                    <td className="px-5 py-3" />
-                    <td className="px-5 py-3" />
-                  </tr>
-                </tfoot>
-              </table>
+            <div>
+              <p className="text-xs font-black text-gray-400 uppercase tracking-widest">
+                {urduMode ? 'منتخب شدہ امتحان' : 'Selected Examination'}
+              </p>
+              <h2 className="text-base font-black text-gray-900 leading-tight">
+                {examInfo?.name} {examInfo?.month_year && `(${formatMonthYear(examInfo.month_year)})`}
+              </h2>
             </div>
           </div>
-        );
-      })}
+
+          <div className="flex items-center gap-2">
+            <label htmlFor="parent-exam-select" className="text-xs font-bold text-gray-500 whitespace-nowrap hidden md:inline">
+              {urduMode ? 'امتحان تبدیل کریں:' : 'Choose Exam:'}
+            </label>
+            <select
+              id="parent-exam-select"
+              value={selectedExamId}
+              onChange={e => setSelectedExamId(e.target.value)}
+              className="w-full sm:w-auto px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-black text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition cursor-pointer"
+            >
+              {availableExams.map(ex => {
+                const my = formatMonthYear(ex.info.month_year);
+                return (
+                  <option key={ex.info.id} value={ex.info.id}>
+                    {ex.info.name}{my ? ` — ${my}` : ''}{ex.info.session ? ` (${ex.info.session})` : ''} [{ex.items.length} {urduMode ? 'مضامین' : 'Subjects'}]
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+        </div>
+
+        {/* Metadata Chips */}
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-50 text-[11px] font-bold text-gray-500">
+          <span className="px-2.5 py-1 bg-gray-100 rounded-lg text-gray-700">
+            {urduMode ? 'تعلیمی سیشن:' : 'Session:'} <b className="text-gray-900">{examInfo?.session || 'Current'}</b>
+          </span>
+          {examInfo?.month_year && (
+            <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg">
+              {urduMode ? 'مہینہ:' : 'Month:'} <b className="text-indigo-950">{formatMonthYear(examInfo.month_year)}</b>
+            </span>
+          )}
+          {examInfo?.weightage ? (
+            <span className="px-2.5 py-1 bg-violet-50 text-violet-700 rounded-lg">
+              {urduMode ? 'ویٹیج:' : 'Weightage:'} <b className="text-violet-950">{examInfo.weightage}%</b>
+            </span>
+          ) : null}
+          <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-slate-600 ml-auto">
+            {items.length} {urduMode ? 'مضامین کے نتائج' : `Subject${items.length !== 1 ? 's' : ''} Evaluated`}
+          </span>
+        </div>
+      </div>
+
+      {/* ── Summary Metrics Bar ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm text-center">
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+            {urduMode ? 'حاصل کردہ نمبر' : 'Total Obtained'}
+          </p>
+          <p className="text-2xl font-black text-gray-900 mt-1">
+            {totalObtained} <span className="text-xs text-gray-400 font-semibold">/ {totalMax}</span>
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm text-center">
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+            {urduMode ? 'مجموعی فیصد' : 'Overall Percentage'}
+          </p>
+          <p className={`text-2xl font-black mt-1 ${
+            overallPct >= 60 ? 'text-emerald-600' : overallPct >= 40 ? 'text-amber-600' : 'text-rose-600'
+          }`}>
+            {overallPct}%
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm text-center">
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+            {urduMode ? 'پاس مضامین' : 'Passed Subjects'}
+          </p>
+          <p className="text-2xl font-black text-emerald-600 mt-1">
+            {passedCount} <span className="text-xs text-gray-400 font-semibold">/ {items.length}</span>
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm text-center">
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+            {urduMode ? 'حتمی کیفیت' : 'Result Status'}
+          </p>
+          <p className="mt-1">
+            <span className={`inline-flex items-center px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase ${
+              failedCount === 0 && absentCount === 0
+                ? 'bg-emerald-100 text-emerald-800'
+                : absentCount > 0
+                ? 'bg-amber-100 text-amber-800'
+                : 'bg-rose-100 text-rose-800'
+            }`}>
+              {failedCount === 0 && absentCount === 0
+                ? (urduMode ? 'کامیاب' : 'PASSED')
+                : absentCount > 0
+                ? (urduMode ? `${absentCount} غیر حاضر` : `${absentCount} ABSENT`)
+                : (urduMode ? 'توجہ طلب' : 'NEEDS ATTENTION')}
+            </span>
+          </p>
+        </div>
+      </div>
+
+      {/* ── Subject Breakdown Table ── */}
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-black text-gray-900 text-sm">
+            {urduMode ? 'مضمون وار تفصیلی رپورٹ' : 'Subject Performance Breakdown'}
+          </h3>
+          <span className="text-xs text-gray-400 font-bold">
+            {examInfo?.name}
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b border-gray-100 bg-gray-50/50">
+              <tr>
+                <th className="px-6 py-3.5 text-left font-black text-gray-500 text-xs uppercase tracking-wider">
+                  {urduMode ? 'مضمون' : 'Subject'}
+                </th>
+                <th className="px-4 py-3.5 text-center font-black text-gray-500 text-xs uppercase tracking-wider">
+                  {urduMode ? 'نمبر' : 'Obtained'}
+                </th>
+                <th className="px-4 py-3.5 text-center font-black text-gray-500 text-xs uppercase tracking-wider">
+                  {urduMode ? 'کل' : 'Total'}
+                </th>
+                <th className="px-4 py-3.5 text-center font-black text-gray-500 text-xs uppercase tracking-wider">
+                  %
+                </th>
+                <th className="px-4 py-3.5 text-center font-black text-gray-500 text-xs uppercase tracking-wider">
+                  {urduMode ? 'گریڈ' : 'Grade'}
+                </th>
+                <th className="px-4 py-3.5 text-center font-black text-gray-500 text-xs uppercase tracking-wider">
+                  {urduMode ? 'کیفیت' : 'Status'}
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {items.map((r, i) => {
+                const isAbsent = r.is_absent || r.grade === 'Ab';
+                const total = Number(r.total_marks) || 100;
+                const obtained = isAbsent ? 0 : Number(r.obtained_marks) || 0;
+                const pct = total > 0 ? Math.round((obtained / total) * 100) : 0;
+                const isPassed = !isAbsent && r.grade !== 'F' && pct >= 33;
+
+                return (
+                  <tr key={r.id || i} className="hover:bg-indigo-50/20 transition-colors">
+                    <td className="px-6 py-4 font-bold text-gray-900">
+                      {(r.subjects as any)?.subject_name || '—'}
+                      {r.remarks && (
+                        <p className="text-[11px] text-gray-400 font-normal mt-0.5">{r.remarks}</p>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 text-center font-black text-gray-900">
+                      {isAbsent ? (
+                        <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md">
+                          {urduMode ? 'غیر حاضر' : 'ABSENT'}
+                        </span>
+                      ) : (
+                        r.obtained_marks ?? '—'
+                      )}
+                    </td>
+                    <td className="px-4 py-4 text-center text-gray-500 font-semibold">{total}</td>
+                    <td className="px-4 py-4 text-center font-bold text-gray-700">
+                      {isAbsent ? '—' : `${pct}%`}
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-black ${GRADE_COLORS[r.grade] || 'bg-gray-100 text-gray-700'}`}>
+                        {r.grade || '—'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      {isAbsent ? (
+                        <span className="inline-flex items-center justify-center gap-1 text-xs font-bold text-amber-600">
+                          <XCircle className="w-3.5 h-3.5" /> {urduMode ? 'غیر حاضر' : 'Absent'}
+                        </span>
+                      ) : isPassed ? (
+                        <span className="inline-flex items-center justify-center gap-1 text-xs font-bold text-emerald-600">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> {urduMode ? 'پاس' : 'Pass'}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center justify-center gap-1 text-xs font-bold text-rose-500">
+                          <XCircle className="w-3.5 h-3.5" /> {urduMode ? 'فیل' : 'Fail'}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot className="border-t border-gray-200 bg-gray-50/80">
+              <tr>
+                <td className="px-6 py-4 font-black text-gray-900 uppercase text-xs tracking-wider">
+                  {urduMode ? 'میزان (کل)' : 'Total Summary'}
+                </td>
+                <td className="px-4 py-4 text-center font-black text-gray-900 text-base">{totalObtained}</td>
+                <td className="px-4 py-4 text-center font-bold text-gray-600">{totalMax}</td>
+                <td className="px-4 py-4 text-center font-black text-indigo-600 text-base">{overallPct}%</td>
+                <td colSpan={2} className="px-4 py-4 text-center">
+                  <span className={`text-xs font-black uppercase tracking-wider px-3 py-1 rounded-lg ${
+                    failedCount === 0 && absentCount === 0
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    {failedCount === 0 && absentCount === 0
+                      ? (urduMode ? 'تمام پاس' : 'All Clear')
+                      : (urduMode ? `${failedCount + absentCount} مضامین زیر نظر` : `${failedCount + absentCount} Subjects Pending`)}
+                  </span>
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
