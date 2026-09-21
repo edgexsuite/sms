@@ -214,7 +214,11 @@ export default function TeacherOfMonth() {
             onChange={e => setSelectedExam(e.target.value)}
             className="bg-white px-4 py-3 rounded-2xl border border-slate-100 shadow-sm font-black uppercase text-[10px] text-slate-500 outline-none"
           >
-            {examTypes.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            {examTypes.map(e => (
+              <option key={e.id} value={e.id}>
+                {e.name}{e.month_year ? ` — ${e.month_year}` : ''} ({e.session})
+              </option>
+            ))}
           </select>
         </div>
       </div>

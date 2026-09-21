@@ -59,7 +59,7 @@ export default function ExamMarksConfig() {
       { data: exams },
       { data: cls }
     ] = await Promise.all([
-      supabase.from('exam_types').select('id, name').eq('school_id', sid).order('name'),
+      supabase.from('exam_types').select('id, name, session, month_year').eq('school_id', sid).order('created_at', { ascending: false }),
       supabase.from('classes').select('id, name, section').eq('school_id', sid).order('name')
     ]);
     if (exams) setExamTypes(exams);
@@ -348,7 +348,11 @@ export default function ExamMarksConfig() {
               className="w-full appearance-none px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none pr-10"
             >
               <option value="">— Choose Exam —</option>
-              {examTypes.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+              {examTypes.map(e => (
+                <option key={e.id} value={e.id}>
+                  {e.name}{e.month_year ? ` — ${e.month_year}` : ''} ({e.session})
+                </option>
+              ))}
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           </div>

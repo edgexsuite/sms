@@ -85,6 +85,7 @@ export default function StudentDetailPage() {
   const [newEntryPaid, setNewEntryPaid] = useState('');
   const [newEntryPayMode, setNewEntryPayMode] = useState('Cash');
   const [creatingEntry, setCreatingEntry] = useState(false);
+  const [selectedDetailExamId, setSelectedDetailExamId] = useState<string>('');
   const dueDateInputRef = useRef<HTMLInputElement>(null);
   const paidAtInputRef = useRef<HTMLInputElement>(null);
 
@@ -156,7 +157,7 @@ export default function StudentDetailPage() {
       }
       if (t === 'results') {
         const { data } = await supabase.from('exam_results')
-          .select('*, exam_types(name), subjects(subject_name)')
+          .select('*, exam_types(id, name, session, month_year, show_pass_fail, weightage), subjects(id, subject_name)')
           .eq('student_id', stud.id).order('created_at', { ascending: false });
         setResults(data || []);
       }
@@ -218,12 +219,41 @@ export default function StudentDetailPage() {
   const totalDue = fees.reduce((s, f) => s + Math.max(0, (f.total_amount || 0) - (f.paid_amount || 0)), 0);
   const totalPaid = fees.reduce((s, f) => s + (f.paid_amount || 0), 0);
 
-  const groupedResults: Record<string, any[]> = {};
+  const examMap = new Map<string, {
+    info: {
+      id: string;
+      name: string;
+      session?: string;
+      month_year?: string | null;
+      show_pass_fail?: boolean;
+      weightage?: number;
+    };
+    items: any[];
+  }>();
+
   results.forEach(r => {
-    const k = r.exam_types?.name || 'Exam';
-    if (!groupedResults[k]) groupedResults[k] = [];
-    groupedResults[k].push(r);
+    const et = r.exam_types;
+    const key = r.exam_type_id || et?.id || et?.name || 'general';
+    if (!examMap.has(key)) {
+      examMap.set(key, {
+        info: {
+          id: key,
+          name: et?.name || 'Examination',
+          session: et?.session || '',
+          month_year: et?.month_year || null,
+          show_pass_fail: et?.show_pass_fail !== false,
+          weightage: et?.weightage || 0,
+        },
+        items: [],
+      });
+    }
+    examMap.get(key)!.items.push(r);
   });
+
+  const availableDetailExams = Array.from(examMap.values());
+  const activeDetailExamGroup = (selectedDetailExamId && examMap.get(selectedDetailExamId)) || availableDetailExams[0];
+  const activeExamItems = activeDetailExamGroup?.items || [];
+  const activeExamInfo = activeDetailExamGroup?.info;
 
   const gradeLabel = (pct: number) => {
     if (pct >= 90) return 'A+';
@@ -1418,79 +1448,147 @@ export default function StudentDetailPage() {
           )}
 
           {!tabLoading && tab === 'results' && (
-            <div className="space-y-10">
-              {Object.keys(groupedResults).length === 0 ? (
+            <div className="space-y-6">
+              {availableDetailExams.length === 0 ? (
                 <EmptyState
                   icon={BarChart3}
                   title="No Results Recorded"
                   description="Examination results for this student have not been entered into the system yet."
                 />
-              ) : Object.entries(groupedResults).map(([examName, rows]) => {
-                const totalObt = rows.reduce((s, r) => s + (r.obtained_marks || 0), 0);
-                const totalMax = rows.reduce((s, r) => s + (r.total_marks || 0), 0);
-                const pct = totalMax > 0 ? Math.round((totalObt / totalMax) * 100) : 0;
-                const isPass = pct >= 50;
-                return (
-                  <Card key={examName} className="p-0 shadow-sm overflow-hidden border-none">
-                    <div className="px-8 py-6 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100">
-                      <div>
-                        <h3 className="font-black text-slate-900 uppercase tracking-tight text-lg">{examName}</h3>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Official Examination Summary</p>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Aggregate</p>
-                          <p className="text-xl font-black text-slate-900 mt-1">{totalObt}<span className="text-slate-300">/{totalMax}</span></p>
+              ) : (
+                (() => {
+                  const totalObt = activeExamItems.reduce((s, r) => s + (r.is_absent ? 0 : (r.obtained_marks || 0)), 0);
+                  const totalMax = activeExamItems.reduce((s, r) => s + (r.total_marks || 0), 0);
+                  const pct = totalMax > 0 ? Math.round((totalObt / totalMax) * 100) : 0;
+                  const passedCount = activeExamItems.filter(r => !r.is_absent && r.grade !== 'F' && r.grade !== 'Ab' && (r.total_marks > 0 ? (r.obtained_marks / r.total_marks) >= 0.33 : false)).length;
+                  const absentCount = activeExamItems.filter(r => r.is_absent || r.grade === 'Ab').length;
+                  const isPass = pct >= 40 && absentCount === 0;
+
+                  return (
+                    <div className="space-y-6">
+                      {/* ── Exam Selector Bar ── */}
+                      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black">
+                            <BarChart3 className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Selected Examination</p>
+                            <h3 className="text-base font-black text-slate-900 leading-tight">
+                              {activeExamInfo?.name} {activeExamInfo?.month_year && `(${activeExamInfo.month_year})`}
+                            </h3>
+                          </div>
                         </div>
-                        <div className="w-px h-10 bg-slate-200" />
-                        <Badge variant={isPass ? 'success' : 'danger'} className="px-4 py-2 rounded-2xl shadow-sm text-xs font-black uppercase tracking-widest">
-                          {gradeLabel(pct)} · {isPass ? 'PASS' : 'FAIL'}
-                        </Badge>
-                      </div>
-                    </div>
-                    {/* Progress bar */}
-                    <div className="h-1.5 bg-slate-100">
-                      <div className={cn('h-full transition-all duration-1000 ease-out', isPass ? 'bg-emerald-500' : 'bg-rose-500')} style={{ width: pct + '%' }} />
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-white/50">
-                            {['Subject', 'Obtained', 'Total', 'Percentage', 'Grade'].map(h => (
-                              <th key={h} className="text-left px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">{h}</th>
+
+                        <div className="flex items-center gap-2">
+                          <label htmlFor="student-detail-exam-select" className="text-xs font-bold text-slate-500 whitespace-nowrap hidden sm:inline">
+                            Choose Exam:
+                          </label>
+                          <select
+                            id="student-detail-exam-select"
+                            value={activeExamInfo?.id || ''}
+                            onChange={e => setSelectedDetailExamId(e.target.value)}
+                            className="w-full sm:w-auto px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition cursor-pointer"
+                          >
+                            {availableDetailExams.map(ex => (
+                              <option key={ex.info.id} value={ex.info.id}>
+                                {ex.info.name}{ex.info.month_year ? ` — ${ex.info.month_year}` : ''}{ex.info.session ? ` (${ex.info.session})` : ''} [{ex.items.length} Subjects]
+                              </option>
                             ))}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {rows.map(r => {
-                            const sp = r.total_marks > 0 ? Math.round((r.obtained_marks / r.total_marks) * 100) : 0;
-                            return (
-                              <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
-                                <td className="px-8 py-4 font-black text-slate-800">{r.subjects?.subject_name || '—'}</td>
-                                <td className="px-8 py-4 font-bold text-slate-900">{r.obtained_marks ?? '—'}</td>
-                                <td className="px-8 py-4 text-slate-400 font-medium">{r.total_marks ?? '—'}</td>
-                                <td className="px-8 py-4">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden hidden sm:block">
-                                      <div className={cn('h-full', sp >= 50 ? 'bg-indigo-500' : 'bg-rose-500')} style={{ width: sp + '%' }} />
-                                    </div>
-                                    <span className="font-black text-slate-700">{sp}%</span>
-                                  </div>
-                                </td>
-                                <td className="px-8 py-4">
-                                   <Badge variant={sp >= 50 ? 'indigo' : 'danger'} className="font-black px-3">
-                                    {gradeLabel(sp)}
-                                  </Badge>
-                                </td>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* ── Detail Card ── */}
+                      <Card className="p-0 shadow-sm overflow-hidden border border-slate-200">
+                        <div className="px-8 py-6 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100">
+                          <div>
+                            <h3 className="font-black text-slate-900 uppercase tracking-tight text-lg">
+                              {activeExamInfo?.name} {activeExamInfo?.month_year && `— ${activeExamInfo.month_year}`}
+                            </h3>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                              Session: {activeExamInfo?.session || 'Current'} · {activeExamItems.length} Subjects Evaluated
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="text-right">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Aggregate</p>
+                              <p className="text-xl font-black text-slate-900 mt-1">{totalObt}<span className="text-slate-300">/{totalMax}</span></p>
+                            </div>
+                            <div className="w-px h-10 bg-slate-200" />
+                            <Badge variant={absentCount > 0 ? 'warning' : isPass ? 'success' : 'danger'} className="px-4 py-2 rounded-2xl shadow-sm text-xs font-black uppercase tracking-widest">
+                              {absentCount > 0 ? `${absentCount} ABSENT` : `${gradeLabel(pct)} · ${isPass ? 'PASS' : 'FAIL'}`}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        {/* Progress bar */}
+                        <div className="h-1.5 bg-slate-100">
+                          <div className={cn('h-full transition-all duration-1000 ease-out', isPass ? 'bg-emerald-500' : 'bg-rose-500')} style={{ width: pct + '%' }} />
+                        </div>
+
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-white/50">
+                                {['Subject', 'Obtained', 'Total', 'Percentage', 'Grade', 'Status'].map(h => (
+                                  <th key={h} className="text-left px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">{h}</th>
+                                ))}
                               </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                              {activeExamItems.map(r => {
+                                const isAbsent = r.is_absent || r.grade === 'Ab';
+                                const total = Number(r.total_marks) || 100;
+                                const obtained = isAbsent ? 0 : Number(r.obtained_marks) || 0;
+                                const sp = total > 0 ? Math.round((obtained / total) * 100) : 0;
+                                const subjectPass = !isAbsent && r.grade !== 'F' && sp >= 33;
+
+                                return (
+                                  <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
+                                    <td className="px-8 py-4 font-black text-slate-800">
+                                      {r.subjects?.subject_name || '—'}
+                                      {r.remarks && <p className="text-[11px] text-slate-400 font-normal mt-0.5">{r.remarks}</p>}
+                                    </td>
+                                    <td className="px-8 py-4 font-bold text-slate-900">
+                                      {isAbsent ? (
+                                        <span className="text-xs font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md">ABSENT</span>
+                                      ) : (
+                                        r.obtained_marks ?? '—'
+                                      )}
+                                    </td>
+                                    <td className="px-8 py-4 text-slate-400 font-medium">{total}</td>
+                                    <td className="px-8 py-4">
+                                      {isAbsent ? '—' : (
+                                        <div className="flex items-center gap-3">
+                                          <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden hidden sm:block">
+                                            <div className={cn('h-full', sp >= 50 ? 'bg-indigo-500' : 'bg-rose-500')} style={{ width: sp + '%' }} />
+                                          </div>
+                                          <span className="font-black text-slate-700">{sp}%</span>
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="px-8 py-4">
+                                      <Badge variant={isAbsent ? 'danger' : sp >= 50 ? 'indigo' : 'danger'} className="font-black px-3">
+                                        {isAbsent ? 'Ab' : (r.grade || gradeLabel(sp))}
+                                      </Badge>
+                                    </td>
+                                    <td className="px-8 py-4">
+                                      <Badge variant={isAbsent ? 'warning' : subjectPass ? 'success' : 'danger'} className="font-bold text-[10px] uppercase">
+                                        {isAbsent ? 'Absent' : subjectPass ? 'Pass' : 'Fail'}
+                                      </Badge>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </Card>
                     </div>
-                  </Card>
-                );
-              })}
+                  );
+                })()
+              )}
             </div>
           )}
         </div>

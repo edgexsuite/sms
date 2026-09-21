@@ -139,7 +139,11 @@ export default function AddExamSchedule() {
           <label className="block text-xs font-bold text-gray-600 uppercase mb-2">Exam Type</label>
           <select value={selectedExamType} onChange={e => setSelectedExamType(e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg font-medium text-sm">
             <option value="">-- Select Exam --</option>
-            {examTypes.map(e => <option key={e.id} value={e.id}>{e.name} ({e.session})</option>)}
+            {examTypes.map(e => (
+              <option key={e.id} value={e.id}>
+                {e.name}{e.month_year ? ` — ${e.month_year}` : ''} ({e.session})
+              </option>
+            ))}
           </select>
         </div>
         <div>

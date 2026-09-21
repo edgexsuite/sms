@@ -36,7 +36,7 @@ export default function RollNumberSlips() {
   };
 
   const fetchExams = async () => {
-    const { data } = await supabase.from('exam_types').select('id, name, session').eq('school_id', userRole!.school_id).order('created_at', { ascending: false });
+    const { data } = await supabase.from('exam_types').select('id, name, session, month_year').eq('school_id', userRole!.school_id).order('created_at', { ascending: false });
     setExamTypes(data || []);
   };
 
@@ -138,7 +138,11 @@ export default function RollNumberSlips() {
             <select value={selectedExam} onChange={e => setSelectedExam(e.target.value)}
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500">
               <option value="">Select exam...</option>
-              {examTypes.map(e => <option key={e.id} value={e.id}>{e.name} {e.session ? `(${e.session})` : ''}</option>)}
+              {examTypes.map(e => (
+                <option key={e.id} value={e.id}>
+                  {e.name}{e.month_year ? ` — ${e.month_year}` : ''} {e.session ? `(${e.session})` : ''}
+                </option>
+              ))}
             </select>
           </div>
           <div>

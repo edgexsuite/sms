@@ -161,6 +161,17 @@ export default function AddExamType() {
             setSaving(false);
             return;
           }
+        } else {
+          const dup = examTypes.find(
+            e => e.name.toLowerCase() === payload.name.toLowerCase()
+              && e.session === payload.session
+              && !e.month_year,
+          );
+          if (dup) {
+            alert(`"${payload.name}" for session ${payload.session} already exists.`);
+            setSaving(false);
+            return;
+          }
         }
         const { error } = await supabase.from('exam_types').insert([payload]);
         if (error) throw error;

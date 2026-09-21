@@ -99,7 +99,7 @@ export default function ResultStatus() {
     (async () => {
       setLoadingExams(true);
       const [{ data }, { data: school }] = await Promise.all([
-        supabase.from('exam_types').select('id, name, month_year')
+        supabase.from('exam_types').select('id, name, month_year, session')
           .eq('school_id', userRole.school_id).order('month_year', { ascending: false }),
         supabase.from('schools').select('name, address, contact_phone, logo_url')
           .eq('id', userRole.school_id).maybeSingle(),
@@ -442,7 +442,7 @@ export default function ResultStatus() {
                   ? <option value="">No exam types found</option>
                   : examTypes.map(e => (
                     <option key={e.id} value={e.id}>
-                      {e.name}{monthYearLabel(e.month_year)}
+                      {e.name}{monthYearLabel(e.month_year)}{e.session ? ` (${e.session})` : ''}
                     </option>
                   ))
               }

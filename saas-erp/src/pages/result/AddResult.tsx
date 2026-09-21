@@ -81,13 +81,33 @@ export default function AddResult() {
       setTotalMarks(data[0].total_marks);
       setSaved(true);
     }
-    // try to pull marks from schedule
-    const { data: sched } = await supabase.from('exam_schedules')
+    // 1. Check exam_subject_config for configured marks
+    const { data: cfg } = await supabase.from('exam_subject_config')
       .select('total_marks, passing_marks')
       .eq('exam_type_id', selectedExamType)
       .eq('subject_id', selectedSubject)
       .maybeSingle();
-    if (sched) { setTotalMarks(sched.total_marks); setPassingMarks(sched.passing_marks); }
+    if (cfg) {
+      setTotalMarks(cfg.total_marks);
+      setPassingMarks(cfg.passing_marks);
+    } else {
+      // 2. Try pulling marks from schedule
+      const { data: sched } = await supabase.from('exam_schedules')
+        .select('total_marks, passing_marks')
+        .eq('exam_type_id', selectedExamType)
+        .eq('subject_id', selectedSubject)
+        .maybeSingle();
+      if (sched) {
+        setTotalMarks(sched.total_marks);
+        setPassingMarks(sched.passing_marks);
+      } else {
+        const sub = subjects.find(s => s.id === selectedSubject);
+        if (sub) {
+          setTotalMarks(sub.total_marks || 100);
+          setPassingMarks(sub.passing_marks || 33);
+        }
+      }
+    }
   };
 
   const handleSave = async () => {
@@ -174,7 +194,11 @@ export default function AddResult() {
           <label className="block text-xs font-bold text-gray-600 uppercase mb-2">Exam Type</label>
           <select value={selectedExamType} onChange={e => setSelectedExamType(e.target.value)} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-300 rounded-lg font-medium text-sm">
             <option value="">-- Select Exam --</option>
-            {examTypes.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            {examTypes.map(e => (
+              <option key={e.id} value={e.id}>
+                {e.name}{e.month_year ? ` — ${e.month_year}` : ''} ({e.session})
+              </option>
+            ))}
           </select>
         </div>
         <div>

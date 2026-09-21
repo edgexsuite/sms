@@ -299,7 +299,11 @@ export default function AwardListGenerator() {
                   className="w-full bg-slate-50 border border-transparent focus:bg-white focus:border-indigo-100 p-3.5 rounded-2xl text-sm font-bold text-slate-700 transition-all outline-none"
                 >
                   <option value="">Select Exam (Optional)</option>
-                  {examTypes.map(e => <option key={e.id} value={e.id}>{e.name} ({e.session})</option>)}
+                  {examTypes.map(e => (
+                    <option key={e.id} value={e.id}>
+                      {e.name}{e.month_year ? ` — ${monthYearLabel(e.month_year)}` : ''} ({e.session})
+                    </option>
+                  ))}
                 </select>
               </div>
 
