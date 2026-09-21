@@ -86,6 +86,7 @@ export default function StudentDetailPage() {
   const [newEntryPayMode, setNewEntryPayMode] = useState('Cash');
   const [creatingEntry, setCreatingEntry] = useState(false);
   const [selectedDetailExamId, setSelectedDetailExamId] = useState<string>('');
+  const [publishedExamIds, setPublishedExamIds] = useState<string[] | null>(null);
   const dueDateInputRef = useRef<HTMLInputElement>(null);
   const paidAtInputRef = useRef<HTMLInputElement>(null);
 
@@ -138,7 +139,7 @@ export default function StudentDetailPage() {
       if (t === 'overview' && stud.parent_id) {
         const { data: pData } = await supabase.from('parents').select('*').eq('id', stud.parent_id).maybeSingle();
         setParent(pData || null);
-        
+
         // Fetch Siblings
         const { data: sData } = await supabase.from('students')
           .select('id, full_name, photograph_url, class_id, classes(name, section)')
@@ -150,16 +151,29 @@ export default function StudentDetailPage() {
         const { data } = await supabase.from('fee_records').select('*')
           .eq('student_id', stud.id).is('deleted_at', null).order('month_year', { ascending: false });
         setFees(data || []);
-        
+
         const total = data?.reduce((acc, f) => acc + (f.total_amount || 0), 0) || 0;
         const paid = data?.reduce((acc, f) => acc + (f.paid_amount || 0), 0) || 0;
         setLedgerSummary({ total, paid, balance: Math.max(0, total - paid) });
       }
+      if (t === 'attendance') {
+        const { data } = await supabase.from('attendance').select('*').eq('student_id', stud.id).order('date', { ascending: false }).limit(100);
+        setAttendance(data || []);
+      }
       if (t === 'results') {
-        const { data } = await supabase.from('exam_results')
-          .select('*, exam_types(id, name, session, month_year, show_pass_fail, weightage), subjects(id, subject_name)')
-          .eq('student_id', stud.id).order('created_at', { ascending: false });
+        const [{ data }, { data: pubData }] = await Promise.all([
+          supabase.from('exam_results')
+            .select('*, exam_types(id, name, session, month_year, show_pass_fail, weightage), subjects(id, subject_name)')
+            .eq('student_id', stud.id).order('created_at', { ascending: false }),
+          supabase.from('form_settings').select('sections_config')
+            .eq('school_id', userRole?.school_id)
+            .eq('form_name', 'exam_publication_settings')
+            .maybeSingle(),
+        ]);
         setResults(data || []);
+        if (pubData?.sections_config && Array.isArray(pubData.sections_config.published_exam_ids)) {
+          setPublishedExamIds(pubData.sections_config.published_exam_ids);
+        }
       }
     } finally {
       setTabLoading(false);
@@ -1490,11 +1504,14 @@ export default function StudentDetailPage() {
                             onChange={e => setSelectedDetailExamId(e.target.value)}
                             className="w-full sm:w-auto px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition cursor-pointer"
                           >
-                            {availableDetailExams.map(ex => (
-                              <option key={ex.info.id} value={ex.info.id}>
-                                {ex.info.name}{ex.info.month_year ? ` — ${ex.info.month_year}` : ''}{ex.info.session ? ` (${ex.info.session})` : ''} [{ex.items.length} Subjects]
-                              </option>
-                            ))}
+                            {availableDetailExams.map(ex => {
+                              const isPub = publishedExamIds ? publishedExamIds.includes(ex.info.id) : true;
+                              return (
+                                <option key={ex.info.id} value={ex.info.id}>
+                                  {ex.info.name}{ex.info.month_year ? ` — ${ex.info.month_year}` : ''}{ex.info.session ? ` (${ex.info.session})` : ''} [{ex.items.length} Subjects] {isPub ? '✓ Published' : '🔒 Draft'}
+                                </option>
+                              );
+                            })}
                           </select>
                         </div>
                       </div>
@@ -1503,9 +1520,22 @@ export default function StudentDetailPage() {
                       <Card className="p-0 shadow-sm overflow-hidden border border-slate-200">
                         <div className="px-8 py-6 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100">
                           <div>
-                            <h3 className="font-black text-slate-900 uppercase tracking-tight text-lg">
-                              {activeExamInfo?.name} {activeExamInfo?.month_year && `— ${activeExamInfo.month_year}`}
-                            </h3>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-black text-slate-900 uppercase tracking-tight text-lg">
+                                {activeExamInfo?.name} {activeExamInfo?.month_year && `— ${activeExamInfo.month_year}`}
+                              </h3>
+                              {publishedExamIds && (
+                                publishedExamIds.includes(activeExamInfo?.id || '') ? (
+                                  <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Published to Portals
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-black bg-amber-100 text-amber-700 px-2.5 py-0.5 rounded-full">
+                                    Draft (Hidden from Portals)
+                                  </span>
+                                )
+                              )}
+                            </div>
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
                               Session: {activeExamInfo?.session || 'Current'} · {activeExamItems.length} Subjects Evaluated
                             </p>

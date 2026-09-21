@@ -108,12 +108,28 @@ export default function StudentPortal() {
   };
 
   const fetchResults = async () => {
-    const { data } = await supabase
-      .from('exam_results')
-      .select('id, exam_type_id, obtained_marks, total_marks, grade, is_absent, remarks, created_at, exam_types(id, name, session, month_year, show_pass_fail, weightage), subjects(id, subject_name)')
-      .eq('student_id', studentData!.id)
-      .order('created_at', { ascending: false });
-    setResults(data || []);
+    const [{ data }, { data: pubData }] = await Promise.all([
+      supabase
+        .from('exam_results')
+        .select('id, exam_type_id, obtained_marks, total_marks, grade, is_absent, remarks, created_at, exam_types(id, name, session, month_year, show_pass_fail, weightage), subjects(id, subject_name)')
+        .eq('student_id', studentData!.id)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('form_settings')
+        .select('sections_config')
+        .eq('school_id', studentData!.school_id)
+        .eq('form_name', 'exam_publication_settings')
+        .maybeSingle(),
+    ]);
+
+    const allResults = data || [];
+    const publishedIds = pubData?.sections_config?.published_exam_ids;
+
+    if (Array.isArray(publishedIds)) {
+      setResults(allResults.filter(r => r.exam_type_id && publishedIds.includes(r.exam_type_id)));
+    } else {
+      setResults(allResults);
+    }
   };
 
 
@@ -764,7 +780,9 @@ function ResultsTab({ results }: { results: any[] }) {
           <Trophy className="w-10 h-10 text-indigo-300" />
         </div>
         <p className="text-gray-900 font-black text-lg">Results Pending</p>
-        <p className="text-gray-400 text-sm mt-1 max-w-xs mx-auto">No exam results have been recorded for your account yet.</p>
+        <p className="text-gray-400 text-sm mt-1 max-w-xs mx-auto">
+          No exam results have been published for your account yet. Please check back after administration publishes the results.
+        </p>
       </div>
     );
   }

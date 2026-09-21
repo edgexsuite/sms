@@ -272,13 +272,26 @@ export default function ParentPortal() {
         .eq('school_id', parentData!.school_id)
         .eq('student_id', child.id)
         .order('created_at', { ascending: false }),
+      // Publication settings
+      supabase.from('form_settings').select('sections_config')
+        .eq('school_id', parentData!.school_id)
+        .eq('form_name', 'exam_publication_settings')
+        .maybeSingle(),
     ]);
 
-    const [fees, att, res, tt, not, hwork, leaves] = resultsList;
+    const [fees, att, res, tt, not, hwork, leaves, pubSettings] = resultsList;
 
     setFeeRecords(fees.data || []);
     setAttendanceRecords(att.data || []);
-    setExamResults(res.data || []);
+
+    const allResults = res.data || [];
+    const publishedIds = pubSettings?.data?.sections_config?.published_exam_ids;
+    if (Array.isArray(publishedIds)) {
+      setExamResults(allResults.filter((r: any) => r.exam_type_id && publishedIds.includes(r.exam_type_id)));
+    } else {
+      setExamResults(allResults);
+    }
+
     setTimetableSlots(tt.data || []);
     setNotices(not.data || []);
     setHomework(hwork.data || []);
@@ -1386,8 +1399,8 @@ function ResultsTab({ results, urduMode }: { results: any[]; urduMode?: boolean 
         </p>
         <p className="text-gray-400 text-sm mt-1 max-w-xs mx-auto">
           {urduMode
-            ? 'اس طالب علم کے لیے فی الحال امتحانی نتائج ریکارڈ نہیں ہوئے ہیں۔'
-            : 'No exam results have been recorded for this student yet.'}
+            ? 'اس طالب علم کے لیے اسکول انتظامیہ کی طرف سے فی الحال امتحانی نتائج شائع نہیں کیے گئے ہیں۔ برائے مہربانی بعد میں دیکھیں۔'
+            : 'No exam results have been published for this student yet. Please check back after the school administration publishes the results.'}
         </p>
       </div>
     );

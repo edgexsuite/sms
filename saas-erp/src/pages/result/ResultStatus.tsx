@@ -6,6 +6,7 @@ import {
   ClipboardCheck, CheckCircle2, AlertCircle, XCircle,
   ChevronDown, Download, RefreshCw, ExternalLink,
   BarChart3, Users, BookOpen, Search, FileDown,
+  Globe, EyeOff,
 } from 'lucide-react';
 import { exportToCSV } from '../../lib/exportUtils';
 import jsPDF from 'jspdf';
@@ -18,6 +19,7 @@ interface ExamType {
   id: string;
   name: string;
   month_year: string | null;
+  session?: string;
 }
 
 interface RowData {
@@ -81,32 +83,42 @@ export default function ResultStatus() {
   const navigate = useNavigate();
 
   // ── State
-  const [examTypes, setExamTypes]       = useState<ExamType[]>([]);
-  const [selectedExam, setSelectedExam] = useState<string>('');
-  const [rows, setRows]                 = useState<RowData[]>([]);
-  const [loading, setLoading]           = useState(false);
-  const [loadingExams, setLoadingExams] = useState(true);
-  const [classFilter, setClassFilter]   = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<'all'|'pending'|'partial'|'complete'>('all');
-  const [search, setSearch]             = useState('');
-  const [refreshKey, setRefreshKey]     = useState(0);
-  const [schoolInfo, setSchoolInfo]     = useState<any>(null);
-  const [pdfLoading, setPdfLoading]     = useState(false);
+  const [examTypes, setExamTypes]               = useState<ExamType[]>([]);
+  const [selectedExam, setSelectedExam]         = useState<string>('');
+  const [publishedExamIds, setPublishedExamIds] = useState<string[]>([]);
+  const [togglingPublish, setTogglingPublish]   = useState(false);
+  const [rows, setRows]                         = useState<RowData[]>([]);
+  const [loading, setLoading]                   = useState(false);
+  const [loadingExams, setLoadingExams]         = useState(true);
+  const [classFilter, setClassFilter]           = useState<string>('all');
+  const [statusFilter, setStatusFilter]         = useState<'all'|'pending'|'partial'|'complete'>('all');
+  const [search, setSearch]                     = useState('');
+  const [refreshKey, setRefreshKey]             = useState(0);
+  const [schoolInfo, setSchoolInfo]             = useState<any>(null);
+  const [pdfLoading, setPdfLoading]             = useState(false);
 
-  // ── Load exam types once
+  // ── Load exam types & publication settings once
   useEffect(() => {
     if (!userRole?.school_id) return;
     (async () => {
       setLoadingExams(true);
-      const [{ data }, { data: school }] = await Promise.all([
+      const [{ data }, { data: school }, { data: pubData }] = await Promise.all([
         supabase.from('exam_types').select('id, name, month_year, session')
           .eq('school_id', userRole.school_id).order('month_year', { ascending: false }),
         supabase.from('schools').select('name, address, contact_phone, logo_url')
           .eq('id', userRole.school_id).maybeSingle(),
+        supabase.from('form_settings').select('sections_config')
+          .eq('school_id', userRole.school_id).eq('form_name', 'exam_publication_settings').maybeSingle(),
       ]);
-      setExamTypes(data || []);
+      const exams = data || [];
+      setExamTypes(exams);
       setSchoolInfo(school);
-      if (data && data.length > 0) setSelectedExam(data[0].id);
+      if (pubData?.sections_config && Array.isArray(pubData.sections_config.published_exam_ids)) {
+        setPublishedExamIds(pubData.sections_config.published_exam_ids);
+      } else {
+        setPublishedExamIds(exams.map(e => e.id));
+      }
+      if (exams.length > 0) setSelectedExam(exams[0].id);
       setLoadingExams(false);
     })();
   }, [userRole?.school_id]);
@@ -244,6 +256,49 @@ export default function ResultStatus() {
   const overallPct = total > 0 ? Math.round((complete / total) * 100) : 0;
 
   const selectedExamObj = examTypes.find(e => e.id === selectedExam);
+  const isSelectedExamPublished = selectedExam ? publishedExamIds.includes(selectedExam) : false;
+
+  const handleTogglePublish = async () => {
+    if (!userRole?.school_id || !selectedExam || !selectedExamObj) return;
+
+    if (!isSelectedExamPublished) {
+      if (overallPct < 100) {
+        const proceed = window.confirm(
+          `Notice: Mark entry is at ${overallPct}% (${complete}/${total} subjects complete).\n\nDo you want to publish results for "${selectedExamObj.name}" to the Student & Parent Portals now?`
+        );
+        if (!proceed) return;
+      }
+    } else {
+      const proceed = window.confirm(
+        `Are you sure you want to unpublish "${selectedExamObj.name}"?\n\nResults will be hidden from the Student and Parent Portals.`
+      );
+      if (!proceed) return;
+    }
+
+    setTogglingPublish(true);
+    try {
+      const nextIds = isSelectedExamPublished
+        ? publishedExamIds.filter(id => id !== selectedExam)
+        : [...publishedExamIds, selectedExam];
+
+      setPublishedExamIds(nextIds);
+
+      const { error } = await supabase.from('form_settings').upsert({
+        school_id: userRole.school_id,
+        form_name: 'exam_publication_settings',
+        sections_config: { published_exam_ids: nextIds },
+      }, { onConflict: 'school_id,form_name' });
+
+      if (error) {
+        setPublishedExamIds(publishedExamIds);
+        alert('Failed to update publication status: ' + error.message);
+      }
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setTogglingPublish(false);
+    }
+  };
 
   const handleExport = () => {
     exportToCSV('result-status', filtered, [
@@ -427,7 +482,7 @@ export default function ResultStatus() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {/* Exam selector */}
           <div className="relative">
             <select
@@ -450,9 +505,42 @@ export default function ResultStatus() {
             <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
           </div>
 
+          {/* Publication Status & Action Button */}
+          {selectedExam && (
+            <button
+              type="button"
+              onClick={handleTogglePublish}
+              disabled={togglingPublish || loadingExams}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer ${
+                isSelectedExamPublished
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200'
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200'
+              }`}
+              title={
+                isSelectedExamPublished
+                  ? 'Visible to Students & Parents. Click to Unpublish'
+                  : 'Hidden from Portals. Click to Publish'
+              }
+            >
+              {isSelectedExamPublished ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <Globe className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Published</span>
+                  <span className="text-[10px] text-slate-400 ml-1">· Unpublish</span>
+                </>
+              ) : (
+                <>
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>Publish to Portals</span>
+                </>
+              )}
+            </button>
+          )}
+
           <button
             onClick={() => setRefreshKey(k => k + 1)}
-            className="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-500"
+            className="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-500 cursor-pointer"
             title="Refresh"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -460,7 +548,7 @@ export default function ResultStatus() {
 
           <button
             onClick={handleExport}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-600"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-600 cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" /> CSV
           </button>
@@ -468,7 +556,7 @@ export default function ResultStatus() {
           <button
             onClick={handleDownloadPDF}
             disabled={pdfLoading || !selectedExam}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-xs font-bold text-white shadow-sm shadow-indigo-200 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-xs font-bold text-white shadow-sm shadow-indigo-200 transition-colors cursor-pointer"
           >
             <FileDown className={`w-3.5 h-3.5 ${pdfLoading ? 'animate-bounce' : ''}`} />
             {pdfLoading ? 'Generating…' : 'PDF'}

@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import {
   Star, Save, CheckCircle2, AlertTriangle, RefreshCw,
   BookOpen, ChevronDown, Info, CalendarDays, PenLine, RotateCcw,
+  Globe, EyeOff,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { fetchGradingPolicy, getGradeFromPolicy, GradingBracket } from '../../lib/gradingUtils';
@@ -61,6 +62,7 @@ export default function TeacherMarks() {
   const [selectedExam,    setSelectedExam]    = useState('');
   const [selectedClass,   setSelectedClass]   = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
+  const [publishedExamIds, setPublishedExamIds] = useState<string[]>([]);
 
   const [marks,      setMarks]      = useState<Record<string, string>>({});
   const [absent,     setAbsent]     = useState<Record<string, boolean>>({});
@@ -114,12 +116,27 @@ export default function TeacherMarks() {
     setLoading(true);
     const sid = userRole!.school_id;
 
-    const { data: et } = await supabase
-      .from('exam_types')
-      .select('id, name, session, month_year, weightage')
-      .eq('school_id', sid)
-      .order('created_at', { ascending: false });
-    setExamTypes((et || []) as ExamType[]);
+    const [{ data: et }, { data: pubData }] = await Promise.all([
+      supabase
+        .from('exam_types')
+        .select('id, name, session, month_year, weightage')
+        .eq('school_id', sid)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('form_settings')
+        .select('sections_config')
+        .eq('school_id', sid)
+        .eq('form_name', 'exam_publication_settings')
+        .maybeSingle(),
+    ]);
+    const examList = (et || []) as ExamType[];
+    setExamTypes(examList);
+
+    if (pubData?.sections_config && Array.isArray(pubData.sections_config.published_exam_ids)) {
+      setPublishedExamIds(pubData.sections_config.published_exam_ids);
+    } else {
+      setPublishedExamIds(examList.map(e => e.id));
+    }
 
     if (isAdmin) {
       const { data: cls } = await supabase
@@ -440,6 +457,22 @@ export default function TeacherMarks() {
             <span>No timetable slots found — showing all subjects. Ask admin to update the timetable.</span>
           )}
         </div>
+      )}
+
+      {/* Exam publication indicator */}
+      {selectedExam && (
+        publishedExamIds.includes(selectedExam) ? (
+          <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <Globe className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>Published on Portals: Results for "{selectedExamObj?.name || 'this exam'}" are live on Student &amp; Parent Portals. Any saved marks will be visible to parents immediately.</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-600">
+            <EyeOff className="w-4 h-4 text-slate-500 shrink-0" />
+            <span>Draft Mode: Results for "{selectedExamObj?.name || 'this exam'}" are currently hidden from Student &amp; Parent Portals until published by administration.</span>
+          </div>
+        )
       )}
 
       {/* Exam status banner — shown after exam + class + subject selected */}
