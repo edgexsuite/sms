@@ -17,6 +17,7 @@ import JoiningLetter from '../components/JoiningLetter';
 import ExperienceCertificate from '../components/ExperienceCertificate';
 import * as templatesLib from '../lib/whatsappTemplates';
 import { processStudentPhoto } from '../lib/uploadUtils';
+import { logActivity } from '../lib/auditLog';
 
 const ROLES = ['Teacher', 'Principal', 'Vice Principal', 'Coordinator', 'Admin', 'Accountant', 'Librarian', 'Security', 'Support Staff', 'Driver', 'Other'];
 const DEPARTMENTS = ['Academic', 'Administration', 'Accounts', 'Library', 'Security', 'Transport', 'Science', 'Arts', 'IT'];
@@ -186,6 +187,20 @@ export default function Staff() {
       if (editId) {
         const { error } = await supabase.from('staff').update(payload).eq('id', editId);
         if (error) throw error;
+        if (userRole?.school_id) {
+          logActivity({
+            school_id: userRole.school_id,
+            user_id: userRole.user_id,
+            user_name: userRole.role,
+            user_role: userRole.role,
+            action: 'UPDATE',
+            module: 'Staff',
+            entity_type: 'staff',
+            entity_id: editId,
+            entity_name: formData.full_name,
+            description: `Updated staff profile for ${formData.full_name} (${formData.role || 'Staff'})`,
+          });
+        }
         // If email changed, update Supabase Auth + user_roles via edge function
         const emailChanged = formData.email && formData.email !== editOriginalEmail;
         if (emailChanged) {
@@ -207,6 +222,20 @@ export default function Staff() {
         const { data: newStaff, error } = await supabase.from('staff').insert([payload]).select().single();
         if (error) throw error;
         staffId = newStaff.id;
+        if (userRole?.school_id) {
+          logActivity({
+            school_id: userRole.school_id,
+            user_id: userRole.user_id,
+            user_name: userRole.role,
+            user_role: userRole.role,
+            action: 'CREATE',
+            module: 'Staff',
+            entity_type: 'staff',
+            entity_id: staffId,
+            entity_name: formData.full_name,
+            description: `Added staff member ${formData.full_name} (${formData.role || 'Staff'})`,
+          });
+        }
       }
 
       if (photoFile && staffId) {
@@ -308,6 +337,18 @@ export default function Staff() {
     try {
       const { error } = await supabase.from('staff').update({ is_active: active }).in('id', selectedIds);
       if (error) throw error;
+      if (userRole?.school_id) {
+        logActivity({
+          school_id: userRole.school_id,
+          user_id: userRole.user_id,
+          user_name: userRole.role,
+          user_role: userRole.role,
+          action: 'UPDATE',
+          module: 'Staff',
+          entity_type: 'staff',
+          description: `Updated status to ${active ? 'Active' : 'Inactive'} for ${selectedIds.length} staff member(s)`,
+        });
+      }
       fetchStaff();
       setSelectedIds([]);
       setIsBulkStatusOpen(false);
@@ -320,6 +361,18 @@ export default function Staff() {
     try {
       const { error } = await supabase.from('staff').update({ is_deleted: true, deleted_at: new Date().toISOString() }).in('id', selectedIds);
       if (error) throw error;
+      if (userRole?.school_id) {
+        logActivity({
+          school_id: userRole.school_id,
+          user_id: userRole.user_id,
+          user_name: userRole.role,
+          user_role: userRole.role,
+          action: 'DELETE',
+          module: 'Staff',
+          entity_type: 'staff',
+          description: `Moved ${selectedIds.length} staff member(s) to trash/deleted`,
+        });
+      }
       fetchStaff();
       setSelectedIds([]);
       setIsBulkDeleteModalOpen(false);

@@ -196,13 +196,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .then(() => {/* ignore result */});
 
       // Audit log: login event
-      logActivity({
-        school_id:   primaryRole.school_id,
-        user_id:     userId,
-        user_role:   primaryRole.role,
-        action:      'LOGIN',
-        module:      'Auth',
-        description: `${primaryRole.role} signed in`,
+      supabase.auth.getUser().then(({ data: authData }) => {
+        const userName = authData?.user?.user_metadata?.full_name || authData?.user?.email || primaryRole.role;
+        logActivity({
+          school_id:   primaryRole.school_id,
+          user_id:     userId,
+          user_name:   userName,
+          user_role:   primaryRole.role,
+          action:      'LOGIN',
+          module:      'Auth',
+          description: `${userName} (${primaryRole.role}) signed in`,
+        });
       });
 
     } catch (err: any) {
@@ -262,6 +266,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signOut = async () => {
+    if (userRole?.school_id) {
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        const userName = authData?.user?.user_metadata?.full_name || authData?.user?.email || userRole.role;
+        logActivity({
+          school_id:   userRole.school_id,
+          user_id:     userRole.user_id,
+          user_name:   userName,
+          user_role:   userRole.role,
+          action:      'LOGOUT',
+          module:      'Auth',
+          description: `${userName} (${userRole.role}) signed out`,
+        });
+      } catch (e) {
+        // Continue logout even if audit logging fails
+      }
+    }
+
     if (userRole?.school_id === DEMO_SCHOOL_ID) {
       try {
         await cleanupDemoSchoolModifications(userRole.school_id);

@@ -17,11 +17,11 @@ declare const __APP_BUILD__: string;
 
   if (stored && stored !== __APP_BUILD__) {
     // 1. Clear all service worker caches
-    if ('caches' in window) {
+    if (typeof caches !== 'undefined') {
       caches.keys().then(keys => {
         Promise.all(keys.map(k => caches.delete(k))).then(() => {
           // 2. Unregister stale workers
-          if ('serviceWorker' in navigator) {
+          if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations().then(regs => {
               Promise.all(regs.map(r => r.unregister())).then(() => {
                 window.location.reload();

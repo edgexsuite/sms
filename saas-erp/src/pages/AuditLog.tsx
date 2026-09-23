@@ -132,7 +132,7 @@ export default function AuditLog() {
     let query = supabase
       .from('audit_logs')
       .select('*', { count: 'exact' })
-      .eq('school_id', sid)
+      .or(`metadata->>school_id.eq.${sid},details->>school_id.eq.${sid}`)
       .order('created_at', { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1);
 
@@ -140,10 +140,11 @@ export default function AuditLog() {
     if (dateTo)       query = query.lte('created_at', dateTo   + 'T23:59:59');
     if (filterModule) query = query.eq('module', filterModule);
     if (filterAction) query = query.eq('action', filterAction);
-    if (filterUser)   query = query.ilike('user_name', `%${filterUser}%`);
-    if (search)       query = query.ilike('description', `%${search}%`);
+    if (filterUser)   query = query.or(`metadata->>user_name.ilike.%${filterUser}%,details->>user_name.ilike.%${filterUser}%`);
+    if (search)       query = query.or(`description.ilike.%${search}%,entity_name.ilike.%${search}%`);
 
-    const { data, count } = await query;
+    const { data, count, error } = await query;
+    if (error) console.error('[AuditLog] Fetch error:', error);
     setLogs(data || []);
     setTotal(count || 0);
     setLoading(false);
@@ -158,20 +159,24 @@ export default function AuditLog() {
 
     const [{ count: todayCount }, { count: weekCount }, { data: allRecent }] = await Promise.all([
       supabase.from('audit_logs').select('*', { count: 'exact', head: true })
-        .eq('school_id', sid).gte('created_at', today + 'T00:00:00'),
+        .or(`metadata->>school_id.eq.${sid},details->>school_id.eq.${sid}`).gte('created_at', today + 'T00:00:00'),
       supabase.from('audit_logs').select('*', { count: 'exact', head: true })
-        .eq('school_id', sid).gte('created_at', weekAgo + 'T00:00:00'),
-      supabase.from('audit_logs').select('module,user_name,user_role')
-        .eq('school_id', sid).gte('created_at', weekAgo + 'T00:00:00'),
+        .or(`metadata->>school_id.eq.${sid},details->>school_id.eq.${sid}`).gte('created_at', weekAgo + 'T00:00:00'),
+      supabase.from('audit_logs').select('module,details,metadata')
+        .or(`metadata->>school_id.eq.${sid},details->>school_id.eq.${sid}`).gte('created_at', weekAgo + 'T00:00:00'),
     ]);
 
     // Count by module
     const modCounts: Record<string, number> = {};
     const userCounts: Record<string, { user_role: string; count: number }> = {};
     (allRecent || []).forEach((r: any) => {
-      modCounts[r.module]  = (modCounts[r.module]  || 0) + 1;
-      if (!userCounts[r.user_name]) userCounts[r.user_name] = { user_role: r.user_role, count: 0 };
-      userCounts[r.user_name].count++;
+      const uName = r.user_name || r.metadata?.user_name || r.details?.user_name || 'System';
+      const uRole = r.user_role || r.metadata?.user_role || r.details?.user_role || 'staff';
+      if (r.module) {
+        modCounts[r.module] = (modCounts[r.module] || 0) + 1;
+      }
+      if (!userCounts[uName]) userCounts[uName] = { user_role: uRole, count: 0 };
+      userCounts[uName].count++;
     });
 
     const topModules = Object.entries(modCounts)
@@ -195,10 +200,12 @@ export default function AuditLog() {
       .channel('audit-realtime')
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'audit_logs',
-        filter: `school_id=eq.${sid}`,
-      }, () => {
-        fetchLogs(true);
-        fetchStats();
+      }, (payload: any) => {
+        const row = payload?.new;
+        if (row?.metadata?.school_id === sid || row?.details?.school_id === sid || row?.school_id === sid) {
+          fetchLogs(true);
+          fetchStats();
+        }
       })
       .subscribe();
     realtimeRef.current = channel;
@@ -209,8 +216,8 @@ export default function AuditLog() {
   const handleExport = () => {
     exportToCSV('audit-log', logs, [
       { header: 'Date/Time',   key: (r: any) => formatFull(r.created_at) },
-      { header: 'User',        key: 'user_name' },
-      { header: 'Role',        key: 'user_role' },
+      { header: 'User',        key: (r: any) => r.user_name || r.metadata?.user_name || r.details?.user_name || 'System' },
+      { header: 'Role',        key: (r: any) => r.user_role || r.metadata?.user_role || r.details?.user_role || 'staff' },
       { header: 'Action',      key: 'action' },
       { header: 'Module',      key: 'module' },
       { header: 'Entity',      key: 'entity_name' },
@@ -218,8 +225,8 @@ export default function AuditLog() {
     ]);
   };
 
-  // ─── Distinct modules/actions from current data for filter dropdowns ───────
-  const allModules = Array.from(new Set(logs.map(l => l.module))).sort();
+  // ─── Distinct modules/actions for filter dropdowns ─────────────────────────
+  const allModules = Array.from(new Set([...Object.keys(MODULE_COLOURS), ...logs.map(l => l.module)])).filter(Boolean).sort();
   const allActions = Object.keys(ACTION_META);
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -425,7 +432,10 @@ export default function AuditLog() {
               const actionMeta = ACTION_META[log.action] || { label: log.action, color: 'bg-slate-100 text-slate-600', icon: Info };
               const ActionIcon = actionMeta.icon;
               const isExpanded = expanded === log.id;
-              const hasMetadata = log.metadata && Object.keys(log.metadata).length > 0;
+              const meta = log.metadata || log.details || {};
+              const hasMetadata = Object.keys(meta).length > 0;
+              const uName = log.user_name || log.metadata?.user_name || log.details?.user_name || 'System';
+              const uRole = log.user_role || log.metadata?.user_role || log.details?.user_role || 'staff';
 
               return (
                 <div key={log.id} className={cn('px-4 py-3 hover:bg-slate-50/60 transition-colors', isExpanded && 'bg-slate-50')}>
@@ -440,10 +450,10 @@ export default function AuditLog() {
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2 mb-0.5">
                         {/* User */}
-                        <span className="text-sm font-black text-slate-900">{log.user_name}</span>
+                        <span className="text-sm font-black text-slate-900">{uName}</span>
                         {/* Role */}
-                        <span className={cn('text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase', ROLE_COLOURS[log.user_role] || 'bg-slate-100 text-slate-500')}>
-                          {log.user_role}
+                        <span className={cn('text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase', ROLE_COLOURS[uRole] || 'bg-slate-100 text-slate-500')}>
+                          {uRole}
                         </span>
                         {/* Action */}
                         <span className={cn('text-[10px] font-black px-2 py-0.5 rounded-full', actionMeta.color)}>
@@ -475,7 +485,7 @@ export default function AuditLog() {
                           </button>
                           {isExpanded && (
                             <pre className="mt-2 text-[10px] bg-slate-900 text-slate-100 rounded-xl p-3 overflow-x-auto font-mono leading-relaxed">
-                              {JSON.stringify(log.metadata, null, 2)}
+                              {JSON.stringify(meta, null, 2)}
                             </pre>
                           )}
                         </>

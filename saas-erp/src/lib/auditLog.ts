@@ -49,23 +49,31 @@ export interface AuditParams {
 }
 
 // Set to true once the audit_logs table schema is confirmed synced in Supabase
-const AUDIT_LOG_ENABLED = false;
+const AUDIT_LOG_ENABLED = true;
 
 export function logActivity(params: AuditParams): void {
   if (!AUDIT_LOG_ENABLED) return;
-  supabase.from('audit_logs').insert({
+
+  const metadata = {
+    ...(params.metadata || {}),
     school_id:   params.school_id,
     user_id:     params.user_id   || null,
     user_name:   params.user_name || 'System',
     user_role:   params.user_role || 'unknown',
+  };
+
+  const payload: any = {
     action:      params.action,
     module:      params.module,
+    description: params.description,
+    entity_name: params.entity_name || null,
     entity_type: params.entity_type || null,
     entity_id:   params.entity_id   || null,
-    entity_name: params.entity_name || null,
-    description: params.description,
-    metadata:    params.metadata    || null,
-  }).then(({ error }) => {
+    details:     metadata,
+    metadata:    metadata,
+  };
+
+  supabase.from('audit_logs').insert(payload).then(({ error }) => {
     if (error) console.warn('[AuditLog]', error.message);
   });
 }

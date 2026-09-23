@@ -16,6 +16,7 @@ import { calculateLateFine, getFineRules, type FineRule } from '../../lib/fineUt
 import { openWhatsApp, paymentReceiptTemplate } from '../../lib/whatsappTemplates';
 import HelpBanner from '../../components/HelpBanner';
 import { PageHeader, Card, Btn, Badge, Select, Input } from '../../components/ui';
+import { logActivity } from '../../lib/auditLog';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -395,6 +396,26 @@ export default function EasyFee() {
           for (const r of updatedRecords) await supabase.from('fee_records').update({ paid_amount: r.originalPaid, status: r.originalStatus }).eq('id', r.id);
           throw new Error(txErr.message);
         }
+      }
+      if (userRole?.school_id) {
+        logActivity({
+          school_id: userRole.school_id,
+          user_id: userRole.user_id,
+          user_name: userRole.role,
+          user_role: userRole.role,
+          action: 'PAY',
+          module: 'Fees',
+          entity_type: 'fee_payment',
+          entity_id: student.id,
+          entity_name: student.full_name,
+          description: `Collected fee payment of Rs. ${amount.toLocaleString()} for ${student.full_name} via ${mode_}`,
+          metadata: {
+            student_id: student.id,
+            amount,
+            mode: mode_,
+            months: paidRecords.map(r => r.month_year),
+          },
+        });
       }
       return {
         success: true,

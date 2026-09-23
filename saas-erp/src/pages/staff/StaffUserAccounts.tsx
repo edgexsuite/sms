@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { formatDate } from '../../lib/utils';
 import { ROLE_LABELS, ROLE_PRESETS as SHARED_PRESETS } from '../../lib/rolePermissions';
+import { logActivity } from '../../lib/auditLog';
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface StaffWithAccount {
@@ -415,6 +416,20 @@ export default function StaffUserAccounts() {
         const credErr = await storeCredentials(createEmail, createPass, authUserId);
         if (credErr) setCreateError(`Account created but credentials card failed to save: ${credErr}\n\nRun staff_credentials_migration.sql in Supabase.`);
       }
+      if (userRole?.school_id) {
+        logActivity({
+          school_id: userRole.school_id,
+          user_id: userRole.user_id,
+          user_name: userRole.role,
+          user_role: userRole.role,
+          action: 'CREATE',
+          module: 'Staff',
+          entity_type: 'staff_account',
+          entity_id: selected.id,
+          entity_name: selected.full_name,
+          description: `Created system login for ${selected.full_name} (${createEmail}) with role ${createRole}`,
+        });
+      }
       await fetchStaff();
       setShowCreate(false);
     } catch (err: any) {
@@ -498,6 +513,19 @@ export default function StaffUserAccounts() {
       if (finalUserId) {
         await storeCredentials(email, resetPass, finalUserId);
       }
+      if (userRole?.school_id) {
+        logActivity({
+          school_id: userRole.school_id,
+          user_id: userRole.user_id,
+          user_name: userRole.role,
+          user_role: userRole.role,
+          action: 'UPDATE',
+          module: 'Staff',
+          entity_type: 'staff_account',
+          entity_name: selected?.full_name,
+          description: `Reset password for ${selected?.full_name || email}`,
+        });
+      }
       await fetchStaff();
       setShowReset(false);
       setResetPass('');
@@ -515,6 +543,19 @@ export default function StaffUserAccounts() {
     setWorking(true);
     try {
       await supabase.from('user_roles').update({ is_active }).eq('user_id', selected.user_id).eq('school_id', userRole!.school_id);
+      if (userRole?.school_id) {
+        logActivity({
+          school_id: userRole.school_id,
+          user_id: userRole.user_id,
+          user_name: userRole.role,
+          user_role: userRole.role,
+          action: 'UPDATE',
+          module: 'Staff',
+          entity_type: 'staff_account',
+          entity_name: selected.full_name,
+          description: `${is_active ? 'Reactivated' : 'Suspended'} system account for ${selected.full_name}`,
+        });
+      }
       await fetchStaff();
     } catch (err: any) { alert('Error: ' + err.message); }
     finally { setWorking(false); setConfirm(null); }
@@ -530,6 +571,19 @@ export default function StaffUserAccounts() {
         body: { action: 'revoke', user_id: selected.user_id, staff_id: selected.id },
       });
       if (error || data?.error) throw new Error(edgeFnError(error, data));
+      if (userRole?.school_id) {
+        logActivity({
+          school_id: userRole.school_id,
+          user_id: userRole.user_id,
+          user_name: userRole.role,
+          user_role: userRole.role,
+          action: 'DELETE',
+          module: 'Staff',
+          entity_type: 'staff_account',
+          entity_name: selected.full_name,
+          description: `Revoked portal access for ${selected.full_name}`,
+        });
+      }
       await fetchStaff();
       setSelected(prev => prev ? { ...prev, has_login: false, user_id: null, system_role: null, plain_password: null, login_email: null } : null);
     } catch (err: any) { alert('Error: ' + err.message); }
@@ -550,6 +604,19 @@ export default function StaffUserAccounts() {
     setSavingPerms(true);
     try {
       await supabase.from('user_roles').update({ permissions: editPerms }).eq('user_id', selected.user_id).eq('school_id', userRole!.school_id);
+      if (userRole?.school_id) {
+        logActivity({
+          school_id: userRole.school_id,
+          user_id: userRole.user_id,
+          user_name: userRole.role,
+          user_role: userRole.role,
+          action: 'UPDATE',
+          module: 'Staff',
+          entity_type: 'staff_permissions',
+          entity_name: selected.full_name,
+          description: `Updated module & action permissions for ${selected.full_name}`,
+        });
+      }
       await fetchStaff();
       setShowPerms(false);
     } catch (err: any) { alert('Error: ' + err.message); }

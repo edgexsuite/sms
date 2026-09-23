@@ -6,6 +6,7 @@ import { Building2, CreditCard, Database, ShieldCheck, Save, Download, Upload, P
 import { seedDemoData } from '../lib/seedData';
 import { uploadFile } from '../lib/uploadUtils';
 import { formatDate } from '../lib/utils';
+import { logActivity } from '../lib/auditLog';
 
 export default function Settings() {
   const { userRole } = useAuth();
@@ -213,6 +214,17 @@ export default function Settings() {
       }
 
       if (error) throw error;
+      if (userRole?.school_id) {
+        logActivity({
+          school_id: userRole.school_id,
+          user_id: userRole.user_id,
+          user_name: userRole.role,
+          user_role: userRole.role,
+          action: existing ? 'UPDATE' : 'CREATE',
+          module: 'Fees',
+          description: `${existing ? 'Updated' : 'Created'} fee structure of Rs ${feeForm.amount}`,
+        });
+      }
       
       setIsFeeModalOpen(false);
       setFeeForm({ class_id: '', amount: '' });
@@ -265,6 +277,18 @@ export default function Settings() {
         .eq('id', userRole.school_id);
 
       if (error) throw error;
+      if (userRole?.school_id) {
+        logActivity({
+          school_id: userRole.school_id,
+          user_id: userRole.user_id,
+          user_name: userRole.role,
+          user_role: userRole.role,
+          action: 'UPDATE',
+          module: 'Settings',
+          entity_name: schoolData.name,
+          description: `Updated school profile settings for ${schoolData.name || 'School'}`,
+        });
+      }
       alert('School details updated successfully!');
     } catch (error: any) {
       alert(error.message || 'Error updating school details');

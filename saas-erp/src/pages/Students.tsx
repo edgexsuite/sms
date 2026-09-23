@@ -9,6 +9,7 @@ import { uploadFile } from '../lib/uploadUtils';
 import DeletePinModal from '../components/DeletePinModal';
 import { ShieldAlert, Trash2, Users, CheckCircle, X } from 'lucide-react';
 import { formatDate } from '../lib/utils';
+import { logActivity } from '../lib/auditLog';
 
 interface Student {
   id: string;
@@ -213,6 +214,20 @@ export default function Students() {
       ]).select('id');
 
       if (error) throw error;
+      if (userRole?.school_id) {
+        logActivity({
+          school_id: userRole.school_id,
+          user_id: userRole.user_id,
+          user_name: userRole.role,
+          user_role: userRole.role,
+          action: 'CREATE',
+          module: 'Students',
+          entity_type: 'student',
+          entity_id: inserted?.[0]?.id,
+          entity_name: formData.full_name,
+          description: `Admitted student ${formData.full_name} (Roll #${nextRollNumber})`,
+        });
+      }
 
       // Upload photo if selected
       if (photographFile && inserted?.[0]?.id) {
@@ -296,6 +311,18 @@ export default function Students() {
         .update({ status: newStatus })
         .in('id', selectedIds);
       if (error) throw error;
+      if (userRole?.school_id) {
+        logActivity({
+          school_id: userRole.school_id,
+          user_id: userRole.user_id,
+          user_name: userRole.role,
+          user_role: userRole.role,
+          action: 'UPDATE',
+          module: 'Students',
+          entity_type: 'student',
+          description: `Updated status to "${newStatus}" for ${selectedIds.length} student(s)`,
+        });
+      }
       alert(`Updated status for ${selectedIds.length} students.`);
       setSelectedIds([]);
       setIsBulkStatusOpen(false);
@@ -313,6 +340,18 @@ export default function Students() {
         .update({ class_id: bulkTargetClass })
         .in('id', selectedIds);
       if (error) throw error;
+      if (userRole?.school_id) {
+        logActivity({
+          school_id: userRole.school_id,
+          user_id: userRole.user_id,
+          user_name: userRole.role,
+          user_role: userRole.role,
+          action: 'UPDATE',
+          module: 'Students',
+          entity_type: 'student',
+          description: `Transferred ${selectedIds.length} student(s) to class ${bulkTargetClass}`,
+        });
+      }
       alert(`Moved ${selectedIds.length} students to new class.`);
       setSelectedIds([]);
       setBulkTargetClass('');
@@ -331,6 +370,18 @@ export default function Students() {
         .update({ is_deleted: true, status: 'left' })
         .in('id', selectedIds);
       if (error) throw error;
+      if (userRole?.school_id) {
+        logActivity({
+          school_id: userRole.school_id,
+          user_id: userRole.user_id,
+          user_name: userRole.role,
+          user_role: userRole.role,
+          action: 'DELETE',
+          module: 'Students',
+          entity_type: 'student',
+          description: `Marked ${selectedIds.length} student(s) as left / deleted`,
+        });
+      }
       alert(`Permanently deleted ${selectedIds.length} students.`);
       setSelectedIds([]);
       setIsBulkDeleteModalOpen(false);
