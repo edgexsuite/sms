@@ -36,6 +36,7 @@ export default function Login() {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,6 +46,18 @@ export default function Login() {
       setActiveTab('demo');
       setIdentifier('demo@edgexsuite.com');
       setPassword('Demo@1234');
+      return;
+    }
+
+    // Load remembered account
+    const savedIdentifier = localStorage.getItem('edgex_remembered_identifier');
+    const savedTab = localStorage.getItem('edgex_remembered_tab') as LoginTab | null;
+    if (savedIdentifier) {
+      setIdentifier(savedIdentifier);
+      if (savedTab && ['staff', 'parent', 'student'].includes(savedTab)) {
+        setActiveTab(savedTab);
+      }
+      setRememberMe(true);
     }
   }, []);
 
@@ -55,7 +68,13 @@ export default function Login() {
       setIdentifier('demo@edgexsuite.com');
       setPassword('Demo@1234');
     } else {
-      setIdentifier('');
+      const savedIdentifier = localStorage.getItem('edgex_remembered_identifier');
+      const savedTab = localStorage.getItem('edgex_remembered_tab');
+      if (savedIdentifier && savedTab === tab) {
+        setIdentifier(savedIdentifier);
+      } else {
+        setIdentifier('');
+      }
       setPassword('');
     }
   };
@@ -79,6 +98,16 @@ export default function Login() {
     }
   };
 
+  const saveRememberedAccount = (idVal: string, tabVal: LoginTab) => {
+    if (rememberMe && tabVal !== 'demo') {
+      localStorage.setItem('edgex_remembered_identifier', idVal);
+      localStorage.setItem('edgex_remembered_tab', tabVal);
+    } else {
+      localStorage.removeItem('edgex_remembered_identifier');
+      localStorage.removeItem('edgex_remembered_tab');
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier.trim() || !password.trim()) {
@@ -92,13 +121,53 @@ export default function Login() {
     try {
       const input = identifier.trim();
 
-      // 1. Staff / Admin Login (Email or Demo)
-      if (activeTab === 'staff' || activeTab === 'demo' || input.includes('@')) {
+      // 1. Admin & Staff Portal Login (Email or Phone / Username)
+      if (activeTab === 'staff' || activeTab === 'demo' || (input.includes('@') && activeTab !== 'parent' && activeTab !== 'student')) {
+        let authEmail = input;
+
+        // If user typed a phone number or username (no @)
+        if (!input.includes('@') && activeTab !== 'demo') {
+          const cleanedPhone = input.replace(/[\s-]/g, '');
+
+          // Check user_roles by username or login_email
+          const { data: roleMatch } = await supabase
+            .from('user_roles')
+            .select('login_email, email')
+            .or(`username.eq.${input},login_email.eq.${input}`)
+            .limit(1)
+            .maybeSingle();
+
+          if (roleMatch?.login_email || roleMatch?.email) {
+            authEmail = roleMatch.login_email || roleMatch.email;
+          } else {
+            // Check staff by mobile_number or whatsapp_number
+            const { data: staffMatch } = await supabase
+              .from('staff')
+              .select('email, mobile_number, whatsapp_number')
+              .or(`mobile_number.ilike.%${cleanedPhone}%,whatsapp_number.ilike.%${cleanedPhone}%`)
+              .not('email', 'is', null)
+              .limit(1)
+              .maybeSingle();
+
+            if (staffMatch?.email) {
+              authEmail = staffMatch.email;
+            }
+          }
+        }
+
         const { error } = await supabase.auth.signInWithPassword({
-          email: input,
+          email: authEmail,
           password,
         });
-        if (error) throw error;
+
+        if (error) {
+          if (error.message.includes('Invalid login credentials')) {
+            throw new Error('Incorrect Email/Mobile/Username or Password. Please verify your credentials or contact school admin.');
+          }
+          throw error;
+        }
+
+        saveRememberedAccount(input, activeTab);
         navigate('/dashboard');
         return;
       }
@@ -113,6 +182,7 @@ export default function Login() {
           .maybeSingle();
 
         if (parent) {
+          saveRememberedAccount(input, 'parent');
           sessionStorage.setItem('parent_portal_session', JSON.stringify(parent));
           navigate('/parent-portal');
           return;
@@ -139,6 +209,7 @@ export default function Login() {
           .maybeSingle();
 
         if (student) {
+          saveRememberedAccount(input, 'student');
           sessionStorage.setItem('student_portal_session', JSON.stringify(student));
           navigate('/student-portal');
           return;
@@ -155,6 +226,7 @@ export default function Login() {
         .maybeSingle();
 
       if (parentAuto) {
+        saveRememberedAccount(input, 'parent');
         sessionStorage.setItem('parent_portal_session', JSON.stringify(parentAuto));
         navigate('/parent-portal');
         return;
@@ -177,6 +249,7 @@ export default function Login() {
         .maybeSingle();
 
       if (studentAuto) {
+        saveRememberedAccount(input, 'student');
         sessionStorage.setItem('student_portal_session', JSON.stringify(studentAuto));
         navigate('/student-portal');
         return;
@@ -198,11 +271,11 @@ export default function Login() {
   const getIdentifierLabel = () => {
     switch (activeTab) {
       case 'staff':
-        return 'Official Staff Email';
+        return 'Email, Username or Registered Mobile';
       case 'parent':
-        return 'Family Number / Parent ID';
+        return 'Family Number / Registered Mobile / Parent ID';
       case 'student':
-        return 'Student Registration / Roll ID';
+        return 'Student Registration ID / Roll Number';
       case 'demo':
         return 'Demo Account Email';
     }
@@ -211,7 +284,7 @@ export default function Login() {
   const getIdentifierPlaceholder = () => {
     switch (activeTab) {
       case 'staff':
-        return 'e.g. principal@school.com or admin@school.com';
+        return 'e.g. admin@school.com, 0300-1234567, or username';
       case 'parent':
         return 'e.g. FAM-104 or 31202-*******-1';
       case 'student':
@@ -359,18 +432,18 @@ export default function Login() {
             </div>
 
             {/* Smart Role Tabs */}
-            <div className="grid grid-cols-4 gap-1.5 bg-slate-100/90 p-1.5 rounded-2xl mb-6 border border-slate-200/60">
+            <div className="grid grid-cols-4 gap-1.5 bg-slate-100/90 p-1.5 rounded-2xl mb-3 border border-slate-200/60">
               <button
                 type="button"
                 onClick={() => handleTabChange('staff')}
                 className={`py-2 px-1 rounded-xl text-xs font-black transition-all flex flex-col items-center gap-1 ${
                   activeTab === 'staff'
-                    ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80'
+                    ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80 ring-1 ring-sky-500/20'
                     : 'text-slate-500 hover:text-slate-900'
                 }`}
               >
                 <Building2 className="w-4 h-4 text-[#087fe5]" />
-                <span className="text-[10px]">Staff</span>
+                <span className="text-[10px] font-black">Admin / Staff</span>
               </button>
 
               <button
@@ -378,12 +451,12 @@ export default function Login() {
                 onClick={() => handleTabChange('parent')}
                 className={`py-2 px-1 rounded-xl text-xs font-black transition-all flex flex-col items-center gap-1 ${
                   activeTab === 'parent'
-                    ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80'
+                    ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80 ring-1 ring-emerald-500/20'
                     : 'text-slate-500 hover:text-slate-900'
                 }`}
               >
                 <Users className="w-4 h-4 text-emerald-600" />
-                <span className="text-[10px]">Parent</span>
+                <span className="text-[10px] font-black">Parent</span>
               </button>
 
               <button
@@ -391,12 +464,12 @@ export default function Login() {
                 onClick={() => handleTabChange('student')}
                 className={`py-2 px-1 rounded-xl text-xs font-black transition-all flex flex-col items-center gap-1 ${
                   activeTab === 'student'
-                    ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80'
+                    ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80 ring-1 ring-indigo-500/20'
                     : 'text-slate-500 hover:text-slate-900'
                 }`}
               >
                 <GraduationCap className="w-4 h-4 text-indigo-600" />
-                <span className="text-[10px]">Student</span>
+                <span className="text-[10px] font-black">Student</span>
               </button>
 
               <button
@@ -409,8 +482,24 @@ export default function Login() {
                 }`}
               >
                 <Sparkles className="w-4 h-4" />
-                <span className="text-[10px]">Demo</span>
+                <span className="text-[10px] font-black">Demo</span>
               </button>
+            </div>
+
+            {/* Role Context Hint */}
+            <div className="mb-4 px-3 py-2 bg-slate-50 border border-slate-200/70 rounded-xl text-[11px] flex items-center gap-2">
+              <span className="font-black text-[#087fe5] shrink-0">
+                {activeTab === 'staff' && '🏫 Admin & Staff:'}
+                {activeTab === 'parent' && '👨‍👩‍👧 Parent Portal:'}
+                {activeTab === 'student' && '🎓 Student Portal:'}
+                {activeTab === 'demo' && '⚡ Demo Sandbox:'}
+              </span>
+              <span className="text-slate-500 leading-tight">
+                {activeTab === 'staff' && 'School Owners, Admin, Principals, Accountants & Teachers.'}
+                {activeTab === 'parent' && 'View Fee Vouchers, Attendance & Exam Reports.'}
+                {activeTab === 'student' && 'Access Class Diary, Daily Timetable & Results.'}
+                {activeTab === 'demo' && 'Instant test drive of the complete ERP campus suite.'}
+              </span>
             </div>
 
             {/* Error Message */}
@@ -458,19 +547,9 @@ export default function Login() {
 
               {/* Password Input */}
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider">
-                    Password *
-                  </label>
-                  {activeTab === 'staff' && (
-                    <Link
-                      to="/reset-password"
-                      className="text-xs font-bold text-[#087fe5] hover:text-[#066ac0] hover:underline"
-                    >
-                      Forgot password?
-                    </Link>
-                  )}
-                </div>
+                <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1.5">
+                  Password *
+                </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                     <Lock className="w-4 h-4" />
@@ -494,6 +573,27 @@ export default function Login() {
                 </div>
               </div>
 
+              {/* Remember Account & Forgot Password */}
+              <div className="flex items-center justify-between text-xs pt-0.5">
+                <label className="flex items-center gap-2 cursor-pointer text-slate-600 font-bold select-none hover:text-slate-900">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 rounded text-[#087fe5] border-slate-300 focus:ring-[#087fe5]"
+                  />
+                  <span>Remember account</span>
+                </label>
+                {activeTab === 'staff' && (
+                  <Link
+                    to="/reset-password"
+                    className="font-bold text-[#087fe5] hover:text-[#066ac0] hover:underline"
+                  >
+                    Forgot password?
+                  </Link>
+                )}
+              </div>
+
               {/* Submit Button */}
               <button
                 type="submit"
@@ -510,15 +610,28 @@ export default function Login() {
                   </>
                 ) : (
                   <>
-                    <span>Sign In to {activeTab === 'demo' ? 'Demo Campus' : 'Portal'}</span>
+                    <span>Sign In to {activeTab === 'demo' ? 'Demo Campus' : activeTab === 'staff' ? 'Admin / Staff Portal' : activeTab === 'parent' ? 'Parent Portal' : 'Student Portal'}</span>
                     <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   </>
                 )}
               </button>
 
+              {/* Direct Portal Quick Links */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-around text-xs font-bold text-slate-500">
+                <Link to="/parent-portal" className="hover:text-emerald-600 flex items-center gap-1 transition-colors">
+                  <Users className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Direct Parent Portal</span>
+                </Link>
+                <span className="text-slate-200">|</span>
+                <Link to="/student-portal" className="hover:text-indigo-600 flex items-center gap-1 transition-colors">
+                  <GraduationCap className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Direct Student Portal</span>
+                </Link>
+              </div>
+
               {/* 1-Click Demo Shortcut if not on Demo tab */}
               {activeTab !== 'demo' && (
-                <div className="pt-3 border-t border-slate-100">
+                <div className="pt-2">
                   <button
                     type="button"
                     onClick={handleDemoLogin}

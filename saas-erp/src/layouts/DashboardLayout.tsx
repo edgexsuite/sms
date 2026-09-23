@@ -14,17 +14,29 @@ import AiAssistant from '../components/AiAssistant';
 
 export default function DashboardLayout() {
 
-  const { signOut, userRole, session } = useAuth();
+  const { signOut, userRole, session, allRoles, switchRole } = useAuth();
   const { theme, cycleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showPortalMenu, setShowPortalMenu] = useState(false);
+  const portalMenuRef = useRef<HTMLDivElement>(null);
   // manualDropdown: set when the user explicitly clicks a parent nav item.
   // Cleared on every route change so the auto-computed value takes over.
   const [manualDropdown, setManualDropdown] = useState<string | null>(null);
   const prevPathRef = useRef(location.pathname);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [densityCompact, setDensityCompact] = useState<boolean>(() => localStorage.getItem('density') === 'compact');
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (portalMenuRef.current && !portalMenuRef.current.contains(e.target as Node)) {
+        setShowPortalMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const toggleDensity = () => {
     const next = !densityCompact;
@@ -574,6 +586,87 @@ export default function DashboardLayout() {
                       </div>
                     )}
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* Role & Portal View Switcher */}
+            <div className="relative" ref={portalMenuRef}>
+              <button
+                type="button"
+                onClick={() => setShowPortalMenu(!showPortalMenu)}
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-700 transition cursor-pointer"
+                title="Switch Portal Views"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="capitalize font-black text-[11px] text-slate-800">
+                  {userRole?.role ? userRole.role.replace('_', ' ') : 'Role'}
+                </span>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              </button>
+
+              {showPortalMenu && (
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50 text-xs">
+                  <div className="px-3 py-2 border-b border-slate-100 mb-1">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Current Role</p>
+                    <p className="font-bold text-slate-800 capitalize">{userRole?.role?.replace('_', ' ')}</p>
+                  </div>
+
+                  <p className="px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400">Portal Views</p>
+                  <Link
+                    to="/dashboard"
+                    onClick={() => setShowPortalMenu(false)}
+                    className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700 font-bold transition"
+                  >
+                    <span>🏫 Admin Dashboard</span>
+                    {location.pathname === '/dashboard' && <span className="text-[10px] text-indigo-600 font-black">Active</span>}
+                  </Link>
+
+                  <a
+                    href="/parent-portal"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setShowPortalMenu(false)}
+                    className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700 font-bold transition"
+                  >
+                    <span>👨‍👩‍👧 Parent Portal</span>
+                    <span className="text-[10px] text-slate-400">Preview ↗</span>
+                  </a>
+
+                  <a
+                    href="/student-portal"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setShowPortalMenu(false)}
+                    className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700 font-bold transition"
+                  >
+                    <span>🎓 Student Portal</span>
+                    <span className="text-[10px] text-slate-400">Preview ↗</span>
+                  </a>
+
+                  {allRoles.length > 1 && (
+                    <div className="mt-2 pt-2 border-t border-slate-100">
+                      <p className="px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400">Assigned Roles</p>
+                      {allRoles.map((r, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            switchRole(r);
+                            setShowPortalMenu(false);
+                            if (r.role === 'teacher') navigate('/teacher-dashboard');
+                            else navigate('/dashboard');
+                          }}
+                          className={`w-full text-left flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                            userRole?.role === r.role ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-600'
+                          }`}
+                        >
+                          <span className="capitalize">{r.role.replace('_', ' ')}</span>
+                          {userRole?.role === r.role && <span className="text-[10px] font-black">Active</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

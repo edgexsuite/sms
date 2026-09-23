@@ -52,7 +52,7 @@ const WA_TEMPLATES = [
 ];
 
 export default function Staff() {
-  const { userRole } = useAuth();
+  const { userRole, user } = useAuth();
   const navigate = useNavigate();
   const [staff, setStaff] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -148,6 +148,19 @@ export default function Staff() {
 
   const handleSave = async (printJoining = false) => {
     if (!formData.full_name || !formData.role) return alert('Name and Role are required');
+
+    if (formData.email?.trim()) {
+      const emailTrimmed = formData.email.trim().toLowerCase();
+      if (user?.email && emailTrimmed === user.email.toLowerCase()) {
+        return alert(`Cannot use "${formData.email}". This email is currently registered as the School Administrator login. Each staff member must have their own unique email address.`);
+      }
+      // Check if another staff member in the same school already has this email
+      const duplicateStaff = staff.find(s => s.id !== editId && s.email?.trim().toLowerCase() === emailTrimmed);
+      if (duplicateStaff) {
+        return alert(`The email "${formData.email}" is already assigned to "${duplicateStaff.full_name}". Each staff member must have a unique email.`);
+      }
+    }
+
     setSaving(true);
     try {
       // Known staff columns — keeps payload clean if DB migration hasn't run yet

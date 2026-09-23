@@ -54,14 +54,30 @@ Deno.serve(async (req) => {
         if (authErr.message.includes('already been registered') || authErr.message.includes('already exists')) {
           // User exists — lookup directly in auth
           const { data: { users }, error: listErr } = await admin.auth.admin.listUsers();
-          const user = users.find((u: any) => u.email === email);
+          const user = users.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
           
           if (listErr || !user) {
              return err('Auth error: ' + authErr.message + ' (and fallback lookup failed)');
           }
           uid = user.id;
-          
-          // Optional: update metadata to include this school if needed (keeping it simple for now)
+
+          // Check if this existing user is already registered in user_roles
+          const { data: existingRoles } = await admin
+            .from('user_roles')
+            .select('role, school_id, staff_id')
+            .eq('user_id', uid);
+
+          if (existingRoles && existingRoles.length > 0) {
+            const hasAdmin = existingRoles.some((r: any) => r.role === 'admin');
+            if (hasAdmin) {
+              return err(`Email "${email}" is registered as the School Administrator account and cannot be linked to a staff profile.`);
+            }
+            const diffStaff = existingRoles.find((r: any) => r.staff_id && r.staff_id !== staff_id);
+            if (diffStaff) {
+              return err(`Email "${email}" is already in use by another staff member. Each staff account must use their own unique email.`);
+            }
+            return err(`An account with email "${email}" already exists for this staff member.`);
+          }
         } else {
           return err('Auth error: ' + authErr.message);
         }
@@ -69,7 +85,18 @@ Deno.serve(async (req) => {
         uid = authData.user.id;
       }
 
-      // 2. Insert user_roles row
+      // 2. Check if staff member already has an existing different login account
+      const { data: staffCurrent } = await admin
+        .from('staff')
+        .select('id, user_id, has_login')
+        .eq('id', staff_id)
+        .maybeSingle();
+
+      if (staffCurrent?.user_id && staffCurrent.user_id !== uid) {
+        return err('This staff member is already linked to another login account. Please remove their existing login before creating a new one.');
+      }
+
+      // 3. Insert user_roles row
       const { error: roleErr } = await admin.from('user_roles').insert({
         user_id:     uid,
         school_id,
@@ -92,9 +119,9 @@ Deno.serve(async (req) => {
         return err('user_roles insert error: ' + roleErr.message);
       }
 
-      // 3. Update staff record
+      // 4. Update staff record
       const { error: staffErr } = await admin.from('staff')
-        .update({ user_id: uid, has_login: true })
+        .update({ user_id: uid, has_login: true, email: email })
         .eq('id', staff_id);
       if (staffErr) {
         console.warn('staff update warning:', staffErr.message);

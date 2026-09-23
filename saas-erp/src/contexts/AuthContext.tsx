@@ -23,10 +23,12 @@ interface AuthContextType {
   session: Session | null;
   user: User | null;
   userRole: UserRole | null;
+  allRoles: UserRole[];
   inchargeClassIds: string[];
   loading: boolean;
   roleNotFound: boolean;
   signOut: () => Promise<void>;
+  switchRole: (role: UserRole) => void;
   /** Returns true if the user has access to a module key */
   canAccess: (moduleKey: string) => boolean;
   /** Returns true if the user can perform an action key */
@@ -39,14 +41,31 @@ interface AuthContextType {
   canManageExams: (classId?: string) => boolean;
 }
 
+const ROLE_PRIORITY: Record<string, number> = {
+  admin: 100,
+  director: 90,
+  principal: 80,
+  vice_principal: 70,
+  campus_coordinator: 60,
+  academic_coordinator: 50,
+  section_coordinator: 40,
+  accountant: 30,
+  librarian: 25,
+  teacher: 20,
+  staff: 10,
+  parent: 5
+};
+
 const AuthContext = createContext<AuthContextType>({
   session: null,
   user: null,
   userRole: null,
+  allRoles: [],
   inchargeClassIds: [],
   loading: true,
   roleNotFound: false,
   signOut: async () => {},
+  switchRole: () => {},
   canAccess: () => true,
   canDo: () => false,
   isClassIncharge: () => false,
@@ -58,6 +77,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession]             = useState<Session | null>(null);
   const [user, setUser]                   = useState<User | null>(null);
   const [userRole, setUserRole]           = useState<UserRole | null>(null);
+  const [allRoles, setAllRoles]           = useState<UserRole[]>([]);
   const [inchargeClassIds, setInchargeClassIds] = useState<string[]>([]);
   const [loading, setLoading]             = useState(true);
   const [roleNotFound, setRoleNotFound]   = useState(false);
@@ -101,6 +121,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       } else {
         lastFetchedUserId = null;
         setUserRole(null);
+        setAllRoles([]);
         setInchargeClassIds([]);
         setLoading(false);
       }
@@ -111,43 +132,42 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const fetchUserRole = async (userId: string) => {
     try {
-      // limit(1) handles both 0-rows and multiple-rows cases safely.
-      // maybeSingle() alone errors when >1 row exists; limit(1) prevents that.
+      // Query all user_roles rows for this user
       const { data: rows, error } = await supabase
         .from('user_roles')
         .select('role, school_id, user_id, staff_id, permissions, is_active')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      const data = rows && rows.length > 0 ? rows[0] : null;
+        .eq('user_id', userId);
 
       if (error) {
         // A real DB error (network, RLS, etc.) — log it but do NOT redirect to login
         // to avoid an infinite auth loop
         console.error('Error fetching user role:', error.message);
         setUserRole(null);
+        setAllRoles([]);
         setInchargeClassIds([]);
         setRoleNotFound(false);
         setLoading(false);
         return;
       }
 
-      if (!data) {
+      if (!rows || rows.length === 0) {
         // Authenticated but no user_roles row exists yet.
         // Show "contact admin" screen — do NOT redirect to /login or we get a loop.
         console.warn(`No user_role row found for user ${userId}. Account not configured.`);
         setUserRole(null);
+        setAllRoles([]);
         setInchargeClassIds([]);
         setRoleNotFound(true);
         setLoading(false);
         return;
       }
 
-      // Suspended account — sign out immediately
-      if (data.is_active === false) {
+      // Check if all accounts are suspended
+      const activeRows = rows.filter(r => r.is_active !== false);
+      if (activeRows.length === 0) {
         await supabase.auth.signOut();
         setUserRole(null);
+        setAllRoles([]);
         setInchargeClassIds([]);
         setSession(null);
         setUser(null);
@@ -157,11 +177,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return;
       }
 
+      // Sort by role hierarchy priority descending (Admin always highest)
+      activeRows.sort((a, b) => (ROLE_PRIORITY[b.role] || 0) - (ROLE_PRIORITY[a.role] || 0));
+
+      const primaryRole = activeRows[0] as UserRole;
+      setAllRoles(activeRows as UserRole[]);
       setRoleNotFound(false);
-      setUserRole(data as UserRole);
+      setUserRole(primaryRole);
 
       // Fetch incharge classes for this staff member
-      resolveInchargeClasses(data.school_id, data.staff_id, userId);
+      resolveInchargeClasses(primaryRole.school_id, primaryRole.staff_id, userId);
 
       // Record last_login timestamp (fire-and-forget, don't block)
       supabase
@@ -172,18 +197,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       // Audit log: login event
       logActivity({
-        school_id:   data.school_id,
+        school_id:   primaryRole.school_id,
         user_id:     userId,
-        user_role:   data.role,
+        user_role:   primaryRole.role,
         action:      'LOGIN',
         module:      'Auth',
-        description: `${data.role} signed in`,
+        description: `${primaryRole.role} signed in`,
       });
 
     } catch (err: any) {
       // Unexpected error — log and leave loading=false to avoid hang
       console.error('Unexpected auth error:', err);
       setUserRole(null);
+      setAllRoles([]);
       setInchargeClassIds([]);
       setRoleNotFound(false);
       setLoading(false);
@@ -191,6 +217,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setLoading(false);
     }
   };
+
+  const switchRole = useCallback((role: UserRole) => {
+    setUserRole(role);
+    if (role.school_id) {
+      resolveInchargeClasses(role.school_id, role.staff_id, role.user_id);
+    }
+  }, []);
 
   const resolveInchargeClasses = async (schoolId: string, staffId?: string, userId?: string) => {
     try {
@@ -300,10 +333,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Memoize the full context value to prevent spurious re-renders in all consumers
   const contextValue = useMemo(() => ({
-    session, user, userRole, inchargeClassIds, loading, roleNotFound, signOut,
+    session, user, userRole, allRoles, inchargeClassIds, loading, roleNotFound, signOut, switchRole,
     canAccess, canDo, isClassIncharge, canManageClassDiary, canManageExams
   }), [
-    session, user, userRole, inchargeClassIds, loading, roleNotFound, signOut,
+    session, user, userRole, allRoles, inchargeClassIds, loading, roleNotFound, signOut, switchRole,
     canAccess, canDo, isClassIncharge, canManageClassDiary, canManageExams
   ]);
 

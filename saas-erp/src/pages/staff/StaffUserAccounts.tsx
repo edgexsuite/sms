@@ -127,7 +127,7 @@ function StatusBadge({ s }: { s: StaffWithAccount }) {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function StaffUserAccounts() {
-  const { userRole } = useAuth();
+  const { userRole, user } = useAuth();
 
   // Data
   const [staffList,  setStaffList]  = useState<StaffWithAccount[]>([]);
@@ -374,9 +374,38 @@ export default function StaffUserAccounts() {
     setCreateError('');
     setCreateSuccess('');
     try {
+      const normalizedEmail = createEmail.trim().toLowerCase();
+
+      // 1. Guard against using the logged-in administrator's email
+      if (user?.email && normalizedEmail === user.email.toLowerCase()) {
+        throw new Error(`Cannot use "${createEmail}". This email is the School Administrator login. Each staff member must have their own unique email.`);
+      }
+
+      // 2. Guard against duplicate email across other staff members in this school
+      const conflictStaff = staffList.find(s => s.id !== selected.id && (s.email?.toLowerCase() === normalizedEmail || s.login_email?.toLowerCase() === normalizedEmail));
+      if (conflictStaff) {
+        throw new Error(`Cannot use "${createEmail}". This email is already assigned to "${conflictStaff.full_name}".`);
+      }
+
+      // 3. Quick check against user_roles in database
+      const { data: existingRole } = await supabase
+        .from('user_roles')
+        .select('role, staff_id')
+        .eq('login_email', normalizedEmail)
+        .maybeSingle();
+
+      if (existingRole) {
+        if (existingRole.role === 'admin') {
+          throw new Error(`Email "${createEmail}" is registered as an Administrator account and cannot be assigned to a staff profile.`);
+        }
+        if (existingRole.staff_id && existingRole.staff_id !== selected.id) {
+          throw new Error(`Email "${createEmail}" is already linked to another staff account.`);
+        }
+      }
+
       const permissions = ROLE_PRESETS[createRole];
       const { data, error } = await supabase.functions.invoke('create-staff-user', {
-        body: { action: 'create', email: createEmail, password: createPass, school_id: userRole!.school_id, role: createRole, staff_id: selected.id, permissions },
+        body: { action: 'create', email: createEmail.trim(), password: createPass, school_id: userRole!.school_id, role: createRole, staff_id: selected.id, permissions },
       });
       if (error || data?.error) throw new Error(edgeFnError(error, data));
       setCreateSuccess(`Account created! Email: ${createEmail}  Password: ${createPass}`);
