@@ -434,23 +434,14 @@ export default function ResultStatus() {
           5: { cellWidth: 16, halign: 'center' },
           6: { cellWidth: 16, halign: 'center' },
           7: { cellWidth: 16, halign: 'center' },
-          8: { cellWidth: 26, halign: 'center' },
+          8: { cellWidth: 26, halign: 'center', fontStyle: 'bold' },
         },
-        didDrawCell: (data) => {
+        didParseCell: (data) => {
           if (data.section === 'body' && data.column.index === 8) {
             const status = filtered[data.row.index]?.status;
             if (status && STATUS_COLORS[status]) {
-              const [r2, g, b] = STATUS_COLORS[status];
-              doc.setTextColor(r2, g, b);
-              doc.setFont('helvetica', 'bold');
-              doc.text(
-                String(data.cell.text[0]),
-                data.cell.x + data.cell.width / 2,
-                data.cell.y + data.cell.height / 2 + 0.5,
-                { align: 'center', baseline: 'middle' }
-              );
-              // return early so autotable doesn't re-draw (hack: reset color)
-              doc.setTextColor(0, 0, 0);
+              data.cell.styles.textColor = STATUS_COLORS[status];
+              data.cell.styles.fontStyle = 'bold';
             }
           }
         },

@@ -1,7 +1,7 @@
 # 📘 EdgeX Suite — AI Context & Master Technical Reference
-*Version 4.0 | Last updated: 2026-04-27 | For use as CLAUDE.md / AI agent context*
+*Version 5.0 | Last updated: 2026-09-24 | For use as CLAUDE.md / AI agent context*
 
-> **Purpose**: This file is the single source of truth for any AI agent (Claude, Gemini, Copilot) working inside this codebase. Read it fully before making any changes. It documents architecture, module map, key patterns, critical gotchas, and the tech stack.
+> **Purpose**: This file and [SYSTEM_KNOWLEDGE.md](file:///c:/sms/saas-erp/SYSTEM_KNOWLEDGE.md) are the primary sources of truth for any AI agent (Claude, Gemini, Copilot, Antigravity) working inside this codebase. Read both fully before making changes. It documents architecture, module map, key patterns, critical gotchas, and the tech stack.
 
 ---
 
