@@ -256,22 +256,30 @@ c:\sms\saas-erp\
 2. **Date Format for Fee Records**:
    - `fee_records.month_year` **MUST ALWAYS** be formatted as `YYYY-MM-01` (first day of the month). Storing other days breaks monthly aggregation queries.
 
-3. **Motion v12 Imports**:
+3. **Student Admission / Registration Number Standard (`student_unique_id`)**:
+   - **Format**: `{YYYY}-{CLASS_CODE}-{SEQUENCE}` (e.g. `2026-G01-0001`, `2026-EF1-0042`).
+   - `YYYY`: 4-digit admission year.
+   - `CLASS_CODE`: Short normalized code for admission class (e.g. `EF1`, `EF2`, `EF3`, `G01`..`G12`, `NUR`, `PREP`, `PG`).
+   - `SEQUENCE`: 4-digit zero-padded school-wide annual counter.
+   - Generated via `src/utils/studentIdGenerator.ts` (`generateNextAdmissionNumber` / `generateBatchAdmissionNumbers`).
+   - **Immutability**: Permanent anchor for the student across promotions, fee challans, report cards, and student portal login. Old IDs backed up in `custom_data.previous_student_unique_id`.
+
+4. **Motion v12 Imports**:
    - Always import from `'motion/react'`, **NEVER `'framer-motion'`**:
      ```typescript
      import { motion, AnimatePresence } from 'motion/react';
      ```
 
-4. **Tailwind v4 Configuration**:
+5. **Tailwind v4 Configuration**:
    - There is **no `tailwind.config.js`**. All custom colors, fonts, and theme extensions live in `src/index.css` under `@theme`. Do not create a config file.
 
-5. **A4 Print Layout Dimensions**:
+6. **A4 Print Layout Dimensions**:
    - Printable cards (report cards, ID cards, challans) must have a container sized **strictly** as:
      `width: 210mm; height: 297mm; overflow: hidden; box-sizing: border-box;`.
    - **NEVER use `minHeight`** — it causes content to spill into an empty second page.
    - For batch class printing, wrap each card in `.result-card-wrapper` with `page-break-after: always;`.
 
-6. **Watermark Positioning**:
+7. **Watermark Positioning**:
    - Use an absolute inset flexbox container (`position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;`) with opacity.
    - **Do NOT use** `top: 50%; left: 50%; transform: translate(-50%, -50%)`, as browser print engines clip transformed watermarks.
 

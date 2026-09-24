@@ -8,6 +8,7 @@ import { processStudentPhoto, uploadFile, PHOTO_WIDTH, PHOTO_HEIGHT, PHOTO_MAX_B
 import StudentFeeModal from '../../components/StudentFeeModal';
 import * as templatesLib from '../../lib/whatsappTemplates';
 import { formatDate, toYYYYMMDD } from '../../lib/utils';
+import { generateBatchAdmissionNumbers } from '../../utils/studentIdGenerator';
 
 // Generates an alphanumeric password of length 6
 const generatePassword = () => Math.random().toString(36).slice(-6).toUpperCase();
@@ -660,10 +661,20 @@ export default function RegisterStudent() {
         rollNumberMap[cid] = (maxRoll?.roll_number || 0);
       }
 
+      // Generate standardized Admission Numbers (e.g. 2026-G01-0001, 2026-EF1-0002)
+      const admissionNumbers = await generateBatchAdmissionNumbers(
+        userRole.school_id,
+        students.map(stu => {
+          const matchedClass = classes.find(c => c.id === stu.class_id);
+          return {
+            className: matchedClass?.name || '',
+            admissionDate: stu.admission_date,
+          };
+        })
+      );
+
       const studentInserts = students.map((stu, idx) => {
-        const studentNamePart = (stu.full_name || 'Student').trim().split(' ')[0];
-        const suffix = `${familyNumber.replace(/\D/g, '').slice(-4)}${idx + 1}`;
-        const studentUniqueId = `${studentNamePart}${suffix}`;
+        const studentUniqueId = admissionNumbers[idx] || `STU-${new Date().getFullYear()}-${idx + 1}`;
         const studentPassword = generatePassword();
 
         // Increment roll number for this class

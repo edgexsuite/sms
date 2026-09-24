@@ -9,6 +9,7 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { generateBatchAdmissionNumbers } from '../../utils/studentIdGenerator';
 
 // ── Types & Constants ────────────────────────────────────────────────────────
 
@@ -189,6 +190,20 @@ export default function BulkEnrollment() {
       let totalProcessed = 0;
       let siblingGroups = 0;
 
+      // Pre-generate standardized admission numbers for any imported students that lack an explicit Registration Number
+      const currentClassObj = classes.find(c => c.id === selectedClassId);
+      const currentClassName = currentClassObj?.name || '';
+      const allStudentsInBatches = Object.values(families).flat();
+      const studentsNeedingAdmNo = allStudentsInBatches.filter(s => !s.student_unique_id);
+      const generatedAdmNos = await generateBatchAdmissionNumbers(
+        userRole!.school_id,
+        studentsNeedingAdmNo.map(s => ({
+          className: currentClassName,
+          admissionDate: s.admission_date,
+        }))
+      );
+      let admNoCursor = 0;
+
       // 2. Loop & Insert
       for (const [key, siblings] of Object.entries(families)) {
         const first = siblings[0];
@@ -277,7 +292,7 @@ export default function BulkEnrollment() {
 
           // Insert new student
           const sNameInit = s.full_name.split(' ')[0].toLowerCase();
-          const studentUniqueId = s.student_unique_id || `${sNameInit}${s.roll_number || Math.floor(1000 + Math.random() * 9000)}-${Math.floor(Math.random() * 900)}`;
+          const studentUniqueId = s.student_unique_id || generatedAdmNos[admNoCursor++] || `STU-${new Date().getFullYear()}-${totalProcessed + 1}`;
 
           // Assign sequential roll number if not provided
           const finalRollNumber = s.roll_number || nextRollNumber++;
