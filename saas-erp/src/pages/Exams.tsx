@@ -176,12 +176,12 @@ export default function Exams() {
         return;
       }
 
-      // 2. Fetch existing marks
+      // 2. Fetch existing marks from exam_results
       const { data: existingMarks, error: marksError } = await supabase
-        .from('exam_marks')
+        .from('exam_results')
         .select('student_id, obtained_marks, total_marks')
-        .eq('exam_id', selectedExam)
-        .eq('subject', selectedSubject)
+        .eq('exam_type_id', selectedExam)
+        .eq('subject_id', selectedSubject)
         .in('student_id', studentsData.map(s => s.id));
 
       if (marksError) throw marksError;
@@ -245,9 +245,10 @@ export default function Exams() {
         .filter(s => marksData[s.id].obtained_marks !== '') // Only save if marks are entered
         .map(student => ({
           school_id: userRole.school_id,
-          exam_id: selectedExam,
+          exam_type_id: selectedExam,
           student_id: student.id,
-          subject: selectedSubject,
+          subject_id: selectedSubject,
+          class_id: selectedClass,
           obtained_marks: Number(marksData[student.id].obtained_marks),
           total_marks: Number(marksData[student.id].total_marks)
         }));
@@ -259,9 +260,9 @@ export default function Exams() {
       }
 
       const { error } = await supabase
-        .from('exam_marks')
+        .from('exam_results')
         .upsert(recordsToUpsert, { 
-          onConflict: 'exam_id,student_id,subject' 
+          onConflict: 'exam_type_id,student_id,subject_id' 
         });
 
       if (error) throw error;

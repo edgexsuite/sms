@@ -68,8 +68,8 @@ export default function StaffDetailPage() {
         if (data) setTimetable(data);
       } else if (tab === 'work') {
         const [{ data: dEntries }, { data: lApps }] = await Promise.all([
-          supabase.from('teacher_diary').select('*').eq('teacher_id', id).order('date', { ascending: false }).limit(10),
-          supabase.from('leave_applications').select('*').eq('staff_id', id).order('start_date', { ascending: false })
+          supabase.from('teacher_diary').select('*').eq('teacher_id', id).order('diary_date', { ascending: false }).limit(10),
+          supabase.from('leave_applications').select('*').eq('staff_id', id).order('from_date', { ascending: false })
         ]);
         if (dEntries) setDiary(dEntries);
         if (lApps) setLeaves(lApps);
@@ -591,10 +591,10 @@ export default function StaffDetailPage() {
                       ) : diary.map((entry, idx) => (
                         <div key={idx} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
                           <div className="flex justify-between mb-2">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{formatDate(entry.date)}</p>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{formatDate(entry.diary_date || entry.date || entry.created_at)}</p>
                             <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">{entry.class_id}</p>
                           </div>
-                          <p className="text-sm font-bold text-slate-800 leading-relaxed">{entry.content}</p>
+                          <p className="text-sm font-bold text-slate-800 leading-relaxed">{entry.topic_covered || entry.content || 'Instructional diary entry'}</p>
                         </div>
                       ))}
                     </div>
@@ -611,7 +611,7 @@ export default function StaffDetailPage() {
                         <div key={idx} className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-2xl shadow-sm">
                           <div>
                             <p className="text-sm font-black text-slate-800">{lh.leave_type}</p>
-                            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-tighter">{lh.start_date} to {lh.end_date}</p>
+                            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-tighter">{lh.from_date || lh.start_date} to {lh.to_date || lh.end_date}</p>
                           </div>
                           <span className={cn(
                             "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ring-1 ring-inset",

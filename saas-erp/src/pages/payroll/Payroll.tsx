@@ -72,7 +72,7 @@ export default function Payroll() {
       // Master Timetable Matrix
       supabase.from('timetable_slots').select('teacher_id, day_of_week').eq('school_id', sid).not('teacher_id', 'is', null),
       // Active advances — to auto-suggest deduction amounts
-      supabase.from('staff_advances').select('staff_id, remaining_balance, monthly_deduction').eq('school_id', sid).eq('status', 'active')
+      supabase.from('staff_advances').select('*').eq('school_id', sid).eq('status', 'active')
     ]);
 
     const payrollMap = new Map((payrollData || []).map((p: any) => [p.staff_id, p]));
@@ -82,8 +82,8 @@ export default function Payroll() {
     // Build advance-deduction map: staff_id → amount to deduct this month
     const advanceMap = new Map<string, number>();
     (advanceData || []).forEach((adv: any) => {
-      const monthly = Number(adv.monthly_deduction) || 0;
-      const remaining = Number(adv.remaining_balance) || 0;
+      const monthly = Number(adv.monthly_deduction || adv.monthly_installment) || 0;
+      const remaining = Number(adv.remaining_balance !== undefined ? adv.remaining_balance : (adv.remaining_amount !== undefined ? adv.remaining_amount : adv.amount)) || 0;
       if (remaining <= 0) return;
       const deduct = monthly > 0 ? Math.min(monthly, remaining) : 0;
       advanceMap.set(adv.staff_id, (advanceMap.get(adv.staff_id) || 0) + deduct);

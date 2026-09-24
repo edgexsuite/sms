@@ -53,8 +53,15 @@ export default function StaffAdvance() {
       .from('staff_advances')
       .select('*, staff(full_name, role, department)')
       .eq('school_id', userRole!.school_id)
-      .order('given_date', { ascending: false });
-    setAdvances((data || []) as Advance[]);
+      .order('created_at', { ascending: false });
+    const mapped = (data || []).map((a: any) => ({
+      ...a,
+      given_date: a.given_date || a.date || a.created_at?.split('T')[0] || '',
+      remaining_balance: a.remaining_balance !== undefined ? a.remaining_balance : a.amount,
+      monthly_deduction: a.monthly_deduction ?? 0,
+      reason: a.reason || '',
+    }));
+    setAdvances(mapped as Advance[]);
     setLoading(false);
   };
 
@@ -70,18 +77,35 @@ export default function StaffAdvance() {
     const monthly = Number(form.monthly_deduction) || 0;
 
     // Insert advance record
-    const { data: adv, error: advErr } = await supabase.from('staff_advances').insert({
+    let adv: any;
+    const fullPayload = {
       school_id: sid,
       staff_id: form.staff_id,
       amount,
       remaining_balance: amount,
       monthly_deduction: monthly,
       given_date: form.given_date,
+      date: form.given_date,
       reason: form.reason,
       status: 'active',
-    }).select().single();
+    };
+    let { data: resData, error: advErr } = await supabase.from('staff_advances').insert(fullPayload).select().single();
+    if (advErr && advErr.code === '42703') {
+      // Graceful fallback if extended columns not yet added to table
+      const basePayload = {
+        school_id: sid,
+        staff_id: form.staff_id,
+        amount,
+        date: form.given_date,
+        status: 'active',
+      };
+      const fallback = await supabase.from('staff_advances').insert(basePayload).select().single();
+      resData = fallback.data;
+      advErr = fallback.error;
+    }
 
     if (advErr) { setError(advErr.message); setSaving(false); return; }
+    adv = resData;
 
     // Post to financial_transactions: expense — Staff Advance
     const staffMember = staffList.find(s => s.id === form.staff_id);
