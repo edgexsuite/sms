@@ -264,22 +264,26 @@ c:\sms\saas-erp\
    - Generated via `src/utils/studentIdGenerator.ts` (`generateNextAdmissionNumber` / `generateBatchAdmissionNumbers`).
    - **Immutability**: Permanent anchor for the student across promotions, fee challans, report cards, and student portal login. Old IDs backed up in `custom_data.previous_student_unique_id`.
 
-4. **Motion v12 Imports**:
+4. **Student Custom Fee Matrix (`students.fee_override`)**:
+   - Stored as JSONB on `students.fee_override` with shape `{ recurrent: [{ item, amount }], first_time: [{ item, amount }] }`.
+   - **Priority**: Always takes precedence over class-level `fee_structures.fee_matrix` in both individual payment modals (`StudentFeeModal.tsx`), printed challans (`buildRecord`), and bulk monthly invoice generation (`MonthlyFeeInvoices.tsx`). Allows preserving custom student tuition agreements across class promotions or movements.
+
+5. **Motion v12 Imports**:
    - Always import from `'motion/react'`, **NEVER `'framer-motion'`**:
      ```typescript
      import { motion, AnimatePresence } from 'motion/react';
      ```
 
-5. **Tailwind v4 Configuration**:
+6. **Tailwind v4 Configuration**:
    - There is **no `tailwind.config.js`**. All custom colors, fonts, and theme extensions live in `src/index.css` under `@theme`. Do not create a config file.
 
-6. **A4 Print Layout Dimensions**:
+7. **A4 Print Layout Dimensions**:
    - Printable cards (report cards, ID cards, challans) must have a container sized **strictly** as:
      `width: 210mm; height: 297mm; overflow: hidden; box-sizing: border-box;`.
    - **NEVER use `minHeight`** — it causes content to spill into an empty second page.
    - For batch class printing, wrap each card in `.result-card-wrapper` with `page-break-after: always;`.
 
-7. **Watermark Positioning**:
+8. **Watermark Positioning**:
    - Use an absolute inset flexbox container (`position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;`) with opacity.
    - **Do NOT use** `top: 50%; left: 50%; transform: translate(-50%, -50%)`, as browser print engines clip transformed watermarks.
 

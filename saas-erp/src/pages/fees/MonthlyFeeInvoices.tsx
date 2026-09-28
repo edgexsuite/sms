@@ -122,7 +122,7 @@ export default function MonthlyFeeInvoices() {
     setLoading(true);
     const { data } = await supabase
       .from('fee_records')
-      .select('*, students!inner(id, full_name, roll_number, class_id, family_group_id, fee_waiver_percentage, is_deleted, classes(name, section), parents(whatsapp_number, father_name, family_number))')
+      .select('*, students!inner(id, full_name, roll_number, class_id, family_group_id, fee_waiver_percentage, fee_override, is_deleted, classes(name, section), parents(whatsapp_number, father_name, family_number))')
       .eq('school_id', userRole?.school_id)
       .eq('students.is_deleted', false)
       .is('deleted_at', null)
@@ -140,7 +140,7 @@ export default function MonthlyFeeInvoices() {
         .eq('class_id', targetStudent.class_id)
         .maybeSingle()
         .then(({ data: structure }) => {
-          const matrix = structure?.fee_matrix;
+          const matrix = (targetStudent.fee_override as any) || structure?.fee_matrix;
           let breakdown: any[] = [];
           if (matrix?.recurrent?.length) {
             breakdown = matrix.recurrent.map((r: any) => ({ item: r.item, amount: Number(r.amount) }));
@@ -212,7 +212,8 @@ export default function MonthlyFeeInvoices() {
           };
         }
         const structure = structures?.find(s => s.class_id === student.class_id);
-        const matrix = structure?.fee_matrix;
+        const studentOverride = (student.fee_override as any);
+        const matrix = studentOverride || structure?.fee_matrix;
         let breakdown: any[] = [];
         let grossTotal = 0;
         const waiverDec = (student.fee_waiver_percentage || 0) / 100;
@@ -253,7 +254,7 @@ export default function MonthlyFeeInvoices() {
           payment_mode: 'Pending',
           breakdown,
           invoice_number: `INV-${generateMonth.replace('-', '').slice(2)}-${student.id.slice(0, 6).toUpperCase()}`,
-          no_structure: !structure,
+          no_structure: !studentOverride && !structure,
         };
       });
 
@@ -404,14 +405,17 @@ export default function MonthlyFeeInvoices() {
     let challanBreakdown: { item: string; amount: number }[] | null = null;
 
     if (classId) {
-      const { data: structure } = await supabase
-        .from('fee_structures')
-        .select('fee_matrix')
-        .eq('school_id', userRole?.school_id)
-        .eq('class_id', classId)
-        .maybeSingle();
-      if (structure?.fee_matrix) {
-        const feeMatrix = structure.fee_matrix;
+      let feeMatrix = (inv.students?.fee_override as any);
+      if (!feeMatrix) {
+        const { data: structure } = await supabase
+          .from('fee_structures')
+          .select('fee_matrix')
+          .eq('school_id', userRole?.school_id)
+          .eq('class_id', classId)
+          .maybeSingle();
+        feeMatrix = structure?.fee_matrix;
+      }
+      if (feeMatrix) {
 
         if (!inv.discount_amount) {
           const originalTotal = (feeMatrix!.recurrent || []).reduce(
