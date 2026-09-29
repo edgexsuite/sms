@@ -41,7 +41,7 @@ export default defineConfig(({mode}) => {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       'process.env.GROQ_API_KEY': JSON.stringify(env.GROQ_API_KEY),
       // Build timestamp — used in main.tsx to force a reload after a new deploy
-      // Updated: 2026-04-29 — bump to force cache-bust on all clients
+      // Updated: 2026-09-30 — bump to force cache-bust and instant update on all clients
       __APP_BUILD__: JSON.stringify(new Date().toISOString()),
     },
     resolve: {

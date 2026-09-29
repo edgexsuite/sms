@@ -285,14 +285,52 @@ export default function Students() {
     if (!userRole?.school_id || !promoteTargetClass || promoteSelectedStudents.length === 0) return;
     
     try {
+      // 1. Bulk update class_id
       const { error } = await supabase
         .from('students')
         .update({ class_id: promoteTargetClass })
         .in('id', promoteSelectedStudents);
 
       if (error) throw error;
+
+      // 2. Ensure destination class has active fee matrix so monthly challans/invoices work
+      if (promoteCurrentClass) {
+        const { data: destStructure } = await supabase
+          .from('fee_structures')
+          .select('id, fee_matrix, amount')
+          .eq('school_id', userRole.school_id)
+          .eq('class_id', promoteTargetClass)
+          .maybeSingle();
+
+        if (!destStructure || !destStructure.fee_matrix?.recurrent?.length) {
+          const { data: srcStructure } = await supabase
+            .from('fee_structures')
+            .select('fee_matrix, amount')
+            .eq('school_id', userRole.school_id)
+            .eq('class_id', promoteCurrentClass)
+            .maybeSingle();
+
+          if (srcStructure?.fee_matrix) {
+            if (destStructure) {
+              await supabase
+                .from('fee_structures')
+                .update({ fee_matrix: srcStructure.fee_matrix, amount: srcStructure.amount })
+                .eq('id', destStructure.id);
+            } else {
+              await supabase
+                .from('fee_structures')
+                .insert([{
+                  school_id: userRole.school_id,
+                  class_id: promoteTargetClass,
+                  fee_matrix: srcStructure.fee_matrix,
+                  amount: srcStructure.amount || 0,
+                }]);
+            }
+          }
+        }
+      }
       
-      alert('Students promoted successfully!');
+      alert('Students promoted successfully! Fee structure ensured for the new class.');
       setIsPromoteModalOpen(false);
       setPromoteCurrentClass('');
       setPromoteTargetClass('');

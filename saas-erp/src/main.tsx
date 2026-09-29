@@ -36,6 +36,33 @@ declare const __APP_BUILD__: string;
     }
     window.location.reload();
   }
+
+  // Active client update check: reload immediately when new service worker takes over
+  if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) {
+        refreshing = true;
+        window.location.reload();
+      }
+    });
+
+    // Check for new service worker / assets whenever the user returns to the tab
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        navigator.serviceWorker.getRegistration().then(reg => {
+          reg?.update().catch(() => {});
+        });
+      }
+    });
+
+    // Periodic check every 5 minutes
+    setInterval(() => {
+      navigator.serviceWorker.getRegistration().then(reg => {
+        reg?.update().catch(() => {});
+      });
+    }, 5 * 60 * 1000);
+  }
 })();
 
 

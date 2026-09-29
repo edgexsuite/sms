@@ -3,11 +3,9 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { logActivity } from '../lib/auditLog';
 import { cleanupDemoSchoolModifications, DEMO_SCHOOL_ID } from '../lib/demoReset';
+import { getRoleDefaultPermissions, PermissionSet } from '../lib/rolePermissions';
 
-export interface PermissionSet {
-  modules: Record<string, boolean>;
-  actions: Record<string, boolean>;
-}
+export type { PermissionSet };
 
 export interface UserRole {
   role: 'admin' | 'teacher' | 'staff' | 'accountant' | 'librarian' | 'parent' | 'principal' | 'director'
@@ -25,10 +23,12 @@ interface AuthContextType {
   userRole: UserRole | null;
   allRoles: UserRole[];
   inchargeClassIds: string[];
+  roleTemplates: Record<string, PermissionSet>;
   loading: boolean;
   roleNotFound: boolean;
   signOut: () => Promise<void>;
   switchRole: (role: UserRole) => void;
+  refreshRoleTemplates: () => Promise<void>;
   /** Returns true if the user has access to a module key */
   canAccess: (moduleKey: string) => boolean;
   /** Returns true if the user can perform an action key */
@@ -62,10 +62,12 @@ const AuthContext = createContext<AuthContextType>({
   userRole: null,
   allRoles: [],
   inchargeClassIds: [],
+  roleTemplates: {},
   loading: true,
   roleNotFound: false,
   signOut: async () => {},
   switchRole: () => {},
+  refreshRoleTemplates: async () => {},
   canAccess: () => true,
   canDo: () => false,
   isClassIncharge: () => false,
@@ -79,8 +81,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [userRole, setUserRole]           = useState<UserRole | null>(null);
   const [allRoles, setAllRoles]           = useState<UserRole[]>([]);
   const [inchargeClassIds, setInchargeClassIds] = useState<string[]>([]);
+  const [roleTemplates, setRoleTemplates] = useState<Record<string, PermissionSet>>({});
   const [loading, setLoading]             = useState(true);
   const [roleNotFound, setRoleNotFound]   = useState(false);
+
+  const fetchRoleTemplates = useCallback(async (schoolId: string) => {
+    try {
+      const { data } = await supabase
+        .from('form_settings')
+        .select('sections_config')
+        .eq('school_id', schoolId)
+        .eq('form_name', 'role_permission_templates')
+        .maybeSingle();
+      if (data?.sections_config) {
+        setRoleTemplates(data.sections_config);
+      } else {
+        setRoleTemplates({});
+      }
+    } catch (err) {
+      console.error('Error fetching role permission templates:', err);
+    }
+  }, []);
+
+  const refreshRoleTemplates = useCallback(async () => {
+    if (userRole?.school_id) {
+      await fetchRoleTemplates(userRole.school_id);
+    }
+  }, [userRole?.school_id, fetchRoleTemplates]);
 
   useEffect(() => {
     // Track the last user ID we fetched a role for.
@@ -187,6 +214,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       // Fetch incharge classes for this staff member
       resolveInchargeClasses(primaryRole.school_id, primaryRole.staff_id, userId);
+      fetchRoleTemplates(primaryRole.school_id);
 
       // Record last_login timestamp (fire-and-forget, don't block)
       supabase
@@ -226,8 +254,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUserRole(role);
     if (role.school_id) {
       resolveInchargeClasses(role.school_id, role.staff_id, role.user_id);
+      fetchRoleTemplates(role.school_id);
     }
-  }, []);
+  }, [fetchRoleTemplates]);
 
   const resolveInchargeClasses = async (schoolId: string, staffId?: string, userId?: string) => {
     try {
@@ -296,31 +325,64 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   /**
    * Returns true if the user may access a given module.
-   * Admins always pass. Others check their permissions.modules map;
-   * if the key is absent (never been set), default to true.
+   * Admins and Directors always pass. Others check custom user overrides,
+   * school role templates, and factory presets.
    */
   const canAccess = useCallback((moduleKey: string): boolean => {
     if (!userRole) return false;
-    if (['admin', 'director', 'principal'].includes(userRole.role)) return true;
-    const modules = userRole.permissions?.modules;
-    if (!modules || modules[moduleKey] === undefined) return true;
-    return modules[moduleKey] === true;
-  }, [userRole]);
+    if (['admin', 'director'].includes(userRole.role)) return true;
+
+    // 1. Account-specific override
+    const userModules = userRole.permissions?.modules;
+    if (userModules && userModules[moduleKey] !== undefined) {
+      return userModules[moduleKey] === true;
+    }
+    // Backward compatibility aliases
+    if (['fees', 'expenses', 'payroll', 'accounting'].includes(moduleKey) && userModules?.finance !== undefined) {
+      return userModules.finance === true;
+    }
+    if (moduleKey === 'diary' && userModules?.academic !== undefined) {
+      return userModules.academic === true;
+    }
+    if (moduleKey === 'leave' && userModules?.attendance !== undefined) {
+      return userModules.attendance === true;
+    }
+    if (moduleKey === 'inventory' && userModules?.services !== undefined) {
+      return userModules.services === true;
+    }
+
+    // 2. School role template or factory preset
+    const effectiveDefaults = getRoleDefaultPermissions(userRole.role, roleTemplates);
+    if (effectiveDefaults.modules && effectiveDefaults.modules[moduleKey] !== undefined) {
+      return effectiveDefaults.modules[moduleKey] === true;
+    }
+
+    return true;
+  }, [userRole, roleTemplates]);
 
   /**
    * Returns true if the user may perform an action.
-   * Admins and Directors always pass. Others must have the action explicitly enabled.
+   * Admins and Directors always pass. Others check custom user overrides,
+   * school role templates, and factory presets.
    */
   const canDo = useCallback((actionKey: string): boolean => {
     if (!userRole) return false;
     if (['admin', 'director'].includes(userRole.role)) return true;
-    const actions = userRole.permissions?.actions;
-    if (actions && actions[actionKey] !== undefined) {
-      return actions[actionKey] === true;
+
+    // 1. Account-specific override
+    const userActions = userRole.permissions?.actions;
+    if (userActions && userActions[actionKey] !== undefined) {
+      return userActions[actionKey] === true;
     }
-    // Fallback to role presets if permissions dictionary has not set this action key explicitly
+
+    // 2. School role template or factory preset
+    const effectiveDefaults = getRoleDefaultPermissions(userRole.role, roleTemplates);
+    if (effectiveDefaults.actions && effectiveDefaults.actions[actionKey] !== undefined) {
+      return effectiveDefaults.actions[actionKey] === true;
+    }
+
     return false;
-  }, [userRole]);
+  }, [userRole, roleTemplates]);
 
   /**
    * Check if user is Class Incharge of a given classId (or any class if no classId passed)
@@ -355,11 +417,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Memoize the full context value to prevent spurious re-renders in all consumers
   const contextValue = useMemo(() => ({
-    session, user, userRole, allRoles, inchargeClassIds, loading, roleNotFound, signOut, switchRole,
-    canAccess, canDo, isClassIncharge, canManageClassDiary, canManageExams
+    session, user, userRole, allRoles, inchargeClassIds, roleTemplates, loading, roleNotFound, signOut, switchRole,
+    refreshRoleTemplates, canAccess, canDo, isClassIncharge, canManageClassDiary, canManageExams
   }), [
-    session, user, userRole, allRoles, inchargeClassIds, loading, roleNotFound, signOut, switchRole,
-    canAccess, canDo, isClassIncharge, canManageClassDiary, canManageExams
+    session, user, userRole, allRoles, inchargeClassIds, roleTemplates, loading, roleNotFound, signOut, switchRole,
+    refreshRoleTemplates, canAccess, canDo, isClassIncharge, canManageClassDiary, canManageExams
   ]);
 
   return (

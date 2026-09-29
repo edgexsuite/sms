@@ -14,7 +14,7 @@ import AiAssistant from '../components/AiAssistant';
 
 export default function DashboardLayout() {
 
-  const { signOut, userRole, session, allRoles, switchRole } = useAuth();
+  const { signOut, userRole, session, allRoles, switchRole, canAccess } = useAuth();
   const { theme, cycleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -245,12 +245,11 @@ export default function DashboardLayout() {
       if (!userRole?.role) return false;
       if (!section.roles.includes(userRole.role)) return false;
       if (userRole.role !== 'admin' && (section as any).id) {
-        const permissions = userRole.permissions?.modules;
-        if (permissions && permissions[(section as any).id] === false) return false;
+        if (!canAccess((section as any).id)) return false;
       }
       return true;
     }),
-  [userRole]);
+  [userRole, canAccess]);
 
   const schoolName = schoolBrand?.name || 'School Dashboard';
   const schoolLogo = schoolBrand?.logo_url || null;
@@ -321,7 +320,19 @@ export default function DashboardLayout() {
         {/* ── Navigation ── */}
         <nav className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar py-3 px-2.5 pb-24 md:pb-3">
           {navSections.map((section, sectionIdx) => {
-            const visibleItems = section.items.filter(item => userRole?.role && item.roles.includes(userRole.role));
+            const visibleItems = section.items.filter(item => {
+              if (!userRole?.role || !item.roles.includes(userRole.role)) return false;
+              if (userRole.role !== 'admin') {
+                if (item.path.startsWith('/fees') && !canAccess('fees')) return false;
+                if (item.path.startsWith('/expenses') && !canAccess('expenses')) return false;
+                if (item.path.startsWith('/payroll') && !canAccess('payroll')) return false;
+                if (item.path.startsWith('/accounting') && !canAccess('accounting')) return false;
+                if (item.path.startsWith('/diary') && !canAccess('diary')) return false;
+                if (item.path.startsWith('/leave') && !canAccess('leave')) return false;
+                if (item.path.startsWith('/inventory') && !canAccess('inventory')) return false;
+              }
+              return true;
+            });
             if (visibleItems.length === 0) return null;
             // Per-section accent color (falls back to indigo if section has no color)
             const accent = (section as any).color || '#6366f1';

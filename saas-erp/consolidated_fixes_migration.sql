@@ -108,3 +108,61 @@ CREATE POLICY "Allow All" ON vehicles FOR ALL USING (true) WITH CHECK (true);
 ALTER TABLE student_transport ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow All" ON student_transport;
 CREATE POLICY "Allow All" ON student_transport FOR ALL USING (true) WITH CHECK (true);
+
+
+-- ── 4. Fee Matrix Class Migration Helper ──────────────────────
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'uq_fee_structures_school_class'
+  ) THEN
+    ALTER TABLE IF EXISTS fee_structures 
+      ADD CONSTRAINT uq_fee_structures_school_class UNIQUE (school_id, class_id);
+  END IF;
+EXCEPTION WHEN OTHERS THEN
+  NULL;
+END $$;
+
+CREATE OR REPLACE FUNCTION copy_class_fee_matrix_if_missing(
+  p_school_id UUID,
+  p_src_class_id UUID,
+  p_dest_class_id UUID
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_dest_count INT;
+  v_src_matrix JSONB;
+  v_src_amount NUMERIC;
+BEGIN
+  -- Check if destination class already has an active recurrent fee matrix
+  SELECT count(*) INTO v_dest_count
+  FROM fee_structures
+  WHERE school_id = p_school_id 
+    AND class_id = p_dest_class_id 
+    AND jsonb_array_length(COALESCE(fee_matrix->'recurrent', '[]'::jsonb)) > 0;
+
+  IF v_dest_count > 0 THEN
+    RETURN false; -- Already has active fee matrix
+  END IF;
+
+  -- Fetch source class fee structure
+  SELECT fee_matrix, amount INTO v_src_matrix, v_src_amount
+  FROM fee_structures
+  WHERE school_id = p_school_id AND class_id = p_src_class_id;
+
+  IF v_src_matrix IS NULL THEN
+    RETURN false;
+  END IF;
+
+  -- Insert or update destination class fee structure
+  INSERT INTO fee_structures (school_id, class_id, fee_matrix, amount)
+  VALUES (p_school_id, p_dest_class_id, v_src_matrix, COALESCE(v_src_amount, 0))
+  ON CONFLICT (school_id, class_id)
+  DO UPDATE SET fee_matrix = EXCLUDED.fee_matrix, amount = EXCLUDED.amount;
+
+  RETURN true;
+END;
+$$;

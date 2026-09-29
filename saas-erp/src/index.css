@@ -1,5 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 /* 
@@ -52,12 +52,25 @@ h1, h2, h3, h4, .font-display {
   font-family: var(--font-display);
 }
 
-/* Urdu Nastaleeq Support */
-.font-nastaleeq, .urdu-text {
-  font-family: 'Noto Nastaliq Urdu', 'Inter', serif !important;
+/* Urdu Nastaleeq Support - CRITICAL: letter-spacing MUST be 0 / normal so html2canvas and text engines do not segment cursive words into isolated letters */
+.font-nastaleeq, .urdu-text, [dir="rtl"], [lang="ur"] {
+  font-family: 'Noto Nastaliq Urdu', 'Noto Naskh Arabic', serif !important;
   unicode-bidi: plaintext;
   text-align: start;
-  line-height: 1.8;
+  line-height: 2.2;
+  letter-spacing: 0px !important;
+  letter-spacing: normal !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+}
+
+/* Print and PDF Container font & spacing overrides */
+#hidden-report-container,
+#hidden-report-container *,
+.diary-print-layout,
+.diary-print-layout * {
+  letter-spacing: 0px !important;
+  letter-spacing: normal !important;
 }
 
 /* Glassmorphism Utilities */

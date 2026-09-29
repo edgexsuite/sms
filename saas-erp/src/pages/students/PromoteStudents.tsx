@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
-import { ArrowUpRight, Search, CheckSquare, Square } from 'lucide-react';
+import { ArrowUpRight, Search, CheckSquare, Square, ShieldCheck, AlertCircle } from 'lucide-react';
 
 export default function PromoteStudents() {
   const { userRole } = useAuth();
@@ -14,6 +14,8 @@ export default function PromoteStudents() {
   const [sourceClass, setSourceClass] = useState('');
   const [destClass, setDestClass] = useState('');
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
+  const [copyFeeMatrix, setCopyFeeMatrix] = useState(true);
+  const [destHasFeeMatrix, setDestHasFeeMatrix] = useState<boolean | null>(null);
   
   useEffect(() => {
     if (userRole?.school_id) fetchClasses();
@@ -23,6 +25,22 @@ export default function PromoteStudents() {
     if (sourceClass) fetchStudents();
     else setStudents([]);
   }, [sourceClass]);
+
+  useEffect(() => {
+    if (destClass && userRole?.school_id) {
+      supabase
+        .from('fee_structures')
+        .select('fee_matrix')
+        .eq('school_id', userRole.school_id)
+        .eq('class_id', destClass)
+        .maybeSingle()
+        .then(({ data }) => {
+          setDestHasFeeMatrix(!!data?.fee_matrix?.recurrent?.length);
+        });
+    } else {
+      setDestHasFeeMatrix(null);
+    }
+  }, [destClass, userRole?.school_id]);
 
   const fetchClasses = async () => {
     const { data } = await supabase.from('classes').select('id, name, section').eq('school_id', userRole?.school_id).order('name');
@@ -61,15 +79,57 @@ export default function PromoteStudents() {
 
     setProcessing(true);
     try {
-      // Execute bulk update
+      // 1. Bulk update class_id for selected students
       const { error } = await supabase
         .from('students')
         .update({ class_id: destClass })
         .in('id', Array.from(selectedStudents));
 
       if (error) throw error;
+
+      // 2. Fee Matrix Migration: Ensure destination class has active fee matrix so monthly challans/invoices work
+      let feeMatrixMigrated = false;
+      if (copyFeeMatrix && userRole?.school_id) {
+        const { data: destStructure } = await supabase
+          .from('fee_structures')
+          .select('id, fee_matrix, amount')
+          .eq('school_id', userRole.school_id)
+          .eq('class_id', destClass)
+          .maybeSingle();
+
+        if (!destStructure || !destStructure.fee_matrix?.recurrent?.length) {
+          const { data: srcStructure } = await supabase
+            .from('fee_structures')
+            .select('fee_matrix, amount')
+            .eq('school_id', userRole.school_id)
+            .eq('class_id', sourceClass)
+            .maybeSingle();
+
+          if (srcStructure?.fee_matrix) {
+            if (destStructure) {
+              await supabase
+                .from('fee_structures')
+                .update({ fee_matrix: srcStructure.fee_matrix, amount: srcStructure.amount })
+                .eq('id', destStructure.id);
+            } else {
+              await supabase
+                .from('fee_structures')
+                .insert([{
+                  school_id: userRole.school_id,
+                  class_id: destClass,
+                  fee_matrix: srcStructure.fee_matrix,
+                  amount: srcStructure.amount || 0,
+                }]);
+            }
+            feeMatrixMigrated = true;
+          }
+        }
+      }
       
-      alert(`Success! Promoted ${selectedStudents.size} students.`);
+      const feeNote = feeMatrixMigrated
+        ? '\n\n✓ Destination class fee matrix was automatically configured from source class to ensure monthly challans/invoices generate smoothly.'
+        : '';
+      alert(`Success! Promoted ${selectedStudents.size} students.${feeNote}`);
       setSourceClass('');
       setDestClass('');
       setStudents([]);
@@ -109,6 +169,33 @@ export default function PromoteStudents() {
             </select>
           </div>
         </div>
+
+        {/* Fee Matrix Migration Protection */}
+        {destClass && (
+          <div className="px-6 py-3.5 bg-indigo-50/60 border-b border-indigo-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 text-indigo-900">
+              <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0" />
+              <span>
+                {destHasFeeMatrix === true ? (
+                  <span className="text-emerald-700 font-semibold">✓ Destination class has an active fee matrix configured.</span>
+                ) : destHasFeeMatrix === false ? (
+                  <span className="text-amber-700 font-medium">⚠️ Destination class has no fee matrix yet. Will automatically inherit from source class to guarantee challan generation.</span>
+                ) : (
+                  <span>Checking destination class fee matrix...</span>
+                )}
+              </span>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer font-bold text-indigo-800 select-none">
+              <input
+                type="checkbox"
+                checked={copyFeeMatrix}
+                onChange={e => setCopyFeeMatrix(e.target.checked)}
+                className="rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+              />
+              Auto-migrate fee matrix if missing
+            </label>
+          </div>
+        )}
 
         {sourceClass && (
           <div className="p-0">
