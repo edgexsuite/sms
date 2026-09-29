@@ -9,17 +9,17 @@ import {
   Radio, Inbox, Tag, History, Printer, Wand2, Trophy, CalendarDays, Table2, CheckCircle2
 } from 'lucide-react';
 
-export const ALL_ADMIN    = ['admin', 'principal', 'director', 'vice_principal'];
+export const ALL_ADMIN        = ['admin', 'principal', 'director', 'vice_principal'];
 export const ALL_COORDINATORS = ['admin', 'principal', 'director', 'vice_principal', 'campus_coordinator', 'academic_coordinator'];
-export const ALL_STAFF    = ['admin', 'principal', 'director', 'vice_principal', 'staff', 'campus_coordinator', 'academic_coordinator', 'section_coordinator'];
-export const ALL_ACADEMIC = ['admin', 'principal', 'director', 'vice_principal', 'teacher', 'staff', 'campus_coordinator', 'academic_coordinator', 'section_coordinator'];
-export const ALL_FINANCE  = ['admin', 'staff', 'accountant', 'principal', 'director', 'vice_principal'];
-export const ALL_REPORTS  = ['admin', 'staff', 'accountant', 'principal', 'director', 'vice_principal', 'campus_coordinator', 'academic_coordinator'];
+export const ALL_STAFF        = ['admin', 'principal', 'director', 'vice_principal', 'staff', 'campus_coordinator', 'academic_coordinator', 'section_coordinator'];
+export const ALL_ACADEMIC     = ['admin', 'principal', 'director', 'vice_principal', 'teacher', 'staff', 'campus_coordinator', 'academic_coordinator', 'section_coordinator'];
+export const ALL_FINANCE      = ['admin', 'staff', 'accountant', 'principal', 'director', 'vice_principal'];
+export const ALL_REPORTS      = ['admin', 'staff', 'accountant', 'principal', 'director', 'vice_principal', 'campus_coordinator', 'academic_coordinator'];
 
 export const NAV_SECTIONS = [
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 1. OVERVIEW
+  // 1. DASHBOARD & OVERVIEW
   // ──────────────────────────────────────────────────────────────────────────
   {
     title: 'Overview',
@@ -28,16 +28,16 @@ export const NAV_SECTIONS = [
     roles: ['admin', 'teacher', 'staff', 'accountant', 'librarian', 'principal', 'director', 'vice_principal', 'campus_coordinator', 'academic_coordinator', 'section_coordinator'],
     items: [
       { name: 'Dashboard',             path: '/dashboard',             icon: LayoutDashboard, roles: ['admin', 'teacher', 'staff', 'librarian', 'principal', 'director', 'vice_principal', 'campus_coordinator', 'academic_coordinator', 'section_coordinator'] },
-      { name: 'Accountant Dashboard', path: '/accountant-dashboard',  icon: Scale,           roles: ['accountant'] },
+      { name: 'Accountant Portal',     path: '/accountant-dashboard',  icon: Scale,           roles: ['accountant'] },
       { name: 'AI Assistant',         path: '/ai-assistant',          icon: Bot,             roles: ['admin', 'director', 'principal', 'vice_principal'] },
     ],
   },
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 2. PEOPLE & ENROLLMENT
+  // 2. STUDENTS & ADMISSIONS
   // ──────────────────────────────────────────────────────────────────────────
   {
-    title: 'People & Enrollment',
+    title: 'Students & Admissions',
     id: 'students',
     color: '#3b82f6',
     roles: ['admin', 'teacher', 'staff', 'principal', 'director'],
@@ -48,40 +48,27 @@ export const NAV_SECTIONS = [
         icon: GraduationCap,
         roles: ['admin', 'teacher', 'staff', 'principal', 'director'],
         subItems: [
-          { name: 'Student List',          path: '/students',                    exact: true, icon: Users,        roles: ALL_ACADEMIC },
-          { name: 'Register New Student',  path: '/students/register',                        icon: UserPlus,     roles: ALL_STAFF    },
-          { name: 'Custom List Generator', path: '/students/custom-list',                     icon: ClipboardList,roles: ALL_STAFF    },
+          { name: 'Student Directory',     path: '/students',                    exact: true, icon: Users,        roles: ALL_ACADEMIC },
+          { name: 'New Admission',         path: '/students/register',                        icon: UserPlus,     roles: ALL_STAFF    },
           { name: 'Admission Form',        path: '/students/admission-form',                  icon: FileText,     roles: ALL_STAFF    },
-          { name: 'Bulk Enrollment',       path: '/students/bulk-enrollment',                 icon: Upload,       roles: ALL_STAFF    },
           { name: 'Promote Students',      path: '/students/promote',                         icon: ShieldCheck,  roles: ALL_ADMIN    },
           { name: 'Digital ID Cards',      path: '/students/id-cards',                        icon: CreditCard,   roles: ALL_STAFF    },
-          { name: 'Student Reports',       path: '/students/reports',                         icon: BarChart3,    roles: ALL_ADMIN    },
           { name: 'Leaving Certificate',   path: '/students/leaving-certificate',             icon: Award,        roles: ALL_STAFF    },
           { name: 'Character Certificate', path: '/students/character-certificate',           icon: Award,        roles: ALL_STAFF    },
+          { name: 'Bulk Enrollment',       path: '/students/bulk-enrollment',                 icon: Upload,       roles: ALL_STAFF    },
+          { name: 'Custom List Generator', path: '/students/custom-list',                     icon: ClipboardList,roles: ALL_STAFF    },
         ],
       },
-      { name: 'Parents',       path: '/parents', icon: Users,    roles: ALL_STAFF  },
-      {
-        name: 'Staff',
-        path: '/staff',
-        icon: Briefcase,
-        roles: ALL_ADMIN,
-        subItems: [
-          { name: 'Staff Directory', path: '/staff',          exact: true, icon: Users     },
-          { name: 'Staff ID Cards',  path: '/staff/id-cards',             icon: CreditCard },
-          { name: 'Teacher of Month',path: '/staff/teacher-of-the-month', icon: Trophy     },
-          { name: 'User Accounts',   path: '/staff/accounts',             icon: Shield     },
-        ],
-      },
-      { name: 'Family Groups', path: '/family', icon: Users2,   roles: ALL_STAFF  },
+      { name: 'Parents Directory', path: '/parents', icon: Users,    roles: ALL_STAFF  },
+      { name: 'Family Groups',     path: '/family',  icon: Users2,   roles: ALL_STAFF  },
     ],
   },
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 3. ACADEMIC
+  // 3. ACADEMICS & CURRICULUM
   // ──────────────────────────────────────────────────────────────────────────
   {
-    title: 'Academic',
+    title: 'Academics & Classes',
     id: 'academic',
     color: '#8b5cf6',
     roles: ALL_ACADEMIC,
@@ -97,60 +84,65 @@ export const NAV_SECTIONS = [
           { name: 'Class Students',        path: '/classes/students',              icon: Users2     },
         ],
       },
-      { name: 'Timetable',          path: '/timetable',       icon: Calendar,  roles: ALL_ACADEMIC },
-      { name: 'Auto Timetable',     path: '/auto-timetable',   icon: Wand2,     roles: ALL_ADMIN    },
-      { name: 'Teacher Substitution', path: '/timetable/substitution', icon: Users, roles: ALL_COORDINATORS },
-      { name: 'Teacher Diary',  path: '/diary',       icon: ClipboardList, roles: ALL_ACADEMIC },
+      {
+        name: 'Timetable & Routine',
+        path: '/timetable',
+        icon: Calendar,
+        roles: ALL_ACADEMIC,
+        subItems: [
+          { name: 'Master Timetable',      path: '/timetable',        exact: true, icon: Calendar, roles: ALL_ACADEMIC },
+          { name: 'Auto Generator',        path: '/auto-timetable',                icon: Wand2,    roles: ALL_ADMIN    },
+          { name: 'Teacher Substitution',  path: '/timetable/substitution',        icon: Users,    roles: ALL_COORDINATORS },
+        ],
+      },
+      { name: 'Teacher Diary', path: '/diary', icon: ClipboardList, roles: ALL_ACADEMIC },
       {
         name: 'Lesson Planner',
         path: '/planner',
         icon: CalendarDays,
         roles: ALL_ACADEMIC,
         subItems: [
-          { name: 'Lesson Planner', path: '/planner', exact: true, icon: CalendarDays, roles: ALL_ACADEMIC },
-          { name: 'Lesson Planner Report', path: '/planner/report', icon: CheckCircle2, roles: ALL_COORDINATORS },
+          { name: 'Lesson Planner',        path: '/planner',        exact: true, icon: CalendarDays, roles: ALL_ACADEMIC },
+          { name: 'Coordinator Report',    path: '/planner/report',              icon: CheckCircle2, roles: ALL_COORDINATORS },
         ],
       },
-      { name: 'Evaluation',     path: '/evaluation',  icon: Star,          roles: ALL_ACADEMIC },
+      { name: 'Academic Evaluation', path: '/evaluation', icon: Star, roles: ALL_ACADEMIC },
     ],
   },
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 4. ATTENDANCE  (merged Leave & Discipline here — logically grouped)
+  // 4. ATTENDANCE & LEAVES
   // ──────────────────────────────────────────────────────────────────────────
   {
-    title: 'Attendance & Leave',
+    title: 'Attendance & Leaves',
     id: 'attendance',
     color: '#14b8a6',
     roles: ALL_ACADEMIC,
     items: [
       {
-        name: 'Attendance',
+        name: 'Student Attendance',
         path: '/attendance',
         icon: CalendarCheck,
         roles: ALL_ACADEMIC,
         subItems: [
           { name: 'Daily Roll Call',      path: '/attendance',               exact: true, icon: CalendarCheck, roles: ALL_ACADEMIC },
-          { name: 'Absent Students',      path: '/attendance/absent-list',               icon: UserX,         roles: ALL_ACADEMIC },
-          { name: 'Daily Report',         path: '/attendance/daily-report',              icon: FileText,      roles: ALL_ACADEMIC },
-          { name: 'Monthly Report',       path: '/attendance/monthly-report',            icon: BarChart3,     roles: ALL_ACADEMIC },
-          { name: 'Sessional Report',     path: '/attendance/sessional-report',          icon: TrendingUp,    roles: ALL_ACADEMIC },
-          { name: 'Staff Attendance',     path: '/attendance/staff',                     icon: Briefcase,     roles: [...ALL_ADMIN, 'campus_coordinator', 'academic_coordinator', 'section_coordinator'] },
-          { name: 'Staff Daily Report',   path: '/attendance/staff-daily',               icon: Clock,         roles: [...ALL_ADMIN, 'campus_coordinator', 'academic_coordinator', 'section_coordinator'] },
-          { name: 'Staff Report',         path: '/attendance/staff-report',              icon: LineChart,     roles: [...ALL_ADMIN, 'campus_coordinator', 'academic_coordinator', 'section_coordinator'] },
+          { name: 'Absent Students List', path: '/attendance/absent-list',               icon: UserX,         roles: ALL_ACADEMIC },
+          { name: 'Attendance Reports',   path: '/attendance/daily-report',              icon: FileText,      roles: ALL_ACADEMIC },
+          { name: 'Monthly Summary',      path: '/attendance/monthly-report',            icon: BarChart3,     roles: ALL_ACADEMIC },
           { name: 'QR Attendance Kiosk',  path: '/attendance/scanner',                   icon: Wifi,          roles: ALL_STAFF    },
-          { name: 'SMS History',          path: '/attendance/sms-history',               icon: Radio,         roles: ALL_STAFF    },
+          { name: 'SMS Broadcast History',path: '/attendance/sms-history',               icon: Radio,         roles: ALL_STAFF    },
         ],
       },
       {
-        name: 'Leave Management',
+        name: 'Staff & Leaves',
         path: '/leave',
         icon: CalendarOff,
         roles: ALL_ACADEMIC,
         subItems: [
-          { name: 'Student Leave',      path: '/leave/student',  icon: GraduationCap                    },
-          { name: 'Staff Leave',        path: '/leave/staff',    icon: Briefcase,    roles: ALL_ADMIN   },
-          { name: 'Substitute Fixture', path: '/leave/fixture',  icon: Users2,       roles: ALL_ADMIN   },
+          { name: 'Staff Daily Attendance',path: '/attendance/staff-daily',              icon: Clock,         roles: [...ALL_ADMIN, 'campus_coordinator', 'academic_coordinator', 'section_coordinator'] },
+          { name: 'Staff Attendance Sheet',path: '/attendance/staff-report',             icon: LineChart,     roles: [...ALL_ADMIN, 'campus_coordinator', 'academic_coordinator', 'section_coordinator'] },
+          { name: 'Staff Leave Requests',  path: '/leave/staff',                         icon: Briefcase,     roles: ALL_ADMIN   },
+          { name: 'Student Leave Requests',path: '/leave/student',                       icon: GraduationCap, roles: ALL_ACADEMIC },
         ],
       },
       { name: 'Complaints & Feedback', path: '/complaints', icon: AlertTriangle, roles: ['admin', 'teacher', 'staff', 'principal', 'director', 'vice_principal', 'campus_coordinator'] },
@@ -158,7 +150,7 @@ export const NAV_SECTIONS = [
   },
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 5. EXAMS & RESULTS
+  // 5. EXAMINATIONS & RESULTS
   // ──────────────────────────────────────────────────────────────────────────
   {
     title: 'Exams & Results',
@@ -167,150 +159,158 @@ export const NAV_SECTIONS = [
     roles: ALL_ACADEMIC,
     items: [
       {
-        name: 'Exam and Results',
+        name: 'Exam Management',
         path: '/result',
         icon: FileText,
         roles: ALL_ACADEMIC,
         subItems: [
-          { name: 'Exam Types',              path: '/result/exam-types',       icon: SettingsIcon,   roles: ALL_ADMIN   },
-          { name: 'Result Status',           path: '/result/status',           icon: ClipboardCheck, roles: ALL_ACADEMIC },
-          { name: 'Admin Results Entry',     path: '/result/add-result',       icon: Star,           roles: ALL_ADMIN   },
-          { name: 'Import from Excel',       path: '/result/import',           icon: Upload,         roles: ALL_STAFF   },
-          { name: 'Teacher Mark Entry',      path: '/result/teacher-marks',    icon: Star,           roles: ALL_ACADEMIC },
-          { name: 'Teacher-Wise Results',    path: '/result/teacher-wise',     icon: Users,          roles: ALL_ACADEMIC },
+          { name: 'Exam Terms & Types',      path: '/result/exam-types',       icon: SettingsIcon,   roles: ALL_ADMIN   },
+          { name: 'Result Status Dashboard', path: '/result/status',           icon: ClipboardCheck, roles: ALL_ACADEMIC },
+          { name: 'Marks Entry (Admin)',     path: '/result/add-result',       icon: Star,           roles: ALL_ADMIN   },
+          { name: 'Teacher Marks Entry',     path: '/result/teacher-marks',    icon: Star,           roles: ALL_ACADEMIC },
+          { name: 'Import Marks (Excel)',    path: '/result/import',           icon: Upload,         roles: ALL_STAFF   },
+          { name: 'Teacher-Wise Analysis',   path: '/result/teacher-wise',     icon: Users,          roles: ALL_ACADEMIC },
           { name: 'Consolidated Sheet',      path: '/result/consolidated',     icon: LayoutDashboard,roles: ALL_ACADEMIC },
           { name: 'Award List Generator',    path: '/result/award-list',       icon: Printer,        roles: ALL_ACADEMIC },
-          { name: 'Report Cards',            path: '/result/reporting',        icon: LineChart,      roles: ALL_ACADEMIC },
-          { name: 'Grading Policy',          path: '/result/grading-policy',   icon: SettingsIcon,   roles: ALL_ADMIN   },
-          { name: 'Subject Marks Config',    path: '/result/marks-config',     icon: Award,          roles: ALL_ADMIN   },
+          { name: 'Student Report Cards',    path: '/result/reporting',        icon: LineChart,      roles: ALL_ACADEMIC },
+          { name: 'Grading Rules Setup',     path: '/result/grading-policy',   icon: SettingsIcon,   roles: ALL_ADMIN   },
         ],
       },
     ],
   },
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 6. FINANCE
+  // 6. FEES & BILLING (HIGH PRIORITY OPERATIONAL HUB)
   // ──────────────────────────────────────────────────────────────────────────
   {
-    title: 'Finance',
-    id: 'finance',
+    title: 'Fees & Billing',
+    id: 'fees',
     color: '#10b981',
     roles: ALL_FINANCE,
     items: [
       {
-        name: 'Fee Management',
+        name: 'Fee Operations',
         path: '/fees',
         icon: CreditCard,
         roles: ALL_FINANCE,
         subItems: [
-          { name: 'Quick Collection',         path: '/fees/easy-fee',        icon: Wallet       },
-          { name: 'Generate Invoices',        path: '/fees/invoices',        icon: Receipt      },
-          { name: 'Student Fee Ledger',       path: '/fees/student-detail',  icon: Users        },
-          { name: 'Fee History Search',       path: '/fees/fee-history',     icon: Clock        },
-          { name: 'Advance Payments',         path: '/fees/advance-fee',     icon: Banknote,    roles: ALL_ADMIN },
-          { name: 'Fee Templates',            path: '/fees/fee-templates',   icon: Layers,      roles: ALL_ADMIN },
-          { name: 'Discounts & Scholarships', path: '/fees/discounts',       icon: Award,       roles: ALL_ADMIN },
-          { name: 'Late Fine Rules',          path: '/fees/fine-policy',     icon: AlertTriangle,roles: ALL_ADMIN },
-          { name: 'Challan Settings',         path: '/fees/challan-settings',icon: Palette,     roles: ALL_ADMIN },
-          { name: 'Bulk Discount Entry',      path: '/fees/bulk-discount',   icon: Tag,         roles: ALL_ADMIN },
-          { name: 'Bulk Arrears Entry',       path: '/fees/bulk-arrears',    icon: History,     roles: ALL_ADMIN },
-          { name: 'Bulk Fee Import',          path: '/fees/bulk-fee-import', icon: Upload,      roles: ALL_ADMIN },
+          { name: 'Generate Monthly Challans', path: '/fees/invoices',       exact: true, icon: Receipt      },
+          { name: 'Quick Fee Collection',      path: '/fees/easy-fee',                    icon: Wallet       },
+          { name: 'Student Fee Ledgers',       path: '/fees/student-detail',              icon: Users        },
+          { name: 'Fee History Search',        path: '/fees/fee-history',                 icon: Clock        },
+          { name: 'Advance Fee Deposits',      path: '/fees/advance-fee',                 icon: Banknote,    roles: ALL_ADMIN },
         ],
       },
       {
-        name: 'Expenses',
+        name: 'Fee Setup & Rules',
+        path: '/fees/settings',
+        icon: Layers,
+        roles: ALL_ADMIN,
+        subItems: [
+          { name: 'Fee Structures & Templates', path: '/fees/fee-templates',   icon: Layers       },
+          { name: 'Discounts & Scholarships',   path: '/fees/discounts',       icon: Award        },
+          { name: 'Late Fine Rules',            path: '/fees/fine-policy',     icon: AlertTriangle},
+          { name: 'Challan Print Designer',     path: '/fees/challan-settings',icon: Palette      },
+          { name: 'Bulk Arrears Entry',         path: '/fees/bulk-arrears',    icon: History      },
+          { name: 'Bulk Discount Allocation',   path: '/fees/bulk-discount',   icon: Tag          },
+          { name: 'Historical Fee Migration',   path: '/fees/bulk-fee-import', icon: Upload       },
+        ],
+      },
+    ],
+  },
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 7. FINANCE & HR
+  // ──────────────────────────────────────────────────────────────────────────
+  {
+    title: 'Finance & HR',
+    id: 'finance',
+    color: '#0ea5e9',
+    roles: ALL_FINANCE,
+    items: [
+      {
+        name: 'Expenses & Daybook',
         path: '/expenses',
         icon: Wallet,
         roles: ALL_FINANCE,
         subItems: [
-          { name: 'Daily Expenses',   path: '/expenses/add-daily',        exact: true, icon: Wallet    },
-          { name: 'Day Book / Ledger',path: '/expenses/ledger',                        icon: LineChart },
-          { name: 'Expense Heads',    path: '/expenses/heads',                         icon: SettingsIcon, roles: ALL_ADMIN },
-          { name: 'Budget',           path: '/expenses/budget',                        icon: PiggyBank },
-          { name: 'Expense Reports',  path: '/expenses/reports',                       icon: BarChart3 },
-          { name: 'Payment Sources',  path: '/expenses/payment-sources',               icon: CreditCard,   roles: ALL_ADMIN },
-          { name: 'Profit & Loss',    path: '/expenses/p-and-l',                       icon: TrendingUp},
-          { name: 'Bulk Import',      path: '/expenses/bulk-import',                   icon: Upload,       roles: ALL_ADMIN },
+          { name: 'Add Daily Expense',  path: '/expenses/add-daily', exact: true, icon: Wallet    },
+          { name: 'General Day Book',   path: '/expenses/ledger',                 icon: LineChart },
+          { name: 'Expense Heads',      path: '/expenses/heads',                  icon: SettingsIcon, roles: ALL_ADMIN },
+          { name: 'Profit & Loss',      path: '/expenses/p-and-l',                icon: TrendingUp},
         ],
       },
       {
-        name: 'Payroll',
+        name: 'Staff Payroll',
         path: '/payroll',
         icon: DollarSign,
         roles: ['admin', 'accountant', 'principal', 'director'],
         subItems: [
-          { name: 'Process Payroll',  path: '/payroll',            exact: true, icon: DollarSign },
-          { name: 'Allowances',       path: '/payroll/allowances',              icon: Award      },
-          { name: 'Salary Slips',     path: '/payroll/slips',                   icon: FileText   },
-          { name: 'Staff Advance',    path: '/payroll/advance',                 icon: Wallet     },
-          { name: 'Staff Ledger',     path: '/payroll/ledger',                  icon: History    },
-          { name: 'Payroll Reports',  path: '/payroll/reports',                 icon: BarChart3  },
+          { name: 'Process Payroll',   path: '/payroll',            exact: true, icon: DollarSign },
+          { name: 'Salary Slips',      path: '/payroll/slips',                   icon: FileText   },
+          { name: 'Staff Advances',    path: '/payroll/advance',                 icon: Wallet     },
+          { name: 'Staff Ledger',      path: '/payroll/ledger',                  icon: History    },
         ],
       },
       {
-        name: 'Accounting',
+        name: 'School Accounts',
         path: '/accounting',
         icon: Scale,
         roles: ['admin', 'accountant', 'principal', 'director'],
         subItems: [
-          { name: 'Journal Entry',     path: '/accounting/journal',            icon: BookMarked },
-          { name: 'Chart of Accounts', path: '/accounting/chart-of-accounts',  icon: Landmark   },
-          { name: 'Trial Balance',     path: '/accounting/trial-balance',      icon: Scale      },
-          { name: 'Balance Sheet',     path: '/accounting/balance-sheet',      icon: BarChart2  },
+          { name: 'Journal Entries',    path: '/accounting/journal',            icon: BookMarked },
+          { name: 'Chart of Accounts',  path: '/accounting/chart-of-accounts',  icon: Landmark   },
+          { name: 'Trial Balance',      path: '/accounting/trial-balance',      icon: Scale      },
+          { name: 'Balance Sheet',      path: '/accounting/balance-sheet',      icon: BarChart2  },
+        ],
+      },
+      {
+        name: 'Staff Directory',
+        path: '/staff',
+        icon: Briefcase,
+        roles: ALL_ADMIN,
+        subItems: [
+          { name: 'Staff Profiles',     path: '/staff',          exact: true,   icon: Users     },
+          { name: 'Staff ID Cards',     path: '/staff/id-cards',                icon: CreditCard },
+          { name: 'Teacher of Month',   path: '/staff/teacher-of-the-month',    icon: Trophy     },
+          { name: 'Portal Credentials', path: '/staff/accounts',                icon: Shield     },
         ],
       },
     ],
   },
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 7. REPORTS & ANALYTICS  (Invoice Report promoted here from Finance)
+  // 8. REPORTS & ANALYTICS
   // ──────────────────────────────────────────────────────────────────────────
   {
-    title: 'Reports & Analytics',
+    title: 'Reports & Intelligence',
     id: 'reports',
-    color: '#0ea5e9',
+    color: '#06b6d4',
     roles: ALL_REPORTS,
     items: [
       { name: 'Master Summary',        path: '/reports/master-summary',       icon: BarChart,       roles: ALL_REPORTS },
-      { name: 'Collection Report',     path: '/reports/collection',           icon: CreditCard,     roles: ALL_REPORTS },
-      { name: 'Fee Status Report',     path: '/reports/fee-status',           icon: ClipboardCheck, roles: ALL_REPORTS },
-      { name: 'Monthly Consolidated',  path: '/reports/monthly-consolidated', icon: Calendar,       roles: ALL_REPORTS },
-      { name: 'Arrears Report',        path: '/reports/arrears',              icon: AlertTriangle,  roles: ALL_REPORTS },
-      { name: 'Class Fee Summary',     path: '/reports/class-fee-summary',    icon: BarChart3,      roles: ALL_REPORTS },
+      { name: 'Fee Collection Audit',  path: '/reports/collection',           icon: CreditCard,     roles: ALL_REPORTS },
+      { name: 'Fee Status Matrix',     path: '/reports/fee-status',           icon: ClipboardCheck, roles: ALL_REPORTS },
+      { name: 'Arrears & Defaulters',  path: '/reports/arrears',              icon: AlertTriangle,  roles: ALL_REPORTS },
       { name: 'Class Fee Matrix',      path: '/reports/class-fee-matrix',     icon: Table2,         roles: ALL_REPORTS },
-      { name: 'Student Fee Ledger',    path: '/reports/student-ledger',       icon: BookOpen,       roles: ALL_REPORTS },
-      { name: 'Invoice Report',        path: '/fees/invoice-report',          icon: Receipt,        roles: ALL_FINANCE },
-      { name: 'Student Reports',       path: '/students/reports',             icon: BarChart3,      roles: ALL_ADMIN   },
+      { name: 'Invoice Audit Report',  path: '/fees/invoice-report',          icon: Receipt,        roles: ALL_FINANCE },
     ],
   },
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 8. COMMUNICATION  (SMS History moved to Attendance; Front Desk stays)
+  // 9. SERVICES & SYSTEM
   // ──────────────────────────────────────────────────────────────────────────
   {
-    title: 'Communication',
-    id: 'communication',
-    color: '#ec4899',
-    roles: ['admin', 'teacher', 'staff', 'principal', 'director'],
-    items: [
-      { name: 'Broadcast & Messaging', path: '/communication', icon: MessageSquare, roles: ALL_ADMIN },
-      { name: 'Front Desk',            path: '/frontdesk',     icon: Home,          roles: ALL_STAFF },
-      { name: 'Gate Pass System',      path: '/frontdesk/gate-pass', icon: ShieldCheck, roles: ALL_STAFF },
-    ],
-  },
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // 9. SCHOOL SERVICES
-  // ──────────────────────────────────────────────────────────────────────────
-  {
-    title: 'School Services',
+    title: 'Services & System',
     id: 'services',
-    color: '#f97316',
+    color: '#64748b',
     roles: ['admin', 'staff', 'librarian', 'principal', 'director'],
     items: [
-      { name: 'Library',    path: '/library',    icon: Library, roles: ['admin', 'staff', 'librarian'] },
+      { name: 'Front Desk & Visitors', path: '/frontdesk',           icon: Home,         roles: ALL_STAFF },
+      { name: 'Gate Pass System',      path: '/frontdesk/gate-pass', icon: ShieldCheck,  roles: ALL_STAFF },
+      { name: 'Library System',        path: '/library',             icon: Library,      roles: ['admin', 'staff', 'librarian'] },
       {
-        name: 'Transport',
+        name: 'Transport Service',
         path: '/transport',
         icon: Bus,
         roles: ALL_STAFF,
@@ -321,27 +321,20 @@ export const NAV_SECTIONS = [
           { name: 'Student Allocation', path: '/transport/students',             icon: Users,  roles: ALL_STAFF },
         ],
       },
-      { name: 'Inventory & Stationery', path: '/inventory', icon: Package, roles: ALL_STAFF },
-    ],
-  },
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // 10. SYSTEM
-  // ──────────────────────────────────────────────────────────────────────────
-  {
-    title: 'System',
-    id: 'settings',
-    color: '#94a3b8',
-    roles: ALL_ADMIN,
-    items: [
-      { name: 'Settings',             path: '/settings',             icon: SettingsIcon, roles: ALL_ADMIN },
-      { name: 'Permission Manager',   path: '/settings/permissions', icon: Key,          roles: ALL_ADMIN },
-      { name: 'ID Card Designer',     path: '/settings/id-cards',    icon: Palette,      roles: ALL_ADMIN },
-      { name: 'Report Card Designer', path: '/settings/report-cards',icon: LineChart,    roles: ALL_ADMIN },
-      { name: 'Credential Dispatch',  path: '/credentials',          icon: ShieldCheck,  roles: ALL_ADMIN },
-      { name: 'Help & Support',       path: '/help-support',         icon: LifeBuoy,     roles: ALL_ADMIN },
-      { name: 'Audit Log',            path: '/audit-log',            icon: History,      roles: ALL_ADMIN },
-      { name: 'Trashbin',             path: '/settings/trashbin',    icon: Trash2,       roles: ['admin'] },
+      { name: 'Inventory & Stock',     path: '/inventory',           icon: Package,      roles: ALL_STAFF },
+      {
+        name: 'System Settings',
+        path: '/settings',
+        icon: SettingsIcon,
+        roles: ALL_ADMIN,
+        subItems: [
+          { name: 'General Settings',    path: '/settings',          exact: true, icon: SettingsIcon },
+          { name: 'Role Permissions',    path: '/settings/permissions',           icon: Key          },
+          { name: 'ID Card Designer',    path: '/settings/id-cards',              icon: Palette      },
+          { name: 'Audit Logs',          path: '/audit-log',                      icon: History      },
+          { name: 'Recycle Trashbin',    path: '/settings/trashbin',              icon: Trash2,      roles: ['admin'] },
+        ],
+      },
     ],
   },
 ];

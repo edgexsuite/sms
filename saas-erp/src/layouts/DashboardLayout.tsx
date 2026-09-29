@@ -70,16 +70,30 @@ export default function DashboardLayout() {
     const p = location.pathname;
     if (p.startsWith('/students'))   return 'Students';
     if (p.startsWith('/classes'))    return 'Classes & Subjects';
-    if (p.startsWith('/result'))     return 'Exam and Results';
-    if (p.startsWith('/fees'))       return 'Fee Management';
-    if (p.startsWith('/expenses'))   return 'Expenses';
-    if (p.startsWith('/payroll'))    return 'Payroll';
-    if (p.startsWith('/accounting')) return 'Accounting';
-    if (p.startsWith('/library'))    return 'Library';
-    if (p.startsWith('/frontdesk'))  return 'Front Desk';
-    if (p.startsWith('/transport'))  return 'Transport';
-    if (p.startsWith('/leave'))      return 'Leave Management';
-    if (p.startsWith('/attendance')) return 'Attendance';
+    if (p.startsWith('/timetable'))  return 'Timetable & Routine';
+    if (p.startsWith('/planner'))    return 'Lesson Planner';
+    if (p.startsWith('/attendance/staff') || p.startsWith('/leave')) return 'Staff & Leaves';
+    if (p.startsWith('/attendance')) return 'Student Attendance';
+    if (p.startsWith('/result'))     return 'Exam Management';
+    if (
+      p.startsWith('/fees/settings') ||
+      p.startsWith('/fees/fee-templates') ||
+      p.startsWith('/fees/discounts') ||
+      p.startsWith('/fees/fine-policy') ||
+      p.startsWith('/fees/challan-settings') ||
+      p.startsWith('/fees/bulk-arrears') ||
+      p.startsWith('/fees/bulk-discount') ||
+      p.startsWith('/fees/bulk-fee-import')
+    ) {
+      return 'Fee Setup & Rules';
+    }
+    if (p.startsWith('/fees'))       return 'Fee Operations';
+    if (p.startsWith('/expenses'))   return 'Expenses & Daybook';
+    if (p.startsWith('/payroll'))    return 'Staff Payroll';
+    if (p.startsWith('/accounting')) return 'School Accounts';
+    if (p.startsWith('/staff'))      return 'Staff Directory';
+    if (p.startsWith('/transport'))  return 'Transport Service';
+    if (p.startsWith('/settings') || p.startsWith('/audit-log')) return 'System Settings';
     return null;
   }, [location.pathname]);
 
