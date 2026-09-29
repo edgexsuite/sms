@@ -810,26 +810,24 @@ export default function TeacherDiary() {
     });
 
     const doc = new jsPDF('l', 'mm', 'a4');
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
+    const pageWidth = doc.internal.pageSize.getWidth(); // 297 mm
+    const pageHeight = doc.internal.pageSize.getHeight(); // 210 mm
     const imgData = canvas.toDataURL('image/jpeg', 0.98);
-    const imgHeight = (canvas.height * pageWidth) / canvas.width;
 
-    if (imgHeight <= pageHeight) {
-      doc.addImage(imgData, 'JPEG', 0, 0, pageWidth, imgHeight);
-    } else {
-      let heightLeft = imgHeight;
-      let position = 0;
-      doc.addImage(imgData, 'JPEG', 0, position, pageWidth, imgHeight);
-      heightLeft -= pageHeight;
-      while (heightLeft > 0) {
-        position -= pageHeight;
-        doc.addPage();
-        doc.addImage(imgData, 'JPEG', 0, position, pageWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-    }
+    // Guaranteed Single-Page Fit: Calculate proportional scale ratio for both width and height
+    const margin = 5; // 5mm margin on all sides
+    const maxW = pageWidth - margin * 2;
+    const maxH = pageHeight - margin * 2;
 
+    const ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
+    const finalW = canvas.width * ratio;
+    const finalH = canvas.height * ratio;
+
+    // Center horizontally and vertically on the single page
+    const posX = (pageWidth - finalW) / 2;
+    const posY = (pageHeight - finalH) / 2;
+
+    doc.addImage(imgData, 'JPEG', posX, posY, finalW, finalH, undefined, 'FAST');
     doc.save(fileName);
     return true;
   };
@@ -1151,7 +1149,15 @@ export default function TeacherDiary() {
           overflow-wrap: normal !important;
         }
         @media print {
-          body { background: white !important; margin: 0 !important; padding: 0 !important; letter-spacing: 0px !important; }
+          @page { size: landscape; margin: 4mm; }
+          html, body {
+            height: 100% !important;
+            overflow: hidden !important;
+            background: white !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            letter-spacing: 0px !important;
+          }
           .no-print { display: none !important; }
           .print-only {
             display: block !important;
@@ -1161,22 +1167,25 @@ export default function TeacherDiary() {
             left: auto !important;
             top: auto !important;
             z-index: auto !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
           }
-          @page { size: landscape; margin: 5mm; }
           .diary-print-layout { 
             width: 100%; 
             background: #fffdfa !important; 
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
-            transform: scale(0.88);
+            transform: scale(0.85);
             transform-origin: top center;
             margin: 0 !important;
             letter-spacing: 0px !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
-          table { page-break-after: avoid !important; width: 100% !important; letter-spacing: 0px !important; }
-          tr { page-break-inside: avoid !important; }
-          .sign-area { page-break-inside: avoid !important; }
-          .urdu-text { font-family: 'Noto Nastaliq Urdu', 'Noto Naskh Arabic', serif !important; unicode-bidi: plaintext; text-align: start; font-size: 13px; line-height: 2.6 !important; letter-spacing: 0px !important; word-break: normal !important; overflow-wrap: normal !important; }
+          table { page-break-after: avoid !important; page-break-inside: avoid !important; break-inside: avoid !important; width: 100% !important; letter-spacing: 0px !important; }
+          tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+          .sign-area { page-break-inside: avoid !important; break-inside: avoid !important; page-break-before: avoid !important; }
+          .urdu-text { font-family: 'Noto Nastaliq Urdu', 'Noto Naskh Arabic', serif !important; unicode-bidi: plaintext; text-align: start; font-size: 13px; line-height: 2.0 !important; letter-spacing: 0px !important; word-break: normal !important; overflow-wrap: normal !important; }
           thead { display: table-row-group !important; }
         }
       `}</style>
@@ -1580,26 +1589,26 @@ export default function TeacherDiary() {
 
       {/* ── PRINT ONLY LAYOUT (HIDDEN ON SCREEN) ────────────────────────── */}
       <div className="print-only" style={{ letterSpacing: '0px' }}>
-        <div ref={reportRef} id="hidden-report-container" className="diary-print-layout" style={{ padding: '0 0 15px 0', letterSpacing: '0px' }}>
-          <div className="top-banner" style={{ height: '10px', background: 'linear-gradient(90deg, #1e1b4b, #4338ca, #10b981)', marginBottom: '15px' }}></div>
-          <div style={{ padding: '0 35px', boxSizing: 'border-box', letterSpacing: '0px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', width: '100%', paddingBottom: '6px', borderBottom: '2px solid #1e1b4b', marginBottom: '8px', boxSizing: 'border-box' }}>
+        <div ref={reportRef} id="hidden-report-container" className="diary-print-layout" style={{ padding: '0 0 10px 0', letterSpacing: '0px' }}>
+          <div className="top-banner" style={{ height: '7px', background: 'linear-gradient(90deg, #1e1b4b, #4338ca, #10b981)', marginBottom: '8px' }}></div>
+          <div style={{ padding: '0 25px', boxSizing: 'border-box', letterSpacing: '0px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', width: '100%', paddingBottom: '4px', borderBottom: '2px solid #1e1b4b', marginBottom: '6px', boxSizing: 'border-box' }}>
             {schoolInfo?.logo_url && (
-              <img src={schoolInfo.logo_url} crossOrigin="anonymous" style={{ width: '55px', height: '55px', objectFit: 'contain', marginRight: '15px' }} alt="logo" />
+              <img src={schoolInfo.logo_url} crossOrigin="anonymous" style={{ width: '48px', height: '48px', objectFit: 'contain', marginRight: '12px' }} alt="logo" />
             )}
             <div style={{ flexGrow: 1, textAlign: 'center' }}>
-              <h1 style={{ fontSize: '22px', fontWeight: '900', color: '#1e1b4b', margin: '0', letterSpacing: '0px', textTransform: 'uppercase' }}>{schoolInfo?.name || 'School Diary'}</h1>
-              <p style={{ fontSize: '11px', color: '#475569', fontWeight: '700', marginTop: '1px', letterSpacing: '0px' }}>{schoolInfo?.address}</p>
-              <div style={{ marginTop: '6px' }}>
-                 <span style={{ background: 'linear-gradient(135deg, #1e1b4b, #4338ca)', color: 'white', padding: '4px 28px', borderRadius: '50px', fontWeight: '900', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+              <h1 style={{ fontSize: '20px', fontWeight: '900', color: '#1e1b4b', margin: '0', letterSpacing: '0px', textTransform: 'uppercase' }}>{schoolInfo?.name || 'School Diary'}</h1>
+              <p style={{ fontSize: '10.5px', color: '#475569', fontWeight: '700', marginTop: '1px', letterSpacing: '0px' }}>{schoolInfo?.address}</p>
+              <div style={{ marginTop: '4px' }}>
+                 <span style={{ background: 'linear-gradient(135deg, #1e1b4b, #4338ca)', color: 'white', padding: '3px 22px', borderRadius: '50px', fontWeight: '900', fontSize: '8.5px', textTransform: 'uppercase', letterSpacing: '0px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
                    {viewMode === 'class' ? 'Class Academic Diary' : 'Professional Staff Record'}
                  </span>
               </div>
             </div>
-            <div style={{ width: '55px' }}></div> 
+            <div style={{ width: '48px' }}></div> 
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontWeight: '900', fontSize: '12px', border: '2px solid #1e1b4b', padding: '8px 25px', background: '#f8fafc', color: '#1e1b4b', borderRadius: '4px', boxSizing: 'border-box', marginBottom: '12px', fontFamily: "'Inter', sans-serif", letterSpacing: '0px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontWeight: '900', fontSize: '11px', border: '1.5px solid #1e1b4b', padding: '6px 18px', background: '#f8fafc', color: '#1e1b4b', borderRadius: '4px', boxSizing: 'border-box', marginBottom: '8px', fontFamily: "'Inter', sans-serif", letterSpacing: '0px' }}>
             <span>{diaryPeriod === 'weekly' ? `WEEK: ${weekDays[0]?.formatted} — ${weekDays[4]?.formatted}` : `DATED: ${formattedDate}`}</span>
             <span>
               {viewMode === 'class' 
@@ -1609,13 +1618,13 @@ export default function TeacherDiary() {
           </div>
 
           {diaryPeriod === 'weekly' ? (
-            <table style={{ width: '100%', borderCollapse: 'collapse', border: '2px solid #1e1b4b', background: 'white', tableLayout: 'fixed', boxSizing: 'border-box', letterSpacing: '0px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #1e1b4b', background: 'white', tableLayout: 'fixed', boxSizing: 'border-box', letterSpacing: '0px' }}>
               <thead>
                 <tr>
-                  <th style={{ border: '1.5px solid #1e1b4b', padding: '10px 8px', background: '#1e1b4b', width: '15%', textAlign: 'center', color: '#fff', fontWeight: '900', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0px' }}>Subject</th>
+                  <th style={{ border: '1.5px solid #1e1b4b', padding: '8px 6px', background: '#1e1b4b', width: '15%', textAlign: 'center', color: '#fff', fontWeight: '900', fontSize: '9.5px', textTransform: 'uppercase', letterSpacing: '0px' }}>Subject</th>
                   {weekDays.map(d => (
-                    <th key={d.date} style={{ border: '1.5px solid #1e1b4b', padding: '10px 8px', background: '#1e1b4b', width: '17%', textAlign: 'center', color: '#fff', fontWeight: '900', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0px' }}>
-                      {d.name}<br /><span style={{ fontSize: '8px', opacity: 0.8 }}>({d.formatted})</span>
+                    <th key={d.date} style={{ border: '1.5px solid #1e1b4b', padding: '8px 6px', background: '#1e1b4b', width: '17%', textAlign: 'center', color: '#fff', fontWeight: '900', fontSize: '8.5px', textTransform: 'uppercase', letterSpacing: '0px' }}>
+                      {d.name}<br /><span style={{ fontSize: '7.5px', opacity: 0.8 }}>({d.formatted})</span>
                     </th>
                   ))}
                 </tr>
@@ -1623,25 +1632,25 @@ export default function TeacherDiary() {
               <tbody>
                 {assignedSlots.map((slot, idx) => (
                   <tr key={idx} style={{ background: idx % 2 === 0 ? 'white' : 'rgba(241, 245, 249, 0.4)' }}>
-                    <td style={{ border: '1px solid #cbd5e1', padding: '8px', fontWeight: 'bold', fontSize: '10px', color: '#1e1b4b', textAlign: 'center', letterSpacing: '0px' }}>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '6px', fontWeight: 'bold', fontSize: '9.5px', color: '#1e1b4b', textAlign: 'center', letterSpacing: '0px' }}>
                       {slot.subject_name}
                     </td>
                     {weekDays.map(d => {
                       const cell = weeklyData[slot.subject_id]?.[d.date];
                       return (
-                        <td key={d.date} style={{ border: '1px solid #cbd5e1', padding: '6px 8px', fontSize: '9px', verticalAlign: 'top', letterSpacing: '0px' }}>
+                        <td key={d.date} style={{ border: '1px solid #cbd5e1', padding: '5px 6px', fontSize: '8.5px', verticalAlign: 'top', letterSpacing: '0px' }}>
                           {cell?.topic && (
-                            <div style={{ fontWeight: 'bold', marginBottom: '2px', direction: containsUrdu(cell.topic) ? 'rtl' : 'ltr', fontFamily: containsUrdu(cell.topic) ? "'Noto Nastaliq Urdu', 'Noto Naskh Arabic', serif" : 'inherit', lineHeight: containsUrdu(cell.topic) ? '2.2' : 'inherit', letterSpacing: '0px', wordBreak: 'normal', overflowWrap: 'normal' }}>
+                            <div style={{ fontWeight: 'bold', marginBottom: '2px', direction: containsUrdu(cell.topic) ? 'rtl' : 'ltr', fontFamily: containsUrdu(cell.topic) ? "'Noto Nastaliq Urdu', 'Noto Naskh Arabic', serif" : 'inherit', lineHeight: containsUrdu(cell.topic) ? '2.0' : 'inherit', letterSpacing: '0px', wordBreak: 'normal', overflowWrap: 'normal' }}>
                               {cell.topic}
                             </div>
                           )}
                           {cell?.homework && (
-                            <div style={{ color: '#4338ca', direction: containsUrdu(cell.homework) ? 'rtl' : 'ltr', fontFamily: containsUrdu(cell.homework) ? "'Noto Nastaliq Urdu', 'Noto Naskh Arabic', serif" : 'inherit', lineHeight: containsUrdu(cell.homework) ? '2.2' : 'inherit', letterSpacing: '0px', wordBreak: 'normal', overflowWrap: 'normal' }}>
+                            <div style={{ color: '#4338ca', direction: containsUrdu(cell.homework) ? 'rtl' : 'ltr', fontFamily: containsUrdu(cell.homework) ? "'Noto Nastaliq Urdu', 'Noto Naskh Arabic', serif" : 'inherit', lineHeight: containsUrdu(cell.homework) ? '2.0' : 'inherit', letterSpacing: '0px', wordBreak: 'normal', overflowWrap: 'normal' }}>
                               HW: {cell.homework}
                             </div>
                           )}
                           {cell?.activity && (
-                            <div style={{ color: '#64748b', fontStyle: 'italic', direction: containsUrdu(cell.activity) ? 'rtl' : 'ltr', fontFamily: containsUrdu(cell.activity) ? "'Noto Nastaliq Urdu', 'Noto Naskh Arabic', serif" : 'inherit', lineHeight: containsUrdu(cell.activity) ? '2.2' : 'inherit', letterSpacing: '0px', wordBreak: 'normal', overflowWrap: 'normal' }}>
+                            <div style={{ color: '#64748b', fontStyle: 'italic', direction: containsUrdu(cell.activity) ? 'rtl' : 'ltr', fontFamily: containsUrdu(cell.activity) ? "'Noto Nastaliq Urdu', 'Noto Naskh Arabic', serif" : 'inherit', lineHeight: containsUrdu(cell.activity) ? '2.0' : 'inherit', letterSpacing: '0px', wordBreak: 'normal', overflowWrap: 'normal' }}>
                               Note: {cell.activity}
                             </div>
                           )}
@@ -1654,17 +1663,17 @@ export default function TeacherDiary() {
               </tbody>
             </table>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', border: '2px solid #1e1b4b', background: 'white', tableLayout: 'fixed', boxSizing: 'border-box', letterSpacing: '0px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #1e1b4b', background: 'white', tableLayout: 'fixed', boxSizing: 'border-box', letterSpacing: '0px' }}>
               <thead>
                 <tr>
-                  <th style={{ border: '1.5px solid #1e1b4b', padding: '12px 8px', background: '#1e1b4b', width: '20%', textAlign: 'center', color: '#ffffff', fontWeight: '900', fontSize: '11px', textTransform: 'uppercase', verticalAlign: 'middle', fontFamily: "'Inter', sans-serif", letterSpacing: '0px' }}>
-                    <div style={{ padding: '2px 0', lineHeight: '1.4', letterSpacing: '0px' }}>{viewMode === 'class' ? 'Subject' : 'Class'}</div>
+                  <th style={{ border: '1.5px solid #1e1b4b', padding: '8px 6px', background: '#1e1b4b', width: '20%', textAlign: 'center', color: '#ffffff', fontWeight: '900', fontSize: '10px', textTransform: 'uppercase', verticalAlign: 'middle', fontFamily: "'Inter', sans-serif", letterSpacing: '0px' }}>
+                    <div style={{ padding: '1px 0', lineHeight: '1.3', letterSpacing: '0px' }}>{viewMode === 'class' ? 'Subject' : 'Class'}</div>
                   </th>
-                  <th style={{ border: '1.5px solid #1e1b4b', padding: '12px 8px', background: '#1e1b4b', width: '18%', textAlign: 'center', color: '#ffffff', fontWeight: '900', fontSize: '11px', textTransform: 'uppercase', verticalAlign: 'middle', fontFamily: "'Inter', sans-serif", letterSpacing: '0px' }}>
-                    <div style={{ padding: '2px 0', lineHeight: '1.4', letterSpacing: '0px' }}>{viewMode === 'class' ? 'Teacher' : 'Subject'}</div>
+                  <th style={{ border: '1.5px solid #1e1b4b', padding: '8px 6px', background: '#1e1b4b', width: '18%', textAlign: 'center', color: '#ffffff', fontWeight: '900', fontSize: '10px', textTransform: 'uppercase', verticalAlign: 'middle', fontFamily: "'Inter', sans-serif", letterSpacing: '0px' }}>
+                    <div style={{ padding: '1px 0', lineHeight: '1.3', letterSpacing: '0px' }}>{viewMode === 'class' ? 'Teacher' : 'Subject'}</div>
                   </th>
-                  <th style={{ border: '1.5px solid #1e1b4b', padding: '12px 8px', background: '#1e1b4b', width: '62%', textAlign: 'center', color: '#ffffff', fontWeight: '900', fontSize: '11px', textTransform: 'uppercase', verticalAlign: 'middle', fontFamily: "'Inter', sans-serif", letterSpacing: '0px' }}>
-                    <div style={{ padding: '2px 0', lineHeight: '1.4', letterSpacing: '0px' }}>Home Assignments</div>
+                  <th style={{ border: '1.5px solid #1e1b4b', padding: '8px 6px', background: '#1e1b4b', width: '62%', textAlign: 'center', color: '#ffffff', fontWeight: '900', fontSize: '10px', textTransform: 'uppercase', verticalAlign: 'middle', fontFamily: "'Inter', sans-serif", letterSpacing: '0px' }}>
+                    <div style={{ padding: '1px 0', lineHeight: '1.3', letterSpacing: '0px' }}>Home Assignments</div>
                   </th>
                 </tr>
               </thead>
@@ -1675,20 +1684,20 @@ export default function TeacherDiary() {
                   const isUrdu = containsUrdu(row.homework || '');
                   return (
                     <tr key={idx} style={{ background: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-                      <td style={{ border: '1px solid #cbd5e1', padding: '10px 12px', borderLeft: `8px solid ${meta.color}`, verticalAlign: 'middle', textAlign: 'center', background: '#ffffff', letterSpacing: '0px' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', letterSpacing: '0px' }}>
-                           <div style={{ color: meta.color, background: `${meta.color}15`, padding: '4px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <ReportIcon style={{ width: '16px', height: '16px' }} />
+                      <td style={{ border: '1px solid #cbd5e1', padding: '6px 8px', borderLeft: `6px solid ${meta.color}`, verticalAlign: 'middle', textAlign: 'center', background: '#ffffff', letterSpacing: '0px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', letterSpacing: '0px' }}>
+                           <div style={{ color: meta.color, background: `${meta.color}15`, padding: '3px', borderRadius: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <ReportIcon style={{ width: '14px', height: '14px' }} />
                            </div>
-                           <span style={{ fontWeight: '900', color: '#1e1b4b', fontSize: '11px', fontFamily: "'Inter', sans-serif", letterSpacing: '0px' }}>{viewMode === 'class' ? row.slot.subject_name : row.slot.class_name}</span>
+                           <span style={{ fontWeight: '900', color: '#1e1b4b', fontSize: '10.5px', fontFamily: "'Inter', sans-serif", letterSpacing: '0px' }}>{viewMode === 'class' ? row.slot.subject_name : row.slot.class_name}</span>
                         </div>
                       </td>
-                      <td style={{ border: '1px solid #cbd5e1', padding: '10px 12px', fontSize: '11px', fontWeight: '700', color: '#334155', textAlign: 'center', verticalAlign: 'middle', fontFamily: "'Inter', sans-serif", letterSpacing: '0px' }}>{viewMode === 'class' ? row.slot.teacher_name : row.slot.subject_name}</td>
+                      <td style={{ border: '1px solid #cbd5e1', padding: '6px 8px', fontSize: '10.5px', fontWeight: '700', color: '#334155', textAlign: 'center', verticalAlign: 'middle', fontFamily: "'Inter', sans-serif", letterSpacing: '0px' }}>{viewMode === 'class' ? row.slot.teacher_name : row.slot.subject_name}</td>
                       <td 
                         style={{ 
                           border: '1px solid #cbd5e1', 
                           verticalAlign: 'middle', 
-                          padding: isUrdu ? '10px 22px 26px 22px' : '12px 18px', 
+                          padding: isUrdu ? '6px 14px 6px 14px' : '6px 12px', 
                           background: '#ffffff',
                           letterSpacing: '0px',
                         }}
@@ -1700,16 +1709,16 @@ export default function TeacherDiary() {
                             fontFamily: isUrdu 
                               ? "'Noto Nastaliq Urdu', 'Noto Naskh Arabic', serif" 
                               : "'Inter', system-ui, -apple-system, sans-serif",
-                            fontSize: isUrdu ? '15.5px' : '13px',
+                            fontSize: isUrdu ? '14.5px' : '12.5px',
                             fontWeight: isUrdu ? '600' : '500',
-                            lineHeight: isUrdu ? '2.8' : '1.5',
+                            lineHeight: isUrdu ? '2.0' : '1.4',
                             textAlign: isUrdu ? 'right' : 'left',
                             color: '#0f172a',
                             overflow: 'visible',
                             wordBreak: 'normal',
                             overflowWrap: 'normal',
                             letterSpacing: '0px',
-                            paddingBottom: isUrdu ? '8px' : '0',
+                            paddingBottom: isUrdu ? '2px' : '0',
                           }}
                         >
                           {row.homework || '—'}
@@ -1722,12 +1731,12 @@ export default function TeacherDiary() {
             </table>
           )}
 
-          <div className="sign-area" style={{ display: 'flex', justifyContent: 'space-between', width: '100%', margin: '40px 0 0 0', pageBreakInside: 'avoid', boxSizing: 'border-box' }}>
-            <div style={{ textAlign: 'center', width: '250px' }}>
-              <div style={{ borderTop: '2px solid #1e1b4b', paddingTop: '10px', fontWeight: '900', color: '#1e1b4b', fontSize: '11px', letterSpacing: '1px', textTransform: 'uppercase' }}>Class Teacher Signature</div>
+          <div className="sign-area" style={{ display: 'flex', justifyContent: 'space-between', width: '100%', margin: '16px 0 0 0', pageBreakInside: 'avoid', boxSizing: 'border-box' }}>
+            <div style={{ textAlign: 'center', width: '220px' }}>
+              <div style={{ borderTop: '1.5px solid #1e1b4b', paddingTop: '6px', fontWeight: '900', color: '#1e1b4b', fontSize: '10px', letterSpacing: '0px', textTransform: 'uppercase' }}>Class Teacher Signature</div>
             </div>
-            <div style={{ textAlign: 'center', width: '250px' }}>
-              <div style={{ borderTop: '2px solid #1e1b4b', paddingTop: '10px', fontWeight: '900', color: '#1e1b4b', fontSize: '11px', letterSpacing: '1px', textTransform: 'uppercase' }}>Principal / Supervisor</div>
+            <div style={{ textAlign: 'center', width: '220px' }}>
+              <div style={{ borderTop: '1.5px solid #1e1b4b', paddingTop: '6px', fontWeight: '900', color: '#1e1b4b', fontSize: '10px', letterSpacing: '0px', textTransform: 'uppercase' }}>Principal / Supervisor</div>
             </div>
           </div>
           </div>
