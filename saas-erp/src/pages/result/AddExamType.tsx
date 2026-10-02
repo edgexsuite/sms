@@ -7,6 +7,7 @@ import {
   Zap, Calendar, ChevronDown, ToggleLeft, ToggleRight,
   Globe, Eye, EyeOff, CheckCircle2, Award,
 } from 'lucide-react';
+import ResultTabsHeader from '../../components/layout/ResultTabsHeader';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const MONTH_NAMES = [
@@ -309,6 +310,7 @@ export default function AddExamType() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
+      <ResultTabsHeader />
 
       {/* ── Header ── */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">

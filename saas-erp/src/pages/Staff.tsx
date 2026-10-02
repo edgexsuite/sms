@@ -302,6 +302,14 @@ export default function Staff() {
       .update({ is_deleted: true, deleted_at: new Date().toISOString() })
       .eq('id', deleteModal.id);
     if (error) return alert(error.message);
+    
+    // Deactivate login roles and clear class/timetable assignments for deleted staff
+    await Promise.all([
+      supabase.from('user_roles').update({ is_active: false }).eq('staff_id', deleteModal.id),
+      supabase.from('classes').update({ class_teacher_id: null }).eq('class_teacher_id', deleteModal.id),
+      supabase.from('timetable_slots').delete().eq('teacher_id', deleteModal.id)
+    ]);
+
     fetchStaff();
   };
 
@@ -361,6 +369,14 @@ export default function Staff() {
     try {
       const { error } = await supabase.from('staff').update({ is_deleted: true, deleted_at: new Date().toISOString() }).in('id', selectedIds);
       if (error) throw error;
+
+      // Deactivate login roles and clear class/timetable assignments for deleted staff
+      await Promise.all([
+        supabase.from('user_roles').update({ is_active: false }).in('staff_id', selectedIds),
+        supabase.from('classes').update({ class_teacher_id: null }).in('class_teacher_id', selectedIds),
+        supabase.from('timetable_slots').delete().in('teacher_id', selectedIds)
+      ]);
+
       if (userRole?.school_id) {
         logActivity({
           school_id: userRole.school_id,

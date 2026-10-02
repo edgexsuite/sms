@@ -15,6 +15,7 @@ import {
   ArrowLeft, Zap,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { filterTeachingStaff } from '../lib/staffUtils';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
 type Day = typeof DAYS[number];
@@ -194,12 +195,12 @@ export default function AutoTimetable() {
         { data: existingSlots },
       ] = await Promise.all([
         supabase.from('classes').select('id,name,section').eq('school_id', sid).order('name').order('section'),
-        supabase.from('staff').select('id,full_name').eq('school_id', sid).eq('is_active', true).order('full_name'),
+        supabase.from('staff').select('id,full_name,role,department').eq('school_id', sid).eq('is_active', true).eq('is_deleted', false).order('full_name'),
         supabase.from('timetable_slots').select('class_id,subject_id,teacher_id,subjects(subject_name)').eq('school_id', sid),
       ]);
 
       const classList = cls || [];
-      const staffList = stf || [];
+      const staffList = filterTeachingStaff(stf || []);
       setStaff(staffList);
 
       if (classList.length === 0) { setLoading(false); return; }

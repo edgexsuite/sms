@@ -11,6 +11,7 @@ import {
   Layers, Link2, Users, Plus, Copy, Calendar, Settings, RefreshCw,
   Download, GraduationCap, User, School, FileText, ChevronRight,
 } from 'lucide-react';
+import { filterTeachingStaff } from '../lib/staffUtils';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -185,7 +186,7 @@ export default function Timetable() {
         cls.forEach((c: any) => { asgn[c.id] = c.period_template_id || ''; });
         setAssignments(asgn);
       }
-      if (tchr) setTeachers(tchr);
+      if (tchr) setTeachers(filterTeachingStaff(tchr));
       if (allSlots) setAllSchoolSlots(allSlots);
       if (school) setSchoolInfo({ name: school.name || '', address: school.address || '', phone: school.contact_phone || '', logo_url: school.logo_url || null });
 

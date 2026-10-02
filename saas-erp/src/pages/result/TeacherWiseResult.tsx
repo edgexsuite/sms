@@ -7,6 +7,7 @@ import {
 import { cn } from '../../lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { fetchGradingPolicy, getGradeFromPolicy, GradingBracket } from '../../lib/gradingUtils';
+import { filterTeachingStaff } from '../../lib/staffUtils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -36,11 +37,11 @@ export default function TeacherWiseResult() {
     const [{ data: school }, { data: exams }, { data: staff }] = await Promise.all([
       supabase.from('schools').select('*').eq('id', userRole?.school_id).single(),
       supabase.from('exam_types').select('id, name, session, month_year').eq('school_id', userRole?.school_id).order('created_at', { ascending: false }),
-      supabase.from('staff').select('id, full_name, role').eq('school_id', userRole?.school_id).eq('is_active', true).order('full_name')
+      supabase.from('staff').select('id, full_name, role, department').eq('school_id', userRole?.school_id).eq('is_active', true).eq('is_deleted', false).order('full_name')
     ]);
     if (school) setSchoolInfo(school);
     if (exams) setExamTypes(exams);
-    if (staff) setTeachers(staff);
+    if (staff) setTeachers(filterTeachingStaff(staff));
   };
 
   const handleFetchData = async () => {

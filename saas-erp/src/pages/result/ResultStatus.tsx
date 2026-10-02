@@ -12,6 +12,7 @@ import { exportToCSV } from '../../lib/exportUtils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getBase64Image } from '../../lib/utils';
+import ResultTabsHeader from '../../components/layout/ResultTabsHeader';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -458,6 +459,7 @@ export default function ResultStatus() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4">
+      <ResultTabsHeader />
 
       {/* ── Page Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4">

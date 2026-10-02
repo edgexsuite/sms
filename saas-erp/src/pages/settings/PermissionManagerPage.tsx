@@ -95,17 +95,19 @@ export default function PermissionManagerPage() {
     setLoading(true);
     const { data } = await supabase
       .from('user_roles')
-      .select('id, role, login_email, user_id, is_active, permissions, staff_id, staff(full_name, photograph_url, department)')
+      .select('id, role, login_email, user_id, is_active, permissions, staff_id, staff(full_name, photograph_url, department, is_deleted)')
       .eq('school_id', userRole!.school_id)
       .order('role');
 
-    const mapped = (data || []).map((r: any) => ({
-      ...r,
-      permissions: r.permissions || { modules: {}, actions: {} },
-      staff_name:  r.staff?.full_name || null,
-      staff_photo: r.staff?.photograph_url || null,
-      staff_dept:  r.staff?.department || null,
-    }));
+    const mapped = (data || [])
+      .filter((r: any) => !r.staff || !r.staff.is_deleted)
+      .map((r: any) => ({
+        ...r,
+        permissions: r.permissions || { modules: {}, actions: {} },
+        staff_name:  r.staff?.full_name || null,
+        staff_photo: r.staff?.photograph_url || null,
+        staff_dept:  r.staff?.department || null,
+      }));
     setAccounts(mapped);
     setLoading(false);
   };

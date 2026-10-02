@@ -4,6 +4,8 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { BookOpen, PlusCircle, Pencil, Trash2, Save, X, Users2, ChevronDown } from 'lucide-react';
 
+import { filterTeachingStaff } from '../../lib/staffUtils';
+
 export default function ClassSectionManagement() {
   const { userRole } = useAuth();
   const [classes, setClasses] = useState<any[]>([]);
@@ -30,10 +32,10 @@ export default function ClassSectionManagement() {
     setLoading(true);
     const [{ data: cls }, { data: stf }] = await Promise.all([
       supabase.from('classes').select('*, staff(full_name)').eq('school_id', userRole?.school_id).order('name').order('section'),
-      supabase.from('staff').select('id, full_name, role').eq('school_id', userRole?.school_id).eq('is_active', true).order('full_name')
+      supabase.from('staff').select('id, full_name, role, department').eq('school_id', userRole?.school_id).eq('is_active', true).eq('is_deleted', false).order('full_name')
     ]);
     if (cls) setClasses(cls);
-    if (stf) setStaff(stf);
+    if (stf) setStaff(filterTeachingStaff(stf));
     setLoading(false);
   };
 

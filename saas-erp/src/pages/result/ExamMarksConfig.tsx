@@ -7,6 +7,7 @@ import {
   Layers, CheckSquare, Square, X
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import ResultTabsHeader from '../../components/layout/ResultTabsHeader';
 
 interface ExamType { id: string; name: string }
 interface ClassRow { id: string; name: string; section: string }
@@ -203,6 +204,7 @@ export default function ExamMarksConfig() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      <ResultTabsHeader />
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2 uppercase tracking-tight">

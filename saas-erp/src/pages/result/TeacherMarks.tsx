@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { fetchGradingPolicy, getGradeFromPolicy, GradingBracket } from '../../lib/gradingUtils';
+import ResultTabsHeader from '../../components/layout/ResultTabsHeader';
 
 // ── Grade helpers ─────────────────────────────────────────────────────────────
 const GRADE_COLORS: Record<string, string> = {
@@ -424,6 +425,7 @@ export default function TeacherMarks() {
   // ── Main UI ───────────────────────────────────────────────────────────────
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      <ResultTabsHeader />
 
       {/* Header */}
       <div>
