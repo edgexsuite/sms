@@ -39,8 +39,8 @@ interface Student {
 interface ClassRow { id: string; name: string; section: string }
 interface ExamType  { id: string; name: string; session: string }
 
-// ── Star rating widget ─────────────────────────────────────────────────────────
-function StarRating({ value, onChange, size = 'md' }: {
+// ── Star rating widget (Memoized for high 60fps responsiveness) ───────────────
+const StarRating = React.memo(function StarRating({ value, onChange, size = 'md' }: {
   key?: React.Key; value: number; onChange?: (v: number) => void; size?: 'sm' | 'md';
 }) {
   const sz = size === 'sm' ? 'w-3.5 h-3.5' : 'w-5 h-5';
@@ -58,7 +58,100 @@ function StarRating({ value, onChange, size = 'md' }: {
       ))}
     </div>
   );
+});
+
+// ── Batch Student Row (Isolated local input state to eliminate keystroke lag) ──
+interface BatchStudentRowProps {
+  student: Student;
+  ratings: Record<string, number>;
+  feedback: string;
+  hasExistingForThisExam: boolean;
+  hasPreviousAny: boolean;
+  onRatingChange: (studentId: string, ratingKey: string, val: number) => void;
+  onFeedbackChange: (studentId: string, val: string) => void;
 }
+
+const BatchStudentRow = React.memo(function BatchStudentRow({
+  student,
+  ratings,
+  feedback,
+  hasExistingForThisExam,
+  hasPreviousAny,
+  onRatingChange,
+  onFeedbackChange,
+}: BatchStudentRowProps) {
+  const [localFeedback, setLocalFeedback] = useState(feedback);
+  const debounceRef = useRef<any>(null);
+
+  useEffect(() => {
+    setLocalFeedback(feedback);
+  }, [feedback]);
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setLocalFeedback(val);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      onFeedbackChange(student.id, val);
+    }, 350);
+  };
+
+  const handleBlur = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    onFeedbackChange(student.id, localFeedback);
+  };
+
+  const complete = RATING_KEYS.every(k => ratings[k] && ratings[k] > 0);
+
+  return (
+    <div className={cn(
+      'flex flex-col lg:grid lg:grid-cols-[180px_1fr_1fr_1fr_1fr_160px] gap-4 lg:gap-2 px-4 sm:px-6 py-4 lg:py-3 border-b border-gray-100 items-start lg:items-center hover:bg-gray-50 transition-colors bg-white lg:bg-transparent',
+      complete ? 'bg-emerald-50/40' : ''
+    )}>
+      <div className="min-w-0 w-full lg:w-auto">
+        <p className="text-xs font-bold text-gray-800 truncate">{student.full_name}</p>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <span className="text-[9px] text-gray-400 font-bold">Roll {student.roll_number}</span>
+          {hasExistingForThisExam ? (
+            <span className="text-[8px] font-black text-emerald-700 bg-emerald-100/70 border border-emerald-200 px-1.5 py-0.2 rounded-full uppercase">
+              ✓ Existing eval
+            </span>
+          ) : hasPreviousAny ? (
+            <span className="text-[8px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded-full">
+              Past eval available
+            </span>
+          ) : null}
+        </div>
+      </div>
+      
+      {/* Ratings container for mobile & desktop */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:contents gap-4 w-full">
+        {RATING_KEYS.map(ratingKey => (
+          <div key={ratingKey} className="flex flex-col gap-1 lg:block">
+            <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest lg:hidden">{ratingKey}</span>
+            <StarRating
+              value={Number(ratings[ratingKey] ?? 0)}
+              onChange={v => onRatingChange(student.id, ratingKey, v)}
+              size="sm"
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className="w-full lg:w-auto mt-2 lg:mt-0">
+        <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest lg:hidden block mb-1">Observations</span>
+        <input
+          type="text"
+          placeholder="Optional remarks…"
+          value={localFeedback}
+          onChange={handleTextChange}
+          onBlur={handleBlur}
+          className="text-[10px] border border-gray-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-amber-300 bg-white w-full font-medium"
+        />
+      </div>
+    </div>
+  );
+});
 
 // ── Average helper ────────────────────────────────────────────────────────────
 const avg = (r: Record<string, number>) => {
@@ -129,6 +222,14 @@ export default function Evaluation() {
   const lastSavedBatchRef       = useRef<Record<string, { ratings: Record<string, number>; feedback: string }>>({});
   const singleAutoSaveTimerRef  = useRef<any>(null);
   const batchAutoSaveTimerRef   = useRef<any>(null);
+  const batchRatingsRef         = useRef<Record<string, Record<string, number>>>({});
+  const batchFeedbackRef        = useRef<Record<string, string>>({});
+  const batchDraftDebounceRef   = useRef<any>(null);
+  const isBatchSavingRef        = useRef(false);
+  const pendingBatchSaveRef     = useRef(false);
+
+  batchRatingsRef.current = batchRatings;
+  batchFeedbackRef.current = batchFeedback;
 
   const getSingleDraftKey = useCallback((stuId: string, examId: string) => {
     return `eval_draft_single_${sid || 'default'}_${stuId}_${examId || 'none'}`;
@@ -176,6 +277,22 @@ export default function Evaluation() {
 
     setLoading(false);
   }, [sid, userRole]);
+
+  // ── Silent Evaluation Refresh (No screen reload or freeze during auto-save) ─
+  const refreshEvaluationsSilent = useCallback(async () => {
+    if (!sid) return;
+    try {
+      const { data, error } = await supabase.from('evaluations')
+        .select('id, student_id, evaluation_date, ratings, feedback, exam_type_id, student:students(full_name, roll_number), evaluator:staff!evaluator_id(full_name), exam_type:exam_types(name)')
+        .eq('school_id', sid).eq('target_type', 'student')
+        .order('evaluation_date', { ascending: false });
+      if (!error && data) {
+        setEvaluations(data as unknown as EvalRecord[]);
+      }
+    } catch (err) {
+      console.error('Silent refresh failed:', err);
+    }
+  }, [sid]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -342,8 +459,8 @@ export default function Evaluation() {
         setSingleAutoSaveStatus('saved');
         setSingleLastSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
 
-        // Refresh list quietly
-        fetchData();
+        // Refresh list quietly without locking UI
+        await refreshEvaluationsSilent();
       } catch (err) {
         console.error('Single auto-save error:', err);
         setSingleAutoSaveStatus('dirty');
@@ -567,30 +684,45 @@ export default function Evaluation() {
     return students.filter(s => s.class_id === batchClassId);
   }, [students, batchClassId]);
 
-  const triggerBatchAutoSave = (newRatings: Record<string, Record<string, number>>, newFeedback: Record<string, string>) => {
-    if (!batchClassId || !sid) return;
-
-    // 1. Immediately preserve in localStorage
+  const flushBatchDraftToStorage = useCallback((clsId: string, examId: string, r: Record<string, Record<string, number>>, f: Record<string, string>, date: string) => {
     try {
-      localStorage.setItem(getBatchDraftKey(batchClassId, batchExamId), JSON.stringify({
-        ratings: newRatings,
-        feedback: newFeedback,
-        date: batchDate,
+      localStorage.setItem(getBatchDraftKey(clsId, examId), JSON.stringify({
+        ratings: r,
+        feedback: f,
+        date,
         savedAt: new Date().toISOString()
       }));
     } catch (e) {}
+  }, [getBatchDraftKey]);
+
+  const triggerBatchAutoSave = useCallback((newRatings: Record<string, Record<string, number>>, newFeedback: Record<string, string>) => {
+    if (!batchClassId || !sid) return;
+
+    // 1. Debounce localStorage write (350ms) to eliminate disk I/O keystroke stutter
+    if (batchDraftDebounceRef.current) clearTimeout(batchDraftDebounceRef.current);
+    batchDraftDebounceRef.current = setTimeout(() => {
+      flushBatchDraftToStorage(batchClassId, batchExamId, newRatings, newFeedback, batchDate);
+    }, 350);
 
     if (!autoSaveEnabled) {
-      setBatchAutoSaveStatus('dirty');
+      setBatchAutoSaveStatus(s => s === 'dirty' ? s : 'dirty');
       return;
     }
 
-    setBatchAutoSaveStatus('dirty');
+    setBatchAutoSaveStatus(s => s === 'dirty' ? s : 'dirty');
     if (batchAutoSaveTimerRef.current) clearTimeout(batchAutoSaveTimerRef.current);
 
     batchAutoSaveTimerRef.current = setTimeout(async () => {
+      // If a batch write is already in-flight, queue pending save
+      if (isBatchSavingRef.current) {
+        pendingBatchSaveRef.current = true;
+        return;
+      }
+
+      const currentClassStudents = students.filter(s => s.class_id === batchClassId);
+
       // Find students whose all 4 ratings are completed
-      const completeStudents = batchStudents.filter(s => {
+      const completeStudents = currentClassStudents.filter(s => {
         const r = newRatings[s.id] ?? {};
         return RATING_KEYS.every(k => r[k] && r[k] > 0);
       });
@@ -611,6 +743,7 @@ export default function Evaluation() {
         return;
       }
 
+      isBatchSavingRef.current = true;
       setBatchAutoSaveStatus('saving');
       try {
         const updates: any[] = [];
@@ -655,7 +788,7 @@ export default function Evaluation() {
         setBatchLastSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
 
         // If all students in class are complete and saved, remove local draft
-        const allCompleted = batchStudents.every(s => {
+        const allCompleted = currentClassStudents.every(s => {
           const r = newRatings[s.id] ?? {};
           return RATING_KEYS.every(k => r[k] && r[k] > 0);
         });
@@ -664,13 +797,20 @@ export default function Evaluation() {
           setBatchDraftRestored(false);
         }
 
-        fetchData();
+        // Silent background refresh without reloading or locking UI
+        await refreshEvaluationsSilent();
       } catch (err) {
         console.error('Batch auto-save error:', err);
         setBatchAutoSaveStatus('dirty');
+      } finally {
+        isBatchSavingRef.current = false;
+        if (pendingBatchSaveRef.current) {
+          pendingBatchSaveRef.current = false;
+          triggerBatchAutoSave(batchRatingsRef.current, batchFeedbackRef.current);
+        }
       }
-    }, 1500);
-  };
+    }, 2500); // 2.5s debounce for optimal server auto-save
+  }, [batchClassId, sid, batchExamId, batchDate, autoSaveEnabled, students, evalByStudentExam, userRole, getBatchDraftKey, flushBatchDraftToStorage, refreshEvaluationsSilent]);
 
   const handleDiscardBatchDraft = () => {
     if (!window.confirm('Discard unsaved local draft and restore from the database?')) return;
@@ -683,6 +823,10 @@ export default function Evaluation() {
   };
 
   const handleCloseBatch = () => {
+    if (batchDraftDebounceRef.current) {
+      clearTimeout(batchDraftDebounceRef.current);
+      flushBatchDraftToStorage(batchClassId, batchExamId, batchRatingsRef.current, batchFeedbackRef.current, batchDate);
+    }
     if (batchAutoSaveStatus === 'dirty') {
       const ok = window.confirm('You have unsaved student ratings in batch evaluation. Your draft is saved locally. Close modal?');
       if (!ok) return;
@@ -744,27 +888,34 @@ export default function Evaluation() {
       }
     } catch (e) {}
 
+    batchRatingsRef.current = newRatings;
+    batchFeedbackRef.current = newFeedback;
     setBatchRatings(newRatings);
     setBatchFeedback(newFeedback);
     setBatchDraftRestored(draftRestored);
     setBatchAutoSaveStatus('idle');
   };
 
-  const setBatchStar = (studentId: string, key: string, val: number) => {
+  const setBatchStar = useCallback((studentId: string, key: string, val: number) => {
     setBatchRatings(p => {
-      const next = { ...p, [studentId]: { ...(p[studentId] ?? {}), [key]: val } };
-      triggerBatchAutoSave(next, batchFeedback);
+      const studentRatings = p[studentId] ?? {};
+      if (studentRatings[key] === val) return p;
+      const next = { ...p, [studentId]: { ...studentRatings, [key]: val } };
+      batchRatingsRef.current = next;
+      triggerBatchAutoSave(next, batchFeedbackRef.current);
       return next;
     });
-  };
+  }, [triggerBatchAutoSave]);
 
-  const handleBatchFeedbackChange = (studentId: string, val: string) => {
+  const handleBatchFeedbackChange = useCallback((studentId: string, val: string) => {
     setBatchFeedback(p => {
+      if (p[studentId] === val) return p;
       const next = { ...p, [studentId]: val };
-      triggerBatchAutoSave(batchRatings, next);
+      batchFeedbackRef.current = next;
+      triggerBatchAutoSave(batchRatingsRef.current, next);
       return next;
     });
-  };
+  }, [triggerBatchAutoSave]);
 
   // Helper: Copy all ratings from each student's latest previous evaluation
   const handleBatchCopyFromPrevious = () => {
@@ -787,6 +938,8 @@ export default function Evaluation() {
       }
     });
 
+    batchRatingsRef.current = nextRatings;
+    batchFeedbackRef.current = nextFeedback;
     setBatchRatings(nextRatings);
     setBatchFeedback(nextFeedback);
     triggerBatchAutoSave(nextRatings, nextFeedback);
@@ -838,7 +991,7 @@ export default function Evaluation() {
       setBatchDraftRestored(false);
       setBatchAutoSaveStatus('saved');
       setBatchOpen(false);
-      await fetchData();
+      await refreshEvaluationsSilent();
     } catch (err: any) { alert(err.message); }
     setBatchSaving(false);
   };
@@ -1761,56 +1914,20 @@ export default function Evaluation() {
                 <div className="p-12 text-center text-gray-300 font-bold">No students found in this class.</div>
               ) : batchStudents.map(stu => {
                 const r = batchRatings[stu.id] ?? {};
-                const complete = RATING_KEYS.every(k => r[k]);
                 const existingForThisExam = evalByStudentExam.has(`${stu.id}__${batchExamId || 'none'}`);
-                const previousAny = latestEvalByStudent.get(stu.id);
+                const previousAny = !!latestEvalByStudent.get(stu.id);
 
                 return (
-                  <div key={stu.id} className={cn(
-                    'flex flex-col lg:grid lg:grid-cols-[180px_1fr_1fr_1fr_1fr_160px] gap-4 lg:gap-2 px-4 sm:px-6 py-4 lg:py-3 border-b border-gray-100 items-start lg:items-center hover:bg-gray-50 transition-colors bg-white lg:bg-transparent',
-                    complete ? 'bg-emerald-50/40' : ''
-                  )}>
-                    <div className="min-w-0 w-full lg:w-auto">
-                      <p className="text-xs font-bold text-gray-800 truncate">{stu.full_name}</p>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="text-[9px] text-gray-400 font-bold">Roll {stu.roll_number}</span>
-                        {existingForThisExam ? (
-                          <span className="text-[8px] font-black text-emerald-700 bg-emerald-100/70 border border-emerald-200 px-1.5 py-0.2 rounded-full uppercase">
-                            ✓ Existing eval
-                          </span>
-                        ) : previousAny ? (
-                          <span className="text-[8px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded-full">
-                            Past eval available
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                    
-                    {/* Ratings container for mobile */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:contents gap-4 w-full">
-                      {RATING_KEYS.map(ratingKey => (
-                        <div key={ratingKey} className="flex flex-col gap-1 lg:block">
-                          <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest lg:hidden">{ratingKey}</span>
-                          <StarRating
-                            value={Number(r[ratingKey] ?? 0)}
-                            onChange={v => setBatchStar(stu.id, ratingKey, v)}
-                            size="sm"
-                          />
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="w-full lg:w-auto mt-2 lg:mt-0">
-                      <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest lg:hidden block mb-1">Observations</span>
-                      <input
-                        type="text"
-                        placeholder="Optional remarks…"
-                        value={batchFeedback[stu.id] ?? ''}
-                        onChange={e => handleBatchFeedbackChange(stu.id, e.target.value)}
-                        className="text-[10px] border border-gray-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-amber-300 bg-white w-full font-medium"
-                      />
-                    </div>
-                  </div>
+                  <BatchStudentRow
+                    key={stu.id}
+                    student={stu}
+                    ratings={r}
+                    feedback={batchFeedback[stu.id] ?? ''}
+                    hasExistingForThisExam={existingForThisExam}
+                    hasPreviousAny={previousAny}
+                    onRatingChange={setBatchStar}
+                    onFeedbackChange={handleBatchFeedbackChange}
+                  />
                 );
               })}
             </div>
