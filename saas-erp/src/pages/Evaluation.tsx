@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Star, Search, TrendingUp, Award, Plus, Save, X,
   Calendar, UserCheck, ChevronDown, CheckCircle2,
   Users, Filter, Printer, LayoutGrid, List, AlertTriangle,
   Pencil, Trash2, Copy, Sparkles, Clock, Check, ArrowRight,
-  BookOpen, ExternalLink, HelpCircle
+  BookOpen, ExternalLink, HelpCircle, Loader2
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -106,6 +106,38 @@ export default function Evaluation() {
   const [batchFeedback,  setBatchFeedback]  = useState<Record<string, string>>({});
   const [batchSaving,    setBatchSaving]    = useState(false);
 
+  // ── Auto-Save & Draft Protection State ────────────────────────────────────
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState<boolean>(() => {
+    return localStorage.getItem('eval_autosave_active') !== 'false';
+  });
+  const toggleAutoSave = () => {
+    setAutoSaveEnabled(prev => {
+      const next = !prev;
+      localStorage.setItem('eval_autosave_active', String(next));
+      return next;
+    });
+  };
+
+  const [singleAutoSaveStatus, setSingleAutoSaveStatus] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
+  const [singleLastSavedTime, setSingleLastSavedTime]   = useState<string | null>(null);
+  const [singleDraftRestored, setSingleDraftRestored]   = useState(false);
+
+  const [batchAutoSaveStatus, setBatchAutoSaveStatus]   = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
+  const [batchLastSavedTime, setBatchLastSavedTime]     = useState<string | null>(null);
+  const [batchDraftRestored, setBatchDraftRestored]     = useState(false);
+
+  const lastSavedBatchRef       = useRef<Record<string, { ratings: Record<string, number>; feedback: string }>>({});
+  const singleAutoSaveTimerRef  = useRef<any>(null);
+  const batchAutoSaveTimerRef   = useRef<any>(null);
+
+  const getSingleDraftKey = useCallback((stuId: string, examId: string) => {
+    return `eval_draft_single_${sid || 'default'}_${stuId}_${examId || 'none'}`;
+  }, [sid]);
+
+  const getBatchDraftKey = useCallback((clsId: string, examId: string) => {
+    return `eval_draft_batch_${sid || 'default'}_${clsId}_${examId || 'none'}`;
+  }, [sid]);
+
   // ── Quick New Exam Modal ──────────────────────────────────────────────────
   const [newExamModalOpen, setNewExamModalOpen] = useState(false);
   const [newExamForm, setNewExamForm] = useState({ name: '', session: '2026-2027' });
@@ -202,14 +234,154 @@ export default function Evaluation() {
     });
   }, [evaluations, search, classStudentIds, examFilter]);
 
-  // ── Single modal helpers ──────────────────────────────────────────────────
+  // ── Browser Navigation & Back Button Protection ──────────────────────────
+  useEffect(() => {
+    const handlePopState = () => {
+      if (modalOpen) {
+        if (singleAutoSaveStatus === 'dirty') {
+          const ok = window.confirm('You have unsaved evaluation ratings. Do you want to close and keep your local draft?');
+          if (!ok) {
+            window.history.pushState({ modalOpen: true }, '');
+            return;
+          }
+        }
+        setModalOpen(false);
+      }
+      if (batchOpen) {
+        if (batchAutoSaveStatus === 'dirty') {
+          const ok = window.confirm('You have unsaved ratings in batch evaluation. Do you want to close and keep your local draft?');
+          if (!ok) {
+            window.history.pushState({ modalOpen: true }, '');
+            return;
+          }
+        }
+        setBatchOpen(false);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [modalOpen, batchOpen, singleAutoSaveStatus, batchAutoSaveStatus]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const isDirty = (modalOpen && singleAutoSaveStatus === 'dirty') || (batchOpen && batchAutoSaveStatus === 'dirty');
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [modalOpen, batchOpen, singleAutoSaveStatus, batchAutoSaveStatus]);
+
+  // ── Single modal helpers & Auto-Save ──────────────────────────────────────
+  const triggerSingleAutoSave = (newRatings: Record<string, number>, newFeedback: string, targetStudentId?: string, targetExamId?: string) => {
+    const sId = targetStudentId || form.student_id;
+    const eId = targetExamId !== undefined ? targetExamId : form.exam_type_id;
+    if (!sId || !sid) return;
+
+    // Immediately preserve local draft
+    try {
+      localStorage.setItem(getSingleDraftKey(sId, eId), JSON.stringify({
+        ratings: newRatings,
+        feedback: newFeedback,
+        evaluation_date: form.evaluation_date,
+        savedAt: new Date().toISOString()
+      }));
+    } catch (e) {}
+
+    if (!autoSaveEnabled) {
+      setSingleAutoSaveStatus('dirty');
+      return;
+    }
+
+    const allRated = RATING_KEYS.every(k => newRatings[k] && newRatings[k] > 0);
+    if (!allRated) {
+      setSingleAutoSaveStatus('dirty');
+      return;
+    }
+
+    setSingleAutoSaveStatus('dirty');
+    if (singleAutoSaveTimerRef.current) clearTimeout(singleAutoSaveTimerRef.current);
+
+    singleAutoSaveTimerRef.current = setTimeout(async () => {
+      setSingleAutoSaveStatus('saving');
+      try {
+        const payload: any = {
+          target_type:     'student',
+          student_id:      sId,
+          feedback:        newFeedback,
+          evaluation_date: form.evaluation_date,
+          ratings:         newRatings,
+          school_id:       sid,
+          exam_type_id:    eId || null,
+        };
+        if (userRole?.staff_id) payload.evaluator_id = userRole.staff_id;
+
+        let recordId = editId;
+        if (!recordId) {
+          const ex = evalByStudentExam.get(`${sId}__${eId || 'none'}`);
+          if (ex) recordId = ex.id;
+        }
+
+        if (recordId) {
+          await supabase.from('evaluations').update(payload).eq('id', recordId);
+        } else {
+          const { data } = await supabase.from('evaluations').insert([payload]).select('id').single();
+          if (data?.id) {
+            recordId = data.id;
+            setEditId(data.id);
+          }
+        }
+
+        try {
+          localStorage.removeItem(getSingleDraftKey(sId, eId));
+        } catch (e) {}
+        setSingleDraftRestored(false);
+        setSingleAutoSaveStatus('saved');
+        setSingleLastSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+        // Refresh list quietly
+        fetchData();
+      } catch (err) {
+        console.error('Single auto-save error:', err);
+        setSingleAutoSaveStatus('dirty');
+      }
+    }, 1200);
+  };
+
+  const handleDiscardSingleDraft = () => {
+    if (!window.confirm('Discard unsaved draft ratings and reload original data?')) return;
+    try {
+      localStorage.removeItem(getSingleDraftKey(form.student_id, form.exam_type_id));
+    } catch (e) {}
+    setSingleDraftRestored(false);
+    setSingleAutoSaveStatus('idle');
+    const existing = evalByStudentExam.get(`${form.student_id}__${form.exam_type_id || 'none'}`);
+    setForm(p => ({
+      ...p,
+      ratings: existing?.ratings ? { ...existing.ratings } : {},
+      feedback: existing?.feedback || '',
+    }));
+  };
+
+  const handleCloseSingle = () => {
+    if (singleAutoSaveStatus === 'dirty') {
+      const ok = window.confirm('You have unsaved evaluation ratings. Your draft is saved locally. Close modal?');
+      if (!ok) return;
+    }
+    setModalOpen(false);
+  };
+
   const openNew = (defaultExamId?: string, defaultClassId?: string, defaultStudentId?: string) => {
+    try { window.history.pushState({ modalOpen: true }, ''); } catch (e) {}
     setEditId(null);
     const targetExam = defaultExamId !== undefined ? defaultExamId : (examFilter && examFilter !== 'none' ? examFilter : '');
     const targetClass = defaultClassId !== undefined ? defaultClassId : (classFilter || '');
     const targetStudent = defaultStudentId || '';
 
-    // If student & exam selected, check if evaluation already exists
+    // If student & exam selected, check if evaluation already exists in DB
     let existingRatings: Record<string, number> = {};
     let existingFeedback = '';
     let existingId: string | null = null;
@@ -223,7 +395,25 @@ export default function Evaluation() {
       }
     }
 
+    // Check for localStorage draft
+    let draftRestored = false;
+    if (targetStudent) {
+      try {
+        const raw = localStorage.getItem(getSingleDraftKey(targetStudent, targetExam));
+        if (raw) {
+          const draft = JSON.parse(raw);
+          if (draft && draft.ratings && Object.keys(draft.ratings).length > 0) {
+            existingRatings = { ...existingRatings, ...draft.ratings };
+            if (draft.feedback) existingFeedback = draft.feedback;
+            draftRestored = true;
+          }
+        }
+      } catch (e) {}
+    }
+
     setEditId(existingId);
+    setSingleDraftRestored(draftRestored);
+    setSingleAutoSaveStatus('idle');
     setForm({
       class_id:        targetClass,
       student_id:      targetStudent,
@@ -236,15 +426,36 @@ export default function Evaluation() {
   };
 
   const openEdit = (ev: EvalRecord) => {
+    try { window.history.pushState({ modalOpen: true }, ''); } catch (e) {}
     setEditId(ev.id);
     const stu = students.find(s => s.id === ev.student_id);
+
+    let existingRatings = { ...(ev.ratings ?? {}) };
+    let existingFeedback = ev.feedback ?? '';
+    let draftRestored = false;
+
+    // Check for localStorage draft
+    try {
+      const raw = localStorage.getItem(getSingleDraftKey(ev.student_id, ev.exam_type_id || ''));
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (draft && draft.ratings && Object.keys(draft.ratings).length > 0) {
+          existingRatings = { ...existingRatings, ...draft.ratings };
+          if (draft.feedback) existingFeedback = draft.feedback;
+          draftRestored = true;
+        }
+      }
+    } catch (e) {}
+
+    setSingleDraftRestored(draftRestored);
+    setSingleAutoSaveStatus('idle');
     setForm({
       class_id:        stu?.class_id ?? '',
       student_id:      ev.student_id,
       exam_type_id:    ev.exam_type_id ?? '',
       evaluation_date: ev.evaluation_date,
-      feedback:        ev.feedback ?? '',
-      ratings:         { ...(ev.ratings ?? {}) },
+      feedback:        existingFeedback,
+      ratings:         existingRatings,
     });
     setModalOpen(true);
   };
@@ -254,40 +465,54 @@ export default function Evaluation() {
     if (!stuId) {
       setForm(p => ({ ...p, student_id: '', exam_type_id: examId, ratings: {}, feedback: '' }));
       setEditId(null);
+      setSingleDraftRestored(false);
+      setSingleAutoSaveStatus('idle');
       return;
     }
 
-    // Check if an evaluation already exists for this student + exam
+    // Check if an evaluation already exists in DB
     const existing = evalByStudentExam.get(`${stuId}__${examId || 'none'}`);
-    if (existing) {
-      setEditId(existing.id);
-      setForm(p => ({
-        ...p,
-        student_id:   stuId,
-        exam_type_id: examId,
-        evaluation_date: existing.evaluation_date,
-        feedback:     existing.feedback || '',
-        ratings:      { ...(existing.ratings || {}) },
-      }));
-    } else {
-      setEditId(null);
-      setForm(p => ({
-        ...p,
-        student_id:   stuId,
-        exam_type_id: examId,
-        ratings:      {},
-        feedback:     '',
-      }));
-    }
+    let ratings = existing ? { ...(existing.ratings || {}) } : {};
+    let feedback = existing?.feedback || '';
+    let date = existing?.evaluation_date || new Date().toISOString().split('T')[0];
+    let draftRestored = false;
+
+    // Check for draft
+    try {
+      const raw = localStorage.getItem(getSingleDraftKey(stuId, examId));
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (draft && draft.ratings && Object.keys(draft.ratings).length > 0) {
+          ratings = { ...ratings, ...draft.ratings };
+          if (draft.feedback) feedback = draft.feedback;
+          draftRestored = true;
+        }
+      }
+    } catch (e) {}
+
+    setEditId(existing ? existing.id : null);
+    setSingleDraftRestored(draftRestored);
+    setSingleAutoSaveStatus('idle');
+    setForm(p => ({
+      ...p,
+      student_id:      stuId,
+      exam_type_id:    examId,
+      evaluation_date: date,
+      ratings,
+      feedback,
+    }));
   };
 
   // Copy ratings from a previous evaluation into the current form
   const handleCopyFromPrevious = (previousRecord: EvalRecord) => {
+    const nextRatings = { ...(previousRecord.ratings || {}) };
+    const nextFeedback = form.feedback || previousRecord.feedback || '';
     setForm(p => ({
       ...p,
-      ratings:  { ...(previousRecord.ratings || {}) },
-      feedback: p.feedback || previousRecord.feedback || '',
+      ratings:  nextRatings,
+      feedback: nextFeedback,
     }));
+    triggerSingleAutoSave(nextRatings, nextFeedback);
   };
 
   const handleSaveSingle = async (e: React.FormEvent) => {
@@ -312,7 +537,6 @@ export default function Evaluation() {
       if (editId) {
         await supabase.from('evaluations').update(payload).eq('id', editId);
       } else {
-        // Double-check if record exists for this student + exam_type_id to avoid accidental duplicates
         const existing = evalByStudentExam.get(`${form.student_id}__${form.exam_type_id || 'none'}`);
         if (existing) {
           await supabase.from('evaluations').update(payload).eq('id', existing.id);
@@ -320,6 +544,12 @@ export default function Evaluation() {
           await supabase.from('evaluations').insert([payload]);
         }
       }
+
+      try {
+        localStorage.removeItem(getSingleDraftKey(form.student_id, form.exam_type_id));
+      } catch (e) {}
+      setSingleDraftRestored(false);
+      setSingleAutoSaveStatus('saved');
       setModalOpen(false);
       await fetchData();
     } catch (err: any) { alert(err.message); }
@@ -332,12 +562,136 @@ export default function Evaluation() {
     fetchData();
   };
 
-  // ── Batch modal helpers ───────────────────────────────────────────────────
+  // ── Batch modal helpers & Auto-Save ───────────────────────────────────────
   const batchStudents = useMemo(() => {
     return students.filter(s => s.class_id === batchClassId);
   }, [students, batchClassId]);
 
+  const triggerBatchAutoSave = (newRatings: Record<string, Record<string, number>>, newFeedback: Record<string, string>) => {
+    if (!batchClassId || !sid) return;
+
+    // 1. Immediately preserve in localStorage
+    try {
+      localStorage.setItem(getBatchDraftKey(batchClassId, batchExamId), JSON.stringify({
+        ratings: newRatings,
+        feedback: newFeedback,
+        date: batchDate,
+        savedAt: new Date().toISOString()
+      }));
+    } catch (e) {}
+
+    if (!autoSaveEnabled) {
+      setBatchAutoSaveStatus('dirty');
+      return;
+    }
+
+    setBatchAutoSaveStatus('dirty');
+    if (batchAutoSaveTimerRef.current) clearTimeout(batchAutoSaveTimerRef.current);
+
+    batchAutoSaveTimerRef.current = setTimeout(async () => {
+      // Find students whose all 4 ratings are completed
+      const completeStudents = batchStudents.filter(s => {
+        const r = newRatings[s.id] ?? {};
+        return RATING_KEYS.every(k => r[k] && r[k] > 0);
+      });
+
+      // Filter to only those whose ratings or feedback differ from last saved
+      const changedStudents = completeStudents.filter(s => {
+        const lastSaved = lastSavedBatchRef.current[s.id];
+        if (!lastSaved) return true;
+        const currentR = newRatings[s.id] || {};
+        const currentF = newFeedback[s.id] || '';
+        const isRatingsMatch = RATING_KEYS.every(k => lastSaved.ratings?.[k] === currentR[k]);
+        const isFeedbackMatch = (lastSaved.feedback || '') === currentF;
+        return !isRatingsMatch || !isFeedbackMatch;
+      });
+
+      if (changedStudents.length === 0) {
+        setBatchAutoSaveStatus('saved');
+        return;
+      }
+
+      setBatchAutoSaveStatus('saving');
+      try {
+        const updates: any[] = [];
+        const inserts: any[] = [];
+
+        changedStudents.forEach(s => {
+          const existing = evalByStudentExam.get(`${s.id}__${batchExamId || 'none'}`);
+          const payload: any = {
+            target_type:     'student',
+            student_id:      s.id,
+            feedback:        newFeedback[s.id] ?? '',
+            evaluation_date: batchDate,
+            ratings:         newRatings[s.id],
+            school_id:       sid,
+            exam_type_id:    batchExamId || null,
+            evaluator_id:    userRole?.staff_id ?? null,
+          };
+
+          if (existing) {
+            updates.push({ id: existing.id, ...payload });
+          } else {
+            inserts.push(payload);
+          }
+        });
+
+        if (updates.length > 0) {
+          await Promise.all(updates.map(u => supabase.from('evaluations').update(u).eq('id', u.id)));
+        }
+        if (inserts.length > 0) {
+          await supabase.from('evaluations').insert(inserts);
+        }
+
+        // Update last saved snapshot
+        changedStudents.forEach(s => {
+          lastSavedBatchRef.current[s.id] = {
+            ratings: { ...(newRatings[s.id] || {}) },
+            feedback: newFeedback[s.id] || '',
+          };
+        });
+
+        setBatchAutoSaveStatus('saved');
+        setBatchLastSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+        // If all students in class are complete and saved, remove local draft
+        const allCompleted = batchStudents.every(s => {
+          const r = newRatings[s.id] ?? {};
+          return RATING_KEYS.every(k => r[k] && r[k] > 0);
+        });
+        if (allCompleted) {
+          try { localStorage.removeItem(getBatchDraftKey(batchClassId, batchExamId)); } catch (e) {}
+          setBatchDraftRestored(false);
+        }
+
+        fetchData();
+      } catch (err) {
+        console.error('Batch auto-save error:', err);
+        setBatchAutoSaveStatus('dirty');
+      }
+    }, 1500);
+  };
+
+  const handleDiscardBatchDraft = () => {
+    if (!window.confirm('Discard unsaved local draft and restore from the database?')) return;
+    try {
+      localStorage.removeItem(getBatchDraftKey(batchClassId, batchExamId));
+    } catch (e) {}
+    setBatchDraftRestored(false);
+    setBatchAutoSaveStatus('idle');
+    loadBatchDataForExam(batchClassId, batchExamId);
+  };
+
+  const handleCloseBatch = () => {
+    if (batchAutoSaveStatus === 'dirty') {
+      const ok = window.confirm('You have unsaved student ratings in batch evaluation. Your draft is saved locally. Close modal?');
+      if (!ok) return;
+    }
+    setBatchOpen(false);
+  };
+
   const openBatch = (defaultClassId?: string, defaultExamId?: string) => {
+    try { window.history.pushState({ modalOpen: true }, ''); } catch (e) {}
     const cId = defaultClassId !== undefined ? defaultClassId : (classFilter || (classes[0]?.id ?? ''));
     const eId = defaultExamId !== undefined ? defaultExamId : (examFilter && examFilter !== 'none' ? examFilter : (examTypes[0]?.id ?? ''));
 
@@ -354,7 +708,7 @@ export default function Evaluation() {
     const newFeedback: Record<string, string> = {};
 
     classStus.forEach(s => {
-      // 1. Check if evaluation exists specifically for this exam
+      // 1. Check if evaluation exists specifically for this exam in DB
       const examEval = evalByStudentExam.get(`${s.id}__${examId || 'none'}`);
       if (examEval) {
         newRatings[s.id] = { ...(examEval.ratings ?? {}) };
@@ -362,12 +716,55 @@ export default function Evaluation() {
       }
     });
 
+    // Save snapshot of DB state
+    const snapshot: Record<string, { ratings: Record<string, number>; feedback: string }> = {};
+    classStus.forEach(s => {
+      snapshot[s.id] = {
+        ratings: { ...(newRatings[s.id] || {}) },
+        feedback: newFeedback[s.id] || '',
+      };
+    });
+    lastSavedBatchRef.current = snapshot;
+
+    // Check for localStorage draft
+    let draftRestored = false;
+    try {
+      const raw = localStorage.getItem(getBatchDraftKey(classId, examId));
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (draft && draft.ratings && Object.keys(draft.ratings).length > 0) {
+          Object.keys(draft.ratings).forEach(sId => {
+            newRatings[sId] = { ...(newRatings[sId] || {}), ...draft.ratings[sId] };
+            if (draft.feedback && draft.feedback[sId] !== undefined) {
+              newFeedback[sId] = draft.feedback[sId];
+            }
+          });
+          draftRestored = true;
+        }
+      }
+    } catch (e) {}
+
     setBatchRatings(newRatings);
     setBatchFeedback(newFeedback);
+    setBatchDraftRestored(draftRestored);
+    setBatchAutoSaveStatus('idle');
   };
 
-  const setBatchStar = (studentId: string, key: string, val: number) =>
-    setBatchRatings(p => ({ ...p, [studentId]: { ...(p[studentId] ?? {}), [key]: val } }));
+  const setBatchStar = (studentId: string, key: string, val: number) => {
+    setBatchRatings(p => {
+      const next = { ...p, [studentId]: { ...(p[studentId] ?? {}), [key]: val } };
+      triggerBatchAutoSave(next, batchFeedback);
+      return next;
+    });
+  };
+
+  const handleBatchFeedbackChange = (studentId: string, val: string) => {
+    setBatchFeedback(p => {
+      const next = { ...p, [studentId]: val };
+      triggerBatchAutoSave(batchRatings, next);
+      return next;
+    });
+  };
 
   // Helper: Copy all ratings from each student's latest previous evaluation
   const handleBatchCopyFromPrevious = () => {
@@ -392,6 +789,7 @@ export default function Evaluation() {
 
     setBatchRatings(nextRatings);
     setBatchFeedback(nextFeedback);
+    triggerBatchAutoSave(nextRatings, nextFeedback);
     alert(`Copied previous ratings for ${copiedCount} student${copiedCount === 1 ? '' : 's'}. You can now adjust them as needed.`);
   };
 
@@ -434,6 +832,11 @@ export default function Evaluation() {
         await supabase.from('evaluations').insert(inserts);
       }
 
+      try {
+        localStorage.removeItem(getBatchDraftKey(batchClassId, batchExamId));
+      } catch (e) {}
+      setBatchDraftRestored(false);
+      setBatchAutoSaveStatus('saved');
       setBatchOpen(false);
       await fetchData();
     } catch (err: any) { alert(err.message); }
@@ -938,7 +1341,55 @@ export default function Evaluation() {
                 </div>
                 <p className="text-indigo-200 text-xs mt-0.5 font-medium">Character Assessment & Behavioral Star Ratings</p>
               </div>
-              <button onClick={() => setModalOpen(false)} className="bg-white/10 hover:bg-white/20 p-2 rounded-full cursor-pointer transition-colors"><X className="w-4 h-4" /></button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={toggleAutoSave}
+                  className={cn(
+                    "px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer border",
+                    autoSaveEnabled
+                      ? "bg-emerald-500/20 text-emerald-200 border-emerald-400/40 hover:bg-emerald-500/30"
+                      : "bg-white/10 text-white/70 border-white/20 hover:bg-white/20"
+                  )}
+                  title="Toggle automatic background saving"
+                >
+                  <Sparkles className="w-3 h-3 text-emerald-300" />
+                  <span>Auto-Save: {autoSaveEnabled ? 'ON' : 'OFF'}</span>
+                </button>
+                <button onClick={handleCloseSingle} className="bg-white/10 hover:bg-white/20 p-2 rounded-full cursor-pointer transition-colors"><X className="w-4 h-4" /></button>
+              </div>
+            </div>
+
+            {/* Live Auto-Save / Draft Status Banner */}
+            <div className="px-6 py-2 bg-indigo-50/90 border-b border-indigo-100 flex items-center justify-between text-xs shrink-0">
+              <div className="flex items-center gap-1.5 font-bold">
+                {singleAutoSaveStatus === 'saving' ? (
+                  <span className="text-amber-700 flex items-center gap-1">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" /> Saving to cloud…
+                  </span>
+                ) : singleAutoSaveStatus === 'saved' ? (
+                  <span className="text-emerald-700 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Saved {singleLastSavedTime ? `at ${singleLastSavedTime}` : 'to cloud'}
+                  </span>
+                ) : singleDraftRestored ? (
+                  <span className="text-indigo-700 flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-600" /> Unsaved draft restored
+                  </span>
+                ) : (
+                  <span className="text-slate-500 flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-slate-400" /> Draft saved locally in browser
+                  </span>
+                )}
+              </div>
+              {singleDraftRestored && (
+                <button
+                  type="button"
+                  onClick={handleDiscardSingleDraft}
+                  className="text-[10px] font-bold text-rose-600 hover:underline cursor-pointer"
+                >
+                  Discard Draft
+                </button>
+              )}
             </div>
 
             <form onSubmit={handleSaveSingle} className="p-6 space-y-4 overflow-y-auto bg-gray-50 flex-1 custom-scrollbar">
@@ -1085,7 +1536,11 @@ export default function Evaluation() {
                   <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Evaluation Date</label>
                   <input
                     type="date" value={form.evaluation_date}
-                    onChange={e => setForm(p => ({ ...p, evaluation_date: e.target.value }))}
+                    onChange={e => {
+                      const nextDate = e.target.value;
+                      setForm(p => ({ ...p, evaluation_date: nextDate }));
+                      triggerSingleAutoSave(form.ratings, form.feedback);
+                    }}
                     className="w-full border border-gray-200 bg-white rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-300"
                   />
                 </div>
@@ -1119,8 +1574,9 @@ export default function Evaluation() {
                       const all5: any = {};
                       RATING_KEYS.forEach(k => { all5[k] = 5; });
                       setForm(p => ({ ...p, ratings: all5 }));
+                      triggerSingleAutoSave(all5, form.feedback);
                     }}
-                    className="text-[10px] font-bold text-amber-600 hover:underline"
+                    className="text-[10px] font-bold text-amber-600 hover:underline cursor-pointer"
                   >
                     Set all to 5★
                   </button>
@@ -1130,7 +1586,11 @@ export default function Evaluation() {
                     <span className="text-xs font-bold text-gray-700 w-32">{key}</span>
                     <StarRating
                       value={form.ratings[key] ?? 0}
-                      onChange={v => setForm(p => ({ ...p, ratings: { ...p.ratings, [key]: v } }))}
+                      onChange={v => {
+                        const nextRatings = { ...form.ratings, [key]: v };
+                        setForm(p => ({ ...p, ratings: nextRatings }));
+                        triggerSingleAutoSave(nextRatings, form.feedback);
+                      }}
                     />
                   </div>
                 ))}
@@ -1141,7 +1601,11 @@ export default function Evaluation() {
                 <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Observations / Teacher Remarks</label>
                 <textarea
                   rows={3} value={form.feedback}
-                  onChange={e => setForm(p => ({ ...p, feedback: e.target.value }))}
+                  onChange={e => {
+                    const newFeedback = e.target.value;
+                    setForm(p => ({ ...p, feedback: newFeedback }));
+                    triggerSingleAutoSave(form.ratings, newFeedback);
+                  }}
                   placeholder="e.g. Excellent conduct, respectful, proactive in classroom discussions…"
                   className="w-full border border-gray-200 bg-white rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-300 resize-none font-medium"
                 />
@@ -1149,7 +1613,14 @@ export default function Evaluation() {
             </form>
 
             <div className="p-4 bg-white border-t border-gray-100 flex gap-3 shrink-0">
-              <button onClick={() => setModalOpen(false)} className="flex-1 py-2.5 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-all cursor-pointer">Cancel</button>
+              <button onClick={handleCloseSingle} className="flex-1 py-2.5 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-all cursor-pointer">Cancel</button>
+              <button
+                onClick={handleSaveSingle} disabled={saving}
+                className="flex-[2] py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />{saving ? 'Saving…' : editId ? 'Update Evaluation' : 'Save for this Exam'}
+              </button>
+            </div>
               <button
                 onClick={handleSaveSingle} disabled={saving}
                 className="flex-[2] py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"

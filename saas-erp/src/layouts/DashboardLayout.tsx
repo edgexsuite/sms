@@ -454,7 +454,7 @@ export default function DashboardLayout() {
                         >
                           <Icon className="w-3 h-3" />
                         </div>
-                        <span className="truncate text-[11.5px]">{fav.name}</span>
+                        <span className="leading-snug text-left text-[11.5px]">{fav.name}</span>
                       </Link>
                       <button
                         onClick={() => togglePin(fav.path)}
@@ -531,7 +531,7 @@ export default function DashboardLayout() {
                         className="w-2 h-2 rounded-full shrink-0 shadow-xs"
                         style={{ backgroundColor: accent, boxShadow: `0 0 8px ${accent}` }}
                       />
-                      <p className="text-[10px] font-black uppercase tracking-[0.16em] truncate" style={{ color: accent }}>
+                      <p className="text-[10px] font-black uppercase tracking-[0.14em] leading-tight text-left flex-1" style={{ color: accent }}>
                         {section.title}
                       </p>
                     </div>
