@@ -28,6 +28,68 @@ export default function DashboardLayout() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [densityCompact, setDensityCompact] = useState<boolean>(() => localStorage.getItem('density') === 'compact');
 
+  // ── Sidebar search filter ───────────────────────────────────────────────────
+  const [sidebarFilter, setSidebarFilter] = useState('');
+
+  // ── Pinned Favorites ────────────────────────────────────────────────────────
+  const [pinnedPaths, setPinnedPaths] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('pinned_sidebar_paths');
+      return saved ? JSON.parse(saved) : ['/fees/easy-fee', '/attendance', '/result/teacher-marks'];
+    } catch {
+      return ['/fees/easy-fee', '/attendance', '/result/teacher-marks'];
+    }
+  });
+
+  const togglePin = (path: string) => {
+    setPinnedPaths(prev => {
+      const next = prev.includes(path) ? prev.filter(p => p !== path) : [...prev, path];
+      localStorage.setItem('pinned_sidebar_paths', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  // ── Section Collapsing ──────────────────────────────────────────────────────
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('collapsed_sidebar_sections');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const toggleSectionCollapse = (title: string) => {
+    setCollapsedSections(prev => {
+      const next = { ...prev, [title]: !prev[title] };
+      localStorage.setItem('collapsed_sidebar_sections', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  // Flatten all items for quick favorites lookup
+  const allNavItemsFlattened = useMemo(() => {
+    const list: { name: string; path: string; icon: any; color: string }[] = [];
+    NAV_SECTIONS.forEach(sec => {
+      sec.items.forEach(item => {
+        if (item.subItems) {
+          item.subItems.forEach(sub => {
+            list.push({ name: sub.name, path: sub.path, icon: (sub as any).icon || item.icon, color: sec.color || '#6366f1' });
+          });
+        } else {
+          list.push({ name: item.name, path: item.path, icon: item.icon, color: sec.color || '#6366f1' });
+        }
+      });
+    });
+    return list;
+  }, []);
+
+  const pinnedItemList = useMemo(() => {
+    return pinnedPaths
+      .map(p => allNavItemsFlattened.find(i => i.path === p))
+      .filter(Boolean) as { name: string; path: string; icon: any; color: string }[];
+  }, [pinnedPaths, allNavItemsFlattened]);
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (portalMenuRef.current && !portalMenuRef.current.contains(e.target as Node)) {
@@ -332,8 +394,86 @@ export default function DashboardLayout() {
         </div>
 
         {/* ── Navigation ── */}
-        <nav className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar py-3 px-2.5 pb-24 md:pb-3">
-          {navSections.map((section, sectionIdx) => {
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar py-3 px-2.5 pb-24 md:pb-3 space-y-2">
+
+          {/* ── Instant Sidebar Search Filter ── */}
+          {!isSidebarCollapsed && (
+            <div className="relative mb-2">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Filter menu..."
+                value={sidebarFilter}
+                onChange={e => setSidebarFilter(e.target.value)}
+                className="w-full pl-8 pr-7 py-1.5 bg-white/[0.04] hover:bg-white/[0.07] focus:bg-white/[0.1] text-white text-[11.5px] rounded-xl border border-white/[0.08] focus:border-indigo-500/50 outline-none transition-all placeholder:text-slate-500 font-medium"
+              />
+              {sidebarFilter && (
+                <button
+                  onClick={() => setSidebarFilter('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-0.5 rounded-md"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* ── Favorites / Pinned Quick Access ── */}
+          {!isSidebarCollapsed && !sidebarFilter && pinnedItemList.length > 0 && (
+            <div className="p-2 rounded-2xl bg-amber-500/[0.06] border border-amber-500/20 shadow-sm transition-all mb-3">
+              <div className="flex items-center justify-between px-2 py-1 mb-1">
+                <div className="flex items-center gap-1.5">
+                  <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                  <span className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-300">
+                    Favorites
+                  </span>
+                </div>
+                <span className="text-[9px] font-bold text-amber-400/80 px-1.5 py-0.2 rounded-full bg-amber-400/10">
+                  {pinnedItemList.length}
+                </span>
+              </div>
+              <div className="space-y-0.5">
+                {pinnedItemList.map(fav => {
+                  const Icon = fav.icon;
+                  const isActive = location.pathname === fav.path;
+                  return (
+                    <div key={fav.path} className="group/fav flex items-center justify-between">
+                      <Link
+                        to={fav.path}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className={cn(
+                          "flex-1 flex items-center gap-2 px-2 py-1.5 rounded-xl text-xs transition-all min-w-0",
+                          isActive
+                            ? "bg-amber-400/20 text-white font-bold border border-amber-400/30"
+                            : "text-slate-300 hover:text-white hover:bg-white/[0.06] font-medium"
+                        )}
+                      >
+                        <div
+                          className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-white shadow-xs"
+                          style={{ backgroundColor: fav.color }}
+                        >
+                          <Icon className="w-3 h-3" />
+                        </div>
+                        <span className="truncate text-[11.5px]">{fav.name}</span>
+                      </Link>
+                      <button
+                        onClick={() => togglePin(fav.path)}
+                        className="opacity-0 group-hover/fav:opacity-100 p-1 text-slate-500 hover:text-amber-400 transition-opacity"
+                        title="Remove from favorites"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ── Main Nav Sections (Color-Coded Cards) ── */}
+          {navSections.map((section) => {
+            const filterLower = sidebarFilter.toLowerCase().trim();
+
             const visibleItems = section.items.filter(item => {
               if (!userRole?.role || !item.roles.includes(userRole.role)) return false;
               if (userRole.role !== 'admin') {
@@ -345,144 +485,227 @@ export default function DashboardLayout() {
                 if (item.path.startsWith('/leave') && !canAccess('leave')) return false;
                 if (item.path.startsWith('/inventory') && !canAccess('inventory')) return false;
               }
-              return true;
+              if (!filterLower) return true;
+
+              const itemMatch = item.name.toLowerCase().includes(filterLower);
+              const subMatch = item.subItems?.some(s => s.name.toLowerCase().includes(filterLower));
+              const secMatch = section.title.toLowerCase().includes(filterLower);
+              return itemMatch || subMatch || secMatch;
             });
+
             if (visibleItems.length === 0) return null;
-            // Per-section accent color (falls back to indigo if section has no color)
+
             const accent = (section as any).color || '#6366f1';
-            const accentBg   = `${accent}22`;   // ~13% opacity background
-            const accentBgSm = `${accent}15`;   // sub-item background
-            const accentIcon = `${accent}cc`;   // icon bg when active
+            const accentBg   = `${accent}22`;
+            const accentBgSm = `${accent}18`;
+            const accentIcon = `${accent}dd`;
+
+            // Section is active if current path is inside it
+            const isSectionActive = section.items.some(item =>
+              item.subItems ? item.subItems.some(s => location.pathname.startsWith(s.path)) : location.pathname.startsWith(item.path)
+            );
+
+            const isCollapsed = !!collapsedSections[section.title] && !filterLower;
 
             return (
               <div
                 key={section.title}
-                className={cn("mb-1", sectionIdx > 0 && "mt-3 pt-3 border-t border-white/[0.05]")}
+                className={cn(
+                  "transition-all duration-300 relative group/secCard",
+                  isSidebarCollapsed ? "bg-transparent p-0 mb-2" : "p-1.5 sm:p-2 rounded-2xl border mb-2.5"
+                )}
+                style={!isSidebarCollapsed ? {
+                  backgroundColor: `${accent}0b`,
+                  borderColor: isSectionActive ? `${accent}40` : `${accent}15`,
+                  boxShadow: isSectionActive ? `0 0 16px ${accent}12` : 'none',
+                } : {}}
               >
-                {/* Section label with colour dot */}
+                {/* Section Header */}
                 {!isSidebarCollapsed && (
-                  <div className="flex items-center gap-1.5 px-3 mb-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: accent }} />
-                    <p className="text-[9px] font-black uppercase tracking-[0.2em] select-none" style={{ color: accent, opacity: 0.75 }}>
-                      {section.title}
-                    </p>
+                  <div
+                    onClick={() => toggleSectionCollapse(section.title)}
+                    className="flex items-center justify-between px-2.5 py-1.5 mb-1 cursor-pointer rounded-xl hover:bg-white/[0.06] transition-colors select-none"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0 shadow-xs"
+                        style={{ backgroundColor: accent, boxShadow: `0 0 8px ${accent}` }}
+                      />
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] truncate" style={{ color: accent }}>
+                        {section.title}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full text-slate-400 bg-white/[0.08]">
+                        {visibleItems.length}
+                      </span>
+                      <ChevronDown
+                        className={cn(
+                          "w-3.5 h-3.5 text-slate-400 transition-transform duration-200",
+                          isCollapsed && "-rotate-90"
+                        )}
+                      />
+                    </div>
                   </div>
                 )}
 
-                <div className="space-y-px">
-                  {visibleItems.map((item) => {
-                    const hasSubItems = !!(item.subItems && item.subItems.length > 0);
-                    const isActive = hasSubItems
-                      ? location.pathname.startsWith(item.path)
-                      : location.pathname === item.path;
-                    const Icon = item.icon;
-                    const isOpen = openDropdown === item.name;
-                    return (
-                      <div key={item.name} className="relative group/item">
-                        {!hasSubItems ? (
-                          item.path === '/ai-assistant' ? (
-                            <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                window.dispatchEvent(new CustomEvent('toggle-ai-assistant'));
-                                setIsMobileMenuOpen(false);
-                              }}
-                              className="flex items-center gap-3 py-2 rounded-xl transition-all duration-200 group relative w-full text-left text-slate-400 hover:text-white hover:bg-white/[0.05] border-l-[3px] border-transparent pl-[9px] pr-3"
-                            >
-                              <div className="w-8 h-8 rounded-lg flex items-center justify-center transition-all bg-white/[0.03] group-hover:bg-white/[0.08]">
-                                <Icon className="w-[14px] h-[14px]" />
+                {/* Section items */}
+                {(!isCollapsed || isSidebarCollapsed) && (
+                  <div className="space-y-1">
+                    {visibleItems.map((item) => {
+                      const hasSubItems = !!(item.subItems && item.subItems.length > 0);
+                      const isActive = hasSubItems
+                        ? location.pathname.startsWith(item.path)
+                        : location.pathname === item.path;
+                      const Icon = item.icon;
+                      // Expand dropdown automatically if filter typed
+                      const isOpen = filterLower ? true : openDropdown === item.name;
+                      return (
+                        <div key={item.name} className="relative group/item">
+                          {!hasSubItems ? (
+                            item.path === '/ai-assistant' ? (
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  window.dispatchEvent(new CustomEvent('toggle-ai-assistant'));
+                                  setIsMobileMenuOpen(false);
+                                }}
+                                className="flex items-center gap-3 py-2 rounded-xl transition-all duration-200 group relative w-full text-left text-slate-400 hover:text-white hover:bg-white/[0.05] border-l-[3px] border-transparent pl-[9px] pr-3"
+                              >
+                                <div className="w-8 h-8 rounded-lg flex items-center justify-center transition-all bg-white/[0.03] group-hover:bg-white/[0.08]">
+                                  <Icon className="w-[14px] h-[14px]" />
+                                </div>
+                                {!isSidebarCollapsed && <span className="text-[13px] font-bold tracking-tight leading-snug text-left">{item.name}</span>}
+                              </button>
+                            ) : (
+                              <div className="flex items-center justify-between group/single">
+                                <Link
+                                  to={item.path}
+                                  onClick={() => setIsMobileMenuOpen(false)}
+                                  className={cn(
+                                    "flex-1 flex items-center gap-3 py-2 rounded-xl transition-all duration-200 group relative border-l-[3px] pl-[9px] pr-3 min-w-0",
+                                    isActive
+                                      ? "text-white"
+                                      : "text-slate-400 hover:text-white hover:bg-white/[0.05] border-transparent"
+                                  )}
+                                  style={isActive ? { backgroundColor: accentBg, borderColor: accent } : {}}
+                                >
+                                  <div
+                                    className="w-8 h-8 rounded-lg flex items-center justify-center transition-all shrink-0"
+                                    style={isActive ? { backgroundColor: accentIcon } : { backgroundColor: 'rgba(255,255,255,0.03)' }}
+                                  >
+                                    <Icon className="w-[14px] h-[14px]" />
+                                  </div>
+                                  {!isSidebarCollapsed && <span className="text-[13px] font-bold tracking-tight leading-snug text-left">{item.name}</span>}
+                                </Link>
+                                {!isSidebarCollapsed && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.preventDefault(); togglePin(item.path); }}
+                                    className={cn(
+                                      "p-1 rounded-md transition-all shrink-0 mr-1",
+                                      pinnedPaths.includes(item.path)
+                                        ? "text-amber-400 opacity-100"
+                                        : "text-slate-500 opacity-0 group-hover/single:opacity-100 hover:text-amber-300"
+                                    )}
+                                    title={pinnedPaths.includes(item.path) ? "Unpin from favorites" : "Pin to favorites"}
+                                  >
+                                    <Star className={cn("w-3 h-3", pinnedPaths.includes(item.path) && "fill-current")} />
+                                  </button>
+                                )}
                               </div>
-                              {!isSidebarCollapsed && <span className="text-[13px] font-bold tracking-tight leading-snug text-left">{item.name}</span>}
-                            </button>
+                            )
                           ) : (
-                            <Link
-                              to={item.path}
-                              onClick={() => setIsMobileMenuOpen(false)}
+                            <button
+                              onClick={() => setOpenDropdown(isOpen && !filterLower ? null : item.name)}
                               className={cn(
-                                "flex items-center gap-3 py-2 rounded-xl transition-all duration-200 group relative border-l-[3px] pl-[9px] pr-3",
-                                isActive
-                                  ? "text-white"
-                                  : "text-slate-400 hover:text-white hover:bg-white/[0.05] border-transparent"
+                                "flex items-center justify-between w-full px-3 py-2 rounded-xl transition-all duration-200 group relative",
+                                isActive ? "text-white" : "text-slate-400 hover:text-white hover:bg-white/[0.05]"
                               )}
-                              style={isActive ? { backgroundColor: accentBg, borderColor: accent } : {}}
+                              style={isActive ? { backgroundColor: accentBg } : {}}
                             >
-                              <div
-                                className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
-                                style={isActive ? { backgroundColor: accentIcon } : { backgroundColor: 'rgba(255,255,255,0.03)' }}
-                              >
-                                <Icon className="w-[14px] h-[14px]" />
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div
+                                  className="w-8 h-8 rounded-lg flex items-center justify-center transition-all shrink-0"
+                                  style={isActive ? { backgroundColor: accent, color: '#fff' } : { backgroundColor: 'rgba(255,255,255,0.03)' }}
+                                >
+                                  <Icon className="w-[14px] h-[14px]" />
+                                </div>
+                                {!isSidebarCollapsed && <span className="text-[13px] font-bold tracking-tight leading-snug text-left">{item.name}</span>}
                               </div>
-                              {!isSidebarCollapsed && <span className="text-[13px] font-bold tracking-tight leading-snug text-left">{item.name}</span>}
-                            </Link>
-                          )
-                        ) : (
-                          <button
-                            onClick={() => setOpenDropdown(isOpen ? null : item.name)}
-                            className={cn(
-                              "flex items-center justify-between w-full px-3 py-2 rounded-xl transition-all duration-200 group relative",
-                              isActive ? "text-white" : "text-slate-400 hover:text-white hover:bg-white/[0.05]"
-                            )}
-                            style={isActive ? { backgroundColor: accentBg } : {}}
-                          >
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div
-                                className="w-8 h-8 rounded-lg flex items-center justify-center transition-all shrink-0"
-                                style={isActive ? { backgroundColor: accent, color: '#fff' } : { backgroundColor: 'rgba(255,255,255,0.03)' }}
-                              >
-                                <Icon className="w-[14px] h-[14px]" />
-                              </div>
-                              {!isSidebarCollapsed && <span className="text-[13px] font-bold tracking-tight leading-snug text-left">{item.name}</span>}
-                            </div>
-                            {!isSidebarCollapsed && <ChevronRight className={cn("w-3.5 h-3.5 transition-transform duration-200 opacity-40 shrink-0 ml-1", isOpen && "rotate-90 opacity-100")} />}
-                          </button>
-                        )}
-
-                        {/* Animated sub-menu */}
-                        <AnimatePresence initial={false}>
-                          {hasSubItems && openDropdown === item.name && !isSidebarCollapsed && (
-                            <motion.div
-                              key="submenu"
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-                              className="overflow-hidden"
-                            >
-                              <div
-                                className="mt-0.5 mb-1 ml-[28px] pl-2.5 space-y-px border-l"
-                                style={{ borderColor: `${accent}30` }}
-                              >
-                                {item.subItems!.filter(sub => !(sub as any).roles || (userRole?.role && (sub as any).roles.includes(userRole.role))).map((sub) => {
-                                  const isSubActive = sub.exact
-                                    ? location.pathname === sub.path
-                                    : location.pathname.startsWith(sub.path);
-                                  return (
-                                    <Link
-                                      key={sub.name}
-                                      to={sub.path}
-                                      onClick={() => setIsMobileMenuOpen(false)}
-                                      className={cn(
-                                        "flex items-start gap-2 px-2 py-[6px] rounded-md text-[11.5px] transition-all duration-150",
-                                        isSubActive ? "font-semibold" : "text-slate-300 hover:text-white hover:bg-white/[0.06] font-medium"
-                                      )}
-                                      style={isSubActive ? { color: accent, backgroundColor: accentBgSm } : {}}
-                                    >
-                                      <span
-                                        className="w-1.5 h-1.5 rounded-full shrink-0 transition-all mt-1 self-start"
-                                        style={isSubActive ? { backgroundColor: accent } : { backgroundColor: 'rgba(255,255,255,0.25)' }}
-                                      />
-                                      <span className="leading-snug text-left">{sub.name}</span>
-                                    </Link>
-                                  );
-                                })}
-                              </div>
-                            </motion.div>
+                              {!isSidebarCollapsed && <ChevronRight className={cn("w-3.5 h-3.5 transition-transform duration-200 opacity-40 shrink-0 ml-1", isOpen && "rotate-90 opacity-100")} />}
+                            </button>
                           )}
-                        </AnimatePresence>
-                      </div>
-                    );
-                  })}
-                </div>
+
+                          {/* Animated sub-menu */}
+                          <AnimatePresence initial={false}>
+                            {hasSubItems && isOpen && !isSidebarCollapsed && (
+                              <motion.div
+                                key="submenu"
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                                className="overflow-hidden"
+                              >
+                                <div
+                                  className="mt-0.5 mb-1 ml-[24px] pl-2 space-y-px border-l"
+                                  style={{ borderColor: `${accent}30` }}
+                                >
+                                  {item.subItems!.filter(sub => {
+                                    if ((sub as any).roles && userRole?.role && !(sub as any).roles.includes(userRole.role)) return false;
+                                    if (!filterLower) return true;
+                                    return sub.name.toLowerCase().includes(filterLower) || item.name.toLowerCase().includes(filterLower) || section.title.toLowerCase().includes(filterLower);
+                                  }).map((sub) => {
+                                    const isSubActive = sub.exact
+                                      ? location.pathname === sub.path
+                                      : location.pathname.startsWith(sub.path);
+                                    const isPinned = pinnedPaths.includes(sub.path);
+                                    return (
+                                      <div key={sub.name} className="flex items-center justify-between group/sub">
+                                        <Link
+                                          to={sub.path}
+                                          onClick={() => setIsMobileMenuOpen(false)}
+                                          className={cn(
+                                            "flex-1 flex items-start gap-2 px-2 py-[6px] rounded-lg text-[11.5px] transition-all duration-150 min-w-0",
+                                            isSubActive ? "font-semibold text-white" : "text-slate-300 hover:text-white hover:bg-white/[0.06] font-medium"
+                                          )}
+                                          style={isSubActive ? { color: accent, backgroundColor: accentBgSm } : {}}
+                                        >
+                                          <span
+                                            className="w-1.5 h-1.5 rounded-full shrink-0 transition-all mt-1 self-start"
+                                            style={isSubActive ? { backgroundColor: accent } : { backgroundColor: 'rgba(255,255,255,0.25)' }}
+                                          />
+                                          <span className="leading-snug text-left">{sub.name}</span>
+                                        </Link>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            togglePin(sub.path);
+                                          }}
+                                          className={cn(
+                                            "p-1 rounded-md transition-all shrink-0 ml-1",
+                                            isPinned
+                                              ? "text-amber-400 opacity-100"
+                                              : "text-slate-500 opacity-0 group-hover/sub:opacity-100 hover:text-amber-300"
+                                          )}
+                                          title={isPinned ? "Unpin from favorites" : "Pin to favorites"}
+                                        >
+                                          <Star className={cn("w-3 h-3", isPinned && "fill-current")} />
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
