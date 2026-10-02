@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   ClipboardList, PlusCircle, Pencil, Trash2, Save, X,
   Zap, Calendar, ChevronDown, ToggleLeft, ToggleRight,
-  Globe, Eye, EyeOff, CheckCircle2,
+  Globe, Eye, EyeOff, CheckCircle2, Award,
 } from 'lucide-react';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -55,6 +56,7 @@ for (let m = 1; m <= 12; m++) {
 // ── component ─────────────────────────────────────────────────────────────────
 export default function AddExamType() {
   const { userRole } = useAuth();
+  const navigate = useNavigate();
   const [examTypes, setExamTypes]               = useState<any[]>([]);
   const [publishedExamIds, setPublishedExamIds] = useState<string[]>([]);
   const [togglingId, setTogglingId]             = useState<string | null>(null);
@@ -320,6 +322,13 @@ export default function AddExamType() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <button
+            onClick={() => navigate('/result/marks-config')}
+            className="flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-4 py-2.5 rounded-lg font-bold shadow-xs transition text-sm cursor-pointer"
+            title="Configure Subject Total and Passing Marks for Exams"
+          >
+            <Award className="w-4 h-4 text-indigo-600" /> Subject Marks Config
+          </button>
+          <button
             onClick={quickCreateMonthly}
             className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-lg font-bold shadow transition text-sm"
           >
@@ -486,6 +495,13 @@ export default function AddExamType() {
                       <span className="text-xs bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full font-bold hidden sm:block">
                         {et.weightage}% weight
                       </span>
+                      <button
+                        onClick={() => navigate('/result/marks-config')}
+                        className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                        title="Configure Subject Marks for Exam"
+                      >
+                        <Award className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => openEdit(et)}
                         className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"

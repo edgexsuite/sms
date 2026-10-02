@@ -165,6 +165,7 @@ export const NAV_SECTIONS = [
         roles: ALL_ACADEMIC,
         subItems: [
           { name: 'Exam Terms & Types',      path: '/result/exam-types',       icon: SettingsIcon,   roles: ALL_ADMIN   },
+          { name: 'Subject Marks Config',    path: '/result/marks-config',     icon: Award,          roles: ALL_ADMIN   },
           { name: 'Result Status Dashboard', path: '/result/status',           icon: ClipboardCheck, roles: ALL_ACADEMIC },
           { name: 'Marks Entry (Admin)',     path: '/result/add-result',       icon: Star,           roles: ALL_ADMIN   },
           { name: 'Teacher Marks Entry',     path: '/result/teacher-marks',    icon: Star,           roles: ALL_ACADEMIC },
