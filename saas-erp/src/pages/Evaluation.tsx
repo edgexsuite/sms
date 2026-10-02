@@ -1621,13 +1621,6 @@ export default function Evaluation() {
                 <Save className="w-4 h-4" />{saving ? 'Saving…' : editId ? 'Update Evaluation' : 'Save for this Exam'}
               </button>
             </div>
-              <button
-                onClick={handleSaveSingle} disabled={saving}
-                className="flex-[2] py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                <Save className="w-4 h-4" />{saving ? 'Saving…' : editId ? 'Update Evaluation' : 'Save for this Exam'}
-              </button>
-            </div>
           </div>
         </div>, document.body
       )}
@@ -1643,7 +1636,23 @@ export default function Evaluation() {
                 <h3 className="text-lg font-black">Batch Class Evaluation</h3>
                 <p className="text-amber-100 text-xs mt-0.5">Evaluate all students in a class for a specific exam term at once</p>
               </div>
-              <button onClick={() => setBatchOpen(false)} className="bg-white/10 hover:bg-white/20 p-2 rounded-full cursor-pointer"><X className="w-4 h-4" /></button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={toggleAutoSave}
+                  className={cn(
+                    "px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer border",
+                    autoSaveEnabled
+                      ? "bg-emerald-500/20 text-emerald-100 border-emerald-400/40 hover:bg-emerald-500/30"
+                      : "bg-white/10 text-white/70 border-white/20 hover:bg-white/20"
+                  )}
+                  title="Toggle automatic background saving"
+                >
+                  <Sparkles className="w-3 h-3 text-emerald-300" />
+                  <span>Auto-Save: {autoSaveEnabled ? 'ON' : 'OFF'}</span>
+                </button>
+                <button onClick={handleCloseBatch} className="bg-white/10 hover:bg-white/20 p-2 rounded-full cursor-pointer transition-colors"><X className="w-4 h-4" /></button>
+              </div>
             </div>
 
             {/* Batch settings bar */}
@@ -1698,6 +1707,29 @@ export default function Evaluation() {
               </div>
 
               <div className="ml-auto flex items-center gap-2">
+                {/* Live Auto-save status in batch */}
+                {batchAutoSaveStatus === 'saving' ? (
+                  <div className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-xs font-bold animate-pulse">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" /> Saving to cloud…
+                  </div>
+                ) : batchAutoSaveStatus === 'saved' ? (
+                  <div className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Auto-saved {batchLastSavedTime ? `at ${batchLastSavedTime}` : 'to cloud'}
+                  </div>
+                ) : batchDraftRestored ? (
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-800 border border-indigo-200 rounded-lg text-xs font-bold">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-600" /> Draft restored
+                    <button
+                      type="button"
+                      onClick={handleDiscardBatchDraft}
+                      className="text-rose-600 hover:text-rose-800 text-[10px] ml-1 font-bold underline cursor-pointer"
+                      title="Discard local draft and reload from database"
+                    >
+                      Discard
+                    </button>
+                  </div>
+                ) : null}
+
                 <button
                   type="button"
                   onClick={handleBatchCopyFromPrevious}
@@ -1774,7 +1806,7 @@ export default function Evaluation() {
                         type="text"
                         placeholder="Optional remarks…"
                         value={batchFeedback[stu.id] ?? ''}
-                        onChange={e => setBatchFeedback(p => ({ ...p, [stu.id]: e.target.value }))}
+                        onChange={e => handleBatchFeedbackChange(stu.id, e.target.value)}
                         className="text-[10px] border border-gray-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-amber-300 bg-white w-full font-medium"
                       />
                     </div>
@@ -1784,7 +1816,7 @@ export default function Evaluation() {
             </div>
 
             <div className="p-4 bg-white border-t border-gray-100 flex gap-3 shrink-0">
-              <button onClick={() => setBatchOpen(false)} className="flex-1 py-2.5 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-all cursor-pointer">Cancel</button>
+              <button onClick={handleCloseBatch} className="flex-1 py-2.5 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-all cursor-pointer">Cancel</button>
               <button
                 onClick={handleSaveBatch} disabled={batchSaving || !batchClassId}
                 className="flex-[2] py-2.5 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 shadow-lg shadow-amber-100 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
