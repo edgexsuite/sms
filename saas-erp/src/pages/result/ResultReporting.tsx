@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
@@ -565,23 +566,48 @@ export default function ResultReporting() {
       `}</style>
 
       {/* Header */}
-      <div className="no-print">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <FileText className="w-6 h-6 text-teal-600" /> Individual Result Cards
-        </h1>
-        <p className="text-gray-500 text-sm mt-1">Generate printable result cards for individual students or the whole class.</p>
-        {gradingBrackets.length === 0 && (
-          <div className="mt-3 flex items-center gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 text-sm font-medium">
-            <AlertTriangle className="w-4 h-4 shrink-0" />
-            No custom grading policy found — using default scale. <a href="/result/grading-policy" className="underline ml-1 font-bold">Configure Grading Policy →</a>
-          </div>
+      <div className="no-print flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <FileText className="w-6 h-6 text-teal-600" /> Individual Result Cards
+          </h1>
+          <p className="text-gray-500 text-sm mt-1">Generate printable result cards for individual students or the whole class.</p>
+        </div>
+        {selectedExamType && (
+          <button
+            type="button"
+            onClick={() => setIsBatchModalOpen(true)}
+            className="self-start sm:self-auto flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-purple-200 transition-all cursor-pointer shrink-0"
+            title="Print report cards for multiple classes at once"
+          >
+            <Printer className="w-4 h-4" /> Print Multiple Classes
+          </button>
         )}
       </div>
+
+      {gradingBrackets.length === 0 && (
+        <div className="no-print flex items-center gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 text-sm font-medium">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          No custom grading policy found — using default scale. <a href="/result/grading-policy" className="underline ml-1 font-bold">Configure Grading Policy →</a>
+        </div>
+      )}
 
       {/* Selectors */}
       <div className="no-print bg-white rounded-xl shadow-sm border border-gray-200 p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <label className="block text-xs font-bold text-gray-600 uppercase mb-2">Exam</label>
+          <div className="flex justify-between items-center mb-2">
+            <label className="block text-xs font-bold text-gray-600 uppercase">Exam</label>
+            {selectedExamType && (
+              <button
+                type="button"
+                onClick={() => setIsBatchModalOpen(true)}
+                className="text-[11px] font-bold text-purple-600 hover:text-purple-800 flex items-center gap-1 cursor-pointer"
+                title="Open Print Multiple Classes dialog"
+              >
+                <Printer className="w-3 h-3" /> Multi-Class
+              </button>
+            )}
+          </div>
           <select value={selectedExamType} onChange={e => setSelectedExamType(e.target.value)} className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-medium text-sm">
             <option value="">-- Select Exam --</option>
             {examTypes.map(e => <option key={e.id} value={e.id}>{e.name}{e.month_year ? ` — ${e.month_year}` : ''} ({e.session})</option>)}
@@ -602,17 +628,6 @@ export default function ResultReporting() {
           </select>
         </div>
       </div>
-
-            {/* General Action buttons (Exam level) */}
-      {selectedExamType && (
-        <div className="no-print flex flex-wrap gap-3 justify-end items-center mb-4 mt-2">
-          {/* Print Multiple Classes Button */}
-          <button onClick={() => setIsBatchModalOpen(true)}
-            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2 rounded-lg font-bold shadow transition">
-            <Printer className="w-4 h-4" /> Print Multiple Classes
-          </button>
-        </div>
-      )}
 
       {/* Subject Paper Exclusions Panel (For paper not conducted) */}
       {selectedExamType && selectedClass && subjects.length > 0 && (
@@ -835,75 +850,105 @@ export default function ResultReporting() {
       )}
 
       {/* Batch Modal */}
-      {isBatchModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm no-print">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-5 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-              <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <Printer className="w-5 h-5 text-purple-600" />
-                Select Classes
-              </h3>
-              <button onClick={() => setIsBatchModalOpen(false)} className="text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-full p-1">
-                &times;
+      {isBatchModalOpen && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm no-print overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[88vh] border border-gray-100 my-auto animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-purple-600 to-indigo-600 text-white shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-white/10 rounded-xl">
+                  <Printer className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">Print Multiple Classes</h3>
+                  <p className="text-xs text-purple-100 mt-0.5">Generate batch report cards across classes</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsBatchModalOpen(false)}
+                className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-1.5 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
               </button>
             </div>
             
-            <div className="p-5 overflow-y-auto custom-scrollbar flex-1">
-              <p className="text-sm text-gray-500 mb-4">
-                Select the classes you want to generate report cards for. The system will compile all students from these classes into a single PDF via your browser's Print dialog.
+            <div className="p-5 overflow-y-auto custom-scrollbar flex-1 space-y-4">
+              <p className="text-xs text-gray-600 leading-relaxed bg-purple-50/60 border border-purple-100 rounded-xl p-3">
+                Select the classes you want to print report cards for. The system will compile all students from these classes into one printable document, respecting each class's paper exclusions.
               </p>
               
-              <div className="flex gap-3 mb-4">
-                <button 
-                  onClick={() => setSelectedBatchClasses(classes.map(c => c.id))}
-                  className="text-sm font-medium text-purple-600 hover:text-purple-700"
-                >
-                  Select All
-                </button>
-                <button 
-                  onClick={() => setSelectedBatchClasses([])}
-                  className="text-sm font-medium text-gray-500 hover:text-gray-700"
-                >
-                  Deselect All
-                </button>
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-xs font-black uppercase tracking-wider text-slate-500">Classes ({classes.length})</span>
+                <div className="flex gap-2">
+                  <button 
+                    type="button"
+                    onClick={() => setSelectedBatchClasses(classes.map(c => c.id))}
+                    className="text-xs font-bold text-purple-600 hover:text-purple-800 bg-purple-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Select All
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setSelectedBatchClasses([])}
+                    className="text-xs font-bold text-slate-500 hover:text-slate-800 bg-slate-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Deselect All
+                  </button>
+                </div>
               </div>
 
-              <div className="space-y-2 border border-gray-200 rounded-lg p-3 max-h-[40vh] overflow-y-auto">
-                {classes.map(c => (
-                  <label key={c.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer border-b border-gray-100 last:border-0">
-                    <input 
-                      type="checkbox" 
-                      className="w-4 h-4 accent-purple-600 cursor-pointer"
-                      checked={selectedBatchClasses.includes(c.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) setSelectedBatchClasses(prev => [...prev, c.id]);
-                        else setSelectedBatchClasses(prev => prev.filter(id => id !== c.id));
-                      }}
-                    />
-                    <span className="font-medium text-gray-800">{c.name}</span>
-                  </label>
-                ))}
+              <div className="space-y-1.5 border border-gray-200 rounded-2xl p-2.5 max-h-[38vh] overflow-y-auto custom-scrollbar bg-slate-50/50">
+                {classes.map(c => {
+                  const isChecked = selectedBatchClasses.includes(c.id);
+                  return (
+                    <label
+                      key={c.id}
+                      className={cn(
+                        "flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all border",
+                        isChecked
+                          ? "bg-purple-50/80 border-purple-200 text-purple-950 font-bold"
+                          : "bg-white border-transparent hover:border-slate-200 text-slate-700 font-medium"
+                      )}
+                    >
+                      <input 
+                        type="checkbox" 
+                        className="w-4 h-4 accent-purple-600 cursor-pointer rounded"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          if (e.target.checked) setSelectedBatchClasses(prev => [...prev, c.id]);
+                          else setSelectedBatchClasses(prev => prev.filter(id => id !== c.id));
+                        }}
+                      />
+                      <span className="text-xs">{c.name}</span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
 
-            <div className="p-5 border-t border-gray-200 bg-gray-50 flex justify-end gap-3 shrink-0">
-              <button 
-                onClick={() => setIsBatchModalOpen(false)}
-                className="px-5 py-2 font-medium text-gray-700 hover:bg-gray-200 bg-gray-100 rounded-lg transition"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={handlePrintMultipleClasses}
-                disabled={batchMultipleLoading || selectedBatchClasses.length === 0}
-                className="flex items-center gap-2 px-5 py-2 font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow transition"
-              >
-                {batchMultipleLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                {batchMultipleLoading ? 'Generating...' : `Print / Save PDF (${selectedBatchClasses.length})`}
-              </button>
+            <div className="p-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between gap-3 shrink-0">
+              <span className="text-xs font-bold text-slate-500">
+                {selectedBatchClasses.length} selected
+              </span>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setIsBatchModalOpen(false)}
+                  className="px-4 py-2 font-bold text-xs text-gray-600 hover:bg-gray-200 bg-gray-100 rounded-xl transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handlePrintMultipleClasses}
+                  disabled={batchMultipleLoading || selectedBatchClasses.length === 0}
+                  className="flex items-center gap-2 px-5 py-2 font-bold text-xs text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-md shadow-purple-200 transition cursor-pointer"
+                >
+                  {batchMultipleLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
+                  {batchMultipleLoading ? 'Generating...' : `Print Cards (${selectedBatchClasses.length})`}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
