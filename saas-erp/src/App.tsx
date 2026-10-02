@@ -34,8 +34,7 @@ const CredentialDispatch = lazy(() => import('./pages/credentials/CredentialDisp
 const Evaluation = lazy(() => import('./pages/Evaluation'));
 const Communication = lazy(() => import('./pages/Communication'));
 const Timetable = lazy(() => import('./pages/Timetable'));
-const Inventory = lazy(() => import('./pages/Inventory'));
-const StationaryManagement = lazy(() => import('./pages/StationaryManagement'));
+const InventoryHub = lazy(() => import('./pages/inventory/InventoryHub'));
 const Complaints = lazy(() => import('./pages/Complaints'));
 const LeaveLayout = lazy(() => import('./pages/leave/LeaveLayout'));
 const TeacherDiary = lazy(() => import('./pages/diary/TeacherDiary'));
@@ -166,8 +165,8 @@ export default function App() {
                 <Route path="evaluation" element={<Evaluation />} />
                 <Route path="credentials" element={<CredentialDispatch />} />
                 <Route path="communication" element={<Communication />} />
-                <Route path="inventory" element={<Inventory />} />
-                <Route path="stationary" element={<StationaryManagement />} />
+                <Route path="inventory" element={<InventoryHub />} />
+                <Route path="stationary" element={<InventoryHub defaultTab="stationary" />} />
                 <Route path="complaints" element={<Complaints />} />
                 <Route path="ai-assistant" element={<Navigate to="/dashboard" replace />} />
                 <Route path="leave/*" element={<LeaveLayout />} />

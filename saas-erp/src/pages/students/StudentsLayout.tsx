@@ -17,6 +17,7 @@ import CharacterCertificate from './CharacterCertificate';
 import AdmissionForm from './AdmissionForm';
 import StudentDetailPage from './StudentDetailPage';
 import CustomStudentList from './CustomStudentList';
+import CertificatesHub from './CertificatesHub';
 
 export default function StudentsLayout() {
   // Now simply acts as a router wrapper, navigation is handled by main DashboardLayout
@@ -30,14 +31,15 @@ export default function StudentsLayout() {
       <Route path="bulk-enrollment" element={<BulkEnrollment />} />
       <Route path="promote" element={<PromoteStudents />} />
       <Route path="id-cards" element={<DigitalIDCards />} />
+      <Route path="certificates" element={<CertificatesHub />} />
       <Route path="reports" element={<StudentReports />} />
       <Route path="customize-form" element={<CustomizeForm />} />
       <Route path="parent-sms-history" element={<ParentSMSHistory />} />
       <Route path="progress-report" element={<ProgressReport />} />
-      <Route path="leaving-certificate" element={<LeavingCertificate />} />
-      <Route path="birth-certificate" element={<BirthCertificate />} />
-      <Route path="character-certificate" element={<CharacterCertificate />} />
-      <Route path="admission-form" element={<AdmissionForm />} />
+      <Route path="leaving-certificate" element={<CertificatesHub />} />
+      <Route path="birth-certificate" element={<CertificatesHub />} />
+      <Route path="character-certificate" element={<CertificatesHub />} />
+      <Route path="admission-form" element={<CertificatesHub />} />
       <Route path="*" element={<Navigate to="/students" replace />} />
     </Routes>
   );

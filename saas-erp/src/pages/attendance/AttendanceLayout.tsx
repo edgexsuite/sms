@@ -8,6 +8,7 @@ import DailyReport from './DailyReport';
 import SessionalReport from './SessionalReport';
 import SMSHistory from './SMSHistory';
 import QRScanner from './QRScanner';
+import DigitalAttendanceHub from './DigitalAttendanceHub';
 import StaffAttendance from './StaffAttendance';
 import StaffAttendanceReport from './StaffAttendanceReport';
 import StaffDailyReport from './StaffDailyReport';
@@ -21,7 +22,10 @@ export default function AttendanceLayout() {
       <Route path="daily-report" element={<DailyReport />} />
       <Route path="sessional-report" element={<SessionalReport />} />
       <Route path="sms-history" element={<SMSHistory />} />
-      <Route path="scanner" element={<QRScanner />} />
+      <Route path="scanner" element={<DigitalAttendanceHub />} />
+      <Route path="qr" element={<DigitalAttendanceHub />} />
+      <Route path="badges" element={<DigitalAttendanceHub />} />
+      <Route path="auto" element={<DigitalAttendanceHub />} />
       <Route path="staff" element={<StaffAttendance />} />
       <Route path="staff-report" element={<StaffAttendanceReport />} />
       <Route path="staff-daily" element={<StaffDailyReport />} />

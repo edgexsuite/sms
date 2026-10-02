@@ -15,18 +15,19 @@ import AwardListGenerator from './AwardListGenerator';
 import ExamMarksConfig from './ExamMarksConfig';
 import ResultStatus from './ResultStatus';
 import TeacherWiseResult from './TeacherWiseResult';
+import ExamScheduleHub from './ExamScheduleHub';
 
 export default function ResultLayout() {
   return (
     <Routes>
       <Route path="/" element={<AddExamType />} />
       <Route path="exam-types" element={<AddExamType />} />
-      <Route path="schedule" element={<AddExamSchedule />} />
+      <Route path="schedule" element={<ExamScheduleHub />} />
       <Route path="add-result" element={<TeacherMarks />} />
       <Route path="consolidated" element={<ConsolidatedResult />} />
       <Route path="reporting" element={<ResultReporting />} />
       <Route path="settings" element={<ResultSetting />} />
-      <Route path="roll-slips" element={<RollNumberSlips />} />
+      <Route path="roll-slips" element={<ExamScheduleHub />} />
       <Route path="import" element={<ImportResult />} />
       <Route path="grading-policy" element={<GradingPolicy />} />
       <Route path="teacher-marks" element={<TeacherMarks />} />
