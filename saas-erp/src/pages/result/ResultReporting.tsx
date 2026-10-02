@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { FileText, Printer, Users, Loader2, AlertTriangle, Download } from 'lucide-react';
+import { 
+  FileText, Printer, Users, Loader2, AlertTriangle, Download,
+  BookOpen, Save, X, Check
+} from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { ReportCardLayoutRenderer, DEFAULT_REPORT_CUSTOM } from '../../lib/reportCardTemplates';
+import { cn } from '../../lib/utils';
 import {
   fetchGradingPolicy, fetchResultConfig, getGradeFromPolicy,
   calculateGPA, buildActiveFields, GradingBracket,
@@ -18,6 +22,8 @@ export default function ResultReporting() {
   const [subjects, setSubjects] = useState<any[]>([]);
   const [results, setResults] = useState<any[]>([]);
   const [classResults, setClassResults] = useState<any[]>([]);
+  const [excludedSubjectIds, setExcludedSubjectIds] = useState<Set<string>>(new Set());
+  const [savingExclusions, setSavingExclusions] = useState(false);
   const [schoolInfo, setSchoolInfo] = useState<any>(null);
   const [rcSettings, setRcSettings] = useState<any>(null);
   const [gradingBrackets, setGradingBrackets] = useState<GradingBracket[]>([]);
@@ -62,6 +68,7 @@ export default function ResultReporting() {
     if (selectedExamType && selectedClass && students.length > 0) {
       fetchAllClassResults();
       fetchExamConfigs();
+      fetchExclusions();
     }
   }, [selectedExamType, selectedClass, students.length]);
 
@@ -81,6 +88,67 @@ export default function ResultReporting() {
     ]);
     if (subs) setSubjects(subs);
     if (stus) setStudents(stus);
+  };
+
+  const fetchExclusions = async () => {
+    if (!selectedExamType || !userRole?.school_id || !selectedClass) return;
+    const { data } = await supabase
+      .from('form_settings')
+      .select('sections_config')
+      .eq('school_id', userRole.school_id)
+      .eq('form_name', 'exam_subject_exclusions')
+      .maybeSingle();
+
+    if (data?.sections_config) {
+      const list = data.sections_config[selectedExamType]?.[selectedClass] || [];
+      setExcludedSubjectIds(new Set(list));
+    } else {
+      setExcludedSubjectIds(new Set());
+    }
+  };
+
+  const toggleSubjectExclusion = (subId: string) => {
+    setExcludedSubjectIds(prev => {
+      const next = new Set(prev);
+      if (next.has(subId)) {
+        next.delete(subId);
+      } else {
+        next.add(subId);
+      }
+      return next;
+    });
+  };
+
+  const handleSaveExclusionsAsDefault = async () => {
+    if (!selectedExamType || !selectedClass || !userRole?.school_id) return;
+    setSavingExclusions(true);
+    try {
+      const { data: existing } = await supabase
+        .from('form_settings')
+        .select('sections_config')
+        .eq('school_id', userRole.school_id)
+        .eq('form_name', 'exam_subject_exclusions')
+        .maybeSingle();
+
+      const currentConfig = existing?.sections_config || {};
+      if (!currentConfig[selectedExamType]) currentConfig[selectedExamType] = {};
+      currentConfig[selectedExamType][selectedClass] = Array.from(excludedSubjectIds);
+
+      const { error } = await supabase
+        .from('form_settings')
+        .upsert({
+          school_id: userRole.school_id,
+          form_name: 'exam_subject_exclusions',
+          sections_config: currentConfig,
+        }, { onConflict: 'school_id,form_name' });
+
+      if (error) throw error;
+      alert('Subject paper exclusions saved as default for this exam and class!');
+    } catch (err: any) {
+      alert(`Failed to save exclusions: ${err.message}`);
+    } finally {
+      setSavingExclusions(false);
+    }
   };
 
   const fetchStudentResults = async () => {
@@ -105,7 +173,7 @@ export default function ResultReporting() {
   const fetchAllClassResults = async () => {
     const ids = students.map(s => s.id);
     if (!ids.length) return;
-    const { data } = await supabase.from('exam_results').select('student_id, obtained_marks').eq('exam_type_id', selectedExamType).in('student_id', ids);
+    const { data } = await supabase.from('exam_results').select('student_id, subject_id, obtained_marks').eq('exam_type_id', selectedExamType).in('student_id', ids);
     if (data) setClassResults(data);
   };
 
@@ -131,7 +199,11 @@ export default function ResultReporting() {
   const computePosition = (studentId: string): { position: number; outOf: number } => {
     if (!classResults.length) return { position: 0, outOf: 0 };
     const totals: Record<string, number> = {};
-    classResults.forEach(r => { totals[r.student_id] = (totals[r.student_id] || 0) + r.obtained_marks; });
+    classResults.forEach(r => { 
+      // Skip marks of subjects whose paper was not conducted / excluded
+      if (excludedSubjectIds.has(r.subject_id)) return;
+      totals[r.student_id] = (totals[r.student_id] || 0) + r.obtained_marks; 
+    });
     const sorted = Object.entries(totals).sort(([, a], [, b]) => b - a);
     const ranks: Record<string, number> = {};
     let denseRank = 1;
@@ -178,13 +250,16 @@ export default function ResultReporting() {
         .select('id, name, section')
         .in('id', classIds);
 
-      const [{ data: allRes }, { data: allEvalsForExam }, { data: allEvalsAny }, { data: allAtt }, { data: allExamConfigs }] = await Promise.all([
+      const [{ data: allRes }, { data: allEvalsForExam }, { data: allEvalsAny }, { data: allAtt }, { data: allExamConfigs }, { data: exclusionData }] = await Promise.all([
         supabase.from('exam_results').select('*').eq('exam_type_id', selectedExamType).in('student_id', studentIds),
         supabase.from('evaluations').select('student_id, ratings, feedback, exam_type_id, evaluation_date').eq('exam_type_id', selectedExamType).in('student_id', studentIds),
         supabase.from('evaluations').select('student_id, ratings, feedback, exam_type_id, evaluation_date').in('student_id', studentIds).eq('school_id', userRole!.school_id).order('evaluation_date', { ascending: false }),
         supabase.from('attendance').select('student_id').eq('status', 'present').in('student_id', studentIds),
         supabase.from('exam_subject_config').select('subject_id, total_marks, passing_marks').eq('exam_type_id', selectedExamType).eq('school_id', userRole?.school_id),
+        supabase.from('form_settings').select('sections_config').eq('school_id', userRole!.school_id).eq('form_name', 'exam_subject_exclusions').maybeSingle(),
       ]);
+
+      const exclusionsByClass = exclusionData?.sections_config?.[selectedExamType] || {};
 
       const examConfigMap: Record<string, any> = {};
       (allExamConfigs || []).forEach(c => { examConfigMap[c.subject_id] = c; });
@@ -205,13 +280,14 @@ export default function ResultReporting() {
       let cards: any[] = [];
 
       classIds.forEach(cid => {
+        const excludedForClass = new Set<string>(exclusionsByClass[cid] || []);
         const classStudents = stus.filter(s => s.class_id === cid);
-        const classSubjects = (subs || []).filter((s: any) => s.class_id === cid);
+        const classSubjects = (subs || []).filter((s: any) => s.class_id === cid && !excludedForClass.has(s.id));
         const cInfo = (clsDetails || []).find((c: any) => c.id === cid);
         const classNameStr = cInfo ? cInfo.name : 'Class';
 
         const totals: Record<string, number> = {};
-        const classRes = (allRes || []).filter((r: any) => classStudents.some(cs => cs.id === r.student_id));
+        const classRes = (allRes || []).filter((r: any) => classStudents.some(cs => cs.id === r.student_id) && !excludedForClass.has(r.subject_id));
         classRes.forEach((r: any) => { totals[r.student_id] = (totals[r.student_id] || 0) + r.obtained_marks; });
         const sorted = Object.entries(totals).sort(([, a], [, b]) => (b as number) - (a as number));
         const ranks: Record<string, number> = {};
@@ -327,7 +403,10 @@ export default function ResultReporting() {
     setAttendanceMap(prev => ({ ...prev, ...attCount }));
 
     const totals: Record<string, number> = {};
-    (allRes || []).forEach((r: any) => { totals[r.student_id] = (totals[r.student_id] || 0) + r.obtained_marks; });
+    (allRes || []).forEach((r: any) => { 
+      if (excludedSubjectIds.has(r.subject_id)) return;
+      totals[r.student_id] = (totals[r.student_id] || 0) + r.obtained_marks; 
+    });
     const sorted = Object.entries(totals).sort(([, a], [, b]) => b - a);
     const ranks: Record<string, number> = {};
     let denseRank = 1;
@@ -338,10 +417,12 @@ export default function ResultReporting() {
       ranks[id] = denseRank;
     });
 
+    const activeClassSubjects = subjects.filter((subj: any) => !excludedSubjectIds.has(subj.id));
+
     const cards = students.map(stu => {
       const stuResults = (allRes || []).filter((r: any) => r.student_id === stu.id);
       let obtained = 0, grand = 0, fails = 0;
-      const subjectRows = subjects.map((subj: any) => {
+      const subjectRows = activeClassSubjects.map((subj: any) => {
         const r = stuResults.find((res: any) => res.subject_id === subj.id);
         const eCfg = examConfigMap[subj.id];
         const actualTotal = eCfg ? eCfg.total_marks : (subj.total_marks || 100);
@@ -380,7 +461,8 @@ export default function ResultReporting() {
   const currentStudent = students.find(s => s.id === selectedStudent);
 
   let totalObtained = 0, grandTotal = 0, failSubjects = 0;
-  const subjectRows = subjects.map(subj => {
+  const activeSubjects = subjects.filter(subj => !excludedSubjectIds.has(subj.id));
+  const subjectRows = activeSubjects.map(subj => {
     const r = results.find(res => res.subject_id === subj.id);
     const eCfg = examConfigs[subj.id];
     const actualTotal = eCfg ? eCfg.total_marks : (subj.total_marks || 100);
@@ -532,6 +614,87 @@ export default function ResultReporting() {
         </div>
       )}
 
+      {/* Subject Paper Exclusions Panel (For paper not conducted) */}
+      {selectedExamType && selectedClass && subjects.length > 0 && (
+        <div className="no-print bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+            <div>
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-indigo-600" />
+                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                  Paper Status / Active Subjects in Report Card
+                </h4>
+                {excludedSubjectIds.size > 0 && (
+                  <span className="text-[10px] font-black bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full">
+                    {excludedSubjectIds.size} Excluded
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Toggle off any subject whose paper was not conducted. Excluded subjects won't appear on report cards, and their marks are subtracted from the grand total and grading.
+              </p>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              {excludedSubjectIds.size > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setExcludedSubjectIds(new Set())}
+                  className="text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                >
+                  ✓ Include All
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleSaveExclusionsAsDefault}
+                disabled={savingExclusions}
+                className="text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="Save this subject selection as default for this exam"
+              >
+                {savingExclusions ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                <span>Save as Exam Default</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 pt-1">
+            {subjects.map(subj => {
+              const isExcluded = excludedSubjectIds.has(subj.id);
+              const subjectTotal = examConfigs[subj.id]?.total_marks || subj.total_marks || 100;
+              return (
+                <button
+                  key={subj.id}
+                  type="button"
+                  onClick={() => toggleSubjectExclusion(subj.id)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 cursor-pointer",
+                    isExcluded
+                      ? "bg-rose-50 text-rose-700 border-rose-300 line-through opacity-80 hover:bg-rose-100"
+                      : "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
+                  )}
+                  title={isExcluded ? "Click to include in report card" : "Click to exclude (paper not conducted)"}
+                >
+                  {isExcluded ? (
+                    <>
+                      <X className="w-3.5 h-3.5 text-rose-600 no-underline shrink-0" />
+                      <span>{subj.subject_name}</span>
+                      <span className="text-[10px] font-medium text-rose-500 bg-white/70 px-1 rounded no-underline">Not Conducted</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>{subj.subject_name}</span>
+                      <span className="text-[10px] font-normal text-emerald-600">({subjectTotal}m)</span>
+                    </>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Class Action buttons */}
       {selectedExamType && selectedClass && subjects.length > 0 && (
         <div className="no-print flex flex-wrap gap-3 justify-end items-center">
@@ -577,7 +740,7 @@ export default function ResultReporting() {
           subjects: subjectRows.map(row => ({
             name: row.subj.subject_name,
             marks: row.isAbs ? 'Ab' : (row.r?.obtained_marks ?? 0),
-            total: row.subj.total_marks || 100,
+            total: row.actualTotal,
             grade: row.grade,
             status: row.status,
           })),

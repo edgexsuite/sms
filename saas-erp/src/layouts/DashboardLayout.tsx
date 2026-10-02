@@ -280,7 +280,7 @@ export default function DashboardLayout() {
 
       {/* ── Sidebar ─────────────────────────────────────────── */}
       <aside className={cn(
-        `fixed md:sticky md:top-0 inset-y-0 left-0 z-[60] h-screen flex flex-col shrink-0 no-print transition-all duration-300 ${isSidebarCollapsed ? 'w-[64px]' : 'w-[260px] md:w-[220px]'}`,
+        `fixed md:sticky md:top-0 inset-y-0 left-0 z-[60] h-screen flex flex-col shrink-0 no-print transition-all duration-300 ${isSidebarCollapsed ? 'w-[64px]' : 'w-[280px] md:w-[260px]'}`,
         "bg-[#0d1526]",
         "shadow-[4px_0_24px_rgba(0,0,0,0.35)]",
         "transition-transform duration-300 ease-in-out",
@@ -392,7 +392,7 @@ export default function DashboardLayout() {
                               <div className="w-8 h-8 rounded-lg flex items-center justify-center transition-all bg-white/[0.03] group-hover:bg-white/[0.08]">
                                 <Icon className="w-[14px] h-[14px]" />
                               </div>
-                              {!isSidebarCollapsed && <span className="truncate text-[13px] font-bold tracking-tight">{item.name}</span>}
+                              {!isSidebarCollapsed && <span className="text-[13px] font-bold tracking-tight leading-snug text-left">{item.name}</span>}
                             </button>
                           ) : (
                             <Link
@@ -412,7 +412,7 @@ export default function DashboardLayout() {
                               >
                                 <Icon className="w-[14px] h-[14px]" />
                               </div>
-                              {!isSidebarCollapsed && <span className="truncate text-[13px] font-bold tracking-tight">{item.name}</span>}
+                              {!isSidebarCollapsed && <span className="text-[13px] font-bold tracking-tight leading-snug text-left">{item.name}</span>}
                             </Link>
                           )
                         ) : (
@@ -424,16 +424,16 @@ export default function DashboardLayout() {
                             )}
                             style={isActive ? { backgroundColor: accentBg } : {}}
                           >
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
                               <div
-                                className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
+                                className="w-8 h-8 rounded-lg flex items-center justify-center transition-all shrink-0"
                                 style={isActive ? { backgroundColor: accent, color: '#fff' } : { backgroundColor: 'rgba(255,255,255,0.03)' }}
                               >
                                 <Icon className="w-[14px] h-[14px]" />
                               </div>
-                              {!isSidebarCollapsed && <span className="truncate text-[13px] font-bold tracking-tight">{item.name}</span>}
+                              {!isSidebarCollapsed && <span className="text-[13px] font-bold tracking-tight leading-snug text-left">{item.name}</span>}
                             </div>
-                            {!isSidebarCollapsed && <ChevronRight className={cn("w-3.5 h-3.5 transition-transform duration-200 opacity-40", isOpen && "rotate-90 opacity-100")} />}
+                            {!isSidebarCollapsed && <ChevronRight className={cn("w-3.5 h-3.5 transition-transform duration-200 opacity-40 shrink-0 ml-1", isOpen && "rotate-90 opacity-100")} />}
                           </button>
                         )}
 
@@ -449,7 +449,7 @@ export default function DashboardLayout() {
                               className="overflow-hidden"
                             >
                               <div
-                                className="mt-0.5 mb-1 ml-[38px] pl-3 space-y-px border-l"
+                                className="mt-0.5 mb-1 ml-[28px] pl-2.5 space-y-px border-l"
                                 style={{ borderColor: `${accent}30` }}
                               >
                                 {item.subItems!.filter(sub => !(sub as any).roles || (userRole?.role && (sub as any).roles.includes(userRole.role))).map((sub) => {
@@ -462,16 +462,16 @@ export default function DashboardLayout() {
                                       to={sub.path}
                                       onClick={() => setIsMobileMenuOpen(false)}
                                       className={cn(
-                                        "flex items-center gap-2 px-2 py-[5px] rounded-md text-[11.5px] transition-all duration-150",
+                                        "flex items-start gap-2 px-2 py-[6px] rounded-md text-[11.5px] transition-all duration-150",
                                         isSubActive ? "font-semibold" : "text-slate-300 hover:text-white hover:bg-white/[0.06] font-medium"
                                       )}
                                       style={isSubActive ? { color: accent, backgroundColor: accentBgSm } : {}}
                                     >
                                       <span
-                                        className="w-1 h-1 rounded-full shrink-0 transition-all"
-                                        style={isSubActive ? { backgroundColor: accent } : { backgroundColor: 'rgba(255,255,255,0.2)' }}
+                                        className="w-1.5 h-1.5 rounded-full shrink-0 transition-all mt-1 self-start"
+                                        style={isSubActive ? { backgroundColor: accent } : { backgroundColor: 'rgba(255,255,255,0.25)' }}
                                       />
-                                      <span className="truncate">{sub.name}</span>
+                                      <span className="leading-snug text-left">{sub.name}</span>
                                     </Link>
                                   );
                                 })}

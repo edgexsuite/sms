@@ -31,6 +31,8 @@ export default function ExamMarksConfig() {
   const [selectedClass, setSelectedClass] = useState('');
   
   const [configs, setConfigs] = useState<Record<string, ConfigRow>>({});
+  const [excludedSubjects, setExcludedSubjects] = useState<Set<string>>(new Set());
+  const [isExclusionsDirty, setIsExclusionsDirty] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
@@ -78,11 +80,19 @@ export default function ExamMarksConfig() {
   };
 
   const fetchExistingConfigs = async () => {
-    const { data } = await supabase
-      .from('exam_subject_config')
-      .select('*')
-      .eq('exam_type_id', selectedExam)
-      .in('subject_id', subjects.map(s => s.id));
+    const [{ data }, { data: fsData }] = await Promise.all([
+      supabase
+        .from('exam_subject_config')
+        .select('*')
+        .eq('exam_type_id', selectedExam)
+        .in('subject_id', subjects.map(s => s.id)),
+      supabase
+        .from('form_settings')
+        .select('sections_config')
+        .eq('school_id', sid)
+        .eq('form_name', 'exam_subject_exclusions')
+        .maybeSingle()
+    ]);
 
     const mapping: Record<string, ConfigRow> = {};
     subjects.forEach(sub => {
@@ -94,6 +104,10 @@ export default function ExamMarksConfig() {
       };
     });
     setConfigs(mapping);
+
+    const savedExclusions = fsData?.sections_config?.[selectedExam]?.[selectedClass] || [];
+    setExcludedSubjects(new Set(savedExclusions));
+    setIsExclusionsDirty(false);
   };
 
   const handleUpdate = (subId: string, field: 'total_marks' | 'passing_marks', value: string) => {
@@ -101,6 +115,28 @@ export default function ExamMarksConfig() {
       ...prev,
       [subId]: { ...prev[subId], [field]: value, is_dirty: true }
     }));
+  };
+
+  const toggleSubjectExclusion = (subId: string) => {
+    setExcludedSubjects(prev => {
+      const next = new Set(prev);
+      if (next.has(subId)) {
+        next.delete(subId);
+      } else {
+        next.add(subId);
+      }
+      return next;
+    });
+    setIsExclusionsDirty(true);
+  };
+
+  const setAllExclusions = (exclude: boolean) => {
+    if (exclude) {
+      setExcludedSubjects(new Set(subjects.map(s => s.id)));
+    } else {
+      setExcludedSubjects(new Set());
+    }
+    setIsExclusionsDirty(true);
   };
 
   const syncWithDefaults = () => {
@@ -122,30 +158,59 @@ export default function ExamMarksConfig() {
     setStatus(null);
 
     const dirtyRows = (Object.values(configs) as ConfigRow[]).filter(c => c.is_dirty);
-    if (dirtyRows.length === 0) {
+    if (dirtyRows.length === 0 && !isExclusionsDirty) {
       setSaving(false);
       return;
     }
 
-    const upserts = dirtyRows.map(c => ({
-      school_id: sid,
-      exam_type_id: selectedExam,
-      subject_id: c.subject_id,
-      total_marks: Number(c.total_marks),
-      passing_marks: Number(c.passing_marks)
-    }));
+    try {
+      if (dirtyRows.length > 0) {
+        const upserts = dirtyRows.map(c => ({
+          school_id: sid,
+          exam_type_id: selectedExam,
+          subject_id: c.subject_id,
+          total_marks: Number(c.total_marks),
+          passing_marks: Number(c.passing_marks)
+        }));
 
-    const { error } = await supabase
-      .from('exam_subject_config')
-      .upsert(upserts, { onConflict: 'exam_type_id,subject_id' });
+        const { error } = await supabase
+          .from('exam_subject_config')
+          .upsert(upserts, { onConflict: 'exam_type_id,subject_id' });
 
-    if (error) {
-      setStatus({ type: 'error', msg: error.message });
-    } else {
-      setStatus({ type: 'success', msg: 'Configurations saved successfully!' });
+        if (error) throw error;
+      }
+
+      if (isExclusionsDirty) {
+        const { data: existingSettings } = await supabase
+          .from('form_settings')
+          .select('sections_config')
+          .eq('school_id', sid)
+          .eq('form_name', 'exam_subject_exclusions')
+          .maybeSingle();
+
+        const currentConfig = existingSettings?.sections_config || {};
+        if (!currentConfig[selectedExam]) currentConfig[selectedExam] = {};
+        currentConfig[selectedExam][selectedClass] = Array.from(excludedSubjects);
+
+        const { error: fsError } = await supabase
+          .from('form_settings')
+          .upsert({
+            school_id: sid,
+            form_name: 'exam_subject_exclusions',
+            sections_config: currentConfig,
+          }, { onConflict: 'school_id,form_name' });
+
+        if (fsError) throw fsError;
+        setIsExclusionsDirty(false);
+      }
+
+      setStatus({ type: 'success', msg: 'Configurations and paper exclusions saved successfully!' });
       fetchExistingConfigs();
+    } catch (err: any) {
+      setStatus({ type: 'error', msg: err.message || 'Failed to save configuration.' });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
   
   const handleBulkApply = async () => {
@@ -390,59 +455,123 @@ export default function ExamMarksConfig() {
       {selectedExam && selectedClass ? (
         subjects.length > 0 ? (
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-              <h2 className="font-black text-slate-900 text-sm uppercase tracking-wide flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-indigo-500" /> Subject-Wise Marks Configuration
-              </h2>
-              <button 
-                onClick={syncWithDefaults}
-                className="text-[10px] font-black text-indigo-600 hover:text-indigo-800 flex items-center gap-1 uppercase tracking-widest"
-              >
-                <RefreshCw className="w-3 h-3" /> Sync with defaults
-              </button>
+            <div className="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="font-black text-slate-900 text-sm uppercase tracking-wide flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-indigo-500" /> Subject-Wise Marks & Paper Status
+                </h2>
+                <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                  Exclude cancelled or non-conducted subjects so they are omitted from report cards and max totals.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setAllExclusions(false)}
+                  className="text-[10px] font-black text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200 uppercase tracking-wider"
+                >
+                  ✓ Include All
+                </button>
+                <button 
+                  type="button"
+                  onClick={syncWithDefaults}
+                  className="text-[10px] font-black text-indigo-600 hover:text-indigo-800 flex items-center gap-1 uppercase tracking-widest px-2.5 py-1"
+                >
+                  <RefreshCw className="w-3 h-3" /> Sync defaults
+                </button>
+              </div>
             </div>
+
             <table className="w-full">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
                   <th className="text-left px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Subject</th>
-                  <th className="text-center px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-40">Total Marks</th>
-                  <th className="text-center px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-40">Passing Marks</th>
+                  <th className="text-center px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-36">Total Marks</th>
+                  <th className="text-center px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-36">Passing Marks</th>
+                  <th className="text-center px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-56">Paper Status in Report Card</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {subjects.map(sub => {
                   const cfg = configs[sub.id] || { subject_id: sub.id, total_marks: '', passing_marks: '' };
+                  const isExcluded = excludedSubjects.has(sub.id);
+
                   return (
-                    <tr key={sub.id} className="hover:bg-slate-50/50 transition-colors">
+                    <tr key={sub.id} className={cn(
+                      "transition-colors",
+                      isExcluded ? "bg-amber-50/40 hover:bg-amber-50/70" : "hover:bg-slate-50/50"
+                    )}>
                       <td className="px-6 py-4">
-                        <span className="font-bold text-slate-800 text-sm">{sub.subject_name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className={cn(
+                            "font-bold text-sm",
+                            isExcluded ? "text-slate-500 line-through" : "text-slate-800"
+                          )}>
+                            {sub.subject_name}
+                          </span>
+                          {isExcluded && (
+                            <span className="text-[9px] font-black uppercase text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-200">
+                              Excluded
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[10px] text-slate-400 font-bold mt-0.5">
                           Default: {sub.total_marks} Total · {sub.passing_marks} Passing
                         </div>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-4">
                         <input 
                           type="number"
                           value={cfg.total_marks}
+                          disabled={isExcluded}
                           onChange={e => handleUpdate(sub.id, 'total_marks', e.target.value)}
                           placeholder={String(sub.total_marks)}
                           className={cn(
                             "w-full text-center font-black text-sm px-3 py-2 rounded-xl border transition focus:outline-none focus:ring-2 focus:ring-indigo-500",
-                            cfg.is_dirty ? "border-indigo-300 bg-indigo-50/30" : "border-slate-200 bg-white"
+                            isExcluded
+                              ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
+                              : cfg.is_dirty ? "border-indigo-300 bg-indigo-50/30" : "border-slate-200 bg-white"
                           )}
                         />
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-4">
                         <input 
                           type="number"
                           value={cfg.passing_marks}
+                          disabled={isExcluded}
                           onChange={e => handleUpdate(sub.id, 'passing_marks', e.target.value)}
                           placeholder={String(sub.passing_marks)}
                           className={cn(
                             "w-full text-center font-black text-sm px-3 py-2 rounded-xl border transition focus:outline-none focus:ring-2 focus:ring-indigo-500",
-                            cfg.is_dirty ? "border-indigo-300 bg-indigo-50/30" : "border-slate-200 bg-white"
+                            isExcluded
+                              ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
+                              : cfg.is_dirty ? "border-indigo-300 bg-indigo-50/30" : "border-slate-200 bg-white"
                           )}
                         />
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <button
+                          type="button"
+                          onClick={() => toggleSubjectExclusion(sub.id)}
+                          className={cn(
+                            "w-full py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 border cursor-pointer",
+                            isExcluded
+                              ? "bg-amber-100/80 border-amber-300 text-amber-900 shadow-xs hover:bg-amber-200"
+                              : "bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100"
+                          )}
+                        >
+                          {isExcluded ? (
+                            <>
+                              <X className="w-3.5 h-3.5 text-amber-700" />
+                              <span>Not Conducted (Excluded)</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Conducted (Included)</span>
+                            </>
+                          )}
+                        </button>
                       </td>
                     </tr>
                   );
