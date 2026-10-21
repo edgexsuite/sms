@@ -18,12 +18,14 @@ import AdmissionForm from './AdmissionForm';
 import StudentDetailPage from './StudentDetailPage';
 import CustomStudentList from './CustomStudentList';
 import CertificatesHub from './CertificatesHub';
+import StudentPhotoManager from './StudentPhotoManager';
 
 export default function StudentsLayout() {
   // Now simply acts as a router wrapper, navigation is handled by main DashboardLayout
   return (
     <Routes>
       <Route path="/" element={<StudentList />} />
+      <Route path="photos" element={<StudentPhotoManager />} />
       <Route path="register" element={<RegisterStudent />} />
       <Route path="edit/:id" element={<RegisterStudent />} />
       <Route path="custom-list" element={<CustomStudentList />} />

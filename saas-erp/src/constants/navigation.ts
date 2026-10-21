@@ -7,7 +7,7 @@ import {
   LineChart, Library, Home, Bell, Key, Trash2, Box, Package, Clock, Palette,
   Receipt, Layers, BookMarked, Landmark, BarChart, LifeBuoy, Users2, Bus, MapPin, Truck,
   Radio, Inbox, Tag, History, Printer, Wand2, Trophy, CalendarDays, Table2, CheckCircle2,
-  QrCode
+  QrCode, Camera
 } from 'lucide-react';
 
 export const ALL_ADMIN        = ['admin', 'principal', 'director', 'vice_principal'];
@@ -50,6 +50,7 @@ export const NAV_SECTIONS = [
         roles: ['admin', 'teacher', 'staff', 'principal', 'director'],
         subItems: [
           { name: 'Student Directory',        path: '/students',                    exact: true, icon: Users,        roles: ALL_ACADEMIC },
+          { name: 'Upload Student Photos',    path: '/students/photos',                          icon: Camera,       roles: ALL_ACADEMIC },
           { name: 'New Admission',            path: '/students/register',                        icon: UserPlus,     roles: ALL_STAFF    },
           { name: 'Certificates & Documents', path: '/students/certificates',                    icon: Award,        roles: ALL_STAFF    },
           { name: 'Promote Students',         path: '/students/promote',                         icon: ShieldCheck,  roles: ALL_ADMIN    },

@@ -17,12 +17,17 @@ function supportsWebP(): boolean {
 export interface PhotoProcessResult {
   blob: Blob;
   sizeKB: number;      // final compressed size in KB
+  rawSizeKB?: number;  // original raw file size in KB
+  reductionPercent?: number; // e.g. 98.5%
   format: 'webp' | 'jpeg';
+  width: number;
+  height: number;
 }
 
 /**
  * Resize to 150×180 px (cover-crop) and compress as WebP (fallback: JPEG)
- * until the blob is ≤ 20 KB.  Returns the blob + metadata.
+ * ensuring the blob is strictly LESS than 20 KB (< 20,480 bytes).
+ * Uses adaptive quality reduction and dimension back-off if necessary.
  *
  * Throws if:
  *  - file.type is not an image
@@ -37,6 +42,9 @@ export function processStudentPhoto(file: File): Promise<PhotoProcessResult> {
 
   const format = supportsWebP() ? 'webp' : 'jpeg';
   const mime   = `image/${format}`;
+  const rawSizeKB = Math.round((file.size / 1024) * 10) / 10;
+  // Strictly less than 20 KB
+  const HARD_LIMIT_BYTES = 20 * 1024 - 1; // 20479 bytes max
 
   return new Promise((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file);
@@ -45,35 +53,87 @@ export function processStudentPhoto(file: File): Promise<PhotoProcessResult> {
     img.onload = () => {
       URL.revokeObjectURL(objectUrl);
 
-      const canvas = document.createElement('canvas');
-      canvas.width  = PHOTO_WIDTH;
-      canvas.height = PHOTO_HEIGHT;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) { reject(new Error('Canvas not supported')); return; }
+      // Attempt compression with decreasing dimensions if quality alone doesn't fit
+      const dimensionSteps = [
+        { w: PHOTO_WIDTH, h: PHOTO_HEIGHT },
+        { w: 130, h: 156 },
+        { w: 110, h: 132 },
+        { w: 90,  h: 108 },
+      ];
 
-      // Cover-fit: fill canvas, centre-crop
-      const scale   = Math.max(PHOTO_WIDTH / img.width, PHOTO_HEIGHT / img.height);
-      const scaledW = img.width  * scale;
-      const scaledH = img.height * scale;
-      ctx.drawImage(img, (PHOTO_WIDTH - scaledW) / 2, (PHOTO_HEIGHT - scaledH) / 2, scaledW, scaledH);
+      let dimIndex = 0;
 
-      // Step quality 0.90 → 0.10 until blob ≤ 20 KB
-      let quality = 0.90;
-      const tryCompress = () => {
-        canvas.toBlob(blob => {
-          if (!blob) { reject(new Error('Failed to encode image')); return; }
-          if (blob.size <= PHOTO_MAX_BYTES || quality <= 0.10) {
-            resolve({ blob, sizeKB: Math.round(blob.size / 1024 * 10) / 10, format });
-          } else {
-            quality = Math.round((quality - 0.10) * 10) / 10;
-            tryCompress();
-          }
-        }, mime, quality);
+      const attemptAtCurrentDimension = () => {
+        const targetDim = dimensionSteps[dimIndex];
+        const canvas = document.createElement('canvas');
+        canvas.width  = targetDim.w;
+        canvas.height = targetDim.h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { reject(new Error('Canvas not supported')); return; }
+
+        // Cover-fit: fill canvas, centre-crop
+        const scale   = Math.max(targetDim.w / img.width, targetDim.h / img.height);
+        const scaledW = img.width  * scale;
+        const scaledH = img.height * scale;
+        ctx.drawImage(img, (targetDim.w - scaledW) / 2, (targetDim.h - scaledH) / 2, scaledW, scaledH);
+
+        // Step quality 0.85 -> 0.12 until blob < 20 KB
+        let quality = 0.85;
+        const tryQualityStep = () => {
+          canvas.toBlob(blob => {
+            if (!blob) { reject(new Error('Failed to encode image')); return; }
+
+            if (blob.size <= HARD_LIMIT_BYTES) {
+              const sizeKB = Math.round((blob.size / 1024) * 10) / 10;
+              const reductionPercent = rawSizeKB > 0
+                ? Math.max(0, Math.round(((file.size - blob.size) / file.size) * 1000) / 10)
+                : 0;
+
+              resolve({
+                blob,
+                sizeKB,
+                rawSizeKB,
+                reductionPercent,
+                format,
+                width: targetDim.w,
+                height: targetDim.h,
+              });
+              return;
+            }
+
+            if (quality > 0.15) {
+              quality = Math.max(0.12, Math.round((quality - 0.12) * 100) / 100);
+              tryQualityStep();
+            } else if (dimIndex < dimensionSteps.length - 1) {
+              // Quality alone isn't enough, step down dimensions
+              dimIndex++;
+              attemptAtCurrentDimension();
+            } else {
+              // Final fallback: return blob with current size
+              const sizeKB = Math.round((blob.size / 1024) * 10) / 10;
+              resolve({
+                blob,
+                sizeKB,
+                rawSizeKB,
+                reductionPercent: Math.max(0, Math.round(((file.size - blob.size) / file.size) * 1000) / 10),
+                format,
+                width: targetDim.w,
+                height: targetDim.h,
+              });
+            }
+          }, mime, quality);
+        };
+
+        tryQualityStep();
       };
-      tryCompress();
+
+      attemptAtCurrentDimension();
     };
 
-    img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('Failed to load image — file may be corrupt.')); };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Failed to load image — file may be corrupt.'));
+    };
     img.src = objectUrl;
   });
 }

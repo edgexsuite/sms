@@ -8,8 +8,9 @@ import {
   ArrowLeft, Printer, User, BookOpen, Calendar, CreditCard, BarChart3,
   Phone, MapPin, Heart, Shield, CheckCircle, XCircle, Clock, Award,
   TrendingUp, AlertCircle, Download, Plus, ChevronRight, MoreVertical, Users,
-  Wallet, X as XIcon, Loader2, Tag, ExternalLink, AlertTriangle,
+  Wallet, X as XIcon, Loader2, Tag, ExternalLink, AlertTriangle, Camera,
 } from 'lucide-react';
+import { processStudentPhoto, uploadFile } from '../../lib/uploadUtils';
 import { PageHeader, Card, Btn, Badge, Input, Select, EmptyState } from '../../components/ui';
 import StudentFeeModal from '../../components/StudentFeeModal';
 import StudentFeeOverrideModal from '../../components/StudentFeeOverrideModal';
@@ -32,8 +33,11 @@ const STATUS_COLOR: Record<string, string> = {
 export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { userRole } = useAuth();
+  const { userRole, isClassIncharge } = useAuth();
   const printRef = useRef<HTMLDivElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [photoFeedback, setPhotoFeedback] = useState<string | null>(null);
 
   // Roles with full write access — teachers/staff are read-only
   const ADMIN_ROLES = ['admin', 'principal', 'director', 'accountant', 'staff'];
@@ -90,6 +94,51 @@ export default function StudentDetailPage() {
   const [publishedExamIds, setPublishedExamIds] = useState<string[] | null>(null);
   const dueDateInputRef = useRef<HTMLInputElement>(null);
   const paidAtInputRef = useRef<HTMLInputElement>(null);
+
+  const canUploadPhoto = Boolean(
+    userRole && (
+      ['admin', 'principal', 'director'].includes(userRole.role) ||
+      isClassIncharge(student?.class_id)
+    )
+  );
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !student?.id || !userRole?.school_id) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file (JPEG, PNG, WebP).');
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    setPhotoFeedback('Compressing strictly under 20 KB...');
+    try {
+      const compressed = await processStudentPhoto(file);
+      setPhotoFeedback(`Uploading (${compressed.sizeKB} KB)...`);
+      const storagePath = `${userRole.school_id}/students/${student.id}`;
+      const publicUrl = await uploadFile(storagePath, compressed.blob, compressed.format);
+      const refreshedUrl = `${publicUrl}?t=${Date.now()}`;
+
+      const { error } = await supabase
+        .from('students')
+        .update({ photograph_url: refreshedUrl })
+        .eq('id', student.id);
+
+      if (error) throw error;
+
+      setStudent((prev: any) => ({ ...prev, photograph_url: refreshedUrl }));
+      setPhotoFeedback(`Photo updated! (${compressed.sizeKB} KB · < 20 KB)`);
+      setTimeout(() => setPhotoFeedback(null), 3500);
+    } catch (err: any) {
+      console.error('Failed to update student photo:', err);
+      alert('Failed to update photo: ' + err.message);
+      setPhotoFeedback(null);
+    } finally {
+      setIsUploadingPhoto(false);
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    }
+  };
 
   useEffect(() => {
     if (userRole?.school_id) {
@@ -830,14 +879,51 @@ export default function StudentDetailPage() {
           <Card className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 border-none shadow-2xl p-0 overflow-hidden mb-6">
             <div className="px-6 py-10">
               <div className="flex flex-col md:flex-row items-start md:items-center gap-8">
-                {student.photograph_url ? (
-                  <img src={student.photograph_url} alt={student.full_name}
-                    className="w-32 h-32 rounded-3xl object-cover border-4 border-white/20 shadow-2xl shrink-0" />
-                ) : (
-                  <div className="w-32 h-32 rounded-3xl bg-indigo-600/40 border-4 border-indigo-400/30 flex items-center justify-center text-5xl font-black text-white shadow-2xl shrink-0">
-                    {student.full_name?.charAt(0)?.toUpperCase()}
-                  </div>
-                )}
+                <div className="relative group shrink-0">
+                  <input
+                    ref={photoInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={handlePhotoUpload}
+                  />
+
+                  {student.photograph_url ? (
+                    <img src={student.photograph_url} alt={student.full_name}
+                      className="w-32 h-32 rounded-3xl object-cover border-4 border-white/20 shadow-2xl shrink-0" />
+                  ) : (
+                    <div className="w-32 h-32 rounded-3xl bg-indigo-600/40 border-4 border-indigo-400/30 flex items-center justify-center text-5xl font-black text-white shadow-2xl shrink-0">
+                      {student.full_name?.charAt(0)?.toUpperCase()}
+                    </div>
+                  )}
+
+                  {canUploadPhoto && (
+                    <button
+                      onClick={() => photoInputRef.current?.click()}
+                      disabled={isUploadingPhoto}
+                      className="absolute inset-0 bg-slate-900/60 rounded-3xl opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition gap-1 cursor-pointer backdrop-blur-xs"
+                      title="Upload Student Photo (< 20 KB)"
+                    >
+                      {isUploadingPhoto ? (
+                        <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
+                      ) : (
+                        <>
+                          <Camera className="w-6 h-6 text-white" />
+                          <span className="text-[10px] font-black uppercase tracking-wider">
+                            {student.photograph_url ? 'Change' : 'Upload'}
+                          </span>
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  {photoFeedback && (
+                    <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-bold text-indigo-300 bg-slate-900/90 px-2 py-0.5 rounded-full border border-indigo-500/40 shadow-lg">
+                      {photoFeedback}
+                    </span>
+                  )}
+                </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-3 mb-4">
                     <Badge variant={student.status === 'active' ? 'success' : 'secondary'} className="uppercase tracking-[0.2em] px-4 py-1.5 shadow-lg shadow-black/20 border-none">

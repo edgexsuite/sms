@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { GraduationCap, ChevronRight, BookOpen, User, Users } from 'lucide-react';
+import { GraduationCap, ChevronRight, BookOpen, User, Users, Camera } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import StudentList from '../students/StudentList';
 
 export default function ClassStudents() {
@@ -52,13 +53,21 @@ export default function ClassStudents() {
   /* ── Class grid picker ───────────────────────────────────────────────── */
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2 uppercase tracking-tight">
-          <GraduationCap className="w-7 h-7 text-indigo-600" /> Class Students
-        </h1>
-        <p className="text-slate-500 text-sm mt-1">
-          Select a class to manage its students — search, edit, status changes, exports and more.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2 uppercase tracking-tight">
+            <GraduationCap className="w-7 h-7 text-indigo-600" /> Class Students
+          </h1>
+          <p className="text-slate-500 text-sm mt-1">
+            Select a class to manage its students — search, edit, status changes, exports and more.
+          </p>
+        </div>
+        <Link
+          to="/students/photos"
+          className="flex items-center gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition shadow-md self-start sm:self-auto"
+        >
+          <Camera className="w-4 h-4" /> Upload Student Photos
+        </Link>
       </div>
 
       {loading ? (

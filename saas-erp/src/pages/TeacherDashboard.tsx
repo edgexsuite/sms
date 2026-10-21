@@ -11,10 +11,11 @@ import {
   Clock, BarChart2, CalendarDays, Award, AlertCircle, Save,
   RefreshCw, ChevronDown, ChevronUp, UserCheck, CalendarOff,
   Plus, X, Briefcase, FileText, TrendingUp, MessageCircle, ChevronLeft, Flag, Send, Search,
-  Star, Package, ShoppingCart, Trash2,
+  Star, Package, ShoppingCart, Trash2, Camera, Image as ImageIcon,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ChatInterface from '../components/ChatInterface';
+import StudentPhotoUploadModal from '../components/StudentPhotoUploadModal';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -180,6 +181,9 @@ export default function TeacherDashboard() {
   // Chat Center
   const [chatOpen,    setChatOpen]    = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Student Photo Upload Modal (for Class Incharge)
+  const [photoModalOpen, setPhotoModalOpen] = useState(false);
 
   // Student Leaves (for Class Teachers)
   const [studentLeaves, setStudentLeaves] = useState<any[]>([]);
@@ -825,6 +829,11 @@ export default function TeacherDashboard() {
                 )}
               </button>
               <button
+                onClick={() => setPhotoModalOpen(true)}
+                className="flex items-center gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-md">
+                <Camera className="w-3.5 h-3.5" /> Student Photos
+              </button>
+              <button
                 onClick={() => {
                   setAttOpen(true);
                   setTimeout(() => {
@@ -1317,6 +1326,39 @@ export default function TeacherDashboard() {
             </div>
           </div>
           
+          {/* Class Student Photos Card */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="font-black text-gray-900 text-sm flex items-center gap-2">
+                <Camera className="w-4 h-4 text-indigo-600" /> Class Student Photos
+              </h2>
+              <button
+                onClick={() => setPhotoModalOpen(true)}
+                className="flex items-center gap-1.5 text-xs font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-lg transition"
+              >
+                <Camera className="w-3.5 h-3.5" /> Manage Photos
+              </button>
+            </div>
+            <div className="p-4 bg-gradient-to-br from-indigo-50/40 to-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <p className="text-xs font-black text-gray-900">
+                  {classTeacherClasses.length > 0
+                    ? `Class Teacher: ${classTeacherClasses.map(c => `${c.name} ${c.section}`).join(', ')}`
+                    : 'Class Student Photo Uploader'}
+                </p>
+                <p className="text-[11px] text-gray-500 font-medium">
+                  Upload &amp; compress student pictures strictly &lt; 20 KB (WebP/JPEG). Supports mobile camera.
+                </p>
+              </div>
+              <button
+                onClick={() => setPhotoModalOpen(true)}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black px-4 py-2 rounded-xl shadow-xs transition shrink-0 flex items-center justify-center gap-2 active:scale-95"
+              >
+                <Camera className="w-3.5 h-3.5" /> Upload Photos
+              </button>
+            </div>
+          </div>
+
           {/* Student Leave Management (Class Teacher only) */}
           {classTeacherClasses.length > 0 && (
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -1979,6 +2021,18 @@ export default function TeacherDashboard() {
           onClose={() => {
             setChatOpen(false);
             fetchUnreadCount(staffId!);
+          }}
+        />
+      )}
+      {/* ── Student Photo Upload Modal for Class Incharge ── */}
+      {photoModalOpen && (
+        <StudentPhotoUploadModal
+          isOpen={photoModalOpen}
+          onClose={() => setPhotoModalOpen(false)}
+          availableClasses={classTeacherClasses.map(c => ({ id: c.id, name: c.name, section: c.section }))}
+          onPhotoUpdated={() => {
+            // Refresh class students in background if needed
+            if (staffId) fetchAllClassStudents(staffId);
           }}
         />
       )}

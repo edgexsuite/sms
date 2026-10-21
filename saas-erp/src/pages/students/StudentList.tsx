@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Search, Upload, Download, Trash2, BookOpen, FileSpreadsheet, UserPlus, Eye, X, ChevronDown, Users, CheckCircle, MoreVertical, Edit, UserX, Key, GraduationCap, LogOut, Shield, Filter, RotateCcw } from 'lucide-react';
+import { Search, Upload, Download, Trash2, BookOpen, FileSpreadsheet, UserPlus, Eye, X, ChevronDown, Users, CheckCircle, MoreVertical, Edit, UserX, Key, GraduationCap, LogOut, Shield, Filter, RotateCcw, Camera, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
 import DeletePinModal from '../../components/DeletePinModal';
+import StudentPhotoUploadModal from '../../components/StudentPhotoUploadModal';
+import { processStudentPhoto, uploadFile } from '../../lib/uploadUtils';
 import Papa from 'papaparse';
 import { exportToExcel } from '../../lib/exportUtils';
 import { supabase } from '../../lib/supabase';
@@ -50,11 +52,57 @@ interface StudentListProps {
 
 export default function StudentList({ initialClassId, onBack }: StudentListProps = {}) {
   const { t } = useTranslation();
-  const { userRole } = useAuth();
+  const { userRole, isClassIncharge, inchargeClassIds } = useAuth();
   const navigate = useNavigate();
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  // Photo modal & drawer upload state
+  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+  const [drawerUploadingPhoto, setDrawerUploadingPhoto] = useState(false);
+  const [drawerPhotoFeedback, setDrawerPhotoFeedback] = useState<string | null>(null);
+  const drawerPhotoInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDrawerPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedStudent?.id || !userRole?.school_id) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file (JPEG, PNG, WebP).');
+      return;
+    }
+
+    setDrawerUploadingPhoto(true);
+    setDrawerPhotoFeedback('Compressing strictly under 20 KB...');
+    try {
+      const compressed = await processStudentPhoto(file);
+      setDrawerPhotoFeedback(`Uploading (${compressed.sizeKB} KB)...`);
+      const storagePath = `${userRole.school_id}/students/${selectedStudent.id}`;
+      const publicUrl = await uploadFile(storagePath, compressed.blob, compressed.format);
+      const refreshedUrl = `${publicUrl}?t=${Date.now()}`;
+
+      const { error } = await supabase
+        .from('students')
+        .update({ photograph_url: refreshedUrl })
+        .eq('id', selectedStudent.id);
+
+      if (error) throw error;
+
+      setSelectedStudent(prev => (prev ? { ...prev, photograph_url: refreshedUrl } : null));
+      setStudents(prev =>
+        prev.map(s => (s.id === selectedStudent.id ? { ...s, photograph_url: refreshedUrl } : s))
+      );
+      setDrawerPhotoFeedback(`Photo updated! (${compressed.sizeKB} KB · < 20 KB)`);
+      setTimeout(() => setDrawerPhotoFeedback(null), 3500);
+    } catch (err: any) {
+      console.error('Failed to update student photo in drawer:', err);
+      alert('Failed to update photo: ' + err.message);
+      setDrawerPhotoFeedback(null);
+    } finally {
+      setDrawerUploadingPhoto(false);
+      if (drawerPhotoInputRef.current) drawerPhotoInputRef.current.value = '';
+    }
+  };
   // statusFilter kept for legacy bulk modal compatibility
   const [statusFilter, setStatusFilter] = useState('all');
   const [classFilter, setClassFilter] = useState(initialClassId ?? '');
@@ -722,6 +770,17 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
                 </Btn>
               </>
             )}
+            {Boolean(userRole && (['admin', 'principal', 'director', 'vice_principal', 'teacher', 'staff', 'campus_coordinator', 'academic_coordinator', 'section_coordinator'].includes(userRole.role) || isClassIncharge())) && (
+              <Btn
+                variant="secondary"
+                onClick={() => setIsPhotoModalOpen(true)}
+                title="Upload & Compress Student Photos (< 20 KB)"
+                className="text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+              >
+                <Camera className="w-4 h-4" />
+                <span className="hidden sm:inline">Upload Photos</span>
+              </Btn>
+            )}
             {userRole?.role === 'admin' && (
               <>
                 <Btn variant="secondary" onClick={() => setIsImportModalOpen(true)} title="Import CSV">
@@ -1140,17 +1199,66 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
               {/* Drawer Header */}
               <div className="shrink-0 bg-gradient-to-br from-slate-900 to-indigo-900 px-6 py-6">
                 <div className="flex items-start gap-5">
-                  {selectedStudent.photograph_url ? (
-                    <img src={selectedStudent.photograph_url} alt={selectedStudent.full_name}
-                      loading="lazy"
-                      className="w-20 h-20 rounded-2xl object-cover border-2 border-white/20 shadow-xl shrink-0" />
-                  ) : (
-                    <div className="w-20 h-20 rounded-2xl bg-indigo-600/40 border-2 border-indigo-400/30 flex items-center justify-center text-3xl font-black text-white shadow-xl shrink-0">
-                      {selectedStudent.full_name?.charAt(0)?.toUpperCase()}
-                    </div>
-                  )}
+                  <div className="relative group shrink-0">
+                    <input
+                      ref={drawerPhotoInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={handleDrawerPhotoUpload}
+                    />
+
+                    {selectedStudent.photograph_url ? (
+                      <img src={selectedStudent.photograph_url} alt={selectedStudent.full_name}
+                        loading="lazy"
+                        className="w-20 h-20 rounded-2xl object-cover border-2 border-white/20 shadow-xl shrink-0" />
+                    ) : (
+                      <div className="w-20 h-20 rounded-2xl bg-indigo-600/40 border-2 border-indigo-400/30 flex items-center justify-center text-3xl font-black text-white shadow-xl shrink-0">
+                        {selectedStudent.full_name?.charAt(0)?.toUpperCase()}
+                      </div>
+                    )}
+
+                    {(userRole?.role === 'admin' || isClassIncharge(selectedStudent.class_id)) && (
+                      <button
+                        onClick={() => drawerPhotoInputRef.current?.click()}
+                        disabled={drawerUploadingPhoto}
+                        className="absolute inset-0 bg-slate-900/60 rounded-2xl opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition gap-0.5 cursor-pointer backdrop-blur-xs"
+                        title="Upload / Change Photo (< 20 KB)"
+                      >
+                        {drawerUploadingPhoto ? (
+                          <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
+                        ) : (
+                          <>
+                            <Camera className="w-5 h-5 text-white" />
+                            <span className="text-[9px] font-black uppercase tracking-wider">
+                              {selectedStudent.photograph_url ? 'Change' : 'Upload'}
+                            </span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0">
-                    <h2 className="text-xl font-black text-white uppercase tracking-tight">{selectedStudent.full_name}</h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-xl font-black text-white uppercase tracking-tight">{selectedStudent.full_name}</h2>
+                      {(userRole?.role === 'admin' || isClassIncharge(selectedStudent.class_id)) && (
+                        <button
+                          onClick={() => drawerPhotoInputRef.current?.click()}
+                          disabled={drawerUploadingPhoto}
+                          className="text-[10px] font-bold text-indigo-200 bg-white/10 hover:bg-white/20 px-2 py-0.5 rounded-md flex items-center gap-1 border border-white/10 transition"
+                          title="Upload or Change Photo"
+                        >
+                          <Camera className="w-3 h-3" />
+                          <span>{selectedStudent.photograph_url ? 'Change Photo' : 'Upload Photo'}</span>
+                        </button>
+                      )}
+                    </div>
+                    {drawerPhotoFeedback && (
+                      <p className="text-[11px] font-bold text-emerald-300 mt-1 flex items-center gap-1">
+                        <CheckCircle className="w-3.5 h-3.5" /> {drawerPhotoFeedback}
+                      </p>
+                    )}
                     <div className="flex flex-wrap items-center gap-2 mt-2">
                       <span className="text-xs text-indigo-300 font-bold bg-indigo-500/20 px-2.5 py-1 rounded-lg">
                         {selectedStudent.classes ? `${selectedStudent.classes.name} (${selectedStudent.classes.section})` : 'Unassigned'}
@@ -1989,6 +2097,28 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
           document.body
         )}
       </AnimatePresence>
+
+      {/* ── Student Photo Upload Modal for Class Incharge / Admin ── */}
+      {isPhotoModalOpen && (
+        <StudentPhotoUploadModal
+          isOpen={isPhotoModalOpen}
+          onClose={() => setIsPhotoModalOpen(false)}
+          initialClassId={classFilter || undefined}
+          availableClasses={
+            inchargeClassIds.length > 0
+              ? classes.filter(c => inchargeClassIds.includes(c.id))
+              : classes
+          }
+          onPhotoUpdated={(studentId, photoUrl) => {
+            setStudents(prev =>
+              prev.map(s => (s.id === studentId ? { ...s, photograph_url: photoUrl } : s))
+            );
+            if (selectedStudent?.id === studentId) {
+              setSelectedStudent(prev => (prev ? { ...prev, photograph_url: photoUrl } : null));
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
