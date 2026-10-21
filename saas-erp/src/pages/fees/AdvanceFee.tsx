@@ -6,6 +6,7 @@ import { exportToCSV } from '../../lib/exportUtils';
 import { formatDate } from '../../lib/utils';
 import { PageHeader, Card, Btn, Input, EmptyState, FieldLabel } from '../../components/ui';
 import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, SchoolInfo, ChallanRecord } from '../../lib/challanUtils';
+import { generateInvoiceNumber, checkDuplicateInvoice } from '../../lib/feeUtils';
 
 interface AdvanceRecord {
   id: string;
@@ -78,55 +79,86 @@ export default function AdvanceFee() {
     e.preventDefault();
     if (!form.student_id || !form.month_start || !form.amount) return;
     setSaving(true);
-    // Ensure month_start has -01 suffix for Date processing if it doesn't already
-    const baseDate = form.month_start.includes('-') && form.month_start.split('-').length === 2 
-      ? `${form.month_start}-01` 
+    const baseDate = form.month_start.includes('-') && form.month_start.split('-').length === 2
+      ? `${form.month_start}-01`
       : form.month_start;
     const startDate = new Date(baseDate);
-    const rows = Array.from({ length: form.months }, (_, i) => {
+    const amountPerMonth = parseFloat(form.amount);
+    const student = students.find(s => s.id === form.student_id);
+
+    const insertedIds: string[] = [];
+    const monthLabels: string[] = [];
+    const skippedMonths: string[] = [];
+
+    for (let i = 0; i < form.months; i++) {
       const d = new Date(startDate.getFullYear(), startDate.getMonth() + i, 1);
-      return {
+      const monthYear = d.toISOString().split('T')[0]; // YYYY-MM-DD
+      const monthLabel = formatDate(monthYear);
+
+      // ── Per-month duplicate guard ──
+      const existing = await checkDuplicateInvoice(form.student_id, monthYear, userRole!.school_id);
+      if (existing) {
+        skippedMonths.push(`${monthLabel} (already exists: ${existing.invoice_number || existing.id})`);
+        continue;
+      }
+
+      const invoiceNo = generateInvoiceNumber(monthYear, form.student_id);
+      const { data: rec, error: recErr } = await supabase.from('fee_records').insert({
         school_id: userRole!.school_id,
         student_id: form.student_id,
-        month_year: d.toISOString().split('T')[0],
-        total_amount: parseFloat(form.amount),
-        paid_amount: parseFloat(form.amount),
+        month_year: monthYear,
+        total_amount: amountPerMonth,
+        paid_amount: amountPerMonth,
         status: 'paid',
-      };
-    });
-    const { data: insertedRows, error: insertError } = await supabase.from('fee_records').insert(rows).select();
-    if (insertError) { alert(insertError.message); setSaving(false); return; }
+        payment_mode: form.payment_mode,
+        paid_at: new Date().toISOString(),
+        invoice_number: invoiceNo,
+        breakdown: [{ item: 'Advance Fee', amount: amountPerMonth }],
+      }).select('id').maybeSingle();
 
-    // Record financial transaction for the total amount
-    const student = students.find(s => s.id === form.student_id);
-    const totalAmount = parseFloat(form.amount) * form.months;
-    const monthsRange = rows.map(r => formatDate(r.month_year)).join(', ');
-    
-    await supabase.from('financial_transactions').insert({
-      school_id: userRole!.school_id,
-      type: 'income',
-      category: 'Fee Collection',
-      amount: totalAmount,
-      date: new Date().toISOString().split('T')[0],
-      payment_mode: form.payment_mode,
-      remarks: `Advance Fee: ${student?.full_name} — [${monthsRange}]`,
-    });
+      if (recErr) { alert(`Failed to insert ${monthLabel}: ${recErr.message}`); continue; }
+      if (!rec) continue;
+
+      // Link transaction to this specific fee_record
+      await supabase.from('financial_transactions').insert({
+        school_id: userRole!.school_id,
+        type: 'income',
+        category: 'Fee Collection',
+        amount: amountPerMonth,
+        date: new Date().toISOString().split('T')[0],
+        payment_mode: form.payment_mode,
+        remarks: `Advance Fee: ${student?.full_name} — ${monthLabel} [${invoiceNo}]`,
+        fee_record_id: rec.id,
+        fee_items: [{ item: 'Advance Fee', amount: amountPerMonth }],
+      });
+
+      insertedIds.push(rec.id);
+      monthLabels.push(monthLabel);
+    }
 
     setSaving(false);
     setIsModalOpen(false);
     setForm({ student_id: '', months: 1, month_start: '', amount: '', payment_mode: 'Cash' });
-    setSuccessData({
-      student_id: form.student_id,
-      student_name: student?.full_name,
-      roll_number: student?.roll_number,
-      class_name: student?.class ? `${student.class.name}-${student.class.section}` : '',
-      amount: totalAmount,
-      months: monthsRange,
-      date: new Date().toISOString().split('T')[0],
-      mode: form.payment_mode
-    });
-    fetchRecords();
+
+    if (skippedMonths.length > 0) {
+      alert(`Skipped months (already have invoices):\n${skippedMonths.join('\n')}`);
+    }
+
+    if (insertedIds.length > 0) {
+      setSuccessData({
+        student_id: form.student_id,
+        student_name: student?.full_name,
+        roll_number: student?.roll_number,
+        class_name: student?.class ? `${student.class.name}-${student.class.section}` : '',
+        amount: amountPerMonth * insertedIds.length,
+        months: monthLabels.join(', '),
+        date: new Date().toISOString().split('T')[0],
+        mode: form.payment_mode,
+      });
+      fetchRecords();
+    }
   };
+
 
   const handlePrintReceipt = (r: any) => {
     const stu = r.student || students.find(s => s.id === r.student_id);

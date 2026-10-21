@@ -63,9 +63,10 @@ export default function FeeStatusReport() {
     setLoading(true);
     const { data } = await supabase
       .from('fee_records')
-      .select(`*, students!inner(id, full_name, student_unique_id, roll_number, class_id, fee_waiver_percentage, is_deleted, classes(name, section), parents(father_name, whatsapp_number))`)
+      .select(`*, students!inner(id, full_name, student_unique_id, roll_number, class_id, fee_waiver_percentage, is_deleted, status, classes(name, section), parents(father_name, whatsapp_number))`)
       .eq('school_id', userRole.school_id)
       .eq('students.is_deleted', false)
+      .eq('students.status', 'active')
       .is('deleted_at', null)
       .order('month_year', { ascending: false });
     setRecords((data || []) as FeeRow[]);

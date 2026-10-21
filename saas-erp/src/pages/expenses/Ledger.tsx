@@ -77,7 +77,8 @@ export default function Ledger() {
       let incomeQuery = supabase.from('financial_transactions')
         .select('*')
         .eq('school_id', userRole?.school_id)
-        .eq('type', 'income');
+        .eq('type', 'income')
+        .neq('category', 'Advance Recovery');
 
       if (dateType !== 'all') {
          incomeQuery = incomeQuery.gte('date', startD.toISOString().split('T')[0])

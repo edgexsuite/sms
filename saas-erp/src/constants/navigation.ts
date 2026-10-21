@@ -58,8 +58,9 @@ export const NAV_SECTIONS = [
           { name: 'Custom List Generator',    path: '/students/custom-list',                     icon: ClipboardList,roles: ALL_STAFF    },
         ],
       },
-      { name: 'Parents Directory', path: '/parents', icon: Users,    roles: ALL_STAFF  },
-      { name: 'Family Groups',     path: '/family',  icon: Users2,   roles: ALL_STAFF  },
+      { name: 'Parents Directory',    path: '/parents',      icon: Users,  roles: ALL_STAFF  },
+      { name: 'Portal Credentials',  path: '/credentials',  icon: Key,    roles: ALL_STAFF  },
+      { name: 'Family Groups',       path: '/family',       icon: Users2, roles: ALL_STAFF  },
     ],
   },
 

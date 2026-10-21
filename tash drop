@@ -1,0 +1,326 @@
+[1mdiff --git a/saas-erp/src/lib/auditLog.ts b/saas-erp/src/lib/auditLog.ts[m
+[1mindex fc80576..a8e31c5 100644[m
+[1m--- a/saas-erp/src/lib/auditLog.ts[m
+[1m+++ b/saas-erp/src/lib/auditLog.ts[m
+[36m@@ -48,7 +48,12 @@[m [mexport interface AuditParams {[m
+   metadata?:    Record<string, any>;[m
+ }[m
+ [m
+[32m+[m[32m// Set to true after running audit_log_migration.sql in the Supabase SQL Editor.[m
+[32m+[m[32mconst AUDIT_LOG_ENABLED = false;[m
+[32m+[m
+ export function logActivity(params: AuditParams): void {[m
+[32m+[m[32m  if (!AUDIT_LOG_ENABLED) return;[m
+[32m+[m
+   supabase.from('audit_logs').insert({[m
+     school_id:   params.school_id,[m
+     user_id:     params.user_id   || null,[m
+[1mdiff --git a/saas-erp/src/pages/attendance/StaffAttendance.tsx b/saas-erp/src/pages/attendance/StaffAttendance.tsx[m
+[1mindex 17dddfa..7e64966 100644[m
+[1m--- a/saas-erp/src/pages/attendance/StaffAttendance.tsx[m
+[1m+++ b/saas-erp/src/pages/attendance/StaffAttendance.tsx[m
+[36m@@ -34,7 +34,7 @@[m [mexport default function StaffAttendance() {[m
+       .eq('school_id', userRole?.school_id)[m
+       .lte('start_date', date)[m
+       .gte('end_date', date)[m
+[31m-      .single();[m
+[32m+[m[32m      .maybeSingle();[m
+     setVacationToday(data || null);[m
+   };[m
+ [m
+[36m@@ -153,17 +153,17 @@[m [mexport default function StaffAttendance() {[m
+       </Card>[m
+ [m
+       <Card className="p-0 overflow-hidden border-none shadow-xl">[m
+[31m-        <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">[m
+[32m+[m[32m        <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">[m
+           <div>[m
+             <h2 className="font-black text-slate-900 uppercase tracking-tight">Active Staff Roster</h2>[m
+             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{staffList.length} Personnel Found</p>[m
+           </div>[m
+[31m-          <Btn [m
+[31m-            variant="primary" [m
+[31m-            disabled={saving || staffList.length === 0} [m
+[32m+[m[32m          <Btn[m
+[32m+[m[32m            variant="primary"[m
+[32m+[m[32m            disabled={saving || staffList.length === 0}[m
+             onClick={saveAttendance}[m
+             icon={Save}[m
+[31m-            className="px-8 shadow-indigo-200"[m
+[32m+[m[32m            className="w-full sm:w-auto px-8 shadow-indigo-200"[m
+           >[m
+             {saving ? 'Logging...' : 'Save & Lock Register'}[m
+           </Btn>[m
+[36m@@ -182,66 +182,69 @@[m [mexport default function StaffAttendance() {[m
+               description="No active staff personnel found for this institution."[m
+             />[m
+           ) : ([m
+[31m-            <div className="space-y-4">[m
+[32m+[m[32m            <div className="space-y-2">[m
+               {staffList.map((emp, i) => {[m
+                 const st = attendance[emp.id] || 'present';[m
+                 return ([m
+[31m-                  <motion.div [m
+[32m+[m[32m                  <motion.div[m
+                     key={emp.id}[m
+[31m-                    initial={{ opacity: 0, y: 10 }}[m
+[32m+[m[32m                    initial={{ opacity: 0, y: 8 }}[m
+                     animate={{ opacity: 1, y: 0 }}[m
+[31m-                    transition={{ delay: i * 0.03 }}[m
+[32m+[m[32m                    transition={{ delay: i * 0.02 }}[m
+                     className={cn([m
+[31m-                      "flex flex-col sm:flex-row items-center justify-between p-5 rounded-[2rem] border-2 transition-all gap-4",[m
+[31m-                      st === 'present' ? "border-emerald-100 bg-emerald-50/10 shadow-sm" : [m
+[31m-                      st === 'absent' ? "border-rose-100 bg-rose-50/10 shadow-sm" : [m
+[31m-                      st === 'late' ? "border-amber-100 bg-amber-50/10 shadow-sm" : [m
+[31m-                      st === 'half-leave' ? "border-indigo-100 bg-indigo-50/10 shadow-sm" : "border-slate-50 bg-white"[m
+[32m+[m[32m                      "flex flex-col p-3 rounded-2xl border-2 transition-all gap-2",[m
+[32m+[m[32m                      st === 'present'           ? "border-emerald-100 bg-emerald-50/20 shadow-sm" :[m
+[32m+[m[32m                      st === 'absent'            ? "border-rose-100 bg-rose-50/20 shadow-sm" :[m
+[32m+[m[32m                      st === 'late'              ? "border-amber-100 bg-amber-50/20 shadow-sm" :[m
+[32m+[m[32m                      st === 'half-leave'        ? "border-indigo-100 bg-indigo-50/20 shadow-sm" :[m
+[32m+[m[32m                      st === 'complementary_off' ? "border-slate-200 bg-slate-50 shadow-sm" : "border-slate-100 bg-white"[m
+                     )}[m
+                   >[m
+[31m-                    <div className="flex items-center gap-5 w-full sm:w-auto">[m
+[31m-                      <div className="w-14 h-14 rounded-2xl bg-slate-100 border-2 border-slate-50 overflow-hidden shadow-inner shrink-0">[m
+[32m+[m[32m                    {/* Row 1: photo + name + badge */}[m
+[32m+[m[32m                    <div className="flex items-center gap-3">[m
+[32m+[m[32m                      <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0">[m
+                         {emp.photograph_url ? ([m
+                           <img src={emp.photograph_url} alt="" className="w-full h-full object-cover" />[m
+                         ) : ([m
+                           <div className="w-full h-full flex items-center justify-center bg-indigo-50 text-indigo-400">[m
+[31m-                            <Briefcase className="w-6 h-6" />[m
+[32m+[m[32m                            <Briefcase className="w-4 h-4" />[m
+                           </div>[m
+                         )}[m
+                       </div>[m
+[31m-                      <div className="min-w-0">[m
+[31m-                        <div className="flex items-center gap-2">[m
+[31m-                          <p className="font-black text-slate-900 text-lg uppercase tracking-tight truncate">{emp.full_name}</p>[m
+[31m-                          <Badge variant="neutral" className="text-[8px] px-2 py-0.5">[m
+[32m+[m[32m                      <div className="min-w-0 flex-1">[m
+[32m+[m[32m                        <div className="flex items-center gap-1.5 flex-wrap">[m
+[32m+[m[32m                          <p className="font-bold text-slate-900 text-sm leading-tight">{emp.full_name}</p>[m
+[32m+[m[32m                          <Badge variant="neutral" className="text-[8px] px-1.5 py-0.5 shrink-0">[m
+                             {emp.employment_type}[m
+                           </Badge>[m
+                         </div>[m
+[31m-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 truncate">[m
+[31m-                          {emp.role} {emp.department ? `· ${emp.department}` : ''}[m
+[32m+[m[32m                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mt-0.5 truncate">[m
+[32m+[m[32m                          {emp.role}{emp.department ? ` · ${emp.department}` : ''}[m
+                         </p>[m
+                       </div>[m
+                     </div>[m
+[31m-                    [m
+[31m-                    <div className="flex flex-wrap justify-center sm:justify-end gap-2 shrink-0">[m
+[32m+[m
+[32m+[m[32m                    {/* Row 2: attendance buttons full-width */}[m
+[32m+[m[32m                    <div className="flex justify-between gap-1.5">[m
+                       {[[m
+[31m-                        { key: 'present', icon: CheckCircle, label: 'Present', color: 'bg-emerald-600', active: 'emerald' },[m
+[31m-                        { key: 'half-leave', icon: Hash, label: 'Half Day', color: 'bg-indigo-600', active: 'indigo' },[m
+[31m-                        { key: 'late', icon: Clock, label: 'Late', color: 'bg-amber-500', active: 'amber' },[m
+[31m-                        { key: 'absent', icon: XCircle, label: 'Absent', color: 'bg-rose-600', active: 'rose' },[m
+[31m-                        { key: 'complementary_off', icon: Coffee, label: 'Paid Off', color: 'bg-slate-700', active: 'slate' },[m
+[32m+[m[32m                        { key: 'present',           icon: CheckCircle, label: 'Present',  color: 'bg-emerald-600' },[m
+[32m+[m[32m                        { key: 'half-leave',         icon: Hash,        label: 'Half Day', color: 'bg-indigo-600' },[m
+[32m+[m[32m                        { key: 'late',               icon: Clock,       label: 'Late',     color: 'bg-amber-500' },[m
+[32m+[m[32m                        { key: 'absent',             icon: XCircle,     label: 'Absent',   color: 'bg-rose-600' },[m
+[32m+[m[32m                        { key: 'complementary_off',  icon: Coffee,      label: 'Paid Off', color: 'bg-slate-700' },[m
+                       ].map((btn) => ([m
+                         <button[m
+                           key={btn.key}[m
+[31m-                          onClick={() => setAttendance({...attendance, [emp.id]: btn.key})}[m
+[32m+[m[32m                          onClick={() => setAttendance({ ...attendance, [emp.id]: btn.key })}[m
+                           title={btn.label}[m
+                           className={cn([m
+[31m-                            "w-10 h-10 rounded-xl flex items-center justify-center transition-all border-2",[m
+[31m-                            st === btn.key [m
+[31m-                              ? `${btn.color} text-white border-transparent shadow-lg scale-110` [m
+[32m+[m[32m                            "flex-1 h-9 rounded-lg flex items-center justify-center transition-all border",[m
+[32m+[m[32m                            st === btn.key[m
+[32m+[m[32m                              ? `${btn.color} text-white border-transparent shadow-md scale-105`[m
+                               : "bg-slate-50 text-slate-400 border-slate-100 hover:border-slate-300"[m
+                           )}[m
+                         >[m
+[31m-                          <btn.icon className="w-4 h-4" />[m
+[32m+[m[32m                          <btn.icon className="w-3.5 h-3.5" />[m
+                         </button>[m
+                       ))}[m
+                     </div>[m
+[1mdiff --git a/saas-erp/src/pages/fees/StudentFeeDetail.tsx b/saas-erp/src/pages/fees/StudentFeeDetail.tsx[m
+[1mindex b82d796..09aee52 100644[m
+[1m--- a/saas-erp/src/pages/fees/StudentFeeDetail.tsx[m
+[1m+++ b/saas-erp/src/pages/fees/StudentFeeDetail.tsx[m
+[36m@@ -372,19 +372,24 @@[m [mexport default function StudentFeeDetail() {[m
+   const handleDeleteInvoice = async (inv: Invoice) => {[m
+     if (!window.confirm(`PERMANENT DELETE: Are you sure you want to completely eliminate invoice ${inv.invoice_number}? This action cannot be undone and will also remove all associated financial records and payments.`)) return;[m
+     try {[m
+[31m-      // PERMANENT (HARD) DELETE[m
+[31m-      const { error } = await supabase[m
+[31m-        .from('fee_records')[m
+[31m-        .delete()[m
+[31m-        .eq('id', inv.id);[m
+[31m-      [m
+[31m-      if (error) throw error;[m
+[31m-[m
+[31m-      // Clean up transactions precisely by remark containing the invoice number[m
+[31m-      await supabase[m
+[32m+[m[32m      // 1. Find all financial transactions linked to this fee record[m
+[32m+[m[32m      const { data: txns } = await supabase[m
+         .from('financial_transactions')[m
+[31m-        .delete()[m
+[31m-        .ilike('remarks', `%${inv.invoice_number}%`);[m
+[32m+[m[32m        .select('id')[m
+[32m+[m[32m        .eq('fee_record_id', inv.id)[m
+[32m+[m[32m        .eq('school_id', userRole?.school_id);[m
+[32m+[m
+[32m+[m[32m      if (txns && txns.length > 0) {[m
+[32m+[m[32m        const txnIds = txns.map((t: any) => t.id);[m
+[32m+[m[32m        // 2. Delete journal entries referencing those transactions (income/P&L/accounts)[m
+[32m+[m[32m        await supabase.from('journal_entries').delete().in('source_transaction_id', txnIds);[m
+[32m+[m[32m        // 3. Delete the financial transactions themselves[m
+[32m+[m[32m        await supabase.from('financial_transactions').delete().in('id', txnIds);[m
+[32m+[m[32m      }[m
+[32m+[m
+[32m+[m[32m      // 4. Delete the fee record[m
+[32m+[m[32m      const { error } = await supabase.from('fee_records').delete().eq('id', inv.id);[m
+[32m+[m[32m      if (error) throw error;[m
+ [m
+       setEditingInvoice(null);[m
+       fetchLedger(selectedStudent.id);[m
+[36m@@ -861,13 +866,14 @@[m [mexport default function StudentFeeDetail() {[m
+       )}[m
+ [m
+       {/* ── Payment Modal ─────────────────────────────────────────────── */}[m
+[32m+[m[32m      {createPortal([m
+       <AnimatePresence>[m
+         {payingInvoice && ([m
+           <motion.div[m
+             initial={{ opacity: 0 }}[m
+             animate={{ opacity: 1 }}[m
+             exit={{ opacity: 0 }}[m
+[31m-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"[m
+[32m+[m[32m            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"[m
+           >[m
+             <motion.div[m
+               initial={{ scale: 0.95, y: 20 }}[m
+[36m@@ -987,14 +993,17 @@[m [mexport default function StudentFeeDetail() {[m
+             </motion.div>[m
+           </motion.div>[m
+         )}[m
+[31m-      </AnimatePresence>[m
+[32m+[m[32m      </AnimatePresence>,[m
+[32m+[m[32m      document.body[m
+[32m+[m[32m      )}[m
+ [m
+       {/* Edit Modal */}[m
+[32m+[m[32m      {createPortal([m
+       <AnimatePresence>[m
+         {editingInvoice && ([m
+           <motion.div[m
+             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}[m
+[31m-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 text-left"[m
+[32m+[m[32m            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 text-left"[m
+           >[m
+             <motion.div[m
+               initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}[m
+[36m@@ -1087,7 +1096,9 @@[m [mexport default function StudentFeeDetail() {[m
+             </motion.div>[m
+           </motion.div>[m
+         )}[m
+[31m-      </AnimatePresence>[m
+[32m+[m[32m      </AnimatePresence>,[m
+[32m+[m[32m      document.body[m
+[32m+[m[32m      )}[m
+ [m
+       {/* New Invoice Modal */}[m
+       {/* Unified New Invoice Modal Component */}[m
+[1mdiff --git a/saas-erp/src/pages/fees/StudentFeeHistory.tsx b/saas-erp/src/pages/fees/StudentFeeHistory.tsx[m
+[1mindex 8d3223d..ea365e7 100644[m
+[1m--- a/saas-erp/src/pages/fees/StudentFeeHistory.tsx[m
+[1m+++ b/saas-erp/src/pages/fees/StudentFeeHistory.tsx[m
+[36m@@ -1,4 +1,5 @@[m
+ import React, { useEffect, useState, useCallback, useRef } from 'react';[m
+[32m+[m[32mimport { createPortal } from 'react-dom';[m
+ import { useNavigate } from 'react-router-dom';[m
+ import { supabase } from '../../lib/supabase';[m
+ import { useAuth } from '../../contexts/AuthContext';[m
+[36m@@ -76,7 +77,7 @@[m [mexport default function StudentFeeHistory() {[m
+   // Editing State[m
+   const [editingRecord, setEditingRecord] = useState<any | null>(null);[m
+   const [editSaving, setEditSaving] = useState(false);[m
+[31m-  const [editForm, setEditForm] = useState({ total_amount: '', paid_amount: '', month_year: '', paid_at: '' });[m
+[32m+[m[32m  const [editForm, setEditForm] = useState({ total_amount: '', paid_amount: '', month_year: '', paid_at: '', payment_mode: 'Cash' });[m
+ [m
+   // ── Bootstrap ──────────────────────────────────────────────────────────────[m
+ [m
+[36m@@ -225,20 +226,26 @@[m [mexport default function StudentFeeHistory() {[m
+       total_amount: String(r.total_amount),[m
+       paid_amount: String(r.paid_amount),[m
+       month_year: r.month_year.slice(0, 7),[m
+[31m-      paid_at: r.paid_at ? r.paid_at.split('T')[0] : r.month_year.slice(0, 10)[m
+[32m+[m[32m      paid_at: r.paid_at ? r.paid_at.split('T')[0] : r.month_year.slice(0, 10),[m
+[32m+[m[32m      payment_mode: r.payment_mode || 'Cash',[m
+     });[m
+   };[m
+ [m
+   const handleUpdateRecord = async () => {[m
+     if (!editingRecord) return;[m
+[32m+[m[32m    const newPaid = parseFloat(editForm.paid_amount) || 0;[m
+[32m+[m[32m    const newTotal = parseFloat(editForm.total_amount) || 0;[m
+[32m+[m[32m    if (newPaid === 0 && newTotal > 0) {[m
+[32m+[m[32m      alert('Paid amount cannot be zero. Use Delete to remove this record instead.');[m
+[32m+[m[32m      return;[m
+[32m+[m[32m    }[m
+     setEditSaving(true);[m
+     try {[m
+[31m-      const newPaid = parseFloat(editForm.paid_amount) || 0;[m
+[31m-      const newTotal = parseFloat(editForm.total_amount) || 0;[m
+       const newDate = editForm.paid_at;[m
+       const { error } = await supabase.from('fee_records').update({[m
+         total_amount: newTotal,[m
+         paid_amount: newPaid,[m
+[32m+[m[32m        payment_mode: editForm.payment_mode,[m
+         month_year: editForm.month_year + '-01',[m
+         paid_at: newPaid > 0 ? newDate + 'T12:00:00Z' : null,[m
+         status: newPaid >= newTotal ? 'paid' : (newPaid > 0 ? 'partial' : 'pending')[m
+[36m@@ -274,6 +281,17 @@[m [mexport default function StudentFeeHistory() {[m
+   const handleDeleteRecord = async (id: string) => {[m
+     if (!confirm('PERMANENT DELETE: This fee record will be completely removed and cannot be recovered. Continue?')) return;[m
+     try {[m
+[32m+[m[32m      // Cascade: delete linked journal entries and financial transactions first[m
+[32m+[m[32m      const { data: txns } = await supabase[m
+[32m+[m[32m        .from('financial_transactions')[m
+[32m+[m[32m        .select('id')[m
+[32m+[m[32m        .eq('fee_record_id', id)[m
+[32m+[m[32m        .eq('school_id', userRole?.school_id);[m
+[32m+[m[32m      if (txns && txns.length > 0) {[m
+[32m+[m[32m        const txnIds = txns.map((t: any) => t.id);[m
+[32m+[m[32m        await supabase.from('journal_entries').delete().in('source_transaction_id', txnIds);[m
+[32m+[m[32m        await supabase.from('financial_transactions').delete().in('id', txnIds);[m
+[32m+[m[32m      }[m
+       const { error } = await supabase.from('fee_records').delete().eq('id', id);[m
+       if (error) throw error;[m
+       fetchRecords();[m
+[36m@@ -614,13 +632,13 @@[m [mexport default function StudentFeeHistory() {[m
+         )}[m
+       </div>[m
+ [m
+[31m-      {/* EDIT MODAL */}[m
+[31m-      {editingRecord && ([m
+[31m-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">[m
+[32m+[m[32m      {/* EDIT MODAL — rendered via portal so it's never clipped by parent overflow */}[m
+[32m+[m[32m      {editingRecord && createPortal([m
+[32m+[m[32m        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">[m
+           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">[m
+             <div className="bg-slate-900 px-6 py-4 flex items-center justify-between">[m
+               <h2 className="text-white font-black text-xs uppercase tracking-widest leading-none">Edit Record</h2>[m
+[31m-              <button onClick={() => setEditingRecord(null)} className="text-white/60 hover:text-white">✕</button>[m
+[32m+[m[32m              <button onClick={() => setEditingRecord(null)} className="text-white/60 hover:text-white text-lg leading-none">✕</button>[m
+             </div>[m
+             <div className="p-6 space-y-4">[m
+               <div className="grid grid-cols-1 sm:gri

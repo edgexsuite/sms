@@ -79,11 +79,13 @@ export default function DefaulterReport() {
             parents (father_name, whatsapp_number),
             class_id,
             is_deleted,
+            status,
             classes (name, section)
           )
         `)
         .eq('school_id', userRole.school_id)
         .eq('students.is_deleted', false)
+        .eq('students.status', 'active')
         .is('deleted_at', null)
         .neq('status', 'paid');
 

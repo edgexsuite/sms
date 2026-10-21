@@ -1,0 +1,59 @@
+{
+  "exported_at": "2026-10-02T18:16:59.075Z",
+  "schools": [
+    {
+      "school_id": "aed24dc2-c3ac-47a1-9287-3b003934f720",
+      "school_name": "The Edge School Bahawalpur",
+      "total": 804,
+      "active": 760,
+      "soft_deleted": 44,
+      "status_breakdown": {
+        "paid": 540,
+        "pending": 192,
+        "partial": 28
+      },
+      "students": 156,
+      "fee_transactions": 637
+    },
+    {
+      "school_id": "b99d30d4-baf5-409a-a19a-550808811c41",
+      "school_name": "Quaid-i-Azam Superior Higher Secondary School Uch Sharif",
+      "total": 0,
+      "active": 0,
+      "soft_deleted": 0,
+      "status_breakdown": {},
+      "students": 1,
+      "fee_transactions": 0
+    },
+    {
+      "school_id": "372b54f1-0bde-4511-becf-37aae3691f7f",
+      "school_name": "Edge Academy Bahawalpur",
+      "total": 0,
+      "active": 0,
+      "soft_deleted": 0,
+      "status_breakdown": {},
+      "students": 0,
+      "fee_transactions": 0
+    },
+    {
+      "school_id": "b5dd7269-9d48-4e05-a1f3-3929fbbb9c9b",
+      "school_name": "EdgeX Model School & College (Demo Campus)",
+      "total": 0,
+      "active": 0,
+      "soft_deleted": 0,
+      "status_breakdown": {},
+      "students": 30,
+      "fee_transactions": 0
+    },
+    {
+      "school_id": "07667ad5-6943-42ff-82e4-d1adb9895465",
+      "school_name": "THE SKPIANS SCHOOL SYSTEM & ACADEMY Sheikhupura",
+      "total": 0,
+      "active": 0,
+      "soft_deleted": 0,
+      "status_breakdown": {},
+      "students": 0,
+      "fee_transactions": 0
+    }
+  ]
+}

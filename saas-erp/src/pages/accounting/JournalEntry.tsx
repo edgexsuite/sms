@@ -87,39 +87,62 @@ export default function JournalEntry() {
       }));
       await supabase.from('journal_lines').insert(lineRecords);
 
-      // --- NEW: Mirror to Unified Ledger ---
-      // Distinguish between actual Income/Expense movements for P&L visibility
-      const expenseLines = lines.filter(l => {
+      // --- Mirror Income/Expense account movements to Unified Ledger ---
+      let netExpenseMovement = 0;
+      let netIncomeMovement = 0;
+
+      lines.forEach(l => {
         const acc = accounts.find(a => a.id === l.account_id);
-        return acc?.account_type === 'expense' && (l.debit || 0) > 0;
-      });
-      const incomeLines = lines.filter(l => {
-        const acc = accounts.find(a => a.id === l.account_id);
-        return acc?.account_type === 'income' && (l.credit || 0) > 0;
+        if (acc?.account_type === 'expense') {
+          netExpenseMovement += (Number(l.debit) || 0) - (Number(l.credit) || 0);
+        } else if (acc?.account_type === 'income') {
+          netIncomeMovement += (Number(l.credit) || 0) - (Number(l.debit) || 0);
+        }
       });
 
-      if (expenseLines.length > 0) {
-        const totalExp = expenseLines.reduce((s, l) => s + (l.debit || 0), 0);
+      if (netExpenseMovement > 0) {
         await supabase.from('financial_transactions').insert([{
            school_id: userRole?.school_id,
            type: 'expense',
-           amount: totalExp,
+           amount: netExpenseMovement,
            category: 'Adjustment (from Journal)',
            reference_id: entry.id,
            date: form.entry_date,
            remarks: `Journal Adj: ${form.narration}`
         }]);
-      }
-      if (incomeLines.length > 0) {
-        const totalInc = incomeLines.reduce((s, l) => s + (l.credit || 0), 0);
+      } else if (netExpenseMovement < 0) {
+        // Expense reversal / credit adjustment
         await supabase.from('financial_transactions').insert([{
            school_id: userRole?.school_id,
            type: 'income',
-           amount: totalInc,
+           amount: Math.abs(netExpenseMovement),
+           category: 'Adjustment (from Journal)',
+           reference_id: entry.id,
+           date: form.entry_date,
+           remarks: `Expense Reversal: ${form.narration}`
+        }]);
+      }
+
+      if (netIncomeMovement > 0) {
+        await supabase.from('financial_transactions').insert([{
+           school_id: userRole?.school_id,
+           type: 'income',
+           amount: netIncomeMovement,
            category: 'Adjustment (from Journal)',
            reference_id: entry.id,
            date: form.entry_date,
            remarks: `Journal Adj: ${form.narration}`
+        }]);
+      } else if (netIncomeMovement < 0) {
+        // Income rebate / debit adjustment
+        await supabase.from('financial_transactions').insert([{
+           school_id: userRole?.school_id,
+           type: 'expense',
+           amount: Math.abs(netIncomeMovement),
+           category: 'Adjustment (from Journal)',
+           reference_id: entry.id,
+           date: form.entry_date,
+           remarks: `Income Rebate / Adj: ${form.narration}`
         }]);
       }
     }

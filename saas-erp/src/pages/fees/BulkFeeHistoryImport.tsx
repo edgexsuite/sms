@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
+import { generateInvoiceNumber } from '../../lib/feeUtils';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,8 +54,7 @@ const feeStatus = (paid: number, total: number): string => {
   return 'pending';
 };
 
-const invoiceNum = (monthYear: string, studentId: string) =>
-  `INV-${monthYear.replace('-', '')}-${studentId.slice(0, 6).toUpperCase()}`;
+// invoiceNum helper removed — use generateInvoiceNumber(monthYear, studentId) from feeUtils instead
 
 // ── Component ────────────────────────────────────────────────────────────────
 
@@ -330,7 +330,7 @@ export default function BulkFeeHistoryImport() {
           feeRecordId = existing.id;
         } else {
           // Insert new
-          const inv = invoiceNum(month, row.matchedStudentId);
+          const inv = generateInvoiceNumber(month, row.matchedStudentId);
           const { data: ins } = await supabase.from('fee_records').insert({
             school_id:       userRole.school_id,
             student_id:      row.matchedStudentId,

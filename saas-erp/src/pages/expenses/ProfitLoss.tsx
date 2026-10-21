@@ -34,7 +34,7 @@ export default function ProfitLoss() {
 
     const [{ data: expData }, { data: incData }] = await Promise.all([
       supabase.from('financial_transactions').select('date, amount').eq('school_id', sid).eq('type', 'expense').gte('date', startDate).lte('date', endDate),
-      supabase.from('financial_transactions').select('date, amount, fee_items').eq('school_id', sid).eq('type', 'income').gte('date', startDate).lte('date', endDate),
+      supabase.from('financial_transactions').select('date, amount, fee_items').eq('school_id', sid).eq('type', 'income').neq('category', 'Advance Recovery').gte('date', startDate).lte('date', endDate),
     ]);
 
     setIncomeTxns(incData || []);

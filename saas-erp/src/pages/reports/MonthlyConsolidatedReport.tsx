@@ -59,9 +59,10 @@ export default function MonthlyConsolidatedReport() {
     setLoading(true);
     const [{ data }, { data: cls }, { data: sch }] = await Promise.all([
       supabase.from('fee_records')
-        .select(`*, students!inner(full_name, student_unique_id, roll_number, class_id, is_deleted, classes(name, section), parents(father_name, whatsapp_number))`)
+        .select(`*, students!inner(full_name, student_unique_id, roll_number, class_id, is_deleted, status, classes(name, section), parents(father_name, whatsapp_number))`)
         .eq('school_id', userRole.school_id)
         .eq('students.is_deleted', false)
+        .eq('students.status', 'active')
         .is('deleted_at', null)
         .order('month_year', { ascending: false }),
       supabase.from('classes').select('id, name, section').eq('school_id', userRole.school_id).order('name'),

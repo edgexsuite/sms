@@ -98,6 +98,7 @@ export default function CollectionReport() {
             parents (whatsapp_number),
             class_id,
             is_deleted,
+            status,
             classes (id, name, section)
           )
         `)
@@ -110,8 +111,8 @@ export default function CollectionReport() {
       // 2. Perform ALL filtering in Javascript for 100% reliability
       let filtered = (data || []) as FeeRecord[];
 
-      // Filter out deleted students
-      filtered = filtered.filter(r => r.students && (r.students as any).is_deleted === false);
+      // Filter out deleted and inactive students
+      filtered = filtered.filter(r => r.students && (r.students as any).is_deleted === false && (r.students as any).status === 'active');
 
       // Class Filter
       if (selectedClass) {

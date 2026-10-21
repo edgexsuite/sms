@@ -45,17 +45,46 @@ export default function StaffLedger() {
     const from = `${year}-01-01`;
     const to   = `${year}-12-31`;
 
-    // All financial_transactions linked to this staff member
-    const { data: txns } = await supabase
-      .from('financial_transactions')
-      .select('*')
-      .eq('school_id', sid)
-      .eq('staff_id', selectedStaff)
-      .gte('date', from)
-      .lte('date', to)
-      .order('date', { ascending: true });
+    // Fetch financial transactions and payroll records with advance deduction
+    const [{ data: txns }, { data: payrollRecs }] = await Promise.all([
+      supabase
+        .from('financial_transactions')
+        .select('*')
+        .eq('school_id', sid)
+        .eq('staff_id', selectedStaff)
+        .gte('date', from)
+        .lte('date', to)
+        .order('date', { ascending: true }),
+      supabase
+        .from('payroll_records')
+        .select('*')
+        .eq('school_id', sid)
+        .eq('staff_id', selectedStaff)
+        .eq('status', 'paid')
+        .gt('advance_deduction', 0)
+        .gte('month_year', `${year}-01`)
+        .lte('month_year', `${year}-12`),
+    ]);
 
-    setTransactions(txns || []);
+    const allItems: any[] = [...(txns || [])];
+    
+    // Add deductions from payroll records if not already represented
+    (payrollRecs || []).forEach(p => {
+      const alreadyHasTxn = (txns || []).some(t => t.category === 'Advance Recovery' && t.remarks?.includes(p.month_year));
+      if (!alreadyHasTxn) {
+        allItems.push({
+          id: `adv-ded-${p.id}`,
+          date: p.paid_at?.slice(0, 10) || `${p.month_year}-01`,
+          category: 'Advance Deduction',
+          remarks: `Advance deduction — Salary (${p.month_year})`,
+          amount: Number(p.advance_deduction),
+        });
+      }
+    });
+
+    allItems.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+    setTransactions(allItems);
     setLoading(false);
   };
 
@@ -64,7 +93,7 @@ export default function StaffLedger() {
     let balance = 0;
     return transactions.map(t => {
       const isAdvance  = t.category === 'Staff Advance';
-      const isRecovery = t.category === 'Advance Recovery';
+      const isRecovery = t.category === 'Advance Recovery' || t.category === 'Advance Deduction';
       const isSalary   = t.category === 'Payroll' || t.category === 'Salary';
 
       // Debit = advance given (staff owes more)
@@ -89,7 +118,7 @@ export default function StaffLedger() {
 
   const staffInfo   = staffList.find(s => s.id === selectedStaff);
   const totalAdv    = transactions.filter(t => t.category === 'Staff Advance').reduce((s, t) => s + Number(t.amount), 0);
-  const totalRec    = transactions.filter(t => t.category === 'Advance Recovery').reduce((s, t) => s + Number(t.amount), 0);
+  const totalRec    = transactions.filter(t => t.category === 'Advance Recovery' || t.category === 'Advance Deduction').reduce((s, t) => s + Number(t.amount), 0);
   const outstanding = totalAdv - totalRec;
   const totalPaid   = transactions.filter(t => t.category === 'Payroll' || t.category === 'Salary').reduce((s, t) => s + Number(t.amount), 0);
 

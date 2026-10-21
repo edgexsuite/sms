@@ -42,29 +42,29 @@ export default function AccountantDashboard() {
   };
 
   const fetchFeeSummary = async () => {
-    // Query financial_transactions for payment_mode breakdown (more accurate than fee_records)
+    // Query financial_transactions for payment_mode breakdown (authoritative source)
     const [{ data: allFees }, { data: txns }] = await Promise.all([
       supabase
         .from('fee_records')
-        .select('total_amount, paid_amount, status, paid_at, students!inner(is_deleted)')
+        .select('total_amount, paid_amount, status, paid_at, students!inner(is_deleted, status)')
         .eq('school_id', userRole?.school_id)
         .eq('students.is_deleted', false)
+        .eq('students.status', 'active')
         .is('deleted_at', null),
       supabase
         .from('financial_transactions')
-        .select('amount, payment_mode, date, type')
+        .select('amount, payment_mode, date, type, category')
         .eq('school_id', userRole?.school_id)
         .eq('type', 'income')
+        .neq('category', 'Advance Recovery')
         .gte('date', `${thisMonth}-01`),
     ]);
 
     if (!allFees) return;
     const collected = allFees.reduce((s, r) => s + (r.paid_amount || 0), 0);
     const pending   = allFees.reduce((s, r) => s + ((r.total_amount || 0) - (r.paid_amount || 0)), 0);
-    const todayRecs = allFees.filter(r => r.paid_at?.startsWith(today));
-    const todayCollected = todayRecs.reduce((s, r) => s + (r.paid_amount || 0), 0);
 
-    // Split by payment_mode from financial_transactions (authoritative source)
+    // Split by payment_mode from financial_transactions (authoritative daily cashbook)
     const isCash = (mode: string | null) => !mode || mode.toLowerCase() === 'cash';
     const todayTxns   = (txns || []).filter(t => t.date === today);
     const monthTxns   = txns || [];
@@ -73,6 +73,10 @@ export default function AccountantDashboard() {
     const todayOnline = todayTxns.filter(t => !isCash(t.payment_mode)).reduce((s, t) => s + (t.amount || 0), 0);
     const monthCash   = monthTxns.filter(t => isCash(t.payment_mode)).reduce((s, t) => s + (t.amount || 0), 0);
     const monthOnline = monthTxns.filter(t => !isCash(t.payment_mode)).reduce((s, t) => s + (t.amount || 0), 0);
+
+    // todayCollected must strictly equal today's actual cash + online inflows
+    // (avoids double-counting cumulative paid_amount on partial fee records)
+    const todayCollected = todayCash + todayOnline;
 
     setFeeSummary({
       collected, pending: Math.max(0, pending),
@@ -114,18 +118,29 @@ export default function AccountantDashboard() {
     }
     const startDate = `${months[0]}-01`;
 
-    const [{ data: fees }, { data: expenses }] = await Promise.all([
-      supabase.from('fee_records').select('paid_amount, paid_at, students!inner(is_deleted)').eq('school_id', userRole?.school_id).eq('students.is_deleted', false).is('deleted_at', null).gte('paid_at', startDate),
-      supabase.from('financial_transactions').select('amount, date, type').eq('school_id', userRole?.school_id).eq('type', 'expense').gte('date', startDate),
+    const [{ data: incomes }, { data: expenses }] = await Promise.all([
+      supabase
+        .from('financial_transactions')
+        .select('amount, date, type')
+        .eq('school_id', userRole?.school_id)
+        .eq('type', 'income')
+        .neq('category', 'Advance Recovery')
+        .gte('date', startDate),
+      supabase
+        .from('financial_transactions')
+        .select('amount, date, type')
+        .eq('school_id', userRole?.school_id)
+        .eq('type', 'expense')
+        .gte('date', startDate),
     ]);
 
     const incomeMap = new Map<string, number>();
     const expenseMap = new Map<string, number>();
     months.forEach(m => { incomeMap.set(m, 0); expenseMap.set(m, 0); });
 
-    (fees || []).forEach((r: any) => {
-      const m = r.paid_at?.slice(0, 7);
-      if (m && incomeMap.has(m)) incomeMap.set(m, incomeMap.get(m)! + (r.paid_amount || 0));
+    (incomes || []).forEach((r: any) => {
+      const m = r.date?.slice(0, 7);
+      if (m && incomeMap.has(m)) incomeMap.set(m, incomeMap.get(m)! + (r.amount || 0));
     });
     (expenses || []).forEach((r: any) => {
       const m = r.date?.slice(0, 7);

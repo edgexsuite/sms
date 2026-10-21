@@ -1,8 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { BarChart2, Printer } from 'lucide-react';
+import { BarChart2, Printer, CheckCircle2, AlertCircle, ShieldCheck } from 'lucide-react';
 import { formatDate } from '../../lib/utils';
+
+interface BalanceItem {
+  code: string;
+  name: string;
+  amount: number;
+}
 
 export default function BalanceSheet() {
   const { userRole } = useAuth();
@@ -10,11 +16,15 @@ export default function BalanceSheet() {
   const [asOf, setAsOf] = useState(new Date().toISOString().split('T')[0]);
   const [schoolName, setSchoolName] = useState('School');
 
+  // Classified account balances
+  const [currentAssets, setCurrentAssets] = useState<BalanceItem[]>([]);
+  const [fixedAssets, setFixedAssets] = useState<BalanceItem[]>([]);
+  const [liabilities, setLiabilities] = useState<BalanceItem[]>([]);
+  const [equityItems, setEquityItems] = useState<BalanceItem[]>([]);
+
   const [totalIncome, setTotalIncome] = useState(0);
   const [totalExpense, setTotalExpense] = useState(0);
   const [feeReceivables, setFeeReceivables] = useState(0);
-  const [incomeByCategory, setIncomeByCategory] = useState<{ name: string; amount: number }[]>([]);
-  const [expenseByCategory, setExpenseByCategory] = useState<{ name: string; amount: number }[]>([]);
 
   useEffect(() => {
     if (userRole?.school_id) {
@@ -32,48 +42,107 @@ export default function BalanceSheet() {
     setLoading(true);
     const sid = userRole!.school_id;
 
-    const [{ data: txns }, { data: pending }] = await Promise.all([
-      supabase
-        .from('financial_transactions')
-        .select('type, category, amount, date')
-        .eq('school_id', sid)
-        .lte('date', asOf),
-      supabase
-        .from('fee_records')
-        .select('total_amount, paid_amount, status')
-        .eq('school_id', sid)
-        .in('status', ['pending', 'overdue', 'partial']),
-    ]);
+    // 1. Fetch Chart of Accounts
+    const { data: accounts } = await supabase
+      .from('accounts')
+      .select('id, code, name, account_type')
+      .eq('school_id', sid)
+      .order('code');
 
-    const incMap: Record<string, number> = {};
-    const expMap: Record<string, number> = {};
-    let totInc = 0, totExp = 0;
+    // 2. Fetch journal entries with lines up to asOf
+    const { data: entries } = await supabase
+      .from('journal_entries')
+      .select('id, entry_date, journal_lines(account_id, debit, credit)')
+      .eq('school_id', sid)
+      .lte('entry_date', asOf);
 
-    (txns || []).forEach((t: any) => {
-      const cat = t.category || 'General';
-      if (t.type === 'income') { incMap[cat] = (incMap[cat] || 0) + (t.amount || 0); totInc += t.amount || 0; }
-      else { expMap[cat] = (expMap[cat] || 0) + (t.amount || 0); totExp += t.amount || 0; }
+    // 3. Fetch outstanding fee receivables for active students
+    const { data: pendingFees } = await supabase
+      .from('fee_records')
+      .select('total_amount, paid_amount, status, students!inner(is_deleted, status)')
+      .eq('school_id', sid)
+      .eq('students.is_deleted', false)
+      .eq('students.status', 'active')
+      .is('deleted_at', null)
+      .in('status', ['pending', 'overdue', 'partial']);
+
+    // Sum journal lines per account
+    const accMap: Record<string, { code: string; name: string; type: string; debit: number; credit: number }> = {};
+    (accounts || []).forEach(a => {
+      accMap[a.id] = { code: a.code, name: a.name, type: a.account_type, debit: 0, credit: 0 };
     });
 
-    const receivables = (pending || []).reduce(
+    (entries || []).forEach((e: any) => {
+      (e.journal_lines || []).forEach((l: any) => {
+        if (accMap[l.account_id]) {
+          accMap[l.account_id].debit += Number(l.debit || 0);
+          accMap[l.account_id].credit += Number(l.credit || 0);
+        }
+      });
+    });
+
+    let incSum = 0;
+    let expSum = 0;
+    const curAssList: BalanceItem[] = [];
+    const fixAssList: BalanceItem[] = [];
+    const liabList: BalanceItem[] = [];
+    const eqList: BalanceItem[] = [];
+
+    for (const acc of Object.values(accMap)) {
+      if (acc.type === 'income') {
+        const net = acc.credit - acc.debit;
+        incSum += net;
+      } else if (acc.type === 'expense') {
+        const net = acc.debit - acc.credit;
+        expSum += net;
+      } else if (acc.type === 'asset') {
+        const net = acc.debit - acc.credit;
+        const isCashOrBank = acc.code.startsWith('100') || acc.name.toLowerCase().includes('cash') || acc.name.toLowerCase().includes('bank');
+        if (isCashOrBank) {
+          curAssList.push({ code: acc.code, name: acc.name, amount: net });
+        } else {
+          fixAssList.push({ code: acc.code, name: acc.name, amount: net });
+        }
+      } else if (acc.type === 'liability') {
+        const net = acc.credit - acc.debit;
+        liabList.push({ code: acc.code, name: acc.name, amount: net });
+      } else if (acc.type === 'equity') {
+        const net = acc.credit - acc.debit;
+        eqList.push({ code: acc.code, name: acc.name, amount: net });
+      }
+    }
+
+    const calculatedReceivables = (pendingFees || []).reduce(
       (s: number, r: any) => s + Math.max(0, (r.total_amount || 0) - (r.paid_amount || 0)),
       0
     );
 
-    setTotalIncome(totInc);
-    setTotalExpense(totExp);
-    setFeeReceivables(receivables);
-    setIncomeByCategory(Object.entries(incMap).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount));
-    setExpenseByCategory(Object.entries(expMap).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount));
+    setTotalIncome(incSum);
+    setTotalExpense(expSum);
+    setFeeReceivables(calculatedReceivables);
+    setCurrentAssets(curAssList);
+    setFixedAssets(fixAssList);
+    setLiabilities(liabList);
+    setEquityItems(eqList);
     setLoading(false);
   };
 
-  const cashBalance = totalIncome - totalExpense;
-  const totalAssets = cashBalance + feeReceivables;
-  const retainedEarnings = cashBalance;
-  const isEmpty = totalIncome === 0 && totalExpense === 0;
+  // Calculations
+  const totalCurrentAssets = currentAssets.reduce((s, a) => s + a.amount, 0);
+  const totalFixedAssets = fixedAssets.reduce((s, a) => s + a.amount, 0);
+  const totalAssets = totalCurrentAssets + totalFixedAssets;
 
-  if (loading) return <div className="p-12 text-center text-gray-400">Loading...</div>;
+  const totalLiabilities = liabilities.reduce((s, l) => s + l.amount, 0);
+  const capitalEquity = equityItems.reduce((s, e) => s + e.amount, 0);
+  const netEarnings = totalIncome - totalExpense; // Retained Earnings
+  const totalEquity = capitalEquity + netEarnings;
+
+  const totalLiabAndEquity = totalLiabilities + totalEquity;
+  const isBalanced = Math.abs(totalAssets - totalLiabAndEquity) < 1;
+
+  const isEmpty = totalAssets === 0 && totalLiabAndEquity === 0;
+
+  if (loading) return <div className="p-12 text-center text-gray-400">Loading Balance Sheet...</div>;
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -85,7 +154,7 @@ export default function BalanceSheet() {
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <BarChart2 className="w-6 h-6 text-violet-600" /> Balance Sheet
           </h1>
-          <p className="text-gray-500 text-sm mt-1">Financial position as of a given date.</p>
+          <p className="text-gray-500 text-sm mt-1">Statement of Financial Position as of a given date (Double-Entry).</p>
         </div>
         <div className="flex items-center gap-3">
           <div>
@@ -116,110 +185,138 @@ export default function BalanceSheet() {
             </p>
           </div>
 
+          {/* Balance Check Banner */}
+          <div className={`rounded-xl p-4 flex items-center justify-between border ${isBalanced ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+            <div className="flex items-center gap-3">
+              {isBalanced ? (
+                <ShieldCheck className="w-5 h-5 text-emerald-600" />
+              ) : (
+                <AlertCircle className="w-5 h-5 text-amber-600" />
+              )}
+              <div>
+                <p className={`text-sm font-bold ${isBalanced ? 'text-emerald-900' : 'text-amber-900'}`}>
+                  {isBalanced ? 'Accounting Equation Balanced: Assets = Liabilities + Equity' : 'Out of Balance'}
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Total Assets: Rs. {totalAssets.toLocaleString()} &nbsp;·&nbsp; Total Liabilities + Equity: Rs. {totalLiabAndEquity.toLocaleString()}
+                </p>
+              </div>
+            </div>
+            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${isBalanced ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+              {isBalanced ? 'Balanced' : `Diff: Rs. ${Math.abs(totalAssets - totalLiabAndEquity).toLocaleString()}`}
+            </span>
+          </div>
+
           {/* Top stat cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { label: 'Total Income', value: totalIncome, color: 'text-green-700', bg: 'bg-green-50 border-green-200' },
-              { label: 'Total Expenses', value: totalExpense, color: 'text-red-700', bg: 'bg-red-50 border-red-200' },
-              { label: 'Net Surplus / Deficit', value: cashBalance, color: cashBalance >= 0 ? 'text-emerald-700' : 'text-red-600', bg: cashBalance >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200' },
-              { label: 'Fee Receivables', value: feeReceivables, color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200' },
+              { label: 'Total Assets', value: totalAssets, color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
+              { label: 'Total Liabilities', value: totalLiabilities, color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200' },
+              { label: 'Retained Earnings', value: netEarnings, color: netEarnings >= 0 ? 'text-emerald-700' : 'text-rose-700', bg: netEarnings >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200' },
+              { label: 'Fee Receivables', value: feeReceivables, color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200' },
             ].map(({ label, value, color, bg }) => (
               <div key={label} className={`rounded-xl border px-4 py-3 ${bg}`}>
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</p>
                 <p className={`text-xl font-black mt-1 ${color}`}>Rs. {Math.abs(value).toLocaleString()}</p>
-                {label === 'Net Surplus / Deficit' && value < 0 && (
-                  <p className="text-[10px] text-red-500 font-bold mt-0.5">Deficit</p>
-                )}
               </div>
             ))}
           </div>
 
-          {/* Assets + Equity */}
+          {/* Main 2-Column Section: Assets vs Liabilities & Equity */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Assets */}
+            {/* Left Column: Assets */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="bg-blue-600 px-5 py-3">
                 <h3 className="font-bold text-white text-sm uppercase tracking-wide">Assets</h3>
               </div>
-              <div className="p-4 space-y-1">
-                <div className="flex justify-between py-2 border-b border-gray-100 text-sm">
-                  <span className="text-gray-700">Cash / Bank Balance</span>
-                  <span className={`font-semibold ${cashBalance >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
-                    {cashBalance < 0 ? '(' : ''}Rs. {Math.abs(cashBalance).toLocaleString()}{cashBalance < 0 ? ')' : ''}
-                  </span>
+              <div className="p-4 space-y-4">
+                {/* Current Assets */}
+                <div>
+                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-2">Current Assets</h4>
+                  <div className="space-y-1.5">
+                    {currentAssets.map((a, i) => (
+                      <div key={i} className="flex justify-between py-1 border-b border-gray-50 text-sm">
+                        <span className="text-gray-700">{a.code} - {a.name}</span>
+                        <span className="font-semibold text-gray-900">Rs. {a.amount.toLocaleString()}</span>
+                      </div>
+                    ))}
+                    {feeReceivables > 0 && (
+                      <div className="flex justify-between py-1 border-b border-gray-50 text-sm">
+                        <span className="text-gray-700">Fee Receivables (Active Students)</span>
+                        <span className="font-semibold text-purple-700">Rs. {feeReceivables.toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                {feeReceivables > 0 && (
-                  <div className="flex justify-between py-2 border-b border-gray-100 text-sm">
-                    <span className="text-gray-700">Fee Receivables (Unpaid)</span>
-                    <span className="font-semibold text-amber-700">Rs. {feeReceivables.toLocaleString()}</span>
+
+                {/* Non-Current / Fixed Assets */}
+                {fixedAssets.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-2">Fixed / Non-Current Assets</h4>
+                    <div className="space-y-1.5">
+                      {fixedAssets.map((a, i) => (
+                        <div key={i} className="flex justify-between py-1 border-b border-gray-50 text-sm">
+                          <span className="text-gray-700">{a.code} - {a.name}</span>
+                          <span className="font-semibold text-gray-900">Rs. {a.amount.toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
-                <div className="flex justify-between pt-3 font-bold text-base">
+
+                <div className="flex justify-between pt-3 border-t-2 border-gray-200 font-bold text-base">
                   <span className="text-gray-800">Total Assets</span>
                   <span className="text-blue-700">Rs. {totalAssets.toLocaleString()}</span>
                 </div>
               </div>
             </div>
 
-            {/* Equity */}
+            {/* Right Column: Liabilities & Equity */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="bg-purple-600 px-5 py-3">
-                <h3 className="font-bold text-white text-sm uppercase tracking-wide">Equity</h3>
+                <h3 className="font-bold text-white text-sm uppercase tracking-wide">Liabilities & Equity</h3>
               </div>
-              <div className="p-4 space-y-1">
-                <div className="flex justify-between py-2 border-b border-gray-100 text-sm">
-                  <span className="text-gray-700">Total Income Collected</span>
-                  <span className="font-semibold text-green-700">Rs. {totalIncome.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-gray-100 text-sm">
-                  <span className="text-gray-700">Less: Total Expenses</span>
-                  <span className="font-semibold text-red-600">(Rs. {totalExpense.toLocaleString()})</span>
-                </div>
-                <div className="flex justify-between pt-3 font-bold text-base">
-                  <span className="text-gray-800">Retained Earnings</span>
-                  <span className={retainedEarnings >= 0 ? 'text-purple-700' : 'text-red-600'}>
-                    Rs. {retainedEarnings.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Breakdown panels */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Income breakdown */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="bg-green-600 px-5 py-3 flex justify-between items-center">
-                <h3 className="font-bold text-white text-sm uppercase tracking-wide">Income Breakdown</h3>
-                <span className="text-green-100 text-xs font-bold">Rs. {totalIncome.toLocaleString()}</span>
-              </div>
-              <div className="p-4 space-y-1 max-h-60 overflow-y-auto">
-                {incomeByCategory.length === 0 ? (
-                  <p className="text-gray-400 text-sm py-4 text-center">No income recorded</p>
-                ) : incomeByCategory.map((item, i) => (
-                  <div key={i} className="flex justify-between py-1.5 border-b border-gray-50 text-sm">
-                    <span className="text-gray-700">{item.name}</span>
-                    <span className="font-medium text-green-700">Rs. {item.amount.toLocaleString()}</span>
+              <div className="p-4 space-y-4">
+                {/* Liabilities */}
+                <div>
+                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-2">Liabilities</h4>
+                  <div className="space-y-1.5">
+                    {liabilities.length === 0 ? (
+                      <p className="text-xs text-gray-400 py-1">No liabilities recorded</p>
+                    ) : (
+                      liabilities.map((l, i) => (
+                        <div key={i} className="flex justify-between py-1 border-b border-gray-50 text-sm">
+                          <span className="text-gray-700">{l.code} - {l.name}</span>
+                          <span className="font-semibold text-amber-700">Rs. {l.amount.toLocaleString()}</span>
+                        </div>
+                      ))
+                    )}
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
 
-            {/* Expense breakdown */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="bg-red-600 px-5 py-3 flex justify-between items-center">
-                <h3 className="font-bold text-white text-sm uppercase tracking-wide">Expense Breakdown</h3>
-                <span className="text-red-100 text-xs font-bold">Rs. {totalExpense.toLocaleString()}</span>
-              </div>
-              <div className="p-4 space-y-1 max-h-60 overflow-y-auto">
-                {expenseByCategory.length === 0 ? (
-                  <p className="text-gray-400 text-sm py-4 text-center">No expenses recorded</p>
-                ) : expenseByCategory.map((item, i) => (
-                  <div key={i} className="flex justify-between py-1.5 border-b border-gray-50 text-sm">
-                    <span className="text-gray-700">{item.name}</span>
-                    <span className="font-medium text-red-700">Rs. {item.amount.toLocaleString()}</span>
+                {/* Equity */}
+                <div>
+                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-2">Equity</h4>
+                  <div className="space-y-1.5">
+                    {equityItems.map((e, i) => (
+                      <div key={i} className="flex justify-between py-1 border-b border-gray-50 text-sm">
+                        <span className="text-gray-700">{e.code} - {e.name}</span>
+                        <span className="font-semibold text-gray-900">Rs. {e.amount.toLocaleString()}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between py-1 border-b border-gray-50 text-sm">
+                      <span className="text-gray-700">Retained Earnings (Net Income)</span>
+                      <span className={`font-semibold ${netEarnings >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                        Rs. {netEarnings.toLocaleString()}
+                      </span>
+                    </div>
                   </div>
-                ))}
+                </div>
+
+                <div className="flex justify-between pt-3 border-t-2 border-gray-200 font-bold text-base">
+                  <span className="text-gray-800">Total Liabilities & Equity</span>
+                  <span className="text-purple-700">Rs. {totalLiabAndEquity.toLocaleString()}</span>
+                </div>
               </div>
             </div>
           </div>

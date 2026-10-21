@@ -18,6 +18,7 @@ import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, ChallanConfig, ChallanRecor
 import * as templatesLib from '../../lib/whatsappTemplates';
 import { formatDate } from '../../lib/utils';
 import { PageHeader, Card, Btn, Badge, Select, Input, EmptyState, StatCard } from '../../components/ui';
+import { generateInvoiceNumber } from '../../lib/feeUtils';
 
 // Type for class generation status
 interface ClassBillingStatus {
@@ -386,7 +387,7 @@ export default function MonthlyFeeInvoices() {
             due_date: wizardDueDate,
             payment_mode: 'Pending',
             breakdown: wizardSingleBreakdown,
-            invoice_number: `INV-${wizardMonth.replace('-', '').slice(2)}-${student.id.slice(0, 6).toUpperCase()}`,
+            invoice_number: generateInvoiceNumber(wizardMonth, student.id),
           };
         }
 
@@ -432,7 +433,7 @@ export default function MonthlyFeeInvoices() {
           due_date: wizardDueDate,
           payment_mode: 'Pending',
           breakdown,
-          invoice_number: `INV-${wizardMonth.replace('-', '').slice(2)}-${student.id.slice(0, 6).toUpperCase()}`,
+          invoice_number: generateInvoiceNumber(wizardMonth, student.id),
         };
       });
 

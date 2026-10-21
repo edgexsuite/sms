@@ -16,6 +16,7 @@ import StudentFeeOverrideModal from '../../components/StudentFeeOverrideModal';
 import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, type ChallanRecord, type SchoolInfo } from '../../lib/challanUtils';
 import FeeBreakdownEditor, { type BreakdownRow } from '../../components/FeeBreakdownEditor';
 import { calculateLateFine, getFineRules, type FineRule } from '../../lib/fineUtils';
+import { generateInvoiceNumber, checkDuplicateInvoice, scaleBreakdown } from '../../lib/feeUtils';
 
 const PAY_MODES = ['Cash', 'Cheque', 'Bank Transfer', 'JazzCash', 'EasyPaisa', 'Online'];
 
@@ -461,7 +462,15 @@ export default function StudentDetailPage() {
 
     setCreatingEntry(true);
     try {
-      const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
+      // ── Duplicate guard ──
+      const existing = await checkDuplicateInvoice(student.id, newEntryMonth, userRole!.school_id);
+      if (existing) {
+        alert(`An invoice already exists for ${newEntryMonth} (${existing.invoice_number || existing.id}, status: ${existing.status}). Delete or edit it first.`);
+        setCreatingEntry(false);
+        return;
+      }
+
+      const invoiceNumber = generateInvoiceNumber(newEntryMonth, student.id);
       const { data: rec, error: recErr } = await supabase.from('fee_records').insert({
         school_id: userRole!.school_id,
         student_id: student.id,
@@ -477,8 +486,9 @@ export default function StudentDetailPage() {
       }).select().single();
       if (recErr) throw recErr;
 
-      // Log to ledger if any amount was paid
+      // Log to ledger if any amount was paid (scale proportionally for partial payments)
       if (paidAmt > 0 && rec) {
+        const scaledItems = scaleBreakdown(newEntryBreakdown, paidAmt);
         await supabase.from('financial_transactions').insert({
           school_id: userRole!.school_id,
           type: 'income',
@@ -488,7 +498,7 @@ export default function StudentDetailPage() {
           payment_mode: newEntryPayMode,
           remarks: `${student.full_name} — ${invoiceNumber}`,
           fee_record_id: rec.id,
-          fee_items: newEntryBreakdown,
+          fee_items: scaledItems,
         });
       }
 

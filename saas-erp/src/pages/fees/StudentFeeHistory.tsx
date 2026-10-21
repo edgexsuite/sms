@@ -239,11 +239,7 @@ export default function StudentFeeHistory() {
       const newTotal = parseFloat(editForm.total_amount) || 0;
       const newDate = editForm.paid_at;
 
-      if (newPaid === 0 && newTotal > 0) {
-        alert('Paid amount cannot be zero. Use "Pending" status instead or enter a valid paid amount.');
-        setEditSaving(false);
-        return;
-      }
+      // Note: newPaid === 0 is valid — it auto-sets status to 'pending' and clears paid_at below.
 
       const { error } = await supabase.from('fee_records').update({
         total_amount: newTotal,

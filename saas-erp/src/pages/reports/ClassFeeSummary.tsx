@@ -39,9 +39,10 @@ export default function ClassFeeSummary() {
     const [{ data }, { data: cls }, { data: sch }] = await Promise.all([
       supabase.from('fee_records')
         .select(`student_id, total_amount, paid_amount, status, month_year,
-          students!inner(id, class_id, is_deleted, classes(name, section))`)
+          students!inner(id, class_id, is_deleted, status, classes(name, section))`)
         .eq('school_id', userRole.school_id)
         .eq('students.is_deleted', false)
+        .eq('students.status', 'active')
         .is('deleted_at', null),
       supabase.from('classes').select('id, name, section').eq('school_id', userRole.school_id).order('name'),
       supabase.from('schools').select('name, address, logo_url').eq('id', userRole.school_id).single(),

@@ -24,6 +24,7 @@ import {
   type ChallanRecord,
   type SchoolInfo,
 } from '../lib/challanUtils';
+import { generateInvoiceNumber, checkDuplicateInvoice } from '../lib/feeUtils';
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 interface FeeRow {
@@ -60,12 +61,7 @@ function currentMonthYear() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
-function genInvoiceNo(monthYear?: string, roll?: number | null) {
-  const d = monthYear ? new Date(monthYear + '-01') : new Date();
-  const ym = `${d.getFullYear().toString().slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}`;
-  const seq = String(roll ?? Math.floor(Math.random() * 999)).padStart(3, '0');
-  return `INV-${ym}-${seq}`;
-}
+// genInvoiceNo removed — use generateInvoiceNumber() from feeUtils instead
 function rowNet(row: FeeRow): number {
   if (!row.include || row.alreadyCharged) return 0;
   if (row.isArrears) return row.baseAmount; // arrears are fixed — no discount applied
@@ -363,7 +359,19 @@ export default function StudentFeeModal({ student, onSave, onClose, includeAdmis
     try {
       const sid = userRole!.school_id;
       const today = new Date().toISOString().split('T')[0];
-      const invoiceNo = genInvoiceNo(monthYear, student.roll_number);
+
+      // ── Duplicate guard: block if an active invoice already exists for this student+month ──
+      const existing = await checkDuplicateInvoice(student.id, monthYear, sid);
+      if (existing) {
+        setError(
+          `An invoice already exists for this month (${existing.invoice_number || existing.id}, status: ${existing.status}). ` +
+          `To add another payment, use the Collect Fee screen instead.`
+        );
+        setSaving(false);
+        return;
+      }
+
+      const invoiceNo = generateInvoiceNumber(monthYear, student.id);
 
       // Store GROSS amounts in breakdown (consistent with MonthlyFeeInvoices bulk-generate).
       // Discount is stored separately in discount_amount so the challan can display:
@@ -453,7 +461,7 @@ export default function StudentFeeModal({ student, onSave, onClose, includeAdmis
   };
 
   const handlePrintPreview = () => {
-    const invoiceNo = savedInvoiceNo || genInvoiceNo(monthYear, student.roll_number);
+    const invoiceNo = savedInvoiceNo || generateInvoiceNumber(monthYear, student.id);
     const today = new Date().toISOString().split('T')[0];
     const monthYearDate = monthYear.length === 7 ? `${monthYear}-01` : monthYear;
     const record = buildChallanRecord({

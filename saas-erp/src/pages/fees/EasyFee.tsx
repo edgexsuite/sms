@@ -126,6 +126,7 @@ export default function EasyFee() {
   const [waiveFine, setWaiveFine]       = useState(false);
   const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([]);
   const [selectedRecentTx, setSelectedRecentTx]     = useState<RecentTransaction | null>(null);
+  const [totalToday, setTotalToday]                 = useState(0);
 
   // ── Derived (student mode) ────────────────────────────────────────────────
 
@@ -159,8 +160,8 @@ export default function EasyFee() {
     return out;
   }, [payAmount, pendingInvoices, fineRules, waiveFine]);
 
-  const todayStr   = new Date().toISOString().slice(0, 10);
-  const totalToday = recentTransactions.filter(t => t.date === todayStr).reduce((s, t) => s + Number(t.amount), 0);
+  // totalToday is now fetched server-side — see fetchTodayTotal() below.
+  const todayStr = new Date().toISOString().slice(0, 10); // still used in JSX for activity list filtering
 
   // ── Fetch metadata ────────────────────────────────────────────────────────
 
@@ -198,8 +199,23 @@ export default function EasyFee() {
     }
   }, [userRole?.school_id]);
 
+  // Separate server-side query for today's total — not capped by the 10-row limit
+  const fetchTodayTotal = useCallback(async () => {
+    if (!userRole?.school_id) return;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const { data } = await supabase
+      .from('financial_transactions')
+      .select('amount')
+      .eq('school_id', userRole.school_id)
+      .eq('category', 'Fee Collection')
+      .eq('date', todayStr);
+    const sum = (data || []).reduce((s, t) => s + Number(t.amount), 0);
+    setTotalToday(sum);
+  }, [userRole?.school_id]);
+
   useEffect(() => { fetchMetadata(); }, [fetchMetadata]);
   useEffect(() => { fetchRecentActivity(); }, [fetchRecentActivity]);
+  useEffect(() => { fetchTodayTotal(); }, [fetchTodayTotal]);
 
   // ── Student search ────────────────────────────────────────────────────────
 
@@ -455,6 +471,7 @@ export default function EasyFee() {
     setPayAmount(''); setPayRemarks('');
     setPayDate(new Date().toISOString().split('T')[0]);
     await fetchRecentActivity();
+    await fetchTodayTotal();
   };
 
   // ── Parent mode: pay single child ────────────────────────────────────────
@@ -480,6 +497,7 @@ export default function EasyFee() {
     setPayingChildId(null);
     setLastPayment(result.payment);
     await fetchRecentActivity();
+    await fetchTodayTotal();
   };
 
   // ── Parent mode: pay ALL children ────────────────────────────────────────
@@ -506,6 +524,7 @@ export default function EasyFee() {
     setCollectingAll(false);
     setParentSuccessData({ results, total, parent: selectedParent });
     await fetchRecentActivity();
+    await fetchTodayTotal();
   };
 
   // ── Print receipt ─────────────────────────────────────────────────────────

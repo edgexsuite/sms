@@ -43,9 +43,10 @@ export default function ArrearsReport() {
 
     const [{ data }, { data: cls }, { data: sch }] = await Promise.all([
       supabase.from('fee_records')
-        .select(`*, students!inner(id, full_name, student_unique_id, roll_number, class_id, is_deleted, classes(name, section), parents(father_name, whatsapp_number))`)
+        .select(`*, students!inner(id, full_name, student_unique_id, roll_number, class_id, is_deleted, status, classes(name, section), parents(father_name, whatsapp_number))`)
         .eq('school_id', userRole.school_id)
         .eq('students.is_deleted', false)
+        .eq('students.status', 'active')
         .is('deleted_at', null)
         .in('status', ['pending', 'partial', 'partially paid', 'unpaid'])
         .order('month_year', { ascending: true }),

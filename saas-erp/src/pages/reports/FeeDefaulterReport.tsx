@@ -39,10 +39,12 @@ export default function FeeDefaulterReport() {
     let query = supabase
       .from('fee_records')
       .select(`id, student_id, total_amount, paid_amount, status, month_year,
-        students!inner(id, full_name, roll_number, is_deleted, class_id,
+        students!inner(id, full_name, roll_number, is_deleted, status, class_id,
           classes(name, section),
           parents(whatsapp_number))`)
       .eq('school_id', userRole.school_id)
+      .eq('students.is_deleted', false)
+      .eq('students.status', 'active')
       .is('deleted_at', null)
       .in('status', ['pending', 'partially paid', 'partial', 'unpaid'])
       .order('month_year', { ascending: false });
@@ -50,7 +52,7 @@ export default function FeeDefaulterReport() {
     if (selectedMonth) query = query.eq('month_year', `${selectedMonth}-01`);
 
     const { data } = await query;
-    let filtered = (data || []).filter(r => (r.students as any)?.is_deleted === false);
+    let filtered = (data || []).filter(r => (r.students as any)?.is_deleted === false && (r.students as any)?.status === 'active');
     if (selectedClass) filtered = filtered.filter(r => (r.students as any)?.class_id === selectedClass);
     setRecords(filtered);
     setLoading(false);

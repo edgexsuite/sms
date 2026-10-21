@@ -269,21 +269,13 @@ export default function Payroll() {
           remarks: `Salary — ${member.full_name} (${selectedMonth})`,
         },
       ];
-      // Advance Recovery: record as income so P&L shows the recovery offsetting the original advance expense
+      // Reduce remaining balance on active advances for this staff (balance sheet tracking)
       if ((member.advance_deduction || 0) > 0) {
-        txns.push({
-          school_id: sid, type: 'income', category: 'Advance Recovery',
-          amount: member.advance_deduction,
-          date: today, payment_mode: 'Payroll Deduction', staff_id: member.staff_id,
-          remarks: `Advance recovery — ${member.full_name} (${selectedMonth})`,
-        });
-        // Reduce remaining balance on active advances for this staff
         await supabase.rpc('reduce_advance_balance', {
           p_school_id: sid,
           p_staff_id: member.staff_id,
           p_amount: member.advance_deduction,
         }).then(({ error }) => {
-          // If RPC doesn't exist, do a manual update instead
           if (error) {
             return updateAdvanceBalancesManual(sid, member.staff_id, member.advance_deduction);
           }
@@ -337,14 +329,8 @@ export default function Payroll() {
         date: today, payment_mode: 'Bank Transfer', staff_id: s.staff_id,
         remarks: `Salary — ${s.full_name} (${selectedMonth})`,
       });
-      // Advance Recovery income (if any)
+      // Reduce remaining balance on active advances for this staff (balance sheet tracking)
       if ((s.advance_deduction || 0) > 0) {
-        txns.push({
-          school_id: sid, type: 'income', category: 'Advance Recovery',
-          amount: s.advance_deduction,
-          date: today, payment_mode: 'Payroll Deduction', staff_id: s.staff_id,
-          remarks: `Advance recovery — ${s.full_name} (${selectedMonth})`,
-        });
         await updateAdvanceBalancesManual(sid, s.staff_id, s.advance_deduction);
       }
     }
