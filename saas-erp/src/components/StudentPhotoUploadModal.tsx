@@ -3,8 +3,8 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { processStudentPhoto, uploadFile, PhotoProcessResult } from '../lib/uploadUtils';
 import {
-  X, Camera, Upload, Trash2, CheckCircle2, AlertCircle, RefreshCw,
-  Search, Users, Filter, Check, Eye, Image as ImageIcon, Sparkles, FolderUp
+  X, Camera, Image as ImageIcon, Upload, Trash2, CheckCircle2, AlertCircle, RefreshCw,
+  Search, Users, Filter, Check, Eye, Sparkles, FolderUp
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -42,6 +42,7 @@ export default function StudentPhotoUploadModal({
   const { userRole } = useAuth();
   const schoolId = userRole?.school_id;
 
+  const [classList, setClassList] = useState<ClassOption[]>(availableClasses);
   const [selectedClassId, setSelectedClassId] = useState<string>('');
   const [students, setStudents] = useState<StudentItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -60,12 +61,11 @@ export default function StudentPhotoUploadModal({
   const [bulkProgress, setBulkProgress] = useState<{ total: number; done: number; failed: number } | null>(null);
   const [bulkLogs, setBulkLogs] = useState<string[]>([]);
 
-  // Hidden file inputs
-  const singleFileInputRef = useRef<HTMLInputElement>(null);
+  // Dual file inputs: direct camera vs mobile gallery / file picker
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const activeStudentIdRef = useRef<string | null>(null);
   const bulkFileInputRef = useRef<HTMLInputElement>(null);
-
-  const [classList, setClassList] = useState<ClassOption[]>(availableClasses);
 
   useEffect(() => {
     if (availableClasses && availableClasses.length > 0) {
@@ -114,12 +114,21 @@ export default function StudentPhotoUploadModal({
     }
   };
 
-  // Trigger file picker for a specific student
-  const handlePickPhoto = (studentId: string) => {
+  // Trigger camera directly
+  const handlePickCamera = (studentId: string) => {
     activeStudentIdRef.current = studentId;
-    if (singleFileInputRef.current) {
-      singleFileInputRef.current.value = '';
-      singleFileInputRef.current.click();
+    if (cameraInputRef.current) {
+      cameraInputRef.current.value = '';
+      cameraInputRef.current.click();
+    }
+  };
+
+  // Trigger gallery / file picker
+  const handlePickGallery = (studentId: string) => {
+    activeStudentIdRef.current = studentId;
+    if (galleryInputRef.current) {
+      galleryInputRef.current.value = '';
+      galleryInputRef.current.click();
     }
   };
 
@@ -138,7 +147,6 @@ export default function StudentPhotoUploadModal({
     setUploadStatusMsg({ studentId, msg: 'Compressing strictly under 20 KB...', type: 'info' });
 
     try {
-      // Step 1: Compress client-side (< 20 KB hard ceiling)
       const compressed: PhotoProcessResult = await processStudentPhoto(file);
 
       // Verify ceiling before network call
@@ -152,14 +160,10 @@ export default function StudentPhotoUploadModal({
         type: 'info',
       });
 
-      // Step 2: Upload to Supabase Storage: {school_id}/students/{student_id}.{format}
       const storagePath = `${schoolId}/students/${studentId}`;
       const publicUrl = await uploadFile(storagePath, compressed.blob, compressed.format);
-
-      // Add cache-busting timestamp query for instant browser refresh
       const refreshedUrl = `${publicUrl}?t=${Date.now()}`;
 
-      // Step 3: Update students table
       const { error: dbError } = await supabase
         .from('students')
         .update({ photograph_url: refreshedUrl })
@@ -167,7 +171,6 @@ export default function StudentPhotoUploadModal({
 
       if (dbError) throw dbError;
 
-      // Step 4: Update local state & trigger parent callback
       setStudents(prev =>
         prev.map(s => (s.id === studentId ? { ...s, photograph_url: refreshedUrl } : s))
       );
@@ -233,7 +236,7 @@ export default function StudentPhotoUploadModal({
     }
   };
 
-  // Bulk upload matching files by Roll Number (e.g. "101.jpg", "05.png")
+  // Bulk upload matching files by Roll Number
   const handleBulkFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
     if (!fileList || fileList.length === 0 || !schoolId) return;
@@ -247,9 +250,7 @@ export default function StudentPhotoUploadModal({
     let failedCount = 0;
 
     for (const file of files) {
-      // Parse roll number from filename: remove extension, trim
       const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '').trim();
-      // Match with student in current class
       const matched = students.find(
         s => s.roll_number?.trim().toLowerCase() === nameWithoutExt.toLowerCase()
       );
@@ -299,7 +300,6 @@ export default function StudentPhotoUploadModal({
       student.roll_number?.toLowerCase().includes(searchQuery.toLowerCase());
 
     if (!matchesSearch) return false;
-
     if (filterType === 'missing') return !student.photograph_url;
     if (filterType === 'has_photo') return !!student.photograph_url;
     return true;
@@ -311,13 +311,22 @@ export default function StudentPhotoUploadModal({
   const coveragePercent = totalCount > 0 ? Math.round((withPhotoCount / totalCount) * 100) : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      {/* Hidden file input for single uploads */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-5 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+      {/* Hidden file input for camera */}
       <input
-        ref={singleFileInputRef}
+        ref={cameraInputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/jpg"
+        accept="image/*"
         capture="environment"
+        className="hidden"
+        onChange={handleFileSelected}
+      />
+
+      {/* Hidden file input for gallery / local files */}
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
         className="hidden"
         onChange={handleFileSelected}
       />
@@ -332,41 +341,41 @@ export default function StudentPhotoUploadModal({
         onChange={handleBulkFiles}
       />
 
-      <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden border border-slate-200">
-        {/* Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-indigo-700 via-indigo-600 to-indigo-800 text-white flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/15 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-inner">
-              <Camera className="w-5 h-5 text-indigo-100" />
+      <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl flex flex-col h-[94vh] sm:h-[90vh] overflow-hidden border border-slate-200">
+        {/* Header - Slim on mobile */}
+        <div className="px-4 py-2.5 sm:px-6 sm:py-3.5 bg-gradient-to-r from-indigo-700 via-indigo-600 to-indigo-800 text-white flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white/15 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-inner">
+              <Camera className="w-4 h-4 text-indigo-100" />
             </div>
             <div>
-              <h2 className="text-lg font-black tracking-tight flex items-center gap-2">
-                Student Photo Upload <span className="text-[11px] font-bold bg-white/20 px-2 py-0.5 rounded-full border border-white/20">Class Incharge</span>
+              <h2 className="text-sm sm:text-base font-black tracking-tight flex items-center gap-2">
+                Student Photo Upload <span className="text-[10px] font-bold bg-white/20 px-2 py-0.2 rounded-full border border-white/20">&lt; 20 KB</span>
               </h2>
-              <p className="text-xs text-indigo-100 font-medium">
-                Upload & compress student pictures to strictly less than 20 KB
+              <p className="text-[11px] text-indigo-100 font-medium hidden sm:block">
+                Take photo with camera or choose from gallery. Automatic passport resize.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Top Controls & Metrics Bar */}
-        <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 shrink-0 space-y-3">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        {/* Top Controls & Metrics Bar - Ultra-compact on mobile */}
+        <div className="px-3 sm:px-6 py-2.5 sm:py-3 bg-slate-50 border-b border-slate-200 shrink-0 space-y-2">
+          <div className="flex items-center justify-between gap-2">
             {/* Class Selector */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0">Class:</span>
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider shrink-0">Class:</span>
               {classList.length > 1 ? (
                 <select
                   value={selectedClassId}
                   onChange={e => setSelectedClassId(e.target.value)}
-                  className="bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  className="bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-lg px-2.5 py-1 focus:ring-2 focus:ring-indigo-500 focus:outline-none max-w-[200px] truncate"
                 >
                   {classList.map(cls => (
                     <option key={cls.id} value={cls.id}>
@@ -375,7 +384,7 @@ export default function StudentPhotoUploadModal({
                   ))}
                 </select>
               ) : classList.length === 1 ? (
-                <span className="bg-indigo-100 text-indigo-800 text-xs font-black px-3 py-1.5 rounded-lg border border-indigo-200">
+                <span className="bg-indigo-100 text-indigo-800 text-xs font-black px-2.5 py-1 rounded-lg border border-indigo-200 truncate">
                   {classList[0].name} {classList[0].section ? `— ${classList[0].section}` : ''}
                 </span>
               ) : (
@@ -383,47 +392,53 @@ export default function StudentPhotoUploadModal({
               )}
             </div>
 
-            {/* Quick Action Buttons */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setBulkMode(!bulkMode)}
-                className={cn(
-                  'flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-lg border transition',
-                  bulkMode
-                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                )}
-              >
-                <FolderUp className="w-3.5 h-3.5" />
-                {bulkMode ? 'Hide Bulk Upload' : 'Bulk Upload by Roll #'}
-              </button>
-            </div>
+            {/* Quick Bulk Button */}
+            <button
+              onClick={() => setBulkMode(!bulkMode)}
+              className={cn(
+                'flex items-center gap-1 text-[11px] font-black px-2.5 py-1 rounded-lg border transition shrink-0',
+                bulkMode
+                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+              )}
+            >
+              <FolderUp className="w-3 h-3" />
+              <span>{bulkMode ? 'Hide Bulk' : 'Bulk Match'}</span>
+            </button>
           </div>
 
-          {/* Progress & Stat Badges */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-            <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-500">Total Students</span>
-              <span className="text-sm font-black text-slate-900">{totalCount}</span>
+          {/* Compact Mobile Stats Line */}
+          <div className="flex sm:hidden items-center justify-between text-[11px] bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+            <span className="font-bold text-slate-700">
+              <span className="text-emerald-700 font-black">{withPhotoCount}</span>/{totalCount} Photos · <span className="text-amber-700 font-black">{missingCount}</span> Missing
+            </span>
+            <span className="font-black text-indigo-600">{coveragePercent}%</span>
+          </div>
+
+          {/* Desktop Progress & Stat Badges */}
+          <div className="hidden sm:grid grid-cols-4 gap-2 pt-0.5">
+            <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-500">Total</span>
+              <span className="text-xs font-black text-slate-900">{totalCount}</span>
             </div>
-            <div className="bg-white p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/30 shadow-xs flex items-center justify-between">
+            <div className="bg-white p-2 rounded-xl border border-emerald-200 bg-emerald-50/30 shadow-xs flex items-center justify-between">
               <span className="text-[11px] font-bold text-emerald-700 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> With Photo
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" /> With Photo
               </span>
-              <span className="text-sm font-black text-emerald-800">{withPhotoCount}</span>
+              <span className="text-xs font-black text-emerald-800">{withPhotoCount}</span>
             </div>
-            <div className="bg-white p-2.5 rounded-xl border border-amber-200 bg-amber-50/30 shadow-xs flex items-center justify-between">
+            <div className="bg-white p-2 rounded-xl border border-amber-200 bg-amber-50/30 shadow-xs flex items-center justify-between">
               <span className="text-[11px] font-bold text-amber-700 flex items-center gap-1">
-                <AlertCircle className="w-3.5 h-3.5 text-amber-600" /> Missing Photo
+                <AlertCircle className="w-3 h-3 text-amber-600" /> Missing
               </span>
-              <span className="text-sm font-black text-amber-800">{missingCount}</span>
+              <span className="text-xs font-black text-amber-800">{missingCount}</span>
             </div>
-            <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-center">
-              <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 mb-1">
+            <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-center">
+              <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 mb-0.5">
                 <span>Coverage</span>
                 <span className="text-indigo-600 font-black">{coveragePercent}%</span>
               </div>
-              <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+              <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-full transition-all duration-300"
                   style={{ width: `${coveragePercent}%` }}
@@ -434,31 +449,31 @@ export default function StudentPhotoUploadModal({
 
           {/* Bulk Dropzone (Conditional) */}
           {bulkMode && (
-            <div className="p-4 bg-indigo-50/80 rounded-xl border border-indigo-200 space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="p-3 bg-indigo-50/80 rounded-xl border border-indigo-200 space-y-2">
+              <div className="flex items-center justify-between gap-2">
                 <div>
                   <h4 className="text-xs font-black text-indigo-950 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-indigo-600" /> Auto-Match Photos by Roll Number
+                    <Sparkles className="w-3 h-3 text-indigo-600" /> Auto-Match Photos by Roll #
                   </h4>
-                  <p className="text-[11px] text-indigo-700">
-                    Name your photos with student roll numbers (e.g. <code>101.jpg</code>, <code>102.png</code>). Each will be auto-compressed &lt; 20 KB.
+                  <p className="text-[10px] text-indigo-700">
+                    Files named like <code>101.jpg</code> match student roll numbers automatically.
                   </p>
                 </div>
                 <button
                   onClick={() => bulkFileInputRef.current?.click()}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black px-4 py-2 rounded-lg shadow-sm transition shrink-0 flex items-center gap-1.5"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-black px-3 py-1.5 rounded-lg shadow-sm transition shrink-0 flex items-center gap-1"
                 >
-                  <Upload className="w-3.5 h-3.5" /> Select Images
+                  <Upload className="w-3 h-3" /> Select Photos
                 </button>
               </div>
 
               {bulkProgress && (
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-bold text-indigo-900">
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[11px] font-bold text-indigo-900">
                     <span>Processing: {bulkProgress.done + bulkProgress.failed} / {bulkProgress.total}</span>
                     <span>{bulkProgress.done} updated, {bulkProgress.failed} skipped</span>
                   </div>
-                  <div className="max-h-24 overflow-y-auto bg-white rounded-lg p-2 border border-indigo-200 font-mono text-[10px] text-slate-700 space-y-0.5">
+                  <div className="max-h-20 overflow-y-auto bg-white rounded-lg p-1.5 border border-indigo-200 font-mono text-[9px] text-slate-700 space-y-0.5">
                     {bulkLogs.map((log, i) => (
                       <div key={i}>{log}</div>
                     ))}
@@ -468,32 +483,32 @@ export default function StudentPhotoUploadModal({
             </div>
           )}
 
-          {/* Search & Filter Toolbar */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1">
+          {/* Search & Filter - Compact */}
+          <div className="flex items-center gap-1.5 pt-0.5">
             <div className="relative flex-1">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-3 h-3 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search by student name or roll number..."
+                placeholder="Search roll # or name..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                className="w-full pl-7 pr-6 py-1 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-3 h-3" />
                 </button>
               )}
             </div>
 
-            <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-slate-200 shrink-0">
+            <div className="flex items-center gap-0.5 bg-white p-0.5 rounded-lg border border-slate-200 shrink-0">
               <button
                 onClick={() => setFilterType('all')}
                 className={cn(
-                  'px-2.5 py-1 text-[11px] font-bold rounded-md transition',
+                  'px-2 py-0.5 text-[10px] font-bold rounded-md transition',
                   filterType === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
                 )}
               >
@@ -502,7 +517,7 @@ export default function StudentPhotoUploadModal({
               <button
                 onClick={() => setFilterType('missing')}
                 className={cn(
-                  'px-2.5 py-1 text-[11px] font-bold rounded-md transition',
+                  'px-2 py-0.5 text-[10px] font-bold rounded-md transition',
                   filterType === 'missing' ? 'bg-amber-600 text-white' : 'text-slate-600 hover:bg-slate-100'
                 )}
               >
@@ -511,27 +526,27 @@ export default function StudentPhotoUploadModal({
               <button
                 onClick={() => setFilterType('has_photo')}
                 className={cn(
-                  'px-2.5 py-1 text-[11px] font-bold rounded-md transition',
+                  'px-2 py-0.5 text-[10px] font-bold rounded-md transition',
                   filterType === 'has_photo' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-100'
                 )}
               >
-                Uploaded ({withPhotoCount})
+                Done ({withPhotoCount})
               </button>
             </div>
           </div>
         </div>
 
-        {/* Student Roster List */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 divide-y divide-slate-100">
+        {/* Student Roster List - Maximum Height on Mobile */}
+        <div className="flex-1 overflow-y-auto p-2 sm:p-5 divide-y divide-slate-100">
           {loading ? (
             <div className="py-20 text-center">
-              <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin mx-auto mb-2" />
+              <RefreshCw className="w-7 h-7 text-indigo-500 animate-spin mx-auto mb-2" />
               <p className="text-xs font-bold text-slate-500">Loading student roster...</p>
             </div>
           ) : filteredStudents.length === 0 ? (
-            <div className="py-16 text-center text-slate-400">
-              <Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
-              <p className="text-xs font-bold">No students match current filter or search</p>
+            <div className="py-14 text-center text-slate-400">
+              <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p className="text-xs font-bold">No students match current filter</p>
             </div>
           ) : (
             filteredStudents.map(student => {
@@ -541,108 +556,111 @@ export default function StudentPhotoUploadModal({
               return (
                 <div
                   key={student.id}
-                  className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/80 px-2 rounded-xl transition"
+                  className="py-2 px-1 sm:px-2 flex items-center justify-between gap-2 hover:bg-slate-50/80 rounded-xl transition"
                 >
-                  {/* Left: Avatar & Info */}
-                  <div className="flex items-center gap-3.5 min-w-0">
+                  {/* Left: Thumbnail & Student Info */}
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <div className="relative group shrink-0">
                       {student.photograph_url ? (
                         <img
                           src={student.photograph_url}
                           alt={student.full_name}
-                          className="w-12 h-14 rounded-xl object-cover border border-slate-200 shadow-xs"
+                          className="w-10 h-12 sm:w-11 sm:h-13 rounded-lg object-cover border border-slate-200 shadow-xs"
                         />
                       ) : (
-                        <div className="w-12 h-14 rounded-xl bg-slate-100 border border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400">
-                          <ImageIcon className="w-4 h-4 opacity-40 mb-0.5" />
-                          <span className="text-[9px] font-black uppercase text-slate-400">Empty</span>
+                        <div className="w-10 h-12 sm:w-11 sm:h-13 rounded-lg bg-slate-100 border border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400">
+                          <ImageIcon className="w-3.5 h-3.5 opacity-40 mb-0.5" />
+                          <span className="text-[7px] font-black uppercase text-slate-400">Empty</span>
                         </div>
                       )}
 
                       {student.photograph_url && (
                         <button
                           onClick={() => setPreviewStudent(student)}
-                          className="absolute inset-0 bg-slate-900/40 rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition"
+                          className="absolute inset-0 bg-slate-900/40 rounded-lg opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition"
                           title="Preview full photo"
                         >
-                          <Eye className="w-4 h-4" />
+                          <Eye className="w-3 h-3" />
                         </button>
                       )}
                     </div>
 
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-100">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] font-black bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100">
                           Roll #{student.roll_number || 'N/A'}
                         </span>
                         {student.photograph_url ? (
-                          <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
-                            <Check className="w-2.5 h-2.5" /> Photo Added
+                          <span className="text-[8px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded-full border border-emerald-200 flex items-center gap-0.5">
+                            <Check className="w-2 h-2" /> Added
                           </span>
                         ) : (
-                          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                            No Photo
+                          <span className="text-[8px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded-full border border-amber-200">
+                            Missing
                           </span>
                         )}
                       </div>
-                      <h4 className="text-sm font-black text-slate-900 truncate mt-0.5">
+                      <h4 className="text-xs sm:text-sm font-black text-slate-900 truncate mt-0.5">
                         {student.full_name}
                       </h4>
-                      {student.gender && (
-                        <p className="text-[11px] text-slate-400 capitalize">Gender: {student.gender}</p>
-                      )}
 
-                      {/* Status / Reduction Message */}
+                      {/* Status / Compression Message */}
                       {statusMsg && (
                         <p
                           className={cn(
-                            'text-[10px] font-bold mt-1 flex items-center gap-1',
+                            'text-[9px] font-bold mt-0.5 flex items-center gap-1',
                             statusMsg.type === 'success' && 'text-emerald-600',
                             statusMsg.type === 'error' && 'text-red-600',
                             statusMsg.type === 'info' && 'text-indigo-600 animate-pulse'
                           )}
                         >
-                          {statusMsg.type === 'info' && <RefreshCw className="w-3 h-3 animate-spin" />}
+                          {statusMsg.type === 'info' && <RefreshCw className="w-2.5 h-2.5 animate-spin" />}
                           {statusMsg.msg}
                         </p>
                       )}
                     </div>
                   </div>
 
-                  {/* Right: Upload / Replace / Remove Buttons */}
-                  <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                    <button
-                      onClick={() => handlePickPhoto(student.id)}
-                      disabled={isUploading}
-                      className={cn(
-                        'flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition shadow-xs',
-                        student.photograph_url
-                          ? 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
-                          : 'bg-indigo-600 hover:bg-indigo-700 text-white border-transparent'
-                      )}
-                    >
-                      {isUploading ? (
-                        <>
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          <span>Processing...</span>
-                        </>
-                      ) : (
-                        <>
+                  {/* Right: Camera vs Gallery Buttons */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {isUploading ? (
+                      <div className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 px-2 py-1 bg-indigo-50 rounded-lg">
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                        <span className="hidden xs:inline">Saving...</span>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Snap with Camera */}
+                        <button
+                          onClick={() => handlePickCamera(student.id)}
+                          className="p-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1 shadow-xs transition active:scale-95"
+                          title="Snap with mobile camera"
+                        >
                           <Camera className="w-3.5 h-3.5" />
-                          <span>{student.photograph_url ? 'Replace' : 'Upload / Snap'}</span>
-                        </>
-                      )}
-                    </button>
+                          <span className="hidden sm:inline">Camera</span>
+                        </button>
 
-                    {student.photograph_url && (
-                      <button
-                        onClick={() => handleRemovePhoto(student)}
-                        disabled={isUploading}
-                        className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition"
-                        title="Remove student photo"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                        {/* Pick from Gallery */}
+                        <button
+                          onClick={() => handlePickGallery(student.id)}
+                          className="p-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold text-xs flex items-center gap-1 shadow-xs transition active:scale-95"
+                          title="Pick from mobile gallery or files"
+                        >
+                          <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+                          <span className="hidden sm:inline">Gallery</span>
+                        </button>
+
+                        {/* Remove Photo */}
+                        {student.photograph_url && (
+                          <button
+                            onClick={() => handleRemovePhoto(student)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
+                            title="Remove photo"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -652,16 +670,16 @@ export default function StudentPhotoUploadModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 shrink-0 text-xs text-slate-500">
-          <div className="flex items-center gap-2">
+        <div className="px-4 py-2.5 sm:px-6 sm:py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2 shrink-0 text-xs text-slate-500">
+          <div className="flex items-center gap-1.5 text-[11px]">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span>All uploads auto-scale to 150×180 px &amp; compress strictly &lt; 20 KB</span>
+            <span>Strictly &lt; 20 KB (WebP/JPEG)</span>
           </div>
           <button
             onClick={onClose}
-            className="w-full sm:w-auto px-5 py-2 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition text-xs"
+            className="px-4 py-1.5 bg-slate-900 text-white font-bold rounded-lg hover:bg-slate-800 transition text-xs"
           >
-            Done
+            Close
           </button>
         </div>
       </div>

@@ -884,7 +884,6 @@ export default function StudentDetailPage() {
                     ref={photoInputRef}
                     type="file"
                     accept="image/*"
-                    capture="environment"
                     className="hidden"
                     onChange={handlePhotoUpload}
                   />

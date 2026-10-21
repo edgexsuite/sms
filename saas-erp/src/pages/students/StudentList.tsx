@@ -1204,7 +1204,6 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
                       ref={drawerPhotoInputRef}
                       type="file"
                       accept="image/*"
-                      capture="environment"
                       className="hidden"
                       onChange={handleDrawerPhotoUpload}
                     />

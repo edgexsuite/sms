@@ -3,9 +3,9 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { processStudentPhoto, uploadFile, PhotoProcessResult } from '../../lib/uploadUtils';
 import {
-  Camera, Upload, Trash2, CheckCircle2, AlertCircle, RefreshCw,
-  Search, Users, Filter, Check, Eye, Image as ImageIcon, Sparkles,
-  FolderUp, ArrowLeft, Shield, CheckCircle, X
+  Camera, Image as ImageIcon, Upload, Trash2, CheckCircle2, AlertCircle, RefreshCw,
+  Search, Users, Filter, Check, Eye, Sparkles, FolderUp, ArrowLeft, Shield,
+  CheckCircle, X
 } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Card } from '../../components/ui/Card';
@@ -55,8 +55,9 @@ export default function StudentPhotoManager() {
   // Preview zoom
   const [previewStudent, setPreviewStudent] = useState<StudentItem | null>(null);
 
-  // File input refs
-  const singleFileInputRef = useRef<HTMLInputElement>(null);
+  // Dual file inputs: direct camera vs mobile gallery / file picker
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const activeStudentIdRef = useRef<string | null>(null);
   const bulkFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -121,12 +122,21 @@ export default function StudentPhotoManager() {
     }
   };
 
-  // Trigger file picker
-  const handlePickPhoto = (studentId: string) => {
+  // Trigger camera directly (mobile capture)
+  const handlePickCamera = (studentId: string) => {
     activeStudentIdRef.current = studentId;
-    if (singleFileInputRef.current) {
-      singleFileInputRef.current.value = '';
-      singleFileInputRef.current.click();
+    if (cameraInputRef.current) {
+      cameraInputRef.current.value = '';
+      cameraInputRef.current.click();
+    }
+  };
+
+  // Trigger gallery / file picker
+  const handlePickGallery = (studentId: string) => {
+    activeStudentIdRef.current = studentId;
+    if (galleryInputRef.current) {
+      galleryInputRef.current.value = '';
+      galleryInputRef.current.click();
     }
   };
 
@@ -297,13 +307,20 @@ export default function StudentPhotoManager() {
   const isInchargeOfSelected = inchargeClassIds.includes(selectedClassId);
 
   return (
-    <div className="space-y-6">
-      {/* Hidden File Inputs */}
+    <div className="space-y-3 sm:space-y-6">
+      {/* Hidden File Inputs: Camera vs Gallery */}
       <input
-        ref={singleFileInputRef}
+        ref={cameraInputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/jpg"
+        accept="image/*"
         capture="environment"
+        className="hidden"
+        onChange={handleFileSelected}
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
         className="hidden"
         onChange={handleFileSelected}
       />
@@ -316,46 +333,57 @@ export default function StudentPhotoManager() {
         onChange={handleBulkFiles}
       />
 
-      {/* Page Header */}
-      <PageHeader
-        title="Class Student Photos"
-        subtitle="Upload and manage student pictures with automatic compression strictly under 20 KB."
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Btn variant="secondary" onClick={() => navigate('/students')}>
-              <Users className="w-4 h-4" />
-              <span>Student Directory</span>
-            </Btn>
-            <Btn
-              variant={bulkMode ? 'primary' : 'secondary'}
-              onClick={() => setBulkMode(!bulkMode)}
-              className="flex items-center gap-1.5"
-            >
-              <FolderUp className="w-4 h-4" />
-              <span>{bulkMode ? 'Hide Bulk Upload' : 'Bulk Match by Roll #'}</span>
-            </Btn>
-          </div>
-        }
-      />
+      {/* Page Header - Compact on mobile */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <Camera className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600 shrink-0" />
+            <span>Class Student Photos</span>
+            <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200">
+              &lt; 20 KB
+            </span>
+          </h1>
+          <p className="text-xs text-slate-500 hidden sm:block mt-0.5">
+            Passport format crop (150×180 px) with strict automatic compression under 20 KB.
+          </p>
+        </div>
 
-      {/* Class Selection & Metric Banner */}
-      <Card className="p-5 border-none shadow-sm bg-white/90 backdrop-blur-sm space-y-4">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          {/* Class Picker */}
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-black text-slate-700 uppercase tracking-wider">Select Class:</span>
+        <div className="flex items-center gap-1.5 self-end sm:self-auto">
+          <button
+            onClick={() => setBulkMode(!bulkMode)}
+            className="flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-xs transition"
+          >
+            <FolderUp className="w-3.5 h-3.5 text-indigo-600" />
+            <span className="hidden xs:inline">{bulkMode ? 'Hide Bulk' : 'Bulk Match'}</span>
+          </button>
+          <button
+            onClick={() => navigate('/students')}
+            className="flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-xs transition"
+          >
+            <Users className="w-3.5 h-3.5 text-slate-500" />
+            <span className="hidden xs:inline">Directory</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Class Selection & Stats Bar */}
+      <Card className="p-3 sm:p-5 border-none shadow-sm bg-white/95 backdrop-blur-sm space-y-2.5 sm:space-y-4">
+        {/* Class Selector Row */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+            <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider shrink-0">Class:</span>
             {loadingClasses ? (
-              <div className="flex items-center gap-2 text-xs text-slate-400">
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Loading classes...
-              </div>
+              <span className="text-xs text-slate-400 flex items-center gap-1">
+                <RefreshCw className="w-3 h-3 animate-spin" /> Loading...
+              </span>
             ) : classes.length === 0 ? (
               <span className="text-xs text-slate-400">No classes found</span>
             ) : (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 flex-1 max-w-sm">
                 <select
                   value={selectedClassId}
                   onChange={e => setSelectedClassId(e.target.value)}
-                  className="bg-slate-50 border border-slate-300 text-slate-900 text-xs font-black rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-black rounded-xl px-3 py-1.5 sm:py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                 >
                   {classes.map(cls => {
                     const isIncharge = inchargeClassIds.includes(cls.id);
@@ -367,46 +395,51 @@ export default function StudentPhotoManager() {
                   })}
                 </select>
                 {isInchargeOfSelected && (
-                  <span className="text-[10px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1 rounded-full flex items-center gap-1">
-                    <Shield className="w-3 h-3 text-indigo-600" /> Class Incharge
+                  <span className="text-[9px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full shrink-0 hidden sm:inline-flex items-center gap-1">
+                    <Shield className="w-2.5 h-2.5 text-indigo-600" /> Incharge
                   </span>
                 )}
               </div>
             )}
           </div>
 
-          {/* Ceilings & Format Badge */}
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-lg flex items-center gap-1.5">
-              <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Auto-Compressed &lt; 20 KB (WebP/JPEG)
+          {/* Compact Mobile Stats Strip */}
+          <div className="flex sm:hidden items-center gap-2 text-xs w-full justify-between bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200">
+            <div className="flex items-center gap-1.5 font-bold">
+              <span className="text-emerald-700">{withPhotoCount}/{totalCount} Photos</span>
+              <span className="text-slate-400">·</span>
+              <span className="text-amber-700">{missingCount} Missing</span>
+            </div>
+            <span className="text-[11px] font-black text-indigo-600 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+              {coveragePercent}%
             </span>
           </div>
         </div>
 
-        {/* Metrics Row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-          <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+        {/* Desktop Metrics Row (Hidden on mobile to save vertical space) */}
+        <div className="hidden sm:grid grid-cols-4 gap-3 pt-1">
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 shadow-xs flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500">Total Enrolled</span>
             <span className="text-base font-black text-slate-900">{totalCount}</span>
           </div>
-          <div className="bg-emerald-50/50 p-3.5 rounded-xl border border-emerald-200 shadow-xs flex items-center justify-between">
+          <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-200 shadow-xs flex items-center justify-between">
             <span className="text-xs font-bold text-emerald-700 flex items-center gap-1">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" /> With Photo
             </span>
             <span className="text-base font-black text-emerald-800">{withPhotoCount}</span>
           </div>
-          <div className="bg-amber-50/50 p-3.5 rounded-xl border border-amber-200 shadow-xs flex items-center justify-between">
+          <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-200 shadow-xs flex items-center justify-between">
             <span className="text-xs font-bold text-amber-700 flex items-center gap-1">
               <AlertCircle className="w-4 h-4 text-amber-600" /> Missing Photo
             </span>
             <span className="text-base font-black text-amber-800">{missingCount}</span>
           </div>
-          <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 shadow-xs flex flex-col justify-center">
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 shadow-xs flex flex-col justify-center">
             <div className="flex justify-between items-center text-xs font-bold text-slate-600 mb-1">
-              <span>Class Coverage</span>
+              <span>Coverage</span>
               <span className="text-indigo-600 font-black">{coveragePercent}%</span>
             </div>
-            <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+            <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-full transition-all duration-300"
                 style={{ width: `${coveragePercent}%` }}
@@ -415,33 +448,33 @@ export default function StudentPhotoManager() {
           </div>
         </div>
 
-        {/* Bulk Upload Drop Area */}
+        {/* Bulk Upload Section */}
         {bulkMode && (
-          <div className="p-5 bg-indigo-50/90 rounded-2xl border border-indigo-200 space-y-3 animate-in fade-in duration-200">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="p-3 sm:p-4 bg-indigo-50/90 rounded-xl border border-indigo-200 space-y-2 animate-in fade-in duration-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <h4 className="text-sm font-black text-indigo-950 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-indigo-600" /> Auto-Match Multiple Photos by Roll Number
+                <h4 className="text-xs font-black text-indigo-950 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-600" /> Auto-Match Photos by Roll #
                 </h4>
-                <p className="text-xs text-indigo-800 mt-0.5">
-                  Save your photo files as the student's roll number (e.g. <code>1.jpg</code>, <code>102.png</code>). Each image will be resized to passport size and compressed to &lt; 20 KB.
+                <p className="text-[11px] text-indigo-800">
+                  Select multiple photos named like <code>101.jpg</code> or <code>102.png</code>.
                 </p>
               </div>
               <button
                 onClick={() => bulkFileInputRef.current?.click()}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black px-4 py-2.5 rounded-xl shadow-sm transition shrink-0 flex items-center gap-2"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black px-3.5 py-1.5 rounded-lg shadow-sm transition shrink-0 flex items-center gap-1.5 self-start sm:self-auto"
               >
-                <Upload className="w-4 h-4" /> Select Image Files
+                <Upload className="w-3.5 h-3.5" /> Select Photos
               </button>
             </div>
 
             {bulkProgress && (
-              <div className="space-y-1.5 pt-2">
-                <div className="flex justify-between text-xs font-bold text-indigo-900">
+              <div className="space-y-1 pt-1">
+                <div className="flex justify-between text-[11px] font-bold text-indigo-900">
                   <span>Progress: {bulkProgress.done + bulkProgress.failed} / {bulkProgress.total}</span>
-                  <span>{bulkProgress.done} updated successfully, {bulkProgress.failed} failed</span>
+                  <span>{bulkProgress.done} updated, {bulkProgress.failed} failed</span>
                 </div>
-                <div className="max-h-28 overflow-y-auto bg-white rounded-xl p-2.5 border border-indigo-200 font-mono text-[11px] text-slate-700 space-y-1">
+                <div className="max-h-24 overflow-y-auto bg-white rounded-lg p-2 border border-indigo-200 font-mono text-[10px] text-slate-700 space-y-0.5">
                   {bulkLogs.map((log, i) => (
                     <div key={i}>{log}</div>
                   ))}
@@ -451,33 +484,33 @@ export default function StudentPhotoManager() {
           </div>
         )}
 
-        {/* Search & Filter Toolbar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
+        {/* Search & Filter - Compact Toolbar */}
+        <div className="flex items-center gap-2 pt-0.5">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search student name or roll number..."
+              placeholder="Search roll # or name..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
 
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
+          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 shrink-0">
             <button
               onClick={() => setFilterType('all')}
               className={cn(
-                'px-3 py-1.5 text-xs font-bold rounded-lg transition',
-                filterType === 'all' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'
+                'px-2 sm:px-2.5 py-1 text-[11px] font-bold rounded-lg transition',
+                filterType === 'all' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200'
               )}
             >
               All ({totalCount})
@@ -485,8 +518,8 @@ export default function StudentPhotoManager() {
             <button
               onClick={() => setFilterType('missing')}
               className={cn(
-                'px-3 py-1.5 text-xs font-bold rounded-lg transition',
-                filterType === 'missing' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'
+                'px-2 sm:px-2.5 py-1 text-[11px] font-bold rounded-lg transition',
+                filterType === 'missing' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200'
               )}
             >
               Missing ({missingCount})
@@ -494,31 +527,30 @@ export default function StudentPhotoManager() {
             <button
               onClick={() => setFilterType('has_photo')}
               className={cn(
-                'px-3 py-1.5 text-xs font-bold rounded-lg transition',
-                filterType === 'has_photo' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'
+                'px-2 sm:px-2.5 py-1 text-[11px] font-bold rounded-lg transition',
+                filterType === 'has_photo' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200'
               )}
             >
-              With Photo ({withPhotoCount})
+              Added ({withPhotoCount})
             </button>
           </div>
         </div>
       </Card>
 
-      {/* Student Roster Cards */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6">
+      {/* Student Roster Section - Maximized Viewport on Mobile */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-2 sm:p-4">
         {loadingStudents ? (
-          <div className="py-24 text-center">
-            <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin mx-auto mb-2" />
+          <div className="py-20 text-center">
+            <RefreshCw className="w-7 h-7 text-indigo-500 animate-spin mx-auto mb-2" />
             <p className="text-xs font-bold text-slate-500">Loading student roster...</p>
           </div>
         ) : filteredStudents.length === 0 ? (
-          <div className="py-20 text-center text-slate-400">
-            <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <p className="text-sm font-bold text-slate-600">No students match current filter</p>
-            <p className="text-xs text-slate-400 mt-1">Try switching filters or clearing your search term</p>
+          <div className="py-16 text-center text-slate-400">
+            <Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
+            <p className="text-xs font-bold text-slate-600">No students match current filter</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="divide-y divide-slate-100 sm:divide-y-0 sm:grid sm:grid-cols-2 lg:grid-cols-3 sm:gap-3">
             {filteredStudents.map(student => {
               const isUploading = uploadingStudentId === student.id;
               const statusMsg = uploadStatusMsg?.studentId === student.id ? uploadStatusMsg : null;
@@ -526,110 +558,113 @@ export default function StudentPhotoManager() {
               return (
                 <div
                   key={student.id}
-                  className="bg-slate-50/70 border border-slate-200 rounded-2xl p-4 hover:border-indigo-300 hover:shadow-md transition-all flex flex-col justify-between"
+                  className="py-2.5 sm:p-3.5 sm:bg-slate-50/70 sm:border sm:border-slate-200 sm:rounded-2xl hover:border-indigo-300 transition flex flex-col justify-between"
                 >
-                  <div className="flex items-start gap-3.5">
-                    {/* Avatar Thumbnail */}
+                  <div className="flex items-center gap-3">
+                    {/* Thumbnail */}
                     <div className="relative group shrink-0">
                       {student.photograph_url ? (
                         <img
                           src={student.photograph_url}
                           alt={student.full_name}
-                          className="w-16 h-20 rounded-xl object-cover border-2 border-white shadow-md"
+                          className="w-11 h-13 sm:w-14 sm:h-17 rounded-xl object-cover border border-slate-200 shadow-xs"
                         />
                       ) : (
-                        <div className="w-16 h-20 rounded-xl bg-slate-200/70 border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400">
-                          <ImageIcon className="w-5 h-5 opacity-40 mb-1" />
-                          <span className="text-[10px] font-black uppercase text-slate-400">No Photo</span>
+                        <div className="w-11 h-13 sm:w-14 sm:h-17 rounded-xl bg-slate-100 border border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400">
+                          <ImageIcon className="w-4 h-4 opacity-40 mb-0.5" />
+                          <span className="text-[8px] sm:text-[9px] font-black uppercase text-slate-400">No Photo</span>
                         </div>
                       )}
 
                       {student.photograph_url && (
                         <button
                           onClick={() => setPreviewStudent(student)}
-                          className="absolute inset-0 bg-slate-900/50 rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition"
+                          className="absolute inset-0 bg-slate-900/40 rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition"
                           title="Preview full photo"
                         >
-                          <Eye className="w-5 h-5" />
+                          <Eye className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
 
                     {/* Student Info */}
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <span className="text-[10px] font-black bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-md">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-black bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100">
                           Roll #{student.roll_number || 'N/A'}
                         </span>
                         {student.photograph_url ? (
-                          <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-0.5">
                             <Check className="w-2.5 h-2.5" /> Added
                           </span>
                         ) : (
-                          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                          <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200">
                             Missing
                           </span>
                         )}
                       </div>
 
-                      <h4 className="text-sm font-black text-slate-900 leading-snug line-clamp-1">
+                      <h4 className="text-xs sm:text-sm font-black text-slate-900 truncate mt-0.5">
                         {student.full_name}
                       </h4>
-                      {student.gender && (
-                        <p className="text-[11px] text-slate-400 capitalize mt-0.5">Gender: {student.gender}</p>
-                      )}
 
                       {statusMsg && (
                         <p
                           className={cn(
-                            'text-[10px] font-bold mt-1.5 flex items-center gap-1',
+                            'text-[10px] font-bold mt-1 flex items-center gap-1',
                             statusMsg.type === 'success' && 'text-emerald-600',
                             statusMsg.type === 'error' && 'text-red-600',
                             statusMsg.type === 'info' && 'text-indigo-600 animate-pulse'
                           )}
                         >
-                          {statusMsg.type === 'info' && <RefreshCw className="w-3 h-3 animate-spin" />}
+                          {statusMsg.type === 'info' && <RefreshCw className="w-2.5 h-2.5 animate-spin" />}
                           {statusMsg.msg}
                         </p>
                       )}
                     </div>
-                  </div>
 
-                  {/* Bottom Action Buttons */}
-                  <div className="flex items-center justify-between gap-2 pt-3 mt-3 border-t border-slate-200/70">
-                    <button
-                      onClick={() => handlePickPhoto(student.id)}
-                      disabled={isUploading}
-                      className={cn(
-                        'flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2 rounded-xl border transition shadow-xs',
-                        student.photograph_url
-                          ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
-                          : 'bg-indigo-600 hover:bg-indigo-700 text-white border-transparent'
-                      )}
-                    >
+                    {/* Action Buttons: Camera vs Gallery */}
+                    <div className="flex items-center gap-1 shrink-0">
                       {isUploading ? (
-                        <>
+                        <div className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 px-2 py-1 bg-indigo-50 rounded-lg">
                           <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          <span>Compressing...</span>
-                        </>
+                          <span className="hidden xs:inline">Saving...</span>
+                        </div>
                       ) : (
                         <>
-                          <Camera className="w-3.5 h-3.5" />
-                          <span>{student.photograph_url ? 'Replace' : 'Upload / Snap Photo'}</span>
+                          {/* Snap with Camera */}
+                          <button
+                            onClick={() => handlePickCamera(student.id)}
+                            className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1 shadow-xs transition active:scale-95"
+                            title="Take photo with camera"
+                          >
+                            <Camera className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Camera</span>
+                          </button>
+
+                          {/* Pick from Gallery / Device Files */}
+                          <button
+                            onClick={() => handlePickGallery(student.id)}
+                            className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold text-xs flex items-center gap-1 shadow-xs transition active:scale-95"
+                            title="Upload from mobile gallery or files"
+                          >
+                            <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+                            <span className="hidden sm:inline">Gallery</span>
+                          </button>
+
+                          {/* Delete Photo */}
+                          {student.photograph_url && (
+                            <button
+                              onClick={() => handleRemovePhoto(student)}
+                              className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
+                              title="Remove photo"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </>
                       )}
-                    </button>
-
-                    {student.photograph_url && (
-                      <button
-                        onClick={() => handleRemovePhoto(student)}
-                        disabled={isUploading}
-                        className="p-2 rounded-xl border border-slate-200 text-slate-400 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition"
-                        title="Remove student photo"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
+                    </div>
                   </div>
                 </div>
               );
@@ -645,7 +680,7 @@ export default function StudentPhotoManager() {
           onClick={() => setPreviewStudent(null)}
         >
           <div
-            className="bg-white rounded-2xl p-5 max-w-sm w-full text-center space-y-3"
+            className="bg-white rounded-2xl p-4 max-w-sm w-full text-center space-y-3"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex justify-between items-center pb-2 border-b">
