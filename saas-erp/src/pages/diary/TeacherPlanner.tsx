@@ -677,17 +677,46 @@ export default function TeacherPlanner() {
       let slots: Slot[] = [];
 
       if (viewMode === 'class' && selectedClassId) {
-        const { data } = await supabase
+        const { data: ttData } = await supabase
           .from('timetable_slots')
           .select('subject_id, teacher_id')
           .eq('class_id', selectedClassId)
           .eq('school_id', userRole.school_id);
 
         const cls = allClasses.find(c => c.id === selectedClassId);
-        const seen = new Set<string>();
-        (data || []).forEach((s: any) => {
-          if (s.subject_id && !seen.has(s.subject_id)) {
-            seen.add(s.subject_id);
+        const ttMap = new Map<string, string>();
+        (ttData || []).forEach((s: any) => {
+          if (s.subject_id && !ttMap.has(s.subject_id)) {
+            ttMap.set(s.subject_id, s.teacher_id);
+          }
+        });
+
+        const classSubs = allSubjects.filter(s => s.class_id === selectedClassId);
+        const assignedTeacherId = cls?.class_teacher_id || myStaffId || undefined;
+        const assignedTeacherName = allTeachers.find(t => t.id === assignedTeacherId)?.full_name || 'Class Incharge';
+
+        const seenSubs = new Set<string>();
+
+        // Add ALL subjects of this class (guaranteed irrespective of timetable)
+        classSubs.forEach((s: any) => {
+          seenSubs.add(s.id);
+          const teacherId = ttMap.get(s.id) || assignedTeacherId;
+          const teacherName = allTeachers.find(t => t.id === teacherId)?.full_name || assignedTeacherName;
+          slots.push({
+            class_id: selectedClassId,
+            class_name: cls?.name || 'Class',
+            section: cls?.section || '',
+            subject_id: s.id,
+            subject_name: s.subject_name || 'Subject',
+            teacher_id: teacherId,
+            teacher_name: teacherName,
+          });
+        });
+
+        // Any timetable slot not in allSubjects
+        (ttData || []).forEach((s: any) => {
+          if (s.subject_id && !seenSubs.has(s.subject_id)) {
+            seenSubs.add(s.subject_id);
             const sub = allSubjects.find(sub => sub.id === s.subject_id);
             const teacher = allTeachers.find(t => t.id === s.teacher_id);
             slots.push({
@@ -701,35 +730,42 @@ export default function TeacherPlanner() {
             });
           }
         });
-
-        // Fallback: If no timetable slots for this class, load all subjects for this class
-        if (slots.length === 0) {
-          const classSubs = allSubjects.filter(s => s.class_id === selectedClassId);
-          const assignedTeacherId = cls?.class_teacher_id || myStaffId || undefined;
-          const assignedTeacherName = allTeachers.find(t => t.id === assignedTeacherId)?.full_name || 'Class Incharge';
-
-          classSubs.forEach((s: any) => {
-            slots.push({
-              class_id: selectedClassId,
-              class_name: cls?.name || 'Class',
-              section: cls?.section || '',
-              subject_id: s.id,
-              subject_name: s.subject_name || 'Subject',
-              teacher_id: assignedTeacherId,
-              teacher_name: assignedTeacherName,
-            });
-          });
-        }
       } else if (viewMode === 'teacher' && (selectedTeacherId || myStaffId)) {
         const tid = selectedTeacherId || myStaffId;
-        const { data } = await supabase
+        const seen = new Set<string>();
+
+        // 1. ALWAYS include all subjects for any class where this teacher is Class Incharge
+        const inchargeClasses = allClasses.filter(c => c.class_teacher_id === tid || inchargeClassIds.includes(c.id));
+        if (inchargeClasses.length > 0) {
+          const inchargeIds = inchargeClasses.map(c => c.id);
+          const inchargeSubs = allSubjects.filter(s => inchargeIds.includes(s.class_id));
+
+          inchargeSubs.forEach((s: any) => {
+            const key = `${s.class_id}__${s.id}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              const cls = inchargeClasses.find(c => c.id === s.class_id);
+              slots.push({
+                class_id: s.class_id,
+                class_name: cls?.name || 'Class',
+                section: cls?.section || '',
+                subject_id: s.id,
+                subject_name: s.subject_name || 'Subject',
+                teacher_id: tid,
+                teacher_name: allTeachers.find(t => t.id === tid)?.full_name || 'Me',
+              });
+            }
+          });
+        }
+
+        // 2. Timetable slots for this teacher
+        const { data: ttData } = await supabase
           .from('timetable_slots')
           .select('class_id, subject_id')
           .eq('teacher_id', tid)
           .eq('school_id', userRole.school_id);
 
-        const seen = new Set<string>();
-        (data || []).forEach((s: any) => {
+        (ttData || []).forEach((s: any) => {
           if (s.class_id && s.subject_id) {
             const key = `${s.class_id}__${s.subject_id}`;
             if (!seen.has(key)) {
@@ -749,29 +785,7 @@ export default function TeacherPlanner() {
           }
         });
 
-        // Fallback 1: If no timetable slots, check classes where this teacher is Class Incharge
-        if (slots.length === 0 && tid) {
-          const inchargeClasses = allClasses.filter(c => c.class_teacher_id === tid);
-          if (inchargeClasses.length > 0) {
-            const classIds = inchargeClasses.map(c => c.id);
-            const subData = allSubjects.filter(s => classIds.includes(s.class_id));
-
-            subData.forEach((s: any) => {
-              const cls = inchargeClasses.find(c => c.id === s.class_id);
-              slots.push({
-                class_id: s.class_id,
-                class_name: cls?.name || 'Class',
-                section: cls?.section || '',
-                subject_id: s.id,
-                subject_name: s.subject_name || 'Subject',
-                teacher_id: tid,
-                teacher_name: allTeachers.find(t => t.id === tid)?.full_name || 'Me',
-              });
-            });
-          }
-        }
-
-        // Fallback 2: Check if any lesson_plans exist for this teacher
+        // 3. Fallback: If still empty, check existing lesson plans
         if (slots.length === 0 && tid) {
           const { data: lpRows } = await supabase
             .from('lesson_plans')
@@ -779,12 +793,11 @@ export default function TeacherPlanner() {
             .eq('teacher_id', tid)
             .eq('school_id', userRole.school_id);
 
-          const lpSeen = new Set<string>();
           (lpRows || []).forEach((lp: any) => {
             if (lp.class_id && lp.subject_id) {
               const key = `${lp.class_id}__${lp.subject_id}`;
-              if (!lpSeen.has(key)) {
-                lpSeen.add(key);
+              if (!seen.has(key)) {
+                seen.add(key);
                 const cls = allClasses.find(c => c.id === lp.class_id);
                 const sub = allSubjects.find(sub => sub.id === lp.subject_id);
                 slots.push({
@@ -813,7 +826,14 @@ export default function TeacherPlanner() {
 
       if (viewMode === 'teacher') {
         const tid = selectedTeacherId || myStaffId;
-        if (tid) plansQuery = plansQuery.eq('teacher_id', tid);
+        const inchargeClasses = allClasses.filter(c => c.class_teacher_id === tid || inchargeClassIds.includes(c.id));
+        const inchargeIds = inchargeClasses.map(c => c.id);
+
+        if (tid && inchargeIds.length > 0) {
+          plansQuery = plansQuery.or(`teacher_id.eq.${tid},class_id.in.(${inchargeIds.join(',')})`);
+        } else if (tid) {
+          plansQuery = plansQuery.eq('teacher_id', tid);
+        }
       } else if (viewMode === 'class' && selectedClassId) {
         plansQuery = plansQuery.eq('class_id', selectedClassId);
       }

@@ -161,7 +161,7 @@ const avg = (r: Record<string, number>) => {
 
 // ═════════════════════════════════════════════════════════════════════════════
 export default function Evaluation() {
-  const { userRole } = useAuth();
+  const { userRole, inchargeClassIds } = useAuth();
   const sid = userRole?.school_id;
 
   // ── Data ──────────────────────────────────────────────────────────────────
@@ -267,8 +267,11 @@ export default function Evaluation() {
     setExamTypes((exRes.data ?? []) as ExamType[]);
 
     // Auto-assign class for teacher
-    if (userRole?.role === 'teacher' && userRole.staff_id) {
-      const mine = (clsRes.data ?? []).find((c: any) => c.class_teacher_id === userRole.staff_id);
+    if (userRole?.role === 'teacher') {
+      const mine = (clsRes.data ?? []).find((c: any) =>
+        (userRole.staff_id && c.class_teacher_id === userRole.staff_id) ||
+        (inchargeClassIds && inchargeClassIds.includes(c.id))
+      );
       if (mine) {
         setForm(p => ({ ...p, class_id: mine.id }));
         setBatchClassId(mine.id);

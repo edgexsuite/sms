@@ -52,13 +52,17 @@ export default function StudentLeave() {
   }, [userRole]);
 
   const fetchMyInchargeStatus = async () => {
-    if (!userRole?.school_id || !userRole?.email) return;
-    const { data: staffData } = await supabase.from('staff').select('id, role').eq('school_id', userRole?.school_id).eq('email', userRole?.email).maybeSingle();
-    if (staffData) {
-      setStaffId(staffData.id);
+    if (!userRole?.school_id) return;
+    let sid = userRole.staff_id;
+    if (!sid && userRole.email) {
+      const { data: staffData } = await supabase.from('staff').select('id, role').eq('school_id', userRole.school_id).eq('email', userRole.email).maybeSingle();
+      if (staffData) sid = staffData.id;
+    }
+    if (sid) {
+      setStaffId(sid);
       // 2. Check if they are incharge of any class
-      const { data: classData } = await supabase.from('classes').select('id').eq('class_teacher_id', staffData.id).single();
-      if (classData) setMyClassId(classData.id);
+      const { data: classData } = await supabase.from('classes').select('id').eq('school_id', userRole.school_id).eq('class_teacher_id', sid).limit(1);
+      if (classData && classData.length > 0) setMyClassId(classData[0].id);
     }
   };
 

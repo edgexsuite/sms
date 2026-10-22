@@ -69,6 +69,44 @@ export default function TeacherWiseResult() {
           uniqueAssignments.set(key, slot as any);
         }
       });
+
+      // Also include unassigned subjects of incharge classes under the Class Incharge
+      let inchargeQuery = supabase
+        .from('classes')
+        .select('id, class_teacher_id')
+        .eq('school_id', userRole.school_id)
+        .not('class_teacher_id', 'is', null);
+
+      if (selectedTeacher !== 'all') {
+        inchargeQuery = inchargeQuery.eq('class_teacher_id', selectedTeacher);
+      }
+
+      const { data: inchargeClasses } = await inchargeQuery;
+      if (inchargeClasses && inchargeClasses.length > 0) {
+        const inchargeClassIds = inchargeClasses.map(c => c.id);
+        const { data: subData } = await supabase
+          .from('subjects')
+          .select('id, class_id')
+          .in('class_id', inchargeClassIds);
+
+        (subData || []).forEach(sub => {
+          const cls = inchargeClasses.find(c => c.id === sub.class_id);
+          if (cls?.class_teacher_id) {
+            const key = `${cls.class_teacher_id}_${sub.class_id}_${sub.id}`;
+            const assignedElsewhere = Array.from(uniqueAssignments.values()).some(
+              a => a.class_id === sub.class_id && a.subject_id === sub.id
+            );
+            if (!assignedElsewhere) {
+              uniqueAssignments.set(key, {
+                teacher_id: cls.class_teacher_id,
+                class_id: sub.class_id,
+                subject_id: sub.id,
+              });
+            }
+          }
+        });
+      }
+
       const assignments = Array.from(uniqueAssignments.values());
 
       if (assignments.length === 0) {

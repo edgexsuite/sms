@@ -38,7 +38,7 @@ interface StudentRow { id: string; full_name: string; roll_number: string; photo
 interface ExamType   { id: string; name: string; session: string; month_year: string | null; weightage: number }
 
 export default function TeacherMarks() {
-  const { userRole } = useAuth();
+  const { userRole, isClassIncharge, canManageExams, inchargeClassIds } = useAuth();
   const [searchParams] = useSearchParams();
   const isTeacher = ['teacher', 'staff'].includes(userRole?.role || '');
   const isAdmin   = ['admin', 'principal', 'director'].includes(userRole?.role || '');
@@ -183,6 +183,7 @@ export default function TeacherMarks() {
       for (const c of (classTeacherClasses || []) as ClassRow[]) {
         classSet.add(c.id);
       }
+      (inchargeClassIds || []).forEach(cid => classSet.add(cid));
 
       setAssignedSubsByClass(subsByClass);
       setAssignedClassIds(classSet);
@@ -374,6 +375,7 @@ export default function TeacherMarks() {
   // ── Derived: which subjects to show ──────────────────────────────────────
   const visibleSubjects: SubjectRow[] = (() => {
     if (isAdmin || !selectedClass) return allSubjects;
+    if (isClassIncharge(selectedClass) || canManageExams(selectedClass)) return allSubjects;
     const assigned = assignedSubsByClass.get(selectedClass);
     if (!assigned || assigned.size === 0) return allSubjects;
     return allSubjects.filter(s => assigned.has(s.id));
@@ -579,9 +581,11 @@ export default function TeacherMarks() {
           {/* Subject */}
           <div>
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">
-              Subject{isTeacher && selectedClass && assignedSubsByClass.get(selectedClass)?.size
-                ? <span className="text-amber-500 ml-1">(your subjects)</span>
-                : null}
+              Subject{isTeacher && selectedClass && (isClassIncharge(selectedClass) || canManageExams(selectedClass))
+                ? <span className="text-indigo-600 font-bold ml-1">★ (Class Incharge — All Subjects)</span>
+                : isTeacher && selectedClass && assignedSubsByClass.get(selectedClass)?.size
+                  ? <span className="text-amber-500 ml-1">(your subjects)</span>
+                  : null}
             </label>
             <div className="relative">
               <select

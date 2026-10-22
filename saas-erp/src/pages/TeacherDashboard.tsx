@@ -312,19 +312,49 @@ export default function TeacherDashboard() {
   };
 
   const fetchAssignedClasses = async (sid: string) => {
+    // 1. Timetable slots
     const { data: slots } = await supabase
       .from('timetable_slots')
       .select('class_id, classes(name, section), subject_id, subjects(subject_name)')
       .eq('teacher_id', sid).eq('school_id', userRole?.school_id);
 
-    if (!slots || slots.length === 0) return;
+    // 2. Classes where teacher is class incharge
+    const { data: inchargeClasses } = await supabase
+      .from('classes')
+      .select('id, name, section')
+      .eq('school_id', userRole?.school_id)
+      .eq('class_teacher_id', sid);
+
+    let inchargeSubs: any[] = [];
+    if (inchargeClasses && inchargeClasses.length > 0) {
+      const inchargeIds = inchargeClasses.map(c => c.id);
+      const { data: subs } = await supabase
+        .from('subjects')
+        .select('id, class_id, subject_name')
+        .in('class_id', inchargeIds);
+      inchargeSubs = subs || [];
+    }
 
     const classMap = new Map<string, { name: string; section: string; subjects: Set<string> }>();
-    slots.forEach((s: any) => {
+
+    // Add incharge classes with ALL subjects
+    (inchargeClasses || []).forEach((c: any) => {
+      classMap.set(c.id, { name: c.name || '?', section: c.section || '', subjects: new Set() });
+    });
+    inchargeSubs.forEach((s: any) => {
+      if (classMap.has(s.class_id) && s.subject_name) {
+        classMap.get(s.class_id)!.subjects.add(s.subject_name);
+      }
+    });
+
+    // Merge timetable slots
+    (slots || []).forEach((s: any) => {
       if (!classMap.has(s.class_id))
         classMap.set(s.class_id, { name: s.classes?.name || '?', section: s.classes?.section || '', subjects: new Set() });
       if (s.subjects?.subject_name) classMap.get(s.class_id)!.subjects.add(s.subjects.subject_name);
     });
+
+    if (classMap.size === 0) return;
 
     const classIds = Array.from(classMap.keys());
     const { data: students } = await supabase.from('students').select('id, class_id')
@@ -368,23 +398,70 @@ export default function TeacherDashboard() {
   };
 
   const fetchDiaryStatus = async (sid: string) => {
-    const { data: slots } = await supabase.from('timetable_slots')
-      .select('class_id, classes(name, section), subject_id, subjects(subject_name)')
-      .eq('teacher_id', sid).eq('school_id', userRole?.school_id);
-    if (!slots) return;
+    const [{ data: slots }, { data: inchargeClasses }] = await Promise.all([
+      supabase.from('timetable_slots')
+        .select('class_id, classes(name, section), subject_id, subjects(subject_name)')
+        .eq('teacher_id', sid).eq('school_id', userRole?.school_id),
+      supabase.from('classes')
+        .select('id, name, section')
+        .eq('school_id', userRole?.school_id)
+        .eq('class_teacher_id', sid),
+    ]);
+
+    let inchargeSubs: any[] = [];
+    if (inchargeClasses && inchargeClasses.length > 0) {
+      const inchargeIds = inchargeClasses.map(c => c.id);
+      const { data: subs } = await supabase.from('subjects')
+        .select('id, class_id, subject_name')
+        .in('class_id', inchargeIds);
+      inchargeSubs = subs || [];
+    }
 
     const seen  = new Set<string>();
     const pairs: Array<{ class_id: string; class_name: string; section: string; subject_id: string; subject_name: string }> = [];
-    slots.forEach((s: any) => {
-      const key = `${s.class_id}__${s.subject_id}`;
+
+    // Incharge classes get all subjects
+    inchargeSubs.forEach((s: any) => {
+      const cls = (inchargeClasses || []).find(c => c.id === s.class_id);
+      const key = `${s.class_id}__${s.id}`;
       if (!seen.has(key)) {
         seen.add(key);
-        pairs.push({ class_id: s.class_id, class_name: s.classes?.name || '?', section: s.classes?.section || '', subject_id: s.subject_id, subject_name: s.subjects?.subject_name || 'General' });
+        pairs.push({
+          class_id: s.class_id,
+          class_name: cls?.name || '?',
+          section: cls?.section || '',
+          subject_id: s.id,
+          subject_name: s.subject_name || 'General'
+        });
       }
     });
 
-    const { data: diaries } = await supabase.from('teacher_diary').select('class_id, subject_id, diary_date')
-      .eq('teacher_id', sid).eq('school_id', userRole?.school_id).order('diary_date', { ascending: false });
+    // Timetable slots
+    (slots || []).forEach((s: any) => {
+      const key = `${s.class_id}__${s.subject_id}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        pairs.push({
+          class_id: s.class_id,
+          class_name: s.classes?.name || '?',
+          section: s.classes?.section || '',
+          subject_id: s.subject_id,
+          subject_name: s.subjects?.subject_name || 'General'
+        });
+      }
+    });
+
+    const inchargeClassIds = (inchargeClasses || []).map(c => c.id);
+    let diaryQuery = supabase.from('teacher_diary').select('class_id, subject_id, diary_date')
+      .eq('school_id', userRole?.school_id).order('diary_date', { ascending: false });
+
+    if (inchargeClassIds.length > 0) {
+      diaryQuery = diaryQuery.or(`teacher_id.eq.${sid},class_id.in.(${inchargeClassIds.join(',')})`);
+    } else {
+      diaryQuery = diaryQuery.eq('teacher_id', sid);
+    }
+
+    const { data: diaries } = await diaryQuery;
 
     const lastMap = new Map<string, string>();
     (diaries || []).forEach((d: any) => {
@@ -400,10 +477,17 @@ export default function TeacherDashboard() {
   };
 
   const fetchRecentResults = async (sid: string) => {
-    const { data: slots } = await supabase.from('timetable_slots').select('class_id')
-      .eq('teacher_id', sid).eq('school_id', userRole?.school_id).limit(20);
-    if (!slots?.length) return;
-    const classIds = [...new Set(slots.map((s: any) => s.class_id))];
+    const [{ data: slots }, { data: inchargeClasses }] = await Promise.all([
+      supabase.from('timetable_slots').select('class_id')
+        .eq('teacher_id', sid).eq('school_id', userRole?.school_id).limit(20),
+      supabase.from('classes').select('id')
+        .eq('school_id', userRole?.school_id).eq('class_teacher_id', sid),
+    ]);
+    const classIds = [...new Set([
+      ...((slots || []).map((s: any) => s.class_id)),
+      ...((inchargeClasses || []).map((c: any) => c.id)),
+    ])];
+    if (!classIds.length) return;
     const stuIds   = ((await supabase.from('students').select('id').in('class_id', classIds)).data || []).map((s: any) => s.id);
     if (!stuIds.length) return;
     const { data } = await supabase.from('exam_results')

@@ -137,6 +137,7 @@ export default function TeacherDiary() {
   const [rows, setRows] = useState<DiaryRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [scheduleActive, setScheduleActive] = useState(false); // true when diary_schedule filters apply
+  const [showAllSubjects, setShowAllSubjects] = useState(false); // allows class incharge / teacher to view all subjects irrespective of daily schedule
 
   // ── Weekly Diary & Early Foundation (EF) State ─────────────────────────────
   const [diaryPeriod, setDiaryPeriod] = useState<'daily' | 'weekly'>('daily');
@@ -279,86 +280,140 @@ export default function TeacherDiary() {
   }, [selectedTeacherId, selectedClassId, viewMode]);
 
   const fetchClassSlots = async () => {
-    const { data } = await supabase
+    if (!selectedClassId || !userRole?.school_id) return;
+    const cls = allClasses.find(c => c.id === selectedClassId);
+
+    // 1. Fetch ALL subjects configured for this class directly
+    const { data: subData } = await supabase
+      .from('subjects')
+      .select('id, subject_name')
+      .eq('class_id', selectedClassId)
+      .order('subject_name');
+
+    // 2. Fetch timetable slots for this class to get assigned faculty names (if any)
+    const { data: ttData } = await supabase
       .from('timetable_slots')
-      .select('subject_id, subjects(subject_name), teacher_id, staff(full_name)')
+      .select('subject_id, teacher_id, staff(full_name)')
       .eq('class_id', selectedClassId)
       .eq('school_id', userRole?.school_id);
 
-    const cls = allClasses.find(c => c.id === selectedClassId);
-    let unique: Slot[] = [];
+    const ttMap = new Map<string, { teacher_id?: string; teacher_name?: string }>();
+    (ttData || []).forEach((s: any) => {
+      if (s.subject_id && !ttMap.has(s.subject_id)) {
+        ttMap.set(s.subject_id, {
+          teacher_id: s.teacher_id,
+          teacher_name: s.staff?.full_name || undefined,
+        });
+      }
+    });
 
-    if (data && data.length > 0) {
-      const seen = new Set<string>();
-      data.forEach((s: any) => {
-        if (!seen.has(s.subject_id)) {
-          seen.add(s.subject_id);
-          unique.push({
-            class_id: selectedClassId,
-            class_name: cls?.name || '?',
-            section: cls?.section || '',
-            subject_id: s.subject_id,
-            subject_name: s.subjects?.subject_name || 'General',
-            teacher_id: s.teacher_id,
-            teacher_name: s.staff?.full_name || 'Unassigned',
-          });
-        }
+    const unique: Slot[] = [];
+    const seen = new Set<string>();
+
+    const inchargeTeacherName = allTeachers.find(t => t.id === cls?.class_teacher_id)?.full_name || 'Class Incharge';
+
+    // Add ALL subjects of this class (guaranteed irrespective of timetable)
+    (subData || []).forEach((sub: any) => {
+      seen.add(sub.id);
+      const tt = ttMap.get(sub.id);
+      unique.push({
+        class_id: selectedClassId,
+        class_name: cls?.name || '?',
+        section: cls?.section || '',
+        subject_id: sub.id,
+        subject_name: sub.subject_name || 'General',
+        teacher_id: tt?.teacher_id || cls?.class_teacher_id || myStaffId || undefined,
+        teacher_name: tt?.teacher_name || inchargeTeacherName,
       });
-    }
+    });
 
-    // Fallback: If no timetable slots (common for EF classes & new classes), fetch class subjects directly
-    if (unique.length === 0) {
-      const { data: subData } = await supabase
-        .from('subjects')
-        .select('id, subject_name')
-        .eq('class_id', selectedClassId)
-        .order('subject_name');
-
-      if (subData && subData.length > 0) {
-        unique = subData.map((sub: any) => ({
+    // Fallback: If any timetable slots have subjects not in subData
+    (ttData || []).forEach((s: any) => {
+      if (s.subject_id && !seen.has(s.subject_id)) {
+        seen.add(s.subject_id);
+        unique.push({
           class_id: selectedClassId,
           class_name: cls?.name || '?',
           section: cls?.section || '',
-          subject_id: sub.id,
-          subject_name: sub.subject_name || 'General',
-          teacher_id: cls?.class_teacher_id || myStaffId || undefined,
-          teacher_name: allTeachers.find(t => t.id === cls?.class_teacher_id)?.full_name || 'Class Incharge',
-        }));
+          subject_id: s.subject_id,
+          subject_name: 'General',
+          teacher_id: s.teacher_id || cls?.class_teacher_id || myStaffId || undefined,
+          teacher_name: s.staff?.full_name || inchargeTeacherName,
+        });
       }
-    }
+    });
 
     unique.sort((a, b) => a.subject_name.localeCompare(b.subject_name));
     setAssignedSlots(unique);
   };
 
   const fetchAssignedSlots = async () => {
-    const { data } = await supabase
+    const tid = selectedTeacherId || myStaffId;
+    if (!tid || !userRole?.school_id) return;
+
+    // 1. Timetable slots for this teacher
+    const { data: ttData } = await supabase
       .from('timetable_slots')
       .select('class_id, classes(name, section), subject_id, subjects(subject_name)')
-      .eq('teacher_id', selectedTeacherId)
+      .eq('teacher_id', tid)
       .eq('school_id', userRole?.school_id);
 
-    if (data) {
-      const seen = new Set<string>();
-      const unique: Slot[] = [];
-      data.forEach((s: any) => {
-        const key = `${s.class_id}__${s.subject_id}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          unique.push({
-            class_id: s.class_id,
-            class_name: s.classes?.name || '?',
-            section: s.classes?.section || '',
-            subject_id: s.subject_id,
-            subject_name: s.subjects?.subject_name || 'General',
-          });
-        }
-      });
-      unique.sort((a, b) =>
-        `${a.class_name}${a.section}${a.subject_name}`.localeCompare(`${b.class_name}${b.section}${b.subject_name}`)
-      );
-      setAssignedSlots(unique);
+    // 2. Classes where this teacher is Class Incharge (give full access to ALL subjects!)
+    const inchargeClasses = allClasses.filter(c => c.class_teacher_id === tid || inchargeClassIds.includes(c.id));
+    const inchargeClassIdsList = inchargeClasses.map(c => c.id);
+
+    let inchargeSubs: any[] = [];
+    if (inchargeClassIdsList.length > 0) {
+      const { data: subData } = await supabase
+        .from('subjects')
+        .select('id, subject_name, class_id')
+        .in('class_id', inchargeClassIdsList)
+        .order('subject_name');
+      inchargeSubs = subData || [];
     }
+
+    const seen = new Set<string>();
+    const unique: Slot[] = [];
+
+    // First: add ALL subjects from incharge classes
+    inchargeSubs.forEach((sub: any) => {
+      const key = `${sub.class_id}__${sub.id}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        const cls = inchargeClasses.find(c => c.id === sub.class_id);
+        unique.push({
+          class_id: sub.class_id,
+          class_name: cls?.name || '?',
+          section: cls?.section || '',
+          subject_id: sub.id,
+          subject_name: sub.subject_name || 'General',
+          teacher_id: tid,
+          teacher_name: allTeachers.find(t => t.id === tid)?.full_name || 'Me',
+        });
+      }
+    });
+
+    // Second: add timetable slots
+    (ttData || []).forEach((s: any) => {
+      const key = `${s.class_id}__${s.subject_id}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push({
+          class_id: s.class_id,
+          class_name: s.classes?.name || '?',
+          section: s.classes?.section || '',
+          subject_id: s.subject_id,
+          subject_name: s.subjects?.subject_name || 'General',
+          teacher_id: tid,
+          teacher_name: allTeachers.find(t => t.id === tid)?.full_name || 'Me',
+        });
+      }
+    });
+
+    unique.sort((a, b) =>
+      `${a.class_name}${a.section}${a.subject_name}`.localeCompare(`${b.class_name}${b.section}${b.subject_name}`)
+    );
+    setAssignedSlots(unique);
   };
 
   useEffect(() => {
@@ -367,7 +422,7 @@ export default function TeacherDiary() {
     } else {
       setRows([]);
     }
-  }, [assignedSlots, viewDate, selectedTeacherId, selectedClassId, viewMode]);
+  }, [assignedSlots, viewDate, selectedTeacherId, selectedClassId, viewMode, showAllSubjects]);
 
   const buildRows = async () => {
     setLoading(true);
@@ -390,21 +445,25 @@ export default function TeacherDiary() {
 
       if (schedRows && schedRows.length > 0) {
         setScheduleActive(true);
-        const cls = allClasses.find((c: any) => c.id === selectedClassId);
-        slotsToUse = schedRows.map((r: any) => {
-          const existing = assignedSlots.find(s =>
-            s.subject_id === r.subject_id && s.class_id === selectedClassId
-          );
-          return {
-            class_id:     selectedClassId,
-            class_name:   cls?.name || '',
-            section:      cls?.section || '',
-            subject_id:   r.subject_id,
-            subject_name: (r.subjects as any)?.subject_name || existing?.subject_name || '—',
-            teacher_id:   existing?.teacher_id || myStaffId || undefined,
-            teacher_name: existing?.teacher_name || 'Unassigned',
-          };
-        });
+        if (showAllSubjects) {
+          slotsToUse = assignedSlots;
+        } else {
+          const cls = allClasses.find((c: any) => c.id === selectedClassId);
+          slotsToUse = schedRows.map((r: any) => {
+            const existing = assignedSlots.find(s =>
+              s.subject_id === r.subject_id && s.class_id === selectedClassId
+            );
+            return {
+              class_id:     selectedClassId,
+              class_name:   cls?.name || '',
+              section:      cls?.section || '',
+              subject_id:   r.subject_id,
+              subject_name: (r.subjects as any)?.subject_name || existing?.subject_name || '—',
+              teacher_id:   existing?.teacher_id || myStaffId || undefined,
+              teacher_name: existing?.teacher_name || 'Unassigned',
+            };
+          });
+        }
       } else {
         setScheduleActive(false);
         slotsToUse = assignedSlots;
@@ -431,22 +490,26 @@ export default function TeacherDiary() {
 
       setScheduleActive(schedByClass.size > 0);
 
-      // Per class: apply its schedule, or fall back to all teacher subjects
-      uniqueClassIds.forEach(classId => {
-        const classSchedule = schedByClass.get(classId);
-        const teacherSlotsForClass = assignedSlots.filter(s => s.class_id === classId);
+      if (showAllSubjects) {
+        slotsToUse = assignedSlots;
+      } else {
+        // Per class: apply its schedule, or fall back to all teacher subjects
+        uniqueClassIds.forEach(classId => {
+          const classSchedule = schedByClass.get(classId);
+          const teacherSlotsForClass = assignedSlots.filter(s => s.class_id === classId);
 
-        if (classSchedule && classSchedule.length > 0) {
-          // Include only the teacher's subjects that appear in this class's schedule
-          classSchedule.forEach((r: any) => {
-            const existing = teacherSlotsForClass.find(s => s.subject_id === r.subject_id);
-            if (existing) slotsToUse.push(existing);
-          });
-        } else {
-          // No schedule for this class — show all teacher subjects for it
-          slotsToUse.push(...teacherSlotsForClass);
-        }
-      });
+          if (classSchedule && classSchedule.length > 0) {
+            // Include only the teacher's subjects that appear in this class's schedule
+            classSchedule.forEach((r: any) => {
+              const existing = teacherSlotsForClass.find(s => s.subject_id === r.subject_id);
+              if (existing) slotsToUse.push(existing);
+            });
+          } else {
+            // No schedule for this class — show all teacher subjects for it
+            slotsToUse.push(...teacherSlotsForClass);
+          }
+        });
+      }
     }
 
     // ── Fetch existing diary entries for this date ─────────────────────────
@@ -457,7 +520,15 @@ export default function TeacherDiary() {
       .eq('diary_date', viewDate);
 
     if (viewMode === 'teacher') {
-      query = query.eq('teacher_id', selectedTeacherId);
+      const tid = selectedTeacherId || myStaffId;
+      const inchargeClasses = allClasses.filter(c => c.class_teacher_id === tid || inchargeClassIds.includes(c.id));
+      const inchargeClassIdsList = inchargeClasses.map(c => c.id);
+
+      if (tid && inchargeClassIdsList.length > 0) {
+        query = query.or(`teacher_id.eq.${tid},class_id.in.(${inchargeClassIdsList.join(',')})`);
+      } else if (tid) {
+        query = query.eq('teacher_id', tid);
+      }
     } else {
       query = query.eq('class_id', selectedClassId);
     }
@@ -503,7 +574,7 @@ export default function TeacherDiary() {
     }
     setRows(prev => prev.map((r, i) => i === index ? { ...r, saving: true } : r));
     try {
-      const activeTeacherId = viewMode === 'teacher' ? selectedTeacherId : (row.slot.teacher_id || myStaffId || selectedTeacherId);
+      const activeTeacherId = row.slot.teacher_id || myStaffId || selectedTeacherId;
       if (!activeTeacherId) throw new Error("No teacher assigned to this subject. Please select a teacher or ensure staff account is linked.");
 
       const payload = {
@@ -1234,13 +1305,24 @@ export default function TeacherDiary() {
           )}
 
           {diaryPeriod === 'daily' && rows.length > 0 && (
-            <span className={`flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1.5 rounded-full ${
-              scheduleActive
-                ? 'bg-emerald-100 text-emerald-700'
-                : 'bg-amber-50 text-amber-600'
-            }`}>
-              {scheduleActive ? '📅 Schedule Active' : '⚠️ No schedule — all subjects'}
-            </span>
+            <button
+              onClick={() => setShowAllSubjects(!showAllSubjects)}
+              className={cn(
+                'flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1.5 rounded-full border transition active:scale-95 cursor-pointer',
+                scheduleActive
+                  ? showAllSubjects
+                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'
+                    : 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                  : 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100'
+              )}
+              title="Click to toggle between daily schedule and all subjects"
+            >
+              {scheduleActive ? (
+                showAllSubjects ? '📚 All Subjects (Click for Schedule)' : '📅 Schedule Active (Click for All)'
+              ) : (
+                '📚 All Subjects'
+              )}
+            </button>
           )}
 
           {/* Direct PDF Download button for old devices & mobile */}
