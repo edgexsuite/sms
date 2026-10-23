@@ -18,11 +18,24 @@ import ExperienceCertificate from '../components/ExperienceCertificate';
 import * as templatesLib from '../lib/whatsappTemplates';
 import { processStaffPhoto } from '../lib/uploadUtils';
 import { logActivity } from '../lib/auditLog';
-import { StaffCategory, getStaffCategory, STAFF_CATEGORIES } from '../lib/staffUtils';
+import { StaffCategory, getStaffCategory, STAFF_CATEGORIES, ROLE_GROUPS, STANDARD_ROLES } from '../lib/staffUtils';
 
-const ROLES = ['Teacher', 'Principal', 'Vice Principal', 'Coordinator', 'Admin', 'Accountant', 'Librarian', 'Security', 'Support Staff', 'Driver', 'Other'];
-const DEPARTMENTS = ['Academic', 'Administration', 'Accounts', 'Library', 'Security', 'Transport', 'Science', 'Arts', 'IT'];
-const QUALIFICATIONS = ['Matric', 'Intermediate', 'B.A / B.Sc', 'M.A / M.Sc', 'B.Ed', 'M.Ed', 'PhD', 'Other'];
+const ROLES = STANDARD_ROLES;
+const DEPARTMENTS = [
+  'Academic',
+  'Administration',
+  'Accounts & Finance',
+  'General Support & Maintenance',
+  'Security & Safety',
+  'Transport',
+  'Library',
+  'Housekeeping & Sanitation',
+  'Kitchen & Mess',
+  'Science & Labs',
+  'Arts & Sports',
+  'IT & Computer Lab'
+];
+const QUALIFICATIONS = ['Matric', 'Intermediate', 'B.A / B.Sc', 'M.A / M.Sc', 'B.Ed', 'M.Ed', 'PhD', 'Diploma / Technical Certificate', 'Middle / Primary', 'Other'];
 
 const emptyForm = {
   full_name: '',
@@ -923,10 +936,31 @@ export default function Staff() {
                         className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-slate-500 font-black text-slate-800 shadow-inner bg-white" />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">System Role *</label>
-                      <select value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} className="w-full border border-gray-300 px-3 py-2 rounded-lg bg-white text-sm font-medium">
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-slate-700 uppercase">System Role *</label>
+                        {formData.role && (() => {
+                          const cat = getStaffCategory({ role: formData.role, department: formData.department });
+                          const meta = STAFF_CATEGORIES.find(c => c.id === cat);
+                          return (
+                            <span className={cn("text-[9px] font-black uppercase px-2 py-0.5 rounded-full border tracking-wider", meta?.badgeClass)}>
+                              {meta?.label} Staff
+                            </span>
+                          );
+                        })()}
+                      </div>
+                      <select 
+                        value={formData.role} 
+                        onChange={e => setFormData({ ...formData, role: e.target.value })} 
+                        className="w-full border border-gray-300 px-3 py-2 rounded-lg bg-white text-sm font-medium focus:ring-slate-500 focus:border-slate-500 shadow-inner"
+                      >
                         <option value="">-- Select Role --</option>
-                        {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                        {ROLE_GROUPS.map(group => (
+                          <optgroup key={group.category} label={`── ${group.label} ──`}>
+                            {group.roles.map(r => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                          </optgroup>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -1072,10 +1106,27 @@ export default function Staff() {
             </div>
             <div className="p-8 space-y-6">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Select New Role</label>
-                <select value={bulkRole} onChange={(e) => setBulkRole(e.target.value)} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-bold focus:ring-4 focus:ring-indigo-100 outline-none transition-all shadow-inner">
-                  <option value="">Choose Designation...</option>
-                  {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                <div className="flex items-center justify-between px-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Select New Role</label>
+                  {bulkRole && (() => {
+                    const cat = getStaffCategory({ role: bulkRole });
+                    const meta = STAFF_CATEGORIES.find(c => c.id === cat);
+                    return (
+                      <span className={cn("text-[9px] font-black uppercase px-2 py-0.5 rounded-full border tracking-wider", meta?.badgeClass)}>
+                        {meta?.label}
+                      </span>
+                    );
+                  })()}
+                </div>
+                <select value={bulkRole} onChange={(e) => setBulkRole(e.target.value)} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-bold focus:ring-4 focus:ring-indigo-100 outline-none transition-all shadow-inner text-sm">
+                  <option value="">Choose Designation / Role...</option>
+                  {ROLE_GROUPS.map(group => (
+                    <optgroup key={group.category} label={`── ${group.label} ──`}>
+                      {group.roles.map(r => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </optgroup>
+                  ))}
                 </select>
               </div>
               <button onClick={handleBulkRoleChange} disabled={!bulkRole} className="w-full bg-slate-900 text-white py-5 rounded-[1.5rem] font-black uppercase tracking-widest hover:bg-indigo-600 shadow-xl shadow-slate-200 disabled:opacity-30 transition-all active:scale-95">Perform Batch Change</button>

@@ -12,6 +12,7 @@ import JoiningLetter from '../../components/JoiningLetter';
 import ExperienceCertificate from '../../components/ExperienceCertificate';
 import { motion, AnimatePresence } from 'motion/react';
 import * as templatesLib from '../../lib/whatsappTemplates';
+import { getStaffCategory, STAFF_CATEGORIES } from '../../lib/staffUtils';
 
 export default function StaffDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -333,8 +334,19 @@ export default function StaffDetailPage() {
               
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-8 mt-8">
                 <div className="flex flex-col">
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Current Role</span>
-                  <p className="text-xl font-bold text-indigo-400 leading-none truncate uppercase tracking-tight">{staff.role}</p>
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Current Role & Category</span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-xl font-bold text-indigo-400 leading-none truncate uppercase tracking-tight">{staff.role}</p>
+                    {(() => {
+                      const cat = getStaffCategory(staff);
+                      const meta = STAFF_CATEGORIES.find(c => c.id === cat);
+                      return (
+                        <span className={cn("text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border tracking-wider", meta?.badgeClass)}>
+                          {meta?.label} Staff
+                        </span>
+                      );
+                    })()}
+                  </div>
                 </div>
                 <div className="w-px h-10 bg-white/10 hidden md:block" />
                 <div className="flex flex-col">
