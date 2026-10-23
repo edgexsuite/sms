@@ -59,6 +59,7 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
   const [search, setSearch] = useState('');
   // Photo modal & drawer upload state
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+  const [previewPhoto, setPreviewPhoto] = useState<{ url: string; name: string } | null>(null);
   const [drawerUploadingPhoto, setDrawerUploadingPhoto] = useState(false);
   const [drawerPhotoFeedback, setDrawerPhotoFeedback] = useState<string | null>(null);
   const drawerPhotoInputRef = useRef<HTMLInputElement>(null);
@@ -1007,9 +1008,44 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
                       </span>
                     </td>
                     <td className="px-4 py-2">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-black text-slate-900 uppercase tracking-tight leading-snug">{student.full_name}</span>
-                        <span className="text-xs text-slate-400 font-medium">{student.b_form_cnic || 'No CNIC'}</span>
+                      <div className="flex items-center gap-3">
+                        <div 
+                          className={cn(
+                            "w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center shrink-0 border transition-all",
+                            student.photograph_url 
+                              ? "bg-slate-50 border-slate-200 group-hover:border-indigo-300 shadow-xs cursor-pointer hover:scale-105" 
+                              : "bg-slate-100 border-slate-200/70 text-slate-400 font-black text-xs"
+                          )}
+                          onClick={(e) => {
+                            if (student.photograph_url) {
+                              e.stopPropagation();
+                              setPreviewPhoto({ url: student.photograph_url, name: student.full_name });
+                            }
+                          }}
+                          title={student.photograph_url ? "Click to view full photo" : "No photo uploaded"}
+                        >
+                          {student.photograph_url ? (
+                            <img
+                              src={student.photograph_url}
+                              alt={student.full_name}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <span className="text-[11px] font-black uppercase text-slate-500">
+                              {(student.full_name || '?').charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span 
+                            onClick={() => navigate(`/students/detail/${student.id}`)}
+                            className="text-sm font-black text-slate-900 uppercase tracking-tight leading-snug hover:text-indigo-600 cursor-pointer transition-colors truncate"
+                          >
+                            {student.full_name}
+                          </span>
+                          <span className="text-xs text-slate-400 font-medium truncate">{student.b_form_cnic || 'No CNIC'}</span>
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-2 hidden sm:table-cell">
@@ -2117,6 +2153,42 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
             }
           }}
         />
+      )}
+
+      {/* ── Photo Preview Lightbox Modal ── */}
+      {previewPhoto && createPortal(
+        <div 
+          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+          onClick={() => setPreviewPhoto(null)}
+        >
+          <div 
+            className="relative bg-white rounded-3xl overflow-hidden shadow-2xl max-w-sm w-full p-4 border border-slate-100 flex flex-col items-center gap-3 animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between w-full pb-2 border-b border-slate-100">
+              <span className="text-xs font-black text-slate-800 uppercase tracking-tight truncate max-w-[240px]">
+                {previewPhoto.name}
+              </span>
+              <button 
+                onClick={() => setPreviewPhoto(null)} 
+                className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="w-64 h-64 rounded-2xl overflow-hidden bg-slate-50 border border-slate-200 shadow-inner flex items-center justify-center">
+              <img 
+                src={previewPhoto.url} 
+                alt={previewPhoto.name} 
+                className="w-full h-full object-cover" 
+              />
+            </div>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+              Student Official Photograph
+            </p>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
