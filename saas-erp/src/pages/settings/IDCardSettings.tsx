@@ -154,6 +154,8 @@ export default function IDCardSettings() {
   const [staffTemplate, setStaffTemplate] = useState<TemplateId>('classic');
   const [studentCustom, setStudentCustom] = useState<CardCustomization>({ ...DEFAULT_CUSTOM });
   const [staffCustom, setStaffCustom] = useState<CardCustomization>({ ...DEFAULT_CUSTOM });
+  const [studentHideHeader, setStudentHideHeader] = useState<boolean>(false);
+  const [staffHideHeader, setStaffHideHeader] = useState<boolean>(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
@@ -174,11 +176,13 @@ export default function IDCardSettings() {
         setStudentFields(student.fields || ['roll_number', 'blood_group', 'emergency_contact']);
         if (student.template) setStudentTemplate(student.template as TemplateId);
         if (student.layout_config?.customization) setStudentCustom({ ...DEFAULT_CUSTOM, ...student.layout_config.customization });
+        if (student.layout_config?.hideSchoolHeader !== undefined) setStudentHideHeader(Boolean(student.layout_config.hideSchoolHeader));
       }
       if (staff) {
         setStaffFields(staff.fields || ['designation', 'department', 'joining_date']);
         if (staff.template) setStaffTemplate(staff.template as TemplateId);
         if (staff.layout_config?.customization) setStaffCustom({ ...DEFAULT_CUSTOM, ...staff.layout_config.customization });
+        if (staff.layout_config?.hideSchoolHeader !== undefined) setStaffHideHeader(Boolean(staff.layout_config.hideSchoolHeader));
       }
     }
     setLoading(false);
@@ -213,6 +217,7 @@ export default function IDCardSettings() {
     const targetFields   = activeTab === 'student' ? studentFields   : staffFields;
     const targetTemplate = activeTab === 'student' ? studentTemplate : staffTemplate;
     const targetCustom   = activeTab === 'student' ? studentCustom   : staffCustom;
+    const targetHideHeader = activeTab === 'student' ? studentHideHeader : staffHideHeader;
 
     const { error } = await supabase
       .from('id_card_settings')
@@ -221,7 +226,7 @@ export default function IDCardSettings() {
         card_type: activeTab,
         fields:    targetFields,
         template:  targetTemplate,
-        layout_config: { customization: targetCustom },
+        layout_config: { customization: targetCustom, hideSchoolHeader: targetHideHeader },
       }, { onConflict: 'school_id,card_type' });
 
     setMessage(error
@@ -247,8 +252,8 @@ export default function IDCardSettings() {
 
   /* Preview card props */
   const previewProps = activeTab === 'student'
-    ? { ...SAMPLE_STUDENT, activeFields: studentFields, template: studentTemplate, customization: studentCustom }
-    : { ...SAMPLE_STAFF,   activeFields: staffFields,   template: staffTemplate,  customization: staffCustom };
+    ? { ...SAMPLE_STUDENT, activeFields: studentFields, template: studentTemplate, customization: studentCustom, hideSchoolHeader: studentHideHeader }
+    : { ...SAMPLE_STAFF,   activeFields: staffFields,   template: staffTemplate,  customization: staffCustom, hideSchoolHeader: staffHideHeader };
 
   /* Scale the physical mm card to fit the preview panel. */
   const SCALE = isHorizontal ? 0.60 : 0.72;
@@ -401,6 +406,28 @@ export default function IDCardSettings() {
                   <ColorControl label="Role Text" value={currentCustom.roleColor} onChange={v => setCurrentCustom({ roleColor: v })} />
                   <ColorControl label="Role BG" value={currentCustom.roleBgColor} onChange={v => setCurrentCustom({ roleBgColor: v })} />
                 </div>
+              </div>
+            </div>
+
+            {/* School Header Option */}
+            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-slate-800 uppercase tracking-tight">School Name Header</p>
+                  <p className="text-[10px] text-slate-400 font-medium mt-0.5">Toggle school title and logo banner (turn OFF if using pre-printed card cards)</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => activeTab === 'student' ? setStudentHideHeader(!studentHideHeader) : setStaffHideHeader(!staffHideHeader)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-all cursor-pointer shadow-sm",
+                    (activeTab === 'student' ? studentHideHeader : staffHideHeader)
+                      ? "bg-slate-200 text-slate-700 border-slate-300 hover:bg-slate-300"
+                      : "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
+                  )}
+                >
+                  {(activeTab === 'student' ? studentHideHeader : staffHideHeader) ? 'Header: Hidden' : 'Header: Visible'}
+                </button>
               </div>
             </div>
 

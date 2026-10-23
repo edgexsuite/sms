@@ -16,7 +16,7 @@ import { exportToCSV } from '../lib/exportUtils';
 import JoiningLetter from '../components/JoiningLetter';
 import ExperienceCertificate from '../components/ExperienceCertificate';
 import * as templatesLib from '../lib/whatsappTemplates';
-import { processStudentPhoto } from '../lib/uploadUtils';
+import { processStaffPhoto } from '../lib/uploadUtils';
 import { logActivity } from '../lib/auditLog';
 
 const ROLES = ['Teacher', 'Principal', 'Vice Principal', 'Coordinator', 'Admin', 'Accountant', 'Librarian', 'Security', 'Support Staff', 'Driver', 'Other'];
@@ -278,7 +278,7 @@ export default function Staff() {
     setPhotoPreview(URL.createObjectURL(file));
     setPhotoProcessing(true);
     try {
-      const processed = await processStudentPhoto(file);
+      const processed = await processStaffPhoto(file);
       // We store the Blob in photoFile, but we might need to cast or just let the File | null state accept it.
       // Wait, photoFile is `File | null`. To avoid TypeScript error, we can use an 'any' or create a new File from Blob.
       const newFile = new File([processed.blob], `photo.${processed.format}`, { type: `image/${processed.format}` });

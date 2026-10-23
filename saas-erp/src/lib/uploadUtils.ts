@@ -139,6 +139,73 @@ export function processStudentPhoto(file: File): Promise<PhotoProcessResult> {
 }
 
 /**
+ * Process staff photo with high clarity (600×720 px, 5:6 portrait).
+ * Preserves high resolution and sharp details for professional ID card printing.
+ */
+export function processStaffPhoto(file: File): Promise<PhotoProcessResult> {
+  if (file.size > 50 * 1024 * 1024) {
+    return Promise.reject(new Error('File is too large (max 50 MB). Please use a smaller image.'));
+  }
+
+  const format = supportsWebP() ? 'webp' : 'jpeg';
+  const mime = `image/${format}`;
+  const rawSizeKB = Math.round((file.size / 1024) * 10) / 10;
+
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+
+      // Target high-definition dimensions for crisp ID card printing (600x720)
+      const targetW = 600;
+      const targetH = 720;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = targetW;
+      canvas.height = targetH;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('Canvas not supported')); return; }
+
+      // Cover-fit: fill canvas, centre-crop
+      const scale = Math.max(targetW / img.width, targetH / img.height);
+      const scaledW = img.width * scale;
+      const scaledH = img.height * scale;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, (targetW - scaledW) / 2, (targetH - scaledH) / 2, scaledW, scaledH);
+
+      // High-quality encoding: 0.92
+      canvas.toBlob(blob => {
+        if (!blob) { reject(new Error('Failed to encode staff image')); return; }
+
+        const sizeKB = Math.round((blob.size / 1024) * 10) / 10;
+        const reductionPercent = rawSizeKB > 0
+          ? Math.max(0, Math.round(((file.size - blob.size) / file.size) * 1000) / 10)
+          : 0;
+
+        resolve({
+          blob,
+          sizeKB,
+          rawSizeKB,
+          reductionPercent,
+          format,
+          width: targetW,
+          height: targetH,
+        });
+      }, mime, 0.92);
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Failed to load image — file may be corrupt.'));
+    };
+    img.src = objectUrl;
+  });
+}
+
+/**
  * Upload a processed photo blob to Supabase Storage (Cloudflare CDN).
  * Path convention:  {school_id}/students/{student_id}.webp
  *                   {school_id}/staff/{staff_id}.webp

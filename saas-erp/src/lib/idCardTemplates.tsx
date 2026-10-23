@@ -48,6 +48,7 @@ export interface StudentCardProps {
   phone?: string | null;
   address?: string | null;
   customization?: CardCustomization;
+  hideSchoolHeader?: boolean;
 }
 
 export interface StaffCardProps {
@@ -65,6 +66,7 @@ export interface StaffCardProps {
   qrValue: string;
   activeFields: string[];
   customization?: CardCustomization;
+  hideSchoolHeader?: boolean;
 }
 
 export type CardProps = StudentCardProps | StaffCardProps;
@@ -90,21 +92,26 @@ export function ClassicCard(props: CardProps) {
     : (props as StaffCardProps).role;
   const subtitle = isStudent ? 'STUDENT IDENTITY CARD' : 'FACULTY IDENTITY CARD';
   const p = props as any;
+  const hideHeader = !!props.hideSchoolHeader;
 
   return (
-    <div style={{ width: '54mm', height: '86mm', background: '#fff', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'sans-serif', position: 'relative', border: '1px solid #e2e8f0' }}>
+    <div style={{ width: '54mm', height: '86mm', background: '#fff', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'sans-serif', position: 'relative', border: '1px solid #e2e8f0', imageRendering: '-webkit-optimize-contrast' }}>
       {/* Header */}
-      <div style={{ background: `linear-gradient(135deg,${c.primaryColor},${c.accentColor})`, padding: `6px 8px ${c.photoSize / 2 + 2}px`, textAlign: 'center', position: 'relative' }}>
-        {props.schoolLogo && <img src={props.schoolLogo} alt="" style={{ width: c.logoSize, height: c.logoSize, borderRadius: '50%', objectFit: 'contain', margin: '0 auto 2px', display: 'block' }} />}
-        <div style={{ color: '#fff', fontSize: c.schoolFontSize, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.3, lineHeight: 1.2 }}>{props.schoolName}</div>
-        <div style={{ color: '#bfdbfe', fontSize: 5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginTop: 1 }}>{subtitle}</div>
-      </div>
+      {!hideHeader ? (
+        <div style={{ background: `linear-gradient(135deg,${c.primaryColor},${c.accentColor})`, padding: `6px 8px ${c.photoSize / 2 + 2}px`, textAlign: 'center', position: 'relative' }}>
+          {props.schoolLogo && <img src={props.schoolLogo} crossOrigin="anonymous" alt="" style={{ width: c.logoSize, height: c.logoSize, borderRadius: '50%', objectFit: 'contain', margin: '0 auto 2px', display: 'block' }} />}
+          <div style={{ color: '#fff', fontSize: c.schoolFontSize, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.3, lineHeight: 1.2 }}>{props.schoolName}</div>
+          <div style={{ color: '#bfdbfe', fontSize: 5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginTop: 1 }}>{subtitle}</div>
+        </div>
+      ) : (
+        <div style={{ height: 6, background: `linear-gradient(135deg,${c.primaryColor},${c.accentColor})`, flexShrink: 0 }} />
+      )}
 
-      {/* Photo overlapping header */}
-      <div style={{ marginTop: -(c.photoSize / 2), display: 'flex', justifyContent: 'center', zIndex: 10, position: 'relative' }}>
+      {/* Photo */}
+      <div style={{ marginTop: hideHeader ? 14 : -(c.photoSize / 2), display: 'flex', justifyContent: 'center', zIndex: 10, position: 'relative' }}>
         <div style={{ width: c.photoSize, height: c.photoSize, borderRadius: '50%', border: '2px solid #fff', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', overflow: 'hidden', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {props.photo
-            ? <img src={props.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ? <img src={props.photo} crossOrigin="anonymous" alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             : <span style={{ fontSize: c.photoSize * 0.44, fontWeight: 900, color: '#94a3b8' }}>{props.name.charAt(0)}</span>}
         </div>
       </div>
@@ -150,28 +157,31 @@ export function EliteCard(props: CardProps) {
   const c = getCustom(props);
   const p = props as any;
   const roleBadge = isStudent ? (p.className || 'Student') : p.role;
+  const hideHeader = !!props.hideSchoolHeader;
 
   // Elite uses gold accents by default, but respects custom colors
   const gold = c.accentColor === DEFAULT_CUSTOM.accentColor ? '#f59e0b' : c.accentColor;
   const darkBg = c.primaryColor === DEFAULT_CUSTOM.primaryColor ? '#0f172a' : c.primaryColor;
 
   return (
-    <div style={{ width: '54mm', height: '86mm', background: darkBg, borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'sans-serif', border: '1px solid #1e293b' }}>
+    <div style={{ width: '54mm', height: '86mm', background: darkBg, borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'sans-serif', border: '1px solid #1e293b', imageRendering: '-webkit-optimize-contrast' }}>
       {/* Gold top bar */}
       <div style={{ height: 3, background: `linear-gradient(90deg,${gold},${gold}aa,${gold})` }} />
 
       {/* School header */}
-      <div style={{ textAlign: 'center', padding: '5px 6px 4px' }}>
-        {props.schoolLogo && <img src={props.schoolLogo} alt="" style={{ width: c.logoSize, height: c.logoSize, borderRadius: '50%', objectFit: 'contain', margin: '0 auto 2px', display: 'block', border: `1px solid ${gold}` }} />}
-        <div style={{ color: gold, fontSize: c.schoolFontSize, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.5 }}>{props.schoolName}</div>
-        <div style={{ color: '#475569', fontSize: 5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, marginTop: 1 }}>{isStudent ? 'STUDENT' : 'FACULTY'} CARD</div>
-      </div>
+      {!hideHeader && (
+        <div style={{ textAlign: 'center', padding: '5px 6px 4px' }}>
+          {props.schoolLogo && <img src={props.schoolLogo} crossOrigin="anonymous" alt="" style={{ width: c.logoSize, height: c.logoSize, borderRadius: '50%', objectFit: 'contain', margin: '0 auto 2px', display: 'block', border: `1px solid ${gold}` }} />}
+          <div style={{ color: gold, fontSize: c.schoolFontSize, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.5 }}>{props.schoolName}</div>
+          <div style={{ color: '#475569', fontSize: 5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, marginTop: 1 }}>{isStudent ? 'STUDENT' : 'FACULTY'} CARD</div>
+        </div>
+      )}
 
       {/* Photo */}
-      <div style={{ display: 'flex', justifyContent: 'center', margin: '3px 0' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', margin: hideHeader ? '12px 0 4px' : '3px 0' }}>
         <div style={{ width: c.photoSize, height: c.photoSize, borderRadius: 6, border: `2px solid ${gold}`, overflow: 'hidden', background: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {props.photo
-            ? <img src={props.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ? <img src={props.photo} crossOrigin="anonymous" alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             : <span style={{ fontSize: c.photoSize * 0.44, fontWeight: 900, color: '#475569' }}>{props.name.charAt(0)}</span>}
         </div>
       </div>
@@ -215,20 +225,23 @@ export function AuroraCard(props: CardProps) {
   const c = getCustom(props);
   const p = props as any;
   const roleBadge = isStudent ? (p.className || 'Student') : p.role;
+  const hideHeader = !!props.hideSchoolHeader;
 
   const aurora1 = c.primaryColor === DEFAULT_CUSTOM.primaryColor ? '#7c3aed' : c.primaryColor;
   const aurora2 = c.accentColor === DEFAULT_CUSTOM.accentColor ? '#a855f7' : c.accentColor;
 
   return (
-    <div style={{ width: '54mm', height: '86mm', background: '#fff', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'sans-serif', border: '1px solid #e2e8f0', position: 'relative' }}>
+    <div style={{ width: '54mm', height: '86mm', background: '#fff', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'sans-serif', border: '1px solid #e2e8f0', position: 'relative', imageRendering: '-webkit-optimize-contrast' }}>
       {/* Gradient header block */}
-      <div style={{ background: `linear-gradient(135deg,${aurora1},${aurora2},#6366f1)`, height: '30mm', position: 'relative', flexShrink: 0 }}>
+      <div style={{ background: `linear-gradient(135deg,${aurora1},${aurora2},#6366f1)`, height: hideHeader ? '14mm' : '30mm', position: 'relative', flexShrink: 0 }}>
         {/* School info */}
-        <div style={{ textAlign: 'center', padding: '6px 8px 0', position: 'relative', zIndex: 2 }}>
-          {props.schoolLogo && <img src={props.schoolLogo} alt="" style={{ width: c.logoSize, height: c.logoSize, borderRadius: '50%', objectFit: 'contain', margin: '0 auto 2px', display: 'block' }} />}
-          <div style={{ color: '#fff', fontSize: c.schoolFontSize, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.3 }}>{props.schoolName}</div>
-          <div style={{ color: '#ddd6fe', fontSize: 5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.2, marginTop: 1 }}>{isStudent ? 'STUDENT' : 'FACULTY'} ID</div>
-        </div>
+        {!hideHeader && (
+          <div style={{ textAlign: 'center', padding: '6px 8px 0', position: 'relative', zIndex: 2 }}>
+            {props.schoolLogo && <img src={props.schoolLogo} crossOrigin="anonymous" alt="" style={{ width: c.logoSize, height: c.logoSize, borderRadius: '50%', objectFit: 'contain', margin: '0 auto 2px', display: 'block' }} />}
+            <div style={{ color: '#fff', fontSize: c.schoolFontSize, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.3 }}>{props.schoolName}</div>
+            <div style={{ color: '#ddd6fe', fontSize: 5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.2, marginTop: 1 }}>{isStudent ? 'STUDENT' : 'FACULTY'} ID</div>
+          </div>
+        )}
         {/* Wave SVG */}
         <svg viewBox="0 0 204 30" preserveAspectRatio="none" style={{ position: 'absolute', bottom: -1, left: 0, width: '100%', height: 18 }}>
           <path d="M0,20 Q51,0 102,15 T204,10 L204,30 L0,30 Z" fill="#fff" />
@@ -236,10 +249,10 @@ export function AuroraCard(props: CardProps) {
       </div>
 
       {/* Photo overlapping wave */}
-      <div style={{ marginTop: -20, display: 'flex', justifyContent: 'center', position: 'relative', zIndex: 10 }}>
+      <div style={{ marginTop: hideHeader ? -8 : -20, display: 'flex', justifyContent: 'center', position: 'relative', zIndex: 10 }}>
         <div style={{ width: c.photoSize, height: c.photoSize, borderRadius: '50%', border: `3px solid ${aurora1}`, boxShadow: `0 4px 12px ${aurora1}4d`, overflow: 'hidden', background: '#f5f3ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {props.photo
-            ? <img src={props.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ? <img src={props.photo} crossOrigin="anonymous" alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             : <span style={{ fontSize: c.photoSize * 0.44, fontWeight: 900, color: aurora1 }}>{props.name.charAt(0)}</span>}
         </div>
       </div>
@@ -277,12 +290,13 @@ export function HorizonCard(props: CardProps) {
   const c = getCustom(props);
   const p = props as any;
   const roleBadge = isStudent ? (p.className || 'Student') : p.role;
+  const hideHeader = !!props.hideSchoolHeader;
 
   const hColor = c.primaryColor === DEFAULT_CUSTOM.primaryColor ? '#0891b2' : c.primaryColor;
   const hDark = c.accentColor === DEFAULT_CUSTOM.accentColor ? '#0e7490' : c.accentColor;
 
   return (
-    <div style={{ width: '86mm', height: '54mm', background: '#fff', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'row', fontFamily: 'sans-serif', border: '1px solid #e2e8f0' }}>
+    <div style={{ width: '86mm', height: '54mm', background: '#fff', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'row', fontFamily: 'sans-serif', border: '1px solid #e2e8f0', imageRendering: '-webkit-optimize-contrast' }}>
       {/* Left panel */}
       <div style={{ width: '22mm', background: `linear-gradient(180deg,${hColor},${hDark})`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', flexShrink: 0 }}>
         {/* Rotated label */}
@@ -292,7 +306,7 @@ export function HorizonCard(props: CardProps) {
         {/* Photo */}
         <div style={{ width: c.photoSize * 0.9, height: c.photoSize * 0.9, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.7)', overflow: 'hidden', background: '#164e63', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {props.photo
-            ? <img src={props.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ? <img src={props.photo} crossOrigin="anonymous" alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             : <span style={{ fontSize: c.photoSize * 0.38, fontWeight: 900, color: '#7dd3fc' }}>{props.name.charAt(0)}</span>}
         </div>
         {/* Roll or ref */}
@@ -304,13 +318,15 @@ export function HorizonCard(props: CardProps) {
       {/* Right panel */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '5px 6px', minWidth: 0 }}>
         {/* School */}
-        <div style={{ borderBottom: '1px solid #f0f9ff', paddingBottom: 3, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
-          {props.schoolLogo && <img src={props.schoolLogo} alt="" style={{ width: c.logoSize, height: c.logoSize, borderRadius: '50%', objectFit: 'contain' }} />}
-          <div>
-            <div style={{ fontSize: c.schoolFontSize * 0.93, fontWeight: 900, color: hColor, textTransform: 'uppercase', letterSpacing: 0.3, lineHeight: 1.2 }}>{props.schoolName}</div>
-            <div style={{ fontSize: 5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1 }}>Identity Card</div>
+        {!hideHeader && (
+          <div style={{ borderBottom: '1px solid #f0f9ff', paddingBottom: 3, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+            {props.schoolLogo && <img src={props.schoolLogo} crossOrigin="anonymous" alt="" style={{ width: c.logoSize, height: c.logoSize, borderRadius: '50%', objectFit: 'contain' }} />}
+            <div>
+              <div style={{ fontSize: c.schoolFontSize * 0.93, fontWeight: 900, color: hColor, textTransform: 'uppercase', letterSpacing: 0.3, lineHeight: 1.2 }}>{props.schoolName}</div>
+              <div style={{ fontSize: 5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1 }}>Identity Card</div>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Name */}
         <div style={{ fontSize: c.nameFontSize * 1.1, fontWeight: 900, color: c.textColor, textTransform: 'uppercase', letterSpacing: 0.2, lineHeight: 1.1 }}>{props.name}</div>
@@ -342,12 +358,13 @@ export function MintCard(props: CardProps) {
   const c = getCustom(props);
   const p = props as any;
   const roleBadge = isStudent ? (p.className || 'Student') : p.role;
+  const hideHeader = !!props.hideSchoolHeader;
 
   const mint = c.primaryColor === DEFAULT_CUSTOM.primaryColor ? '#059669' : c.primaryColor;
   const mintLight = c.accentColor === DEFAULT_CUSTOM.accentColor ? '#34d399' : c.accentColor;
 
   return (
-    <div style={{ width: '86mm', height: '54mm', background: '#fff', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'sans-serif', border: `1px solid ${mintLight}40` }}>
+    <div style={{ width: '86mm', height: '54mm', background: '#fff', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'sans-serif', border: `1px solid ${mintLight}40`, imageRendering: '-webkit-optimize-contrast' }}>
       {/* Top stripe */}
       <div style={{ height: 4, background: `linear-gradient(90deg,${mint},${mintLight})`, flexShrink: 0 }} />
 
@@ -355,10 +372,10 @@ export function MintCard(props: CardProps) {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'row', padding: '4px 6px', gap: 6, minHeight: 0 }}>
         {/* Left: photo */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '24mm', flexShrink: 0, gap: 3 }}>
-          {props.schoolLogo && <img src={props.schoolLogo} alt="" style={{ width: c.logoSize, height: c.logoSize, borderRadius: '50%', objectFit: 'contain', border: `1px solid ${mintLight}` }} />}
+          {!hideHeader && props.schoolLogo && <img src={props.schoolLogo} crossOrigin="anonymous" alt="" style={{ width: c.logoSize, height: c.logoSize, borderRadius: '50%', objectFit: 'contain', border: `1px solid ${mintLight}` }} />}
           <div style={{ width: c.photoSize * 0.95, height: c.photoSize * 0.95, borderRadius: '50%', border: `2px solid ${mint}`, overflow: 'hidden', background: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {props.photo
-              ? <img src={props.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ? <img src={props.photo} crossOrigin="anonymous" alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               : <span style={{ fontSize: c.photoSize * 0.38, fontWeight: 900, color: mint }}>{props.name.charAt(0)}</span>}
           </div>
           {isStudent && p.rollNumber && <div style={{ fontSize: c.fieldFontSize, fontWeight: 900, color: mint }}>#{p.rollNumber}</div>}
@@ -366,8 +383,12 @@ export function MintCard(props: CardProps) {
 
         {/* Right: info */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-          <div style={{ fontSize: c.schoolFontSize * 0.86, fontWeight: 900, color: mint, textTransform: 'uppercase', letterSpacing: 0.5 }}>{props.schoolName}</div>
-          <div style={{ fontSize: 4.5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>{isStudent ? 'Student Identity Card' : 'Faculty Identity Card'}</div>
+          {!hideHeader && (
+            <>
+              <div style={{ fontSize: c.schoolFontSize * 0.86, fontWeight: 900, color: mint, textTransform: 'uppercase', letterSpacing: 0.5 }}>{props.schoolName}</div>
+              <div style={{ fontSize: 4.5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>{isStudent ? 'Student Identity Card' : 'Faculty Identity Card'}</div>
+            </>
+          )}
           <div style={{ fontSize: c.nameFontSize * 1.1, fontWeight: 900, color: c.textColor === DEFAULT_CUSTOM.textColor ? '#064e3b' : c.textColor, textTransform: 'uppercase', letterSpacing: 0.2, lineHeight: 1.1 }}>{props.name}</div>
           <div style={{ display: 'inline-block', background: c.roleBgColor, color: c.roleColor, fontSize: c.roleFontSize, fontWeight: 700, padding: '1px 5px', borderRadius: 8, margin: '2px 0', textTransform: 'uppercase', alignSelf: 'flex-start' }}>{roleBadge}</div>
 

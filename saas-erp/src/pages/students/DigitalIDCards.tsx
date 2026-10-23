@@ -136,6 +136,10 @@ export default function DigitalIDCards() {
   return (
     <div className="space-y-6">
       <style>{`
+        @page {
+          size: auto;
+          margin: 0;
+        }
         @media print {
           .no-print { display: none !important; }
           body { background: white; margin: 0; padding: 0; }
