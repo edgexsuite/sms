@@ -117,9 +117,11 @@ export function ClassicCard(props: CardProps) {
       </div>
 
       {/* Name + badge */}
-      <div style={{ textAlign: 'center', padding: '3px 6px 0' }}>
+      <div style={{ textAlign: 'center', padding: '3px 6px 0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <div style={{ fontSize: c.nameFontSize, fontWeight: 900, color: c.textColor, textTransform: 'uppercase', letterSpacing: 0.3, lineHeight: 1.2 }}>{props.name}</div>
-        <div style={{ display: 'inline-block', background: c.roleBgColor, color: c.roleColor, fontSize: c.roleFontSize, fontWeight: 700, padding: '1px 5px', borderRadius: 10, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 }}>{roleBadge}</div>
+        <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: c.roleBgColor, color: c.roleColor, fontSize: c.roleFontSize, fontWeight: 700, lineHeight: 1, padding: '3px 9px', borderRadius: 9999, marginTop: 3, textTransform: 'uppercase', letterSpacing: 0.5, boxSizing: 'border-box' }}>
+          <span>{roleBadge}</span>
+        </div>
       </div>
 
       {/* Fields */}
@@ -187,9 +189,11 @@ export function EliteCard(props: CardProps) {
       </div>
 
       {/* Name + role */}
-      <div style={{ textAlign: 'center', padding: '2px 6px' }}>
+      <div style={{ textAlign: 'center', padding: '2px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <div style={{ fontSize: c.nameFontSize, fontWeight: 900, color: c.textColor === DEFAULT_CUSTOM.textColor ? '#f8fafc' : c.textColor, textTransform: 'uppercase', letterSpacing: 0.3 }}>{props.name}</div>
-        <div style={{ display: 'inline-block', background: c.roleBgColor, color: c.roleColor, fontSize: c.roleFontSize, fontWeight: 900, padding: '1px 6px', borderRadius: 10, marginTop: 2, textTransform: 'uppercase' }}>{roleBadge}</div>
+        <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: c.roleBgColor, color: c.roleColor, fontSize: c.roleFontSize, fontWeight: 900, lineHeight: 1, padding: '3px 9px', borderRadius: 9999, marginTop: 3, textTransform: 'uppercase', boxSizing: 'border-box' }}>
+          <span>{roleBadge}</span>
+        </div>
       </div>
 
       {/* Divider */}
@@ -258,9 +262,11 @@ export function AuroraCard(props: CardProps) {
       </div>
 
       {/* Name + role */}
-      <div style={{ textAlign: 'center', padding: '3px 6px 0' }}>
+      <div style={{ textAlign: 'center', padding: '3px 6px 0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <div style={{ fontSize: c.nameFontSize, fontWeight: 900, color: c.textColor === DEFAULT_CUSTOM.textColor ? '#1e1b4b' : c.textColor, textTransform: 'uppercase', letterSpacing: 0.3 }}>{props.name}</div>
-        <div style={{ display: 'inline-block', background: c.roleBgColor, color: c.roleColor, fontSize: c.roleFontSize, fontWeight: 700, padding: '1px 7px', borderRadius: 10, marginTop: 2, textTransform: 'uppercase' }}>{roleBadge}</div>
+        <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: c.roleBgColor, color: c.roleColor, fontSize: c.roleFontSize, fontWeight: 700, lineHeight: 1, padding: '3px 9px', borderRadius: 9999, marginTop: 3, textTransform: 'uppercase', boxSizing: 'border-box' }}>
+          <span>{roleBadge}</span>
+        </div>
       </div>
 
       {/* Fields */}
@@ -330,7 +336,9 @@ export function HorizonCard(props: CardProps) {
 
         {/* Name */}
         <div style={{ fontSize: c.nameFontSize * 1.1, fontWeight: 900, color: c.textColor, textTransform: 'uppercase', letterSpacing: 0.2, lineHeight: 1.1 }}>{props.name}</div>
-        <div style={{ display: 'inline-block', background: c.roleBgColor, color: c.roleColor, fontSize: c.roleFontSize, fontWeight: 700, padding: '1px 5px', borderRadius: 8, margin: '2px 0', textTransform: 'uppercase' }}>{roleBadge}</div>
+        <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: c.roleBgColor, color: c.roleColor, fontSize: c.roleFontSize, fontWeight: 700, lineHeight: 1, padding: '2.5px 8px', borderRadius: 9999, margin: '2px 0', textTransform: 'uppercase', alignSelf: 'flex-start', boxSizing: 'border-box' }}>
+          <span>{roleBadge}</span>
+        </div>
 
         {/* Fields micro grid */}
         <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1px 4px', alignContent: 'start', fontSize: c.fieldFontSize * 0.92, marginTop: 2 }}>
@@ -390,7 +398,9 @@ export function MintCard(props: CardProps) {
             </>
           )}
           <div style={{ fontSize: c.nameFontSize * 1.1, fontWeight: 900, color: c.textColor === DEFAULT_CUSTOM.textColor ? '#064e3b' : c.textColor, textTransform: 'uppercase', letterSpacing: 0.2, lineHeight: 1.1 }}>{props.name}</div>
-          <div style={{ display: 'inline-block', background: c.roleBgColor, color: c.roleColor, fontSize: c.roleFontSize, fontWeight: 700, padding: '1px 5px', borderRadius: 8, margin: '2px 0', textTransform: 'uppercase', alignSelf: 'flex-start' }}>{roleBadge}</div>
+          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: c.roleBgColor, color: c.roleColor, fontSize: c.roleFontSize, fontWeight: 700, lineHeight: 1, padding: '2.5px 8px', borderRadius: 9999, margin: '2px 0', textTransform: 'uppercase', alignSelf: 'flex-start', boxSizing: 'border-box' }}>
+            <span>{roleBadge}</span>
+          </div>
 
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1.5, fontSize: c.fieldFontSize * 0.92, justifyContent: 'center' }}>
             {isStudent && p.activeFields?.includes('blood_group') && p.bloodGroup && <div style={{ color: '#dc2626', fontWeight: 700 }}>Blood: {p.bloodGroup}</div>}

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Printer, Download, Loader2, Eye, EyeOff, CheckSquare, Square, Shield } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, getBase64Image } from '../../lib/utils';
 import { CardTemplate, TemplateId, CardCustomization } from '../../lib/idCardTemplates';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -17,8 +17,8 @@ export default function StaffDigitalIDCards() {
   const [template, setTemplate] = useState<TemplateId>('classic');
   const [customization, setCustomization] = useState<CardCustomization | undefined>(undefined);
   
-  // Default to true (school name header removed from card as requested)
-  const [hideSchoolHeader, setHideSchoolHeader] = useState<boolean>(true);
+  // School header stays on the card (default: false, school header is visible on card)
+  const [hideSchoolHeader, setHideSchoolHeader] = useState<boolean>(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [exportingPng, setExportingPng] = useState(false);
   const [exportingCardId, setExportingCardId] = useState<string | null>(null);
@@ -84,6 +84,45 @@ export default function StaffDigitalIDCards() {
 
   const isHorizontal = ['horizon', 'mint'].includes(template);
 
+  // Helper to convert SVG element to a clean PNG data URL for embedding in PDF
+  const svgToPngDataUrl = (svgEl: SVGSVGElement): Promise<string> => {
+    return new Promise((resolve) => {
+      try {
+        const xml = new XMLSerializer().serializeToString(svgEl);
+        const svg64 = btoa(unescape(encodeURIComponent(xml)));
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = 400;
+          canvas.height = 400;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, 400, 400);
+            ctx.drawImage(img, 0, 0, 400, 400);
+            resolve(canvas.toDataURL('image/png'));
+          } else {
+            resolve('');
+          }
+        };
+        img.onerror = () => resolve('');
+        img.src = 'data:image/svg+xml;base64,' + svg64;
+      } catch {
+        resolve('');
+      }
+    });
+  };
+
+  // Helper to fetch image as Base64 safely
+  const fetchImageBase64 = async (url: string | null): Promise<string | null> => {
+    if (!url) return null;
+    try {
+      return await getBase64Image(url);
+    } catch {
+      return null;
+    }
+  };
+
   // High-Resolution 300 DPI Single Card PNG Exporter
   const downloadSingleCardPNG = async (st: any) => {
     const el = document.getElementById(`staff-card-${st.id}`);
@@ -139,8 +178,8 @@ export default function StaffDigitalIDCards() {
     }
   };
 
-  // High-Resolution 300 DPI PDF Exporter (Multi-card Grid on A4)
-  const downloadPDF = async () => {
+  // True Vector PDF Exporter (Unflattened, Selectable Vector Text & Vector Shapes)
+  const downloadVectorPDF = async () => {
     const selectedList = staff.filter(s => selectedStaff.has(s.id));
     if (selectedList.length === 0) return;
     setExportingPdf(true);
@@ -151,23 +190,26 @@ export default function StaffDigitalIDCards() {
         format: 'a4',
       });
 
-      const cardWidthMm = isHorizontal ? 86 : 54;
-      const cardHeightMm = isHorizontal ? 54 : 86;
+      const schoolLogoBase64 = schoolInfo?.logo_url ? await fetchImageBase64(schoolInfo.logo_url) : null;
+      const schoolName = (schoolInfo?.name || 'THE EDGE SCHOOL').toUpperCase();
+
+      const cardW = 54;
+      const cardH = 86;
       const gapX = 8;
       const gapY = 8;
-      const marginX = isHorizontal ? 12 : 16;
-      const marginY = 16;
-      const pageWidth = 210;
-      const pageHeight = 297;
+      const marginX = 16;
+      const marginY = 14;
+      const cardsPerRow = 3;
+      const cardsPerCol = 3;
+      const cardsPerPage = cardsPerRow * cardsPerCol;
 
-      const cardsPerRow = Math.floor((pageWidth - marginX * 2 + gapX) / (cardWidthMm + gapX));
-      const cardsPerCol = Math.floor((pageHeight - marginY * 2 + gapY) / (cardHeightMm + gapY));
-      const cardsPerPage = Math.max(1, cardsPerRow * cardsPerCol);
+      const primaryHex = customization?.primaryColor || '#1d4ed8';
+      const roleBgHex = customization?.roleBgColor || '#eff6ff';
+      const roleTextHex = customization?.roleColor || '#1d4ed8';
 
       for (let i = 0; i < selectedList.length; i++) {
-        const member = selectedList[i];
-        const el = document.getElementById(`staff-card-${member.id}`);
-        if (!el) continue;
+        const st = selectedList[i];
+        const cardEl = document.getElementById(`staff-card-${st.id}`);
 
         const indexOnPage = i % cardsPerPage;
         if (i > 0 && indexOnPage === 0) {
@@ -177,25 +219,144 @@ export default function StaffDigitalIDCards() {
         const col = indexOnPage % cardsPerRow;
         const row = Math.floor(indexOnPage / cardsPerRow);
 
-        const posX = marginX + col * (cardWidthMm + gapX);
-        const posY = marginY + row * (cardHeightMm + gapY);
+        const x = marginX + col * (cardW + gapX);
+        const y = marginY + row * (cardH + gapY);
 
-        const canvas = await html2canvas(el, {
-          scale: 3.5,
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: '#ffffff',
-          logging: false,
-        });
+        // 1. Vector Card Background & Border
+        pdf.setFillColor(255, 255, 255);
+        pdf.setDrawColor(226, 232, 240);
+        pdf.setLineWidth(0.35);
+        pdf.roundedRect(x, y, cardW, cardH, 2.5, 2.5, 'FD');
 
-        const imgData = canvas.toDataURL('image/png');
-        pdf.addImage(imgData, 'PNG', posX, posY, cardWidthMm, cardHeightMm, undefined, 'FAST');
+        // 2. Vector School Header (Top Blue Banner)
+        if (!hideSchoolHeader) {
+          pdf.setFillColor(primaryHex);
+          pdf.roundedRect(x, y, cardW, 20, 2.5, 2.5, 'F');
+          pdf.rect(x, y + 10, cardW, 10, 'F');
+
+          // School Logo
+          if (schoolLogoBase64) {
+            try {
+              pdf.addImage(schoolLogoBase64, 'PNG', x + 23.5, y + 2.2, 7, 7);
+            } catch {}
+          }
+
+          // Vector School Name Text
+          pdf.setTextColor(255, 255, 255);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(7.5);
+          pdf.text(schoolName, x + 27, y + 12.5, { align: 'center', maxWidth: 48 });
+
+          // Vector Subtitle Text
+          pdf.setTextColor(191, 219, 254);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(4.5);
+          pdf.text('FACULTY IDENTITY CARD', x + 27, y + 16.5, { align: 'center' });
+        } else {
+          pdf.setFillColor(primaryHex);
+          pdf.rect(x, y, cardW, 2, 'F');
+        }
+
+        // 3. Photo Circle
+        const photoY = hideSchoolHeader ? y + 8 : y + 13;
+        const photoBase64 = st.photograph_url ? await fetchImageBase64(st.photograph_url) : null;
+
+        if (photoBase64) {
+          try {
+            pdf.addImage(photoBase64, 'JPEG', x + 18, photoY, 18, 18);
+          } catch {}
+        } else {
+          pdf.setFillColor(226, 232, 240);
+          pdf.circle(x + 27, photoY + 9, 9, 'F');
+          pdf.setTextColor(148, 163, 184);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(10);
+          pdf.text(st.full_name.charAt(0).toUpperCase(), x + 27, photoY + 12.5, { align: 'center' });
+        }
+
+        // White border ring around photo
+        pdf.setDrawColor(255, 255, 255);
+        pdf.setLineWidth(0.9);
+        pdf.circle(x + 27, photoY + 9, 9, 'S');
+
+        // 4. Vector Staff Name
+        const nameY = hideSchoolHeader ? y + 31 : y + 36;
+        pdf.setTextColor(15, 23, 42);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(9.5);
+        pdf.text(st.full_name.toUpperCase(), x + 27, nameY, { align: 'center', maxWidth: 48 });
+
+        // 5. Vector Role / Designation Badge (Centered in Pill)
+        const roleText = (st.role || 'TEACHER').toUpperCase();
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(6);
+        const textW = pdf.getTextWidth(roleText);
+        const pillW = Math.max(18, textW + 8);
+        const pillH = 4.8;
+        const pillX = x + 27 - pillW / 2;
+        const pillY = nameY + 2.5;
+
+        pdf.setFillColor(roleBgHex);
+        pdf.roundedRect(pillX, pillY, pillW, pillH, 2.4, 2.4, 'F');
+
+        pdf.setTextColor(roleTextHex);
+        pdf.text(roleText, x + 27, pillY + 3.3, { align: 'center' });
+
+        // 6. Vector Details Fields
+        let fieldY = pillY + 8.5;
+        pdf.setDrawColor(241, 245, 249);
+        pdf.setLineWidth(0.25);
+        pdf.line(x + 8, fieldY - 2, x + 46, fieldY - 2);
+
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(5.8);
+
+        if (activeFields.includes('designation') && st.designation && st.designation.toLowerCase() !== st.role?.toLowerCase()) {
+          pdf.setFont('helvetica', 'bold');
+          pdf.setTextColor(51, 65, 85);
+          pdf.text(st.designation.toUpperCase(), x + 27, fieldY, { align: 'center', maxWidth: 46 });
+          fieldY += 3.6;
+        }
+
+        if (activeFields.includes('department') && st.department) {
+          pdf.setFont('helvetica', 'normal');
+          pdf.setTextColor(100, 116, 139);
+          pdf.text(st.department.toUpperCase(), x + 27, fieldY, { align: 'center', maxWidth: 46 });
+          fieldY += 3.6;
+        }
+
+        if (activeFields.includes('joining_date') && st.joining_date) {
+          pdf.setFont('helvetica', 'normal');
+          pdf.setTextColor(148, 163, 184);
+          pdf.text(`Since ${st.joining_date}`, x + 27, fieldY, { align: 'center' });
+          fieldY += 3.6;
+        }
+
+        if (activeFields.includes('ref_id')) {
+          pdf.setFont('courier', 'normal');
+          pdf.setTextColor(180, 195, 215);
+          pdf.setFontSize(5.5);
+          pdf.text(st.id.substring(0, 8).toUpperCase(), x + 27, fieldY, { align: 'center' });
+        }
+
+        // 7. QR Code
+        const qrSvg = cardEl?.querySelector('svg');
+        if (qrSvg) {
+          const qrDataUrl = await svgToPngDataUrl(qrSvg as SVGSVGElement);
+          if (qrDataUrl) {
+            pdf.setFillColor(255, 255, 255);
+            pdf.setDrawColor(226, 232, 240);
+            pdf.setLineWidth(0.2);
+            pdf.roundedRect(x + 19, y + 66, 16, 16, 1.5, 1.5, 'FD');
+            pdf.addImage(qrDataUrl, 'PNG', x + 19.5, y + 66.5, 15, 15);
+          }
+        }
       }
 
-      pdf.save(`Staff_ID_Cards_300DPI_${new Date().toISOString().slice(0, 10)}.pdf`);
+      pdf.save(`Staff_ID_Cards_Vector_${new Date().toISOString().slice(0, 10)}.pdf`);
     } catch (err) {
-      console.error('PDF export failed', err);
-      alert('Failed to generate high-resolution PDF.');
+      console.error('Vector PDF export failed', err);
+      alert('Failed to generate Vector PDF.');
     } finally {
       setExportingPdf(false);
     }
@@ -209,7 +370,9 @@ export default function StaffDigitalIDCards() {
           margin: 0;
         }
         @media print {
-          .no-print { display: none !important; }
+          .no-print, header, nav, aside, .print\\:hidden {
+            display: none !important;
+          }
           html, body {
             background: white !important;
             margin: 0 !important;
@@ -271,7 +434,7 @@ export default function StaffDigitalIDCards() {
               title="Toggle school name header on cards"
             >
               {hideSchoolHeader ? <EyeOff className="w-4 h-4 text-slate-500" /> : <Eye className="w-4 h-4 text-indigo-600" />}
-              {hideSchoolHeader ? 'School Header: Removed' : 'School Header: Visible'}
+              {hideSchoolHeader ? 'Card Header: Hidden' : 'Card Header: Visible'}
             </button>
 
             {/* Download High-Res PNG Button */}
@@ -285,22 +448,23 @@ export default function StaffDigitalIDCards() {
               {exportingPng ? 'Exporting...' : `Download PNG (${selectedStaff.size})`}
             </button>
 
-            {/* Download High-Res PDF Button */}
+            {/* Download Vector PDF Button (Unflattened) */}
             <button
-              onClick={downloadPDF}
+              onClick={downloadVectorPDF}
               disabled={selectedStaff.size === 0 || exportingPdf}
               className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-black text-xs uppercase tracking-wider hover:bg-emerald-700 disabled:opacity-50 transition-all shadow-md active:scale-95"
-              title="Download 300 DPI high-resolution PDF for printing"
+              title="Download unflattened vectorized PDF with selectable vector text"
             >
               {exportingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              {exportingPdf ? 'Building PDF...' : 'Download PDF'}
+              {exportingPdf ? 'Building Vector PDF...' : 'Vector PDF'}
             </button>
 
-            {/* Print Button */}
+            {/* Print / Save as Vector PDF Button */}
             <button
               onClick={handlePrint}
               disabled={selectedStaff.size === 0 || loading}
               className="flex items-center gap-2 px-4 py-2.5 bg-[#0d1526] text-white rounded-xl font-black text-xs uppercase tracking-wider hover:bg-slate-800 disabled:opacity-50 transition-all shadow-md active:scale-95"
+              title="Print directly or choose 'Save as PDF' in print dialog for 100% vector output"
             >
               <Printer className="w-4 h-4" /> Print Cards
             </button>
@@ -354,9 +518,6 @@ export default function StaffDigitalIDCards() {
       <div className={`mt-8 ${selectedStaff.size > 0 ? '' : 'hidden'}`}>
         <div className="flex items-center justify-center gap-2 mb-6 print:hidden">
           <span className="text-[11px] font-black text-[#0d1526] uppercase tracking-[0.25em]">Live Card Layout Preview (High-Definition 300 DPI)</span>
-          {hideSchoolHeader && (
-            <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 font-bold px-2 py-0.5 rounded-full">School Header Removed</span>
-          )}
         </div>
         
         <div className="id-grid flex flex-wrap gap-8 justify-center bg-slate-100 p-12 rounded-[40px] print:p-0 print:bg-white print:gap-[10mm]">

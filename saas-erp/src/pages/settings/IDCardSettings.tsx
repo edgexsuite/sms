@@ -155,7 +155,7 @@ export default function IDCardSettings() {
   const [studentCustom, setStudentCustom] = useState<CardCustomization>({ ...DEFAULT_CUSTOM });
   const [staffCustom, setStaffCustom] = useState<CardCustomization>({ ...DEFAULT_CUSTOM });
   const [studentHideHeader, setStudentHideHeader] = useState<boolean>(false);
-  const [staffHideHeader, setStaffHideHeader] = useState<boolean>(true);
+  const [staffHideHeader, setStaffHideHeader] = useState<boolean>(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
