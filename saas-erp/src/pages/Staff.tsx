@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { 
   Users, UserPlus, Search, Pencil, Trash2, Mail, Phone, Eye, 
   X, Save, Camera, Briefcase, UserCheck, UserX, Printer, Award,
-  MessageSquare, Upload, FileSpreadsheet
+  MessageSquare, Upload, FileSpreadsheet, Ban
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -18,6 +18,7 @@ import ExperienceCertificate from '../components/ExperienceCertificate';
 import * as templatesLib from '../lib/whatsappTemplates';
 import { processStaffPhoto } from '../lib/uploadUtils';
 import { logActivity } from '../lib/auditLog';
+import { StaffCategory, getStaffCategory, STAFF_CATEGORIES } from '../lib/staffUtils';
 
 const ROLES = ['Teacher', 'Principal', 'Vice Principal', 'Coordinator', 'Admin', 'Accountant', 'Librarian', 'Security', 'Support Staff', 'Driver', 'Other'];
 const DEPARTMENTS = ['Academic', 'Administration', 'Accounts', 'Library', 'Security', 'Transport', 'Science', 'Arts', 'IT'];
@@ -63,7 +64,8 @@ export default function Staff() {
   const [formData, setFormData] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('all');
+  const [roleFilter, setRoleFilter] = useState<'all' | StaffCategory>('all');
+  const [excludedCategory, setExcludedCategory] = useState<StaffCategory | null>(null);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: '', name: '' });
   const [schoolInfo, setSchoolInfo] = useState<any>(null);
   const [printDoc, setPrintDoc] = useState<{ type: 'joining' | 'experience', staff: any } | null>(null);
@@ -397,24 +399,48 @@ export default function Staff() {
     }
   };
 
+  // Category counts
+  const counts = {
+    all: staff.length,
+    teaching: staff.filter(s => getStaffCategory(s) === 'teaching').length,
+    non_teaching: staff.filter(s => getStaffCategory(s) === 'non_teaching').length,
+    admin: staff.filter(s => getStaffCategory(s) === 'admin').length,
+  };
+
   const filtered = staff.filter(s => {
-    const matchSearch = s.full_name.toLowerCase().includes(search.toLowerCase()) || (s.cnic && s.cnic.includes(search));
-    const matchRole = roleFilter === 'all' ? true :
-                     roleFilter === 'teachers' ? ['Teacher', 'Principal', 'Vice Principal', 'Coordinator'].includes(s.role) :
-                     roleFilter === 'admin' ? ['Admin', 'Accountant', 'Librarian'].includes(s.role) :
-                     ['Security', 'Support Staff', 'Driver', 'Other'].includes(s.role);
+    const q = search.toLowerCase().trim();
+    const matchSearch = !q || 
+      (s.full_name || '').toLowerCase().includes(q) || 
+      (s.cnic && s.cnic.includes(q)) ||
+      (s.role || '').toLowerCase().includes(q) ||
+      (s.department || '').toLowerCase().includes(q);
+
+    const category = getStaffCategory(s);
+    if (excludedCategory && category === excludedCategory) return false;
+    const matchRole = roleFilter === 'all' || category === roleFilter;
+
     return matchSearch && matchRole;
   });
 
   const handleExportCSV = () => {
-    exportToCSV('Staff_Directory', filtered.map(s => ({
-      name: s.full_name, role: s.role, department: s.department || '',
-      cnic: s.cnic || '', phone: s.whatsapp_number || s.mobile_number || '',
-      email: s.email || '', joining: s.joining_date || '',
-      status: s.is_active ? 'Active' : 'Inactive',
-      salary: s.salary || '',
-    })), [
+    exportToCSV('Staff_Directory', filtered.map(s => {
+      const cat = getStaffCategory(s);
+      const catLabel = STAFF_CATEGORIES.find(c => c.id === cat)?.label || cat;
+      return {
+        name: s.full_name,
+        category: catLabel,
+        role: s.role,
+        department: s.department || '',
+        cnic: s.cnic || '',
+        phone: s.whatsapp_number || s.mobile_number || '',
+        email: s.email || '',
+        joining: s.joining_date || '',
+        status: s.is_active ? 'Active' : 'Inactive',
+        salary: s.salary || '',
+      };
+    }), [
       { header: 'Full Name', key: 'name' },
+      { header: 'Category', key: 'category' },
       { header: 'Role', key: 'role' },
       { header: 'Department', key: 'department' },
       { header: 'CNIC', key: 'cnic' },
@@ -426,9 +452,12 @@ export default function Staff() {
     ]);
   };
 
-  const active = staff.filter(s => s.is_active).length;
-  const teachers = staff.filter(s => ['Teacher', 'Principal', 'Vice Principal', 'Coordinator'].includes(s.role)).length;
-  const onLeave = staff.filter(s => !s.is_active).length;
+  const statCards = [
+    { label: 'Total Personnel', value: counts.all, icon: Users, theme: 'bg-white text-slate-700 border-slate-100' },
+    { label: 'Teaching Faculty', value: counts.teaching, icon: Briefcase, theme: 'bg-indigo-600 text-white border-indigo-500 shadow-xl shadow-indigo-100' },
+    { label: 'Non-Teaching', value: counts.non_teaching, icon: Users, theme: 'bg-amber-500 text-white border-amber-400 shadow-xl shadow-amber-100' },
+    { label: 'Administration', value: counts.admin, icon: UserCheck, theme: 'bg-purple-600 text-white border-purple-500 shadow-xl shadow-purple-100' },
+  ];
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -479,12 +508,7 @@ export default function Staff() {
         </motion.div>
  
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 no-print mb-8">
-          {[
-            { label: 'Total Staff', value: staff.length, icon: Users, theme: 'bg-white text-slate-700 border-slate-100' },
-            { label: 'Teachers', value: teachers, icon: Briefcase, theme: 'bg-indigo-600 text-white border-indigo-500 shadow-xl shadow-indigo-100' },
-            { label: 'Active', value: active, icon: UserCheck, theme: 'bg-emerald-500 text-white border-emerald-400 shadow-xl shadow-emerald-100' },
-            { label: 'On Leave', value: onLeave, icon: UserX, theme: 'bg-slate-100 text-slate-500 border-slate-200' },
-          ].map((stat, i) => {
+          {statCards.map((stat, i) => {
             const Icon = stat.icon;
             return (
               <motion.div key={stat.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className={`rounded-2xl border p-4 flex flex-col justify-between transition-all hover:scale-[1.01] cursor-default ${stat.theme}`}>
@@ -503,21 +527,102 @@ export default function Staff() {
           })}
         </div>
  
-        <div className="no-print aura-card p-3 flex flex-col md:flex-row gap-4 items-center mb-8 border-slate-100">
+        {/* Search, Category Tabs, and Exclude Category Bar */}
+        <div className="no-print aura-card p-3.5 flex flex-col lg:flex-row gap-4 items-stretch lg:items-center mb-6 border-slate-100">
           <div className="relative flex-1 group">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
-            <input type="text" placeholder="Search across directory..." value={search} onChange={e => setSearch(e.target.value)}
-              className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-transparent rounded-2xl text-sm font-bold focus:bg-white focus:border-slate-100 focus:ring-4 focus:ring-indigo-100/50 transition-all outline-none" />
+            <input 
+              type="text" 
+              placeholder="Search across directory (name, CNIC, role, dept)..." 
+              value={search} 
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-transparent rounded-2xl text-xs font-bold focus:bg-white focus:border-slate-200 focus:ring-4 focus:ring-indigo-100/50 transition-all outline-none" 
+            />
           </div>
-          <div className="flex gap-1 bg-slate-100 p-1.5 rounded-2xl border border-slate-200/50">
-            {[['all', 'ALL'], ['teachers', 'TEACHERS'], ['admin', 'ADMIN'], ['support', 'SUPPORT']].map(([val, label]) => (
-              <button key={val} onClick={() => setRoleFilter(val)}
-                className={`px-5 py-2 rounded-xl text-[10px] font-black tracking-[0.1em] transition-all ${roleFilter === val ? 'bg-white text-indigo-600 shadow-lg shadow-indigo-100' : 'text-slate-400 hover:text-slate-600'}`}>
-                {label}
+
+          {/* Category Tabs */}
+          <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1.5 rounded-2xl border border-slate-200/50">
+            <button 
+              type="button"
+              onClick={() => setRoleFilter('all')}
+              className={cn(
+                "px-3.5 py-1.5 rounded-xl text-[10px] font-black tracking-[0.1em] transition-all",
+                roleFilter === 'all' ? "bg-white text-indigo-600 shadow-md shadow-indigo-100" : "text-slate-500 hover:text-slate-800"
+              )}
+            >
+              ALL ({counts.all})
+            </button>
+            {STAFF_CATEGORIES.map(cat => {
+              const isExcluded = excludedCategory === cat.id;
+              const count = cat.id === 'teaching' ? counts.teaching : cat.id === 'non_teaching' ? counts.non_teaching : counts.admin;
+              return (
+                <button 
+                  key={cat.id} 
+                  type="button"
+                  onClick={() => setRoleFilter(cat.id)}
+                  className={cn(
+                    "px-3.5 py-1.5 rounded-xl text-[10px] font-black tracking-[0.1em] transition-all flex items-center gap-1",
+                    roleFilter === cat.id ? "bg-white text-indigo-600 shadow-md shadow-indigo-100" : "text-slate-500 hover:text-slate-800",
+                    isExcluded && "opacity-50 line-through decoration-rose-500"
+                  )}
+                >
+                  {cat.label.toUpperCase()} ({count})
+                  {isExcluded && <span className="text-[8px] font-black text-rose-500 no-underline ml-0.5">EXCL</span>}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Exclude Category Control */}
+          <div className="flex items-center gap-1.5 bg-slate-50 p-1 rounded-2xl border border-slate-200/60">
+            <span className="text-[10px] font-black text-slate-500 uppercase px-2 flex items-center gap-1">
+              <Ban className="w-3 h-3 text-rose-500" /> Exclude:
+            </span>
+            <button
+              type="button"
+              onClick={() => setExcludedCategory(null)}
+              className={cn(
+                "px-2.5 py-1 text-[10px] font-bold rounded-xl transition-all",
+                excludedCategory === null ? "bg-white text-slate-800 shadow-sm border border-slate-200" : "text-slate-400 hover:text-slate-700"
+              )}
+            >
+              None
+            </button>
+            {STAFF_CATEGORIES.map(cat => (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setExcludedCategory(excludedCategory === cat.id ? null : cat.id)}
+                className={cn(
+                  "px-2.5 py-1 text-[10px] font-black rounded-xl transition-all",
+                  excludedCategory === cat.id ? "bg-rose-600 text-white shadow-sm" : "text-slate-400 hover:text-rose-600"
+                )}
+                title={`Exclude all ${cat.label} staff`}
+              >
+                {cat.label}
               </button>
             ))}
           </div>
         </div>
+
+        {/* Exclusion Banner */}
+        {excludedCategory && (
+          <div className="no-print -mt-3 mb-6 flex items-center justify-between px-4 py-2.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs">
+            <div className="flex items-center gap-2 text-rose-800 font-bold">
+              <Ban className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>
+                <strong className="font-black uppercase">{STAFF_CATEGORIES.find(c => c.id === excludedCategory)?.label} Staff</strong> are excluded ({counts[excludedCategory]} personnel hidden from view and exports).
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setExcludedCategory(null)}
+              className="text-[10px] font-black uppercase text-rose-700 hover:text-rose-900 bg-rose-100 px-2.5 py-1 rounded-lg transition-colors"
+            >
+              Clear Exclusion
+            </button>
+          </div>
+        )}
 
         <div className="aura-card overflow-hidden border-none shadow-2xl shadow-slate-200/50">
           {loading ? (
@@ -563,7 +668,18 @@ export default function Staff() {
                         </div>
                       </td>
                       <td className="px-4 py-2.5">
-                        <div className="text-sm font-black text-indigo-600 bg-indigo-50/50 px-2.5 py-1 rounded-lg w-fit group-hover:bg-indigo-600 group-hover:text-white transition-all uppercase tracking-tight">{s.role}</div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="text-sm font-black text-indigo-600 bg-indigo-50/50 px-2.5 py-1 rounded-lg w-fit group-hover:bg-indigo-600 group-hover:text-white transition-all uppercase tracking-tight">{s.role}</div>
+                          {(() => {
+                            const cat = getStaffCategory(s);
+                            const meta = STAFF_CATEGORIES.find(c => c.id === cat);
+                            return (
+                              <span className={cn("text-[9px] font-black uppercase px-2 py-0.5 rounded-full border tracking-wider", meta?.badgeClass)}>
+                                {meta?.label || cat}
+                              </span>
+                            );
+                          })()}
+                        </div>
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1 ml-1">{s.department || 'GENERAL'}</p>
                       </td>
                       <td className="px-4 py-2.5 hidden md:table-cell">

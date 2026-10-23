@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { Printer, Download, Loader2, Eye, EyeOff, CheckSquare, Square, Shield } from 'lucide-react';
+import { 
+  Printer, Download, Loader2, Eye, EyeOff, CheckSquare, Square, 
+  Shield, Search, Ban, X 
+} from 'lucide-react';
 import { cn, getBase64Image } from '../../lib/utils';
 import { CardTemplate, TemplateId, CardCustomization } from '../../lib/idCardTemplates';
+import { StaffCategory, getStaffCategory, STAFF_CATEGORIES } from '../../lib/staffUtils';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
@@ -17,6 +21,11 @@ export default function StaffDigitalIDCards() {
   const [template, setTemplate] = useState<TemplateId>('classic');
   const [customization, setCustomization] = useState<CardCustomization | undefined>(undefined);
   
+  // Categorization & Exclusion states
+  const [categoryFilter, setCategoryFilter] = useState<'all' | StaffCategory>('all');
+  const [excludedCategory, setExcludedCategory] = useState<StaffCategory | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
   // School header stays on the card (default: false, school header is visible on card)
   const [hideSchoolHeader, setHideSchoolHeader] = useState<boolean>(false);
   const [exportingPdf, setExportingPdf] = useState(false);
@@ -66,6 +75,28 @@ export default function StaffDigitalIDCards() {
     }
   };
 
+  const handleToggleExcludeCategory = (cat: StaffCategory | null) => {
+    if (cat === null || excludedCategory === cat) {
+      setExcludedCategory(null);
+    } else {
+      setExcludedCategory(cat);
+      // Automatically deselect all staff in the excluded category
+      setSelectedStaff(prev => {
+        const next = new Set(prev);
+        staff.forEach(s => {
+          if (getStaffCategory(s) === cat) {
+            next.delete(s.id);
+          }
+        });
+        return next;
+      });
+    }
+  };
+
+  // Eligible staff members taking exclusions into account
+  const eligibleStaff = staff.filter(s => (excludedCategory ? getStaffCategory(s) !== excludedCategory : true));
+  const activePrintableStaff = eligibleStaff.filter(s => selectedStaff.has(s.id));
+
   const toggleStaff = (id: string) => {
     const newSet = new Set(selectedStaff);
     if (newSet.has(id)) newSet.delete(id);
@@ -74,9 +105,36 @@ export default function StaffDigitalIDCards() {
   };
 
   const toggleAll = () => {
-    if (selectedStaff.size === staff.length) setSelectedStaff(new Set());
-    else setSelectedStaff(new Set(staff.map(s => s.id)));
+    const allEligibleSelected = eligibleStaff.length > 0 && eligibleStaff.every(s => selectedStaff.has(s.id));
+    if (allEligibleSelected) {
+      setSelectedStaff(new Set());
+    } else {
+      setSelectedStaff(new Set(eligibleStaff.map(s => s.id)));
+    }
   };
+
+  // Category counts
+  const counts = {
+    all: staff.length,
+    teaching: staff.filter(s => getStaffCategory(s) === 'teaching').length,
+    non_teaching: staff.filter(s => getStaffCategory(s) === 'non_teaching').length,
+    admin: staff.filter(s => getStaffCategory(s) === 'admin').length,
+  };
+
+  // Visible staff in list filtered by tab and search
+  const visibleStaff = staff.filter(s => {
+    const cat = getStaffCategory(s);
+    if (categoryFilter !== 'all' && cat !== categoryFilter) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const match = (s.full_name || '').toLowerCase().includes(q) ||
+                    (s.role || '').toLowerCase().includes(q) ||
+                    (s.department || '').toLowerCase().includes(q) ||
+                    (s.designation || '').toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    return true;
+  });
 
   const handlePrint = () => {
     window.print();
@@ -150,7 +208,7 @@ export default function StaffDigitalIDCards() {
 
   // High-Resolution Batch PNG Exporter
   const downloadAllPNG = async () => {
-    const selectedList = staff.filter(s => selectedStaff.has(s.id));
+    const selectedList = activePrintableStaff;
     if (selectedList.length === 0) return;
     setExportingPng(true);
     try {
@@ -180,7 +238,7 @@ export default function StaffDigitalIDCards() {
 
   // True Vector PDF Exporter (Unflattened, Selectable Vector Text & Vector Shapes)
   const downloadVectorPDF = async () => {
-    const selectedList = staff.filter(s => selectedStaff.has(s.id));
+    const selectedList = activePrintableStaff;
     if (selectedList.length === 0) return;
     setExportingPdf(true);
     try {
@@ -440,88 +498,275 @@ export default function StaffDigitalIDCards() {
             {/* Download High-Res PNG Button */}
             <button
               onClick={downloadAllPNG}
-              disabled={selectedStaff.size === 0 || exportingPng}
+              disabled={activePrintableStaff.length === 0 || exportingPng}
               className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-wider hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-md active:scale-95"
               title="Download high-resolution PNG image of cards"
             >
               {exportingPng ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              {exportingPng ? 'Exporting...' : `Download PNG (${selectedStaff.size})`}
+              {exportingPng ? 'Exporting...' : `Download PNG (${activePrintableStaff.length})`}
             </button>
 
             {/* Download Vector PDF Button (Unflattened) */}
             <button
               onClick={downloadVectorPDF}
-              disabled={selectedStaff.size === 0 || exportingPdf}
+              disabled={activePrintableStaff.length === 0 || exportingPdf}
               className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-black text-xs uppercase tracking-wider hover:bg-emerald-700 disabled:opacity-50 transition-all shadow-md active:scale-95"
               title="Download unflattened vectorized PDF with selectable vector text"
             >
               {exportingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              {exportingPdf ? 'Building Vector PDF...' : 'Vector PDF'}
+              {exportingPdf ? 'Building Vector PDF...' : `Vector PDF (${activePrintableStaff.length})`}
             </button>
 
             {/* Print / Save as Vector PDF Button */}
             <button
               onClick={handlePrint}
-              disabled={selectedStaff.size === 0 || loading}
+              disabled={activePrintableStaff.length === 0 || loading}
               className="flex items-center gap-2 px-4 py-2.5 bg-[#0d1526] text-white rounded-xl font-black text-xs uppercase tracking-wider hover:bg-slate-800 disabled:opacity-50 transition-all shadow-md active:scale-95"
               title="Print directly or choose 'Save as PDF' in print dialog for 100% vector output"
             >
-              <Printer className="w-4 h-4" /> Print Cards
+              <Printer className="w-4 h-4" /> Print Cards ({activePrintableStaff.length})
             </button>
           </div>
         </div>
 
-        {/* Selection Area */}
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden p-6">
-           <div className="flex justify-between items-center mb-4">
-              <div className="flex items-center gap-3">
-                <button onClick={toggleAll} className="p-2 bg-slate-50 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors">
-                  {selectedStaff.size === staff.length && staff.length > 0 ? <CheckSquare className="w-5 h-5 text-indigo-600" /> : <Square className="w-5 h-5" />}
-                </button>
-                <span className="text-sm font-black text-slate-700 uppercase tracking-tight">Select Faculty Members</span>
-              </div>
-              <span className="text-[10px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full uppercase tracking-widest">{selectedStaff.size} Selected</span>
+        {/* Categorization, Exclusion & Selection Area */}
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden p-6 space-y-4">
+           {/* Top Bar: Category Filter Tabs & Exclude Category Control */}
+           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+             {/* Category Filter Tabs */}
+             <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200/60 overflow-x-auto">
+               <button
+                 type="button"
+                 onClick={() => setCategoryFilter('all')}
+                 className={cn(
+                   "px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap",
+                   categoryFilter === 'all'
+                     ? "bg-white text-slate-900 shadow-sm"
+                     : "text-slate-500 hover:text-slate-900"
+                 )}
+               >
+                 All <span className="ml-1 text-[10px] font-bold opacity-70">({counts.all})</span>
+               </button>
+               {STAFF_CATEGORIES.map(cat => {
+                 const isExcluded = excludedCategory === cat.id;
+                 const count = cat.id === 'teaching' ? counts.teaching : cat.id === 'non_teaching' ? counts.non_teaching : counts.admin;
+                 return (
+                   <button
+                     key={cat.id}
+                     type="button"
+                     onClick={() => setCategoryFilter(cat.id)}
+                     className={cn(
+                       "flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap",
+                       categoryFilter === cat.id
+                         ? "bg-white text-indigo-600 shadow-sm"
+                         : "text-slate-500 hover:text-slate-900",
+                       isExcluded && "opacity-60 line-through decoration-rose-500 decoration-2"
+                     )}
+                   >
+                     {cat.label}
+                     <span className={cn(
+                       "text-[10px] px-1.5 py-0.5 rounded-full font-bold",
+                       isExcluded ? "bg-rose-100 text-rose-700" : "bg-slate-200/70 text-slate-700"
+                     )}>
+                       {count}
+                     </span>
+                     {isExcluded && <span className="text-[9px] font-black text-rose-600 no-underline">EXCL</span>}
+                   </button>
+                 );
+               })}
+             </div>
+
+             {/* Exclude Category Control */}
+             <div className="flex items-center gap-2">
+               <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                 <Ban className="w-3.5 h-3.5 text-rose-500" /> Exclude:
+               </span>
+               <div className="inline-flex rounded-xl p-1 bg-slate-100 border border-slate-200/60 gap-1">
+                 <button
+                   type="button"
+                   onClick={() => handleToggleExcludeCategory(null)}
+                   className={cn(
+                     "px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all",
+                     excludedCategory === null
+                       ? "bg-white text-slate-800 shadow-sm"
+                       : "text-slate-500 hover:text-slate-800"
+                   )}
+                 >
+                   None
+                 </button>
+                 {STAFF_CATEGORIES.map(cat => (
+                   <button
+                     key={cat.id}
+                     type="button"
+                     onClick={() => handleToggleExcludeCategory(cat.id)}
+                     className={cn(
+                       "px-2.5 py-1 text-[11px] font-black rounded-lg transition-all",
+                       excludedCategory === cat.id
+                         ? "bg-rose-600 text-white shadow-sm"
+                         : "text-slate-500 hover:text-rose-600"
+                     )}
+                     title={`Exclude all ${cat.label} staff from printing and PDF/PNG export`}
+                   >
+                     {cat.label}
+                   </button>
+                 ))}
+               </div>
+             </div>
            </div>
 
-           <div className="max-h-64 overflow-y-auto pr-2 custom-scrollbar grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+           {/* Active Exclusion Notice Banner */}
+           {excludedCategory && (
+             <div className="flex items-center justify-between px-4 py-2.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs">
+               <div className="flex items-center gap-2 text-rose-800 font-bold">
+                 <Ban className="w-4 h-4 text-rose-600 shrink-0" />
+                 <span>
+                   <strong className="font-black uppercase tracking-tight">{STAFF_CATEGORIES.find(c => c.id === excludedCategory)?.label} Staff</strong> are excluded ({counts[excludedCategory]} personnel). They are omitted from print layout, Vector PDF, and PNG downloads.
+                 </span>
+               </div>
+               <button
+                 type="button"
+                 onClick={() => handleToggleExcludeCategory(null)}
+                 className="flex items-center gap-1 text-[11px] font-black uppercase text-rose-700 hover:text-rose-900 bg-rose-100/80 px-2.5 py-1 rounded-lg transition-colors ml-2"
+               >
+                 <X className="w-3.5 h-3.5" /> Clear Exclusion
+               </button>
+             </div>
+           )}
+
+           {/* Search & Bulk Toggle Row */}
+           <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={toggleAll} 
+                  className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-indigo-600 border border-slate-200 transition-colors"
+                  title="Toggle select all eligible staff"
+                >
+                  {eligibleStaff.length > 0 && eligibleStaff.every(s => selectedStaff.has(s.id)) ? (
+                    <CheckSquare className="w-5 h-5 text-indigo-600" />
+                  ) : (
+                    <Square className="w-5 h-5" />
+                  )}
+                </button>
+                <div>
+                  <span className="text-xs font-black text-slate-800 uppercase tracking-tight">Select Faculty Members</span>
+                  <p className="text-[10px] text-slate-400 font-bold">
+                    Showing {visibleStaff.length} of {staff.length} staff
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="Search by name, role..."
+                    className="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-400 focus:bg-white transition-all w-48 sm:w-64"
+                  />
+                  {searchQuery && (
+                    <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <span className="text-[10px] font-black bg-indigo-50 text-indigo-600 border border-indigo-100 px-3 py-1.5 rounded-full uppercase tracking-widest whitespace-nowrap">
+                  {activePrintableStaff.length} Selected
+                </span>
+              </div>
+           </div>
+
+           {/* Staff List Grid */}
+           <div className="max-h-72 overflow-y-auto pr-2 custom-scrollbar grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {loading ? (
                 <div className="col-span-full py-20 flex flex-col items-center gap-3">
                   <div className="w-6 h-6 border-2 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Loading staff database...</p>
                 </div>
-              ) : staff.map(s => (
-                <div 
-                  key={s.id} 
-                  className={cn(
-                    "flex items-center gap-3 py-3 px-4 border rounded-2xl transition-all cursor-pointer group",
-                    selectedStaff.has(s.id) ? "bg-indigo-50 border-indigo-200" : "bg-white border-slate-100 hover:border-slate-200"
-                  )} 
-                  onClick={() => toggleStaff(s.id)}
-                >
-                  <div className={cn(
-                    "w-5 h-5 rounded-md flex items-center justify-center transition-all",
-                    selectedStaff.has(s.id) ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-300 group-hover:bg-slate-200"
-                  )}>
-                    {selectedStaff.has(s.id) && <CheckSquare className="w-4 h-4" />}
-                  </div>
-                  <div>
-                    <p className={cn("text-xs font-black uppercase tracking-tight", selectedStaff.has(s.id) ? "text-indigo-900" : "text-slate-700 font-bold")}>{s.full_name}</p>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{s.role}</p>
-                  </div>
+              ) : visibleStaff.length === 0 ? (
+                <div className="col-span-full py-12 text-center text-slate-400 text-xs font-bold">
+                  No staff members match the current filter or search criteria.
                 </div>
-              ))}
+              ) : visibleStaff.map(s => {
+                const cat = getStaffCategory(s);
+                const isCatExcluded = excludedCategory === cat;
+                const isSelected = selectedStaff.has(s.id) && !isCatExcluded;
+                const catMeta = STAFF_CATEGORIES.find(c => c.id === cat);
+
+                return (
+                  <div 
+                    key={s.id} 
+                    className={cn(
+                      "flex items-center justify-between gap-3 py-2.5 px-3.5 border rounded-2xl transition-all group",
+                      isCatExcluded 
+                        ? "bg-slate-50/70 border-slate-200 opacity-60 cursor-not-allowed"
+                        : isSelected 
+                          ? "bg-indigo-50/80 border-indigo-200 cursor-pointer shadow-sm" 
+                          : "bg-white border-slate-100 hover:border-slate-200 cursor-pointer"
+                    )} 
+                    onClick={() => {
+                      if (!isCatExcluded) toggleStaff(s.id);
+                    }}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={cn(
+                        "w-5 h-5 rounded-md flex items-center justify-center transition-all shrink-0",
+                        isCatExcluded
+                          ? "bg-slate-200 text-slate-400"
+                          : isSelected 
+                            ? "bg-indigo-600 text-white" 
+                            : "bg-slate-100 text-slate-300 group-hover:bg-slate-200"
+                      )}>
+                        {isSelected ? <CheckSquare className="w-4 h-4" /> : isCatExcluded ? <Ban className="w-3.5 h-3.5 text-slate-400" /> : null}
+                      </div>
+                      <div className="min-w-0">
+                        <p className={cn(
+                          "text-xs font-black uppercase tracking-tight truncate", 
+                          isCatExcluded 
+                            ? "text-slate-400 line-through" 
+                            : isSelected ? "text-indigo-900" : "text-slate-700 font-bold"
+                        )}>
+                          {s.full_name}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">
+                          {s.role || 'Staff'} {s.department ? `• ${s.department}` : ''}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Category Badge */}
+                    <div className="shrink-0">
+                      {isCatExcluded ? (
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-100 text-rose-700 border border-rose-200">
+                          Excluded
+                        </span>
+                      ) : (
+                        <span className={cn(
+                          "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border",
+                          catMeta?.badgeClass || "bg-slate-100 text-slate-700 border-slate-200"
+                        )}>
+                          {catMeta?.label || cat}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
            </div>
         </div>
       </div>
 
       {/* Cards Display / Print Layout */}
-      <div className={`mt-8 ${selectedStaff.size > 0 ? '' : 'hidden'}`}>
+      <div className={`mt-8 ${activePrintableStaff.length > 0 ? '' : 'hidden'}`}>
         <div className="flex items-center justify-center gap-2 mb-6 print:hidden">
-          <span className="text-[11px] font-black text-[#0d1526] uppercase tracking-[0.25em]">Live Card Layout Preview (High-Definition 300 DPI)</span>
+          <span className="text-[11px] font-black text-[#0d1526] uppercase tracking-[0.25em]">
+            Live Card Layout Preview ({activePrintableStaff.length} Cards • 300 DPI)
+          </span>
         </div>
         
         <div className="id-grid flex flex-wrap gap-8 justify-center bg-slate-100 p-12 rounded-[40px] print:p-0 print:bg-white print:gap-[10mm]">
-          {staff.filter(s => selectedStaff.has(s.id)).map(st => (
+          {activePrintableStaff.map(st => (
             <div key={st.id} className="id-card-wrapper flex flex-col items-center">
               <div id={`staff-card-${st.id}`} className="id-card shadow-lg bg-white rounded-lg overflow-hidden">
                 <CardTemplate
