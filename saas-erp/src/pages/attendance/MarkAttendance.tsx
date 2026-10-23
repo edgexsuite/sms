@@ -33,6 +33,7 @@ export default function MarkAttendance() {
   const [vacations, setVacations] = useState<any[]>([]);
   const [activeVacation, setActiveVacation] = useState<any>(null);
   const [schoolName, setSchoolName] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Attendance summary popup
   const [showSummary, setShowSummary] = useState(false);
@@ -139,17 +140,6 @@ export default function MarkAttendance() {
   const saveAttendance = async () => {
     setSaving(true);
     try {
-       // Step 1: Purge existing attendance for these specific students on this exact date
-       const studentIds = students.map(s => s.id);
-       if (studentIds.length > 0) {
-           await supabase.from('attendance')
-             .delete()
-             .eq('school_id', userRole?.school_id)
-             .eq('date', date)
-             .in('student_id', studentIds);
-       }
-
-       // Step 2: Push Fresh Commit
        const inserts = students.map(s => ({
          school_id: userRole?.school_id,
          student_id: s.id,
@@ -159,8 +149,22 @@ export default function MarkAttendance() {
        }));
 
        if (inserts.length > 0) {
-           const { error } = await supabase.from('attendance').insert(inserts);
-           if (error) throw error;
+           // Attempt atomic upsert using composite unique constraint (school_id, student_id, date)
+           const { error: upsertErr } = await supabase.from('attendance').upsert(inserts, {
+             onConflict: 'school_id,student_id,date'
+           });
+
+           // Graceful fallback if composite index is named differently in existing deployment
+           if (upsertErr) {
+             const studentIds = students.map(s => s.id);
+             await supabase.from('attendance')
+               .delete()
+               .eq('school_id', userRole?.school_id)
+               .eq('date', date)
+               .in('student_id', studentIds);
+             const { error: insErr } = await supabase.from('attendance').insert(inserts);
+             if (insErr) throw insErr;
+           }
        }
        
        setHasSaved(true);
@@ -366,7 +370,34 @@ export default function MarkAttendance() {
             </div>
           </div>
 
-          <div className="p-8">
+          <div className="p-4 sm:p-8">
+            {/* Quick search & filter bar */}
+            {students.length > 0 && !loading && (
+              <div className="mb-6 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search by student name or roll #..."
+                    className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-500 px-1">
+                  <span>Showing {students.filter(s => !searchQuery || s.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) || String(s.roll_number).includes(searchQuery)).length} of {students.length} students</span>
+                </div>
+              </div>
+            )}
+
             {loading ? (
               <div className="flex flex-col items-center justify-center py-20 gap-4">
                 <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
@@ -380,13 +411,15 @@ export default function MarkAttendance() {
               />
             ) : (
               <div className="space-y-4">
-                {students.map(stu => {
+                {students
+                  .filter(stu => !searchQuery || stu.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) || String(stu.roll_number).includes(searchQuery))
+                  .map(stu => {
                   const currentStatus = attendance[stu.id] || 'present';
                   return (
                     <div 
                       key={stu.id} 
                       className={cn(
-                        "flex flex-col lg:flex-row lg:items-center justify-between gap-6 p-5 rounded-2xl border transition-all duration-300",
+                        "flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6 p-4 sm:p-5 rounded-2xl border transition-all duration-300",
                         currentStatus === 'present' ? 'bg-emerald-50/30 border-emerald-100 shadow-sm' : 
                         currentStatus === 'absent' ? 'bg-rose-50 border-rose-100 shadow-sm' : 
                         currentStatus === 'late' ? 'bg-amber-50 border-amber-100' : 
@@ -394,52 +427,54 @@ export default function MarkAttendance() {
                         'bg-slate-50 border-slate-200'
                       )}
                     >
-                      <div className="flex items-center gap-5">
+                      <div className="flex items-center gap-4 sm:gap-5">
                         <div className={cn(
-                          "w-12 h-12 rounded-2xl flex items-center justify-center text-white font-black text-lg shadow-lg",
+                          "w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center text-white font-black text-base sm:text-lg shadow-md shrink-0",
                           statusColors[currentStatus] || 'bg-slate-400'
                         )}>
                           {stu.roll_number}
                         </div>
-                        <div>
-                          <p className="font-black text-slate-900 text-base">{stu.full_name}</p>
+                        <div className="min-w-0">
+                          <p className="font-black text-slate-900 text-sm sm:text-base truncate">{stu.full_name}</p>
                           {currentStatus === 'absent' && (
-                            <p className="text-rose-600 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 mt-1">
-                              <AlertCircle className="w-3.5 h-3.5" /> SMS Alert Pending
+                            <p className="text-rose-600 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 mt-0.5">
+                              <AlertCircle className="w-3 h-3 shrink-0" /> SMS Alert Pending
                             </p>
                           )}
                           {currentStatus === 'vacation' && (
-                            <p className="text-sky-600 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 mt-1">
-                              <Umbrella className="w-3.5 h-3.5" /> Institutional Holiday
+                            <p className="text-sky-600 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 mt-0.5">
+                              <Umbrella className="w-3 h-3 shrink-0" /> Institutional Holiday
                             </p>
                           )}
                           {currentStatus === 'present' && (
-                            <p className="text-emerald-600 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 mt-1">
-                              <Check className="w-3.5 h-3.5" /> Marked Present
+                            <p className="text-emerald-600 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 mt-0.5">
+                              <Check className="w-3 h-3 shrink-0" /> Marked Present
                             </p>
                           )}
                         </div>
                       </div>
                       
-                      <div className="flex flex-wrap gap-2 bg-white p-1.5 rounded-2xl border border-slate-100 shadow-inner">
+                      <div className="flex gap-1 sm:gap-2 bg-white p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-slate-100 shadow-inner">
                         {[
-                          { key: 'present',  label: 'Present',  icon: CheckCircle, activeClass: 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' },
-                          { key: 'absent',   label: 'Absent',   icon: XCircle,     activeClass: 'bg-rose-600 text-white shadow-lg shadow-rose-600/20'    },
-                          { key: 'late',     label: 'Late',     icon: Clock,       activeClass: 'bg-amber-500 text-white shadow-lg shadow-amber-500/20'   },
-                          { key: 'leave',    label: 'Leave',    icon: CalendarCheck,activeClass: 'bg-slate-600 text-white shadow-lg shadow-slate-600/20'  },
-                          { key: 'vacation', label: 'Holiday',  icon: Umbrella,    activeClass: 'bg-sky-600 text-white shadow-lg shadow-sky-600/20'       },
+                          { key: 'present',  label: 'Present',  shortLabel: 'P',  icon: CheckCircle, activeClass: 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' },
+                          { key: 'absent',   label: 'Absent',   shortLabel: 'A',  icon: XCircle,     activeClass: 'bg-rose-600 text-white shadow-md shadow-rose-600/20'    },
+                          { key: 'late',     label: 'Late',     shortLabel: 'L',  icon: Clock,       activeClass: 'bg-amber-500 text-white shadow-md shadow-amber-500/20'   },
+                          { key: 'leave',    label: 'Leave',    shortLabel: 'Lv', icon: CalendarCheck,activeClass: 'bg-slate-600 text-white shadow-md shadow-slate-600/20'  },
+                          { key: 'vacation', label: 'Holiday',  shortLabel: 'H',  icon: Umbrella,    activeClass: 'bg-sky-600 text-white shadow-md shadow-sky-600/20'       },
                         ].map((s) => (
                           <button
                             key={s.key}
                             onClick={() => setAttendance({...attendance, [stu.id]: s.key})}
                             className={cn(
-                              "flex-1 min-w-[60px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-tight transition-all duration-200 group",
+                              "flex-1 min-w-[36px] sm:min-w-[56px] flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-[11px] font-black uppercase tracking-tight transition-all duration-200 group cursor-pointer",
                               currentStatus === s.key
                                 ? s.activeClass
                                 : "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
                             )}
+                            title={s.label}
                           >
-                            <s.icon className={cn("w-3.5 h-3.5", currentStatus === s.key ? "text-white" : "text-slate-300 group-hover:text-slate-400")} />
+                            <s.icon className={cn("w-3.5 h-3.5 shrink-0", currentStatus === s.key ? "text-white" : "text-slate-300 group-hover:text-slate-400")} />
+                            <span className="sm:hidden font-black">{s.shortLabel}</span>
                             <span className="hidden sm:inline">{s.label}</span>
                           </button>
                         ))}
