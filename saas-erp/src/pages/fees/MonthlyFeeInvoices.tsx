@@ -1752,6 +1752,7 @@ export default function MonthlyFeeInvoices() {
                                         .select('id, full_name, roll_number, class_id, fee_waiver_percentage, fee_override, classes(name, section)')
                                         .eq('school_id', userRole?.school_id)
                                         .eq('status', 'active')
+                                        .eq('is_deleted', false)
                                         .or(`full_name.ilike.%${q}%,roll_number.eq.${parseInt(q) || 0}`)
                                         .limit(6);
                                       setStuResults(data || []);
