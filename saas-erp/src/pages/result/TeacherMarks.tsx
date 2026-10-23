@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import {
   Star, Save, CheckCircle2, AlertTriangle, RefreshCw,
   BookOpen, ChevronDown, Info, CalendarDays, PenLine, RotateCcw,
-  Globe, EyeOff,
+  Globe, EyeOff, Lock,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { fetchGradingPolicy, getGradeFromPolicy, GradingBracket } from '../../lib/gradingUtils';
@@ -394,6 +394,8 @@ export default function TeacherMarks() {
 
   const selectedSub  = visibleSubjects.find(s => s.id === selectedSubject);
   const selectedExamObj = examTypes.find(e => e.id === selectedExam);
+  const isExamPublished = selectedExam ? publishedExamIds.includes(selectedExam) : false;
+  const isMarksLocked   = isExamPublished && !isAdmin;
   const filledCount = Object.values(marks).filter(v => v !== '').length + Object.values(absent).filter(Boolean).length;
   // Count how many absent records will be cleared on next save
   const revertedCount = students.filter(s =>
@@ -481,7 +483,27 @@ export default function TeacherMarks() {
 
       {/* Exam status banner — shown after exam + class + subject selected */}
       {selectedExam && selectedClass && selectedSubject && (
-        hasExisting ? (
+        isMarksLocked ? (
+          <div className="flex items-start gap-3 rounded-2xl px-4 py-3 bg-rose-50 border border-rose-200 text-sm">
+            <Lock className="w-4 h-4 text-rose-600 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-black text-rose-800">Exam Published & Marks Locked</p>
+              <p className="text-rose-700 text-xs mt-0.5">
+                Results for this exam have been published to student and parent portals. Marks entry is locked to prevent unauthorized retroactive changes. Contact the Exam Coordinator or Principal if revision is needed.
+              </p>
+            </div>
+          </div>
+        ) : isExamPublished && isAdmin ? (
+          <div className="flex items-start gap-3 rounded-2xl px-4 py-3 bg-purple-50 border border-purple-200 text-sm">
+            <Globe className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-black text-purple-800">Exam Published (Admin Override Active)</p>
+              <p className="text-purple-700 text-xs mt-0.5">
+                This exam is published and live on portals. You are authorized to make administrative amendments.
+              </p>
+            </div>
+          </div>
+        ) : hasExisting ? (
           <div className="flex items-start gap-3 rounded-2xl px-4 py-3 bg-amber-50 border border-amber-200 text-sm">
             <PenLine className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
             <div>
@@ -651,28 +673,31 @@ export default function TeacherMarks() {
             </div>
             <div className="flex gap-2">
               <button
+                disabled={isMarksLocked}
                 onClick={() => {
                   const m: Record<string, string> = {};
                   students.forEach(s => { m[s.id] = '0'; });
                   setMarks(m); setAbsent({}); setSaved(false);
                 }}
-                className="text-[11px] font-black text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 transition"
+                className="text-[11px] font-black text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Mark All 0
               </button>
               <button
+                disabled={isMarksLocked}
                 onClick={() => {
                   const a: Record<string, boolean> = {};
                   students.forEach(s => { a[s.id] = true; });
                   setAbsent(a); setMarks({}); setSaved(false);
                 }}
-                className="text-[11px] font-black text-orange-500 hover:text-orange-700 px-3 py-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 transition"
+                className="text-[11px] font-black text-orange-500 hover:text-orange-700 px-3 py-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Mark All Absent
               </button>
               <button
+                disabled={isMarksLocked}
                 onClick={() => { setMarks({}); setAbsent({}); setSaved(false); }}
-                className="text-[11px] font-black text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 transition"
+                className="text-[11px] font-black text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Clear All
               </button>
@@ -737,7 +762,7 @@ export default function TeacherMarks() {
                           type="text"
                           inputMode="numeric"
                           value={val}
-                          disabled={isAbsent}
+                          disabled={isAbsent || isMarksLocked}
                           onChange={e => {
                             const raw = e.target.value.replace(/[^0-9.]/g, '');
                             const n   = parseFloat(raw);
@@ -756,6 +781,7 @@ export default function TeacherMarks() {
                       </td>
                       <td className="px-2 py-2.5 text-center">
                         <button
+                          disabled={isMarksLocked}
                           title={isAbsent ? 'Click to revert absent mark' : isReverted ? 'Mark absent again' : 'Mark as absent'}
                           onClick={() => {
                             setAbsent(p => {
@@ -770,7 +796,7 @@ export default function TeacherMarks() {
                             setSaved(false);
                           }}
                           className={cn(
-                            'flex items-center gap-1 text-[11px] font-black px-2.5 py-1 rounded-lg border transition',
+                            'flex items-center gap-1 text-[11px] font-black px-2.5 py-1 rounded-lg border transition disabled:opacity-30 disabled:cursor-not-allowed',
                             isAbsent
                               ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
                               : isReverted
@@ -859,7 +885,7 @@ export default function TeacherMarks() {
               )}
               <button
                 onClick={handleSave}
-                disabled={saving || (filledCount === 0 && revertedCount === 0)}
+                disabled={saving || isMarksLocked || (filledCount === 0 && revertedCount === 0)}
                 className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black uppercase tracking-widest transition active:scale-95 disabled:opacity-50 shadow-lg shadow-amber-100"
               >
                 {saving
