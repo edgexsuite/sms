@@ -758,35 +758,35 @@ export default function MonthlyFeeInvoices() {
   const paginatedDisplayList = displayList.slice((feeCurrentPage - 1) * FEE_ITEMS_PER_PAGE, feeCurrentPage * FEE_ITEMS_PER_PAGE);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 space-y-3.5">
       {/* Top Banner / Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-100 ring-4 ring-indigo-50">
-            <Receipt className="w-6 h-6" />
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-xl flex items-center justify-center text-white shadow-xs">
+            <Receipt className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-black text-slate-900 tracking-tight leading-none uppercase">Fee Invoices & Challans</h1>
-              <Badge variant="neutral" className="bg-indigo-50 text-indigo-700 border-indigo-100 font-black">
+              <h1 className="text-base font-black text-slate-900 tracking-tight leading-none uppercase">Fee Invoices & Challans</h1>
+              <Badge variant="neutral" className="bg-indigo-50 text-indigo-700 border-indigo-100 font-bold text-[10px] px-2 py-0">
                 {selectedMonth}
               </Badge>
             </div>
-            <p className="text-xs text-slate-500 font-medium mt-1">
+            <p className="text-xs text-slate-500 font-medium mt-0.5">
               Class-by-Class Generation Status, Batch Printing & Instant Billing Wizard
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
           {/* View Mode Toggle */}
-          <div className="bg-slate-100 p-1 rounded-2xl flex items-center border border-slate-200">
+          <div className="bg-slate-100 p-0.5 rounded-xl flex items-center border border-slate-200">
             <button
               onClick={() => setActiveTab('status')}
               className={cn(
-                "flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all",
+                "flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all",
                 activeTab === 'status' 
-                  ? "bg-white text-indigo-700 shadow-sm" 
+                  ? "bg-white text-indigo-700 shadow-xs" 
                   : "text-slate-500 hover:text-slate-800"
               )}
             >
@@ -796,9 +796,9 @@ export default function MonthlyFeeInvoices() {
             <button
               onClick={() => setActiveTab('invoices')}
               className={cn(
-                "flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all",
+                "flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all",
                 activeTab === 'invoices' 
-                  ? "bg-white text-indigo-700 shadow-sm" 
+                  ? "bg-white text-indigo-700 shadow-xs" 
                   : "text-slate-500 hover:text-slate-800"
               )}
             >
@@ -812,7 +812,7 @@ export default function MonthlyFeeInvoices() {
             size="sm"
             onClick={() => navigate('/fees/challan-settings')}
             icon={Settings}
-            className="text-xs font-bold"
+            className="text-xs font-bold h-8"
           >
             Challan Config
           </Btn>
@@ -822,7 +822,7 @@ export default function MonthlyFeeInvoices() {
             size="sm"
             onClick={() => openWizard('all_pending')}
             icon={Sparkles}
-            className="text-xs font-black uppercase tracking-wider bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-lg shadow-indigo-200"
+            className="text-xs font-black uppercase tracking-wider h-8 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-xs"
           >
             Generate Invoices
           </Btn>
@@ -830,26 +830,26 @@ export default function MonthlyFeeInvoices() {
       </div>
 
       {/* Month Navigator & High-Density Stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5">
         {/* Month Selector Box */}
-        <div className="lg:col-span-4 bg-gradient-to-br from-slate-900 to-slate-800 text-white p-5 rounded-3xl shadow-sm flex flex-col justify-between">
+        <div className="lg:col-span-4 bg-gradient-to-br from-slate-900 to-slate-800 text-white p-3 rounded-2xl shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-black tracking-widest uppercase text-slate-400">Billing Period</span>
             <button
               onClick={handleCurrentMonth}
-              className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-lg bg-white/10 hover:bg-white/20 text-indigo-300 transition-all"
+              className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-white/10 hover:bg-white/20 text-indigo-300 transition-all"
             >
               This Month
             </button>
           </div>
 
-          <div className="flex items-center justify-between gap-3 my-3">
+          <div className="flex items-center justify-between gap-2 my-1.5">
             <button
               onClick={handlePrevMonth}
-              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all"
+              className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-all"
               title="Previous Month"
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-4 h-4" />
             </button>
 
             <div className="text-center">
@@ -857,29 +857,29 @@ export default function MonthlyFeeInvoices() {
                 type="month"
                 value={selectedMonth}
                 onChange={e => e.target.value && setSelectedMonth(e.target.value)}
-                className="bg-transparent text-xl font-black text-white text-center focus:outline-none cursor-pointer"
+                className="bg-transparent text-lg font-black text-white text-center focus:outline-none cursor-pointer"
               />
-              <p className="text-[11px] font-medium text-slate-400 mt-0.5">
+              <p className="text-[10px] font-medium text-slate-400">
                 {new Date(selectedMonth + '-01').toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
               </p>
             </div>
 
             <button
               onClick={handleNextMonth}
-              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all"
+              className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-all"
               title="Next Month"
             >
-              <ChevronRight className="w-5 h-5" />
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
           {/* Mini completion bar */}
           <div>
-            <div className="flex justify-between text-[11px] font-bold text-slate-300 mb-1.5">
+            <div className="flex justify-between text-[10px] font-bold text-slate-300 mb-1">
               <span>Billing Progress</span>
               <span className="text-indigo-400 font-black">{monthlyMetrics.completionPercent}%</span>
             </div>
-            <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
+            <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
               <div 
                 className="bg-gradient-to-r from-indigo-500 to-emerald-400 h-full rounded-full transition-all duration-500"
                 style={{ width: `${monthlyMetrics.completionPercent}%` }}
@@ -889,53 +889,53 @@ export default function MonthlyFeeInvoices() {
         </div>
 
         {/* 3 Metric Cards */}
-        <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
+        <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Invoices Generated</span>
-              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <CheckCircle2 className="w-4 h-4" />
+              <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <CheckCircle2 className="w-3.5 h-3.5" />
               </div>
             </div>
-            <div className="mt-3">
-              <p className="text-2xl font-black text-slate-900 tracking-tight">
+            <div className="mt-2">
+              <p className="text-lg font-black text-slate-900 tracking-tight leading-tight">
                 {monthlyMetrics.generatedCount} <span className="text-xs font-bold text-slate-400">/ {monthlyMetrics.totalActive}</span>
               </p>
-              <p className="text-[11px] font-bold text-emerald-600 mt-0.5">
+              <p className="text-[10px] font-bold text-emerald-600 mt-0.5">
                 {monthlyMetrics.completionPercent}% students billed
               </p>
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
+          <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Pending / Unbilled</span>
-              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                <Clock className="w-4 h-4" />
+              <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                <Clock className="w-3.5 h-3.5" />
               </div>
             </div>
-            <div className="mt-3">
-              <p className="text-2xl font-black text-slate-900 tracking-tight">
+            <div className="mt-2">
+              <p className="text-lg font-black text-slate-900 tracking-tight leading-tight">
                 {monthlyMetrics.pendingCount} <span className="text-xs font-bold text-slate-400">students</span>
               </p>
-              <p className="text-[11px] font-bold text-amber-600 mt-0.5">
+              <p className="text-[10px] font-bold text-amber-600 mt-0.5">
                 {monthlyMetrics.pendingCount > 0 ? 'Needs invoice creation' : 'All classes generated'}
               </p>
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
+          <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Billed ({selectedMonth})</span>
-              <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                <TrendingUp className="w-4 h-4" />
+              <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <TrendingUp className="w-3.5 h-3.5" />
               </div>
             </div>
-            <div className="mt-3">
-              <p className="text-2xl font-black text-slate-900 tracking-tight">
+            <div className="mt-2">
+              <p className="text-lg font-black text-slate-900 tracking-tight leading-tight">
                 Rs. {monthlyMetrics.billedTotal.toLocaleString()}
               </p>
-              <p className="text-[11px] font-bold text-indigo-600 mt-0.5">
+              <p className="text-[10px] font-bold text-indigo-600 mt-0.5">
                 Rs. {monthlyMetrics.paidTotal.toLocaleString()} collected
               </p>
             </div>

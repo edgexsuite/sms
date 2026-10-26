@@ -743,7 +743,7 @@ export default function DashboardLayout() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden print:overflow-visible print:h-auto print:block">
         {/* Topbar */}
-        <header className="aura-glass sticky top-0 h-14 border-b border-slate-200/50 flex items-center justify-between px-3 sm:px-6 z-40 shrink-0 print:hidden mx-2 sm:mx-6 mt-2 sm:mt-3 rounded-xl shadow-lg shadow-slate-200/20">
+        <header className="sticky top-0 h-12 bg-white/95 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between px-4 sm:px-6 z-40 shrink-0 print:hidden shadow-xs">
           {/* Left: hamburger + school name (mobile) / Date (desktop) */}
           <div className="flex items-center gap-2 min-w-0">
             <button
@@ -980,7 +980,7 @@ export default function DashboardLayout() {
         )}
 
         {/* Page Content */}
-        <main className="theme-shell flex-1 relative px-6 pt-6 pb-24 md:pb-6 print:p-0 overflow-auto print:overflow-visible print:block" data-density={densityCompact ? 'compact' : 'comfortable'}>
+        <main className="theme-shell flex-1 relative px-4 sm:px-6 py-4 pb-20 md:pb-6 print:p-0 overflow-auto print:overflow-visible print:block" data-density={densityCompact ? 'compact' : 'comfortable'}>
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}

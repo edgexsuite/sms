@@ -325,16 +325,16 @@ export default function StudentFeeHistory() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
 
       {/* ── Page Header ───────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <History className="w-6 h-6 text-indigo-600" />
+          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <History className="w-5 h-5 text-indigo-600" />
             Fee History
           </h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <p className="text-gray-500 text-xs mt-0.5">
             Reporting and batch challan printing across date ranges and classes.
           </p>
         </div>
@@ -362,7 +362,7 @@ export default function StudentFeeHistory() {
       </div>
 
       {/* ── Filter Bar ────────────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-4">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 space-y-2.5">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
 
           {/* Student autocomplete */}
@@ -488,36 +488,36 @@ export default function StudentFeeHistory() {
       </div>
 
       {/* ── Summary Stats ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <BarChart3 className="w-4 h-4 text-gray-400" />
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Billed</p>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+        <div className="bg-white rounded-lg border border-gray-200/80 shadow-xs px-3.5 py-2 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total Billed</p>
+            <p className="text-base font-black text-gray-800">Rs. {totalBilled.toLocaleString()}</p>
           </div>
-          <p className="text-2xl font-black text-gray-800">Rs. {totalBilled.toLocaleString()}</p>
+          <BarChart3 className="w-4 h-4 text-gray-400 shrink-0" />
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <TrendingUp className="w-4 h-4 text-emerald-500" />
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Collected</p>
+        <div className="bg-white rounded-lg border border-gray-200/80 shadow-xs px-3.5 py-2 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Total Collected</p>
+            <p className="text-base font-black text-emerald-600">Rs. {totalCollected.toLocaleString()}</p>
           </div>
-          <p className="text-2xl font-black text-emerald-600">Rs. {totalCollected.toLocaleString()}</p>
+          <TrendingUp className="w-4 h-4 text-emerald-500 shrink-0" />
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <TrendingDown className="w-4 h-4 text-red-400" />
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Outstanding</p>
+        <div className="bg-white rounded-lg border border-gray-200/80 shadow-xs px-3.5 py-2 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-rose-500 uppercase tracking-wider">Outstanding</p>
+            <p className={`text-base font-black ${totalOutstanding > 0 ? 'text-rose-600' : 'text-gray-400'}`}>
+              Rs. {totalOutstanding.toLocaleString()}
+            </p>
           </div>
-          <p className={`text-2xl font-black ${totalOutstanding > 0 ? 'text-red-600' : 'text-gray-400'}`}>
-            Rs. {totalOutstanding.toLocaleString()}
-          </p>
+          <TrendingDown className="w-4 h-4 text-rose-400 shrink-0" />
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <Users className="w-4 h-4 text-indigo-400" />
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Records</p>
+        <div className="bg-white rounded-lg border border-gray-200/80 shadow-xs px-3.5 py-2 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">Records</p>
+            <p className="text-base font-black text-gray-800">{records.length.toLocaleString()}</p>
           </div>
-          <p className="text-2xl font-black text-gray-800">{records.length.toLocaleString()}</p>
+          <Users className="w-4 h-4 text-indigo-400 shrink-0" />
         </div>
       </div>
 

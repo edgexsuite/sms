@@ -53,47 +53,38 @@ export function StatCard({
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
       className={cn(
-        "bg-white border border-slate-200/60 rounded-3xl p-4 transition-all duration-300 relative overflow-hidden group",
-        onClick && "cursor-pointer hover:border-orange-500/30 hover:shadow-2xl hover:shadow-orange-500/5",
+        "bg-white border border-slate-200/80 rounded-xl p-2.5 sm:p-3 transition-all duration-200 relative overflow-hidden group shadow-xs",
+        onClick && "cursor-pointer hover:border-indigo-500/40 hover:shadow-md",
         className
       )}
     >
-      {/* Decorative Background Glow */}
-      <div className={cn(
-        "absolute -right-4 -top-4 w-20 h-20 rounded-full blur-3xl opacity-0 group-hover:opacity-20 transition-opacity duration-500",
-        colorVariants[color]
-      )} />
-
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <div className={cn(
-          "w-11 h-11 rounded-2xl flex items-center justify-center text-white shadow-md transition-all duration-500 bg-gradient-to-br shrink-0",
-          onClick && "group-hover:rotate-6 group-hover:scale-110",
+          "w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-xs transition-transform duration-200 bg-gradient-to-br shrink-0",
+          onClick && "group-hover:scale-105",
           iconGradients[color]
         )}>
-          <Icon className="w-5 h-5" />
+          <Icon className="w-4 h-4" />
         </div>
         
         <div className="flex-1 min-w-0">
-          <p className="text-[9px] font-black uppercase tracking-[0.15em] text-slate-400 mb-0.5 truncate opacity-80">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 truncate">
             {label}
           </p>
-          <div className="flex items-baseline gap-1.5">
-            <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-none">
+          <div className="flex items-baseline gap-1.5 mt-0.5">
+            <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-none">
               {animateValue && isNumericValue ? (
                 <CountUp end={numericVal} prefix={prefix} suffix={suffix} />
               ) : (
                 value
               )}
             </h3>
-          </div>
-          {sub && (
-            <div className="flex items-center gap-1.5 mt-1.5">
-              <span className="w-1 h-1 rounded-full bg-slate-200 group-hover:bg-orange-400 transition-colors" />
-              <p className="text-[10px] font-bold text-slate-500 truncate opacity-60 group-hover:opacity-100 transition-opacity">
+            {sub && (
+              <span className="text-[10px] font-medium text-slate-400 truncate">
                 {sub}
-              </p>
-            </div>
-          )}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </motion.div>

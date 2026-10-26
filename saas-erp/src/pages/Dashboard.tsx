@@ -317,14 +317,14 @@ export default function Dashboard() {
         variants={container}
         initial="hidden"
         animate="show"
-        className="max-w-7xl mx-auto space-y-6"
+        className="max-w-7xl mx-auto space-y-3.5"
       >
 
 
         {/* Header Section */}
         <motion.div 
           variants={item}
-          className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-orange-500 to-amber-600 p-6 text-white shadow-2xl shadow-orange-500/10"
+          className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-orange-500 to-amber-600 p-4 sm:p-5 text-white shadow-xl shadow-orange-500/10"
         >
           <div className="absolute top-0 right-0 -m-8 opacity-10">
             <GraduationCap className="w-48 h-48 rotate-12" />
@@ -407,7 +407,7 @@ export default function Dashboard() {
 
       {/* Alert Pills */}
       {alerts.length > 0 && (
-        <motion.div variants={item} className="flex gap-2 flex-wrap mb-6">
+        <motion.div variants={item} className="flex gap-2 flex-wrap mb-3">
           {alerts.map((a, i) => {
             const colors = {
               danger: { bg: 'bg-rose-50', color: 'text-rose-700', border: 'border-rose-200', dot: 'bg-rose-500' },
@@ -429,7 +429,7 @@ export default function Dashboard() {
       )}
 
       {/* Stat Cards */}
-      <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 mb-3.5">
         <StatCard
           label="Total Students"
           value={stats.totalStudents}

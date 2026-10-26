@@ -105,12 +105,12 @@ function StatCard({ label, value, icon: Icon, color }: { label: string; value: n
     red:     'bg-red-50 text-red-600 border-red-100',
   };
   return (
-    <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${colorMap[color]} `}>
-      <Icon className="w-5 h-5 shrink-0" />
+    <div className={`flex items-center justify-between px-3.5 py-2 rounded-lg border ${colorMap[color]} `}>
       <div>
-        <p className="text-xl font-black leading-none">{value}</p>
-        <p className="text-[11px] font-medium mt-0.5 opacity-75">{label}</p>
+        <p className="text-[10px] font-bold uppercase tracking-wider opacity-75">{label}</p>
+        <p className="text-base font-black leading-none mt-0.5">{value}</p>
       </div>
+      <Icon className="w-4 h-4 shrink-0 opacity-80" />
     </div>
   );
 }
@@ -745,10 +745,10 @@ export default function StaffUserAccounts() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2.5">
 
       {/* ── Stats bar ────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         <StatCard label="Total Staff"     value={totalStaff}     icon={Users}        color="indigo" />
         <StatCard label="Active Accounts" value={activeAccounts} icon={ShieldCheck}   color="emerald" />
         <StatCard label="Suspended"       value={suspended}      icon={Lock}          color="amber" />
@@ -756,7 +756,7 @@ export default function StaffUserAccounts() {
       </div>
 
       {/* ── Repair Unlinked Accounts banner ──────────────── */}
-      <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+      <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2">
         <div className="flex items-center gap-3">
           <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
           <div>

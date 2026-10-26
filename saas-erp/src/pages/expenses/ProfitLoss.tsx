@@ -86,57 +86,65 @@ export default function ProfitLoss() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3.5">
       <style>{`@media print { .no-print { display: none !important; } body { background: white; } }`}</style>
 
       <div className="flex justify-between items-start no-print">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <TrendingUp className="w-6 h-6 text-emerald-600" /> Profit & Loss Statement
+          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-emerald-600" /> Profit & Loss Statement
           </h1>
-          <p className="text-gray-500 text-sm mt-1">Annual income vs expenses breakdown by month.</p>
+          <p className="text-gray-500 text-xs mt-0.5">Annual income vs expenses breakdown by month.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-500">Year:</label>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-gray-500 font-semibold">Year:</label>
             <select value={year} onChange={e => setYear(parseInt(e.target.value))}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500">
+              className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs font-bold focus:ring-2 focus:ring-emerald-500">
               {[currentYear - 2, currentYear - 1, currentYear, currentYear + 1].map(y => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
           <button onClick={() => exportToCSV(`p-and-l-${year}`, rows, [
             { header: 'Month', key: 'month' }, { header: 'Income (Rs.)', key: 'income' },
             { header: 'Expenses (Rs.)', key: 'expenses' }, { header: 'Net (Rs.)', key: 'net' },
-          ])} className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50">
-            <Download className="w-4 h-4" /> Export
+          ])} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50">
+            <Download className="w-3.5 h-3.5" /> Export
           </button>
-          <button onClick={() => window.print()} className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50">
-            <Printer className="w-4 h-4" /> Print
+          <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50">
+            <Printer className="w-3.5 h-3.5" /> Print
           </button>
         </div>
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Income</p>
-          <p className="text-2xl font-black text-green-600 mt-1">Rs. {totalIncome.toLocaleString()}</p>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+        <div className="bg-white rounded-lg shadow-xs border border-gray-200 px-3.5 py-2 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Total Income</p>
+            <p className="text-base font-black text-emerald-600 leading-tight">Rs. {totalIncome.toLocaleString()}</p>
+          </div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Expenses</p>
-          <p className="text-2xl font-black text-red-600 mt-1">Rs. {totalExpenses.toLocaleString()}</p>
+        <div className="bg-white rounded-lg shadow-xs border border-gray-200 px-3.5 py-2 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Total Expenses</p>
+            <p className="text-base font-black text-rose-600 leading-tight">Rs. {totalExpenses.toLocaleString()}</p>
+          </div>
         </div>
-        <div className={`rounded-xl shadow-sm border p-5 ${netProfit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Net {netProfit >= 0 ? 'Surplus' : 'Deficit'}</p>
-          <p className={`text-2xl font-black mt-1 ${netProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-            Rs. {Math.abs(netProfit).toLocaleString()}
-          </p>
+        <div className={`rounded-lg shadow-xs border px-3.5 py-2 flex items-center justify-between ${netProfit >= 0 ? 'bg-emerald-50/60 border-emerald-200' : 'bg-rose-50/60 border-rose-200'}`}>
+          <div>
+            <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wider">Net {netProfit >= 0 ? 'Surplus' : 'Deficit'}</p>
+            <p className={`text-base font-black leading-tight ${netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+              Rs. {Math.abs(netProfit).toLocaleString()}
+            </p>
+          </div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Margin</p>
-          <p className={`text-2xl font-black mt-1 ${profitMargin >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-            {profitMargin.toFixed(1)}%
-          </p>
+        <div className="bg-white rounded-lg shadow-xs border border-gray-200 px-3.5 py-2 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Margin</p>
+            <p className={`text-base font-black leading-tight ${profitMargin >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+              {profitMargin.toFixed(1)}%
+            </p>
+          </div>
         </div>
       </div>
 

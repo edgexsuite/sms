@@ -95,35 +95,35 @@ export default function ClassSectionManagement() {
   }, {});
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="max-w-5xl mx-auto space-y-3.5">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <BookOpen className="w-6 h-6 text-blue-600" /> Class & Section Management
+          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-blue-600" /> Class & Section Management
           </h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <p className="text-gray-500 text-xs mt-0.5">
             Configure all classes and sections. Assign a class teacher to each section.
           </p>
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-bold shadow transition"
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-xs transition"
         >
           <PlusCircle className="w-4 h-4" /> Add New Class
         </button>
       </div>
 
       {/* Stats bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
         {[
           { label: 'Total Classes', value: Object.keys(grouped).length, color: 'bg-blue-50 text-blue-700 border-blue-200' },
           { label: 'Total Sections', value: classes.length, color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-          { label: 'With Teacher Assigned', value: classes.filter(c => c.class_teacher_id).length, color: 'bg-green-50 text-green-700 border-green-200' },
-          { label: 'Unassigned', value: classes.filter(c => !c.class_teacher_id).length, color: 'bg-orange-50 text-orange-700 border-orange-200' },
+          { label: 'With Teacher Assigned', value: classes.filter(c => c.class_teacher_id).length, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+          { label: 'Unassigned', value: classes.filter(c => !c.class_teacher_id).length, color: 'bg-amber-50 text-amber-700 border-amber-200' },
         ].map(stat => (
-          <div key={stat.label} className={`rounded-xl border p-4 ${stat.color}`}>
-            <p className="text-3xl font-black">{stat.value}</p>
-            <p className="text-xs font-semibold mt-1 uppercase tracking-wide opacity-80">{stat.label}</p>
+          <div key={stat.label} className={`rounded-lg border px-3 py-2 flex items-center justify-between ${stat.color}`}>
+            <p className="text-[11px] font-bold uppercase tracking-wider opacity-80">{stat.label}</p>
+            <p className="text-lg font-black leading-none">{stat.value}</p>
           </div>
         ))}
       </div>

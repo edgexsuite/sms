@@ -579,7 +579,7 @@ export default function Staff() {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-3">
       <style>{`
         @media print {
           .no-print, .global-print-header { display: none !important; }
@@ -675,54 +675,60 @@ export default function Staff() {
       )}
 
       <div className={cn("standard-ui p-0", printDoc && "print:hidden")}>
-        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="no-print flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
+        {/* Compact Modern Header */}
+        <div className="no-print flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2.5 mb-2.5">
           <div>
-            <h1 className="text-xl font-black text-slate-900 tracking-tight font-display uppercase tracking-[0.05em]">Staff Directory</h1>
-            <p className="text-slate-500 text-sm font-bold mt-1 opacity-70 uppercase tracking-widest">Enterprise Workforce Management</p>
+            <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight uppercase">Staff Directory</h1>
+            <p className="text-slate-500 text-[11px] font-medium">Enterprise Workforce Management • {counts.all} total personnel</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button onClick={handleExportCSV} className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
-              <FileSpreadsheet className="w-4 h-4" /> Export CSV
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button onClick={handleExportCSV} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold transition-all shadow-xs">
+              <FileSpreadsheet className="w-3.5 h-3.5 text-slate-500" /> Export CSV
             </button>
-            <button onClick={() => setShowImportModal(true)} className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
-              <Upload className="w-4 h-4" /> Import Excel
+            <button onClick={() => setShowImportModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold transition-all shadow-xs">
+              <Upload className="w-3.5 h-3.5 text-slate-500" /> Import Excel
             </button>
-            <button onClick={() => { setEditId(null); setFormData(emptyForm); setPhotoPreview(null); setShowForm(true); }} className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:shadow-indigo-200 transition-all hover:-translate-y-0.5 active:scale-95">
-              <UserPlus className="w-4 h-4" /> Onboard Personnel
+            <button onClick={() => { setEditId(null); setFormData(emptyForm); setPhotoPreview(null); setShowForm(true); }} className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all active:scale-95">
+              <UserPlus className="w-3.5 h-3.5" /> Onboard Personnel
             </button>
           </div>
-        </motion.div>
+        </div>
  
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 no-print mb-8">
-          {statCards.map((stat, i) => {
+        {/* Compact Metrics Strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 no-print mb-2.5">
+          {[
+            { label: 'Total Personnel', value: counts.all, icon: Users, iconColor: 'text-indigo-600', iconBg: 'bg-indigo-50' },
+            { label: 'Teaching Faculty', value: counts.teaching, icon: Briefcase, iconColor: 'text-emerald-600', iconBg: 'bg-emerald-50' },
+            { label: 'Non-Teaching', value: counts.non_teaching, icon: Users, iconColor: 'text-amber-600', iconBg: 'bg-amber-50' },
+            { label: 'Administration', value: counts.admin, icon: UserCheck, iconColor: 'text-purple-600', iconBg: 'bg-purple-50' },
+          ].map((stat) => {
             const Icon = stat.icon;
             return (
-              <motion.div key={stat.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className={`rounded-2xl border p-4 flex flex-col justify-between transition-all hover:scale-[1.01] cursor-default ${stat.theme}`}>
-                <div className="flex justify-between items-start">
-                    <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center">
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">{stat.label}</span>
+              <div key={stat.label} className="bg-white border border-slate-200/80 rounded-xl px-3 py-1.5 flex items-center justify-between shadow-xs">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0", stat.iconBg)}>
+                    <Icon className={cn("w-3.5 h-3.5", stat.iconColor)} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">{stat.label}</p>
+                    <p className="text-sm font-black text-slate-900 leading-none mt-0.5">{stat.value}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-3xl font-black font-display tracking-tight leading-none">{stat.value}</p>
-                  <div className="w-8 h-1 bg-current opacity-20 mt-3 rounded-full"></div>
-                </div>
-              </motion.div>
+              </div>
             );
           })}
         </div>
  
         {/* Search, Category Tabs, and Exclude Category Bar */}
-        <div className="no-print aura-card p-3.5 flex flex-col lg:flex-row gap-4 items-stretch lg:items-center mb-6 border-slate-100">
+        <div className="no-print bg-white p-2 sm:p-2.5 rounded-xl border border-slate-200/80 shadow-xs flex flex-col lg:flex-row gap-2.5 items-stretch lg:items-center mb-3">
           <div className="relative flex-1 group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
             <input 
               type="text" 
               placeholder="Search across directory (name, CNIC, role, dept)..." 
               value={search} 
               onChange={e => setSearch(e.target.value)}
-              className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-transparent rounded-2xl text-xs font-bold focus:bg-white focus:border-slate-200 focus:ring-4 focus:ring-indigo-100/50 transition-all outline-none" 
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all outline-none" 
             />
           </div>
 

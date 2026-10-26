@@ -747,7 +747,7 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 animate-aura-in">
+    <div className="max-w-7xl mx-auto space-y-3 animate-aura-in">
       <PageHeader
         title={initialClassId
           ? (classes.find(c => c.id === initialClassId)
@@ -797,8 +797,8 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
         }
       />
 
-      <Card className="p-4 border-none shadow-sm bg-white/80 backdrop-blur-sm">
-        <div className="flex flex-col lg:flex-row gap-4 items-center">
+      <Card className="p-2.5 sm:p-3 border-none shadow-sm bg-white/80 backdrop-blur-sm">
+        <div className="flex flex-col lg:flex-row gap-3 items-center">
           <div className="flex-1 w-full">
             <Input
               placeholder="Search Name, roll no, CNIC, father..."
@@ -860,7 +860,7 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
       <AnimatePresence>
         {showAdvancedFilters && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-            <Card className="p-5 border-indigo-100 bg-indigo-50/30">
+            <Card className="p-3 border-indigo-100 bg-indigo-50/30">
               <div className="flex flex-wrap gap-4 items-end">
                 {/* Fee Status */}
                 <div>
