@@ -173,7 +173,7 @@ export default function StaffDetailPage() {
           .tab-content { display: block !important; overflow: visible !important; }
           body, #root, main, .theme-shell { background: white !important; overflow: visible !important; height: auto !important; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; overflow: visible !important; }
-          .no-print { display: none !important; }
+          .no-print, .global-print-header { display: none !important; }
           table { width: 100% !important; border-collapse: collapse !important; }
           th, td { border-bottom: 1px solid #e2e8f0 !important; }
         }

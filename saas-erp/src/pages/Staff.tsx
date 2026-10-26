@@ -475,7 +475,7 @@ export default function Staff() {
     <div className="max-w-7xl mx-auto space-y-6">
       <style>{`
         @media print {
-          .no-print { display: none !important; }
+          .no-print, .global-print-header { display: none !important; }
           .print-container { display: block !important; position: static !important; width: 100% !important; height: auto !important; overflow: visible !important; }
           body, #root { background: white !important; }
         }
