@@ -7,6 +7,7 @@ import { seedDemoData } from '../lib/seedData';
 import { uploadFile } from '../lib/uploadUtils';
 import { formatDate } from '../lib/utils';
 import { logActivity } from '../lib/auditLog';
+import { DEFAULT_APPOINTMENT_TERMS } from '../lib/appointmentLetterTemplate';
 
 export default function Settings() {
   const { userRole } = useAuth();
@@ -592,26 +593,51 @@ export default function Settings() {
               
               <form onSubmit={handleSaveSchool} className="space-y-10">
                 {/* Global Terms Block */}
-                <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200 shadow-inner">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-100">
-                      <ShieldCheck className="w-5 h-5" />
+                <div className="bg-slate-50 rounded-2xl p-6 sm:p-8 border border-slate-200 shadow-inner">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-100 shrink-0">
+                        <ShieldCheck className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Master Appointment Letter Contract</h3>
+                        <p className="text-[11px] text-slate-500 font-bold uppercase tracking-tighter">Official 11-point employment terms & conditions</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Master Terms & Conditions</h3>
-                      <p className="text-[11px] text-slate-500 font-bold uppercase tracking-tighter">Applies to all staff joining letters by default</p>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm('Load the official Edge School 11-point appointment contract template? This will replace your current text in this editor.')) {
+                          setSchoolData({ ...schoolData, recruitment_terms: DEFAULT_APPOINTMENT_TERMS });
+                        }
+                      }}
+                      className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-black uppercase tracking-wider transition-all self-start sm:self-auto cursor-pointer"
+                    >
+                      Restore Edge School Standard Template
+                    </button>
+                  </div>
+
+                  {/* Available placeholders guide */}
+                  <div className="mb-3 p-3 bg-white border border-slate-200 rounded-xl text-[11px]">
+                    <span className="font-bold text-slate-700">Dynamic Placeholders: </span>
+                    <span className="text-slate-500">The following tags are automatically replaced with teacher and school details: </span>
+                    <div className="flex flex-wrap gap-1.5 mt-2 font-mono text-[10px] font-bold">
+                      {['{{STAFF_NAME}}', '{{ROLE}}', '{{SALARY}}', '{{SALARY_WORDS}}', '{{CNIC}}', '{{CONTACT}}', '{{JOINING_DATE}}', '{{SESSION_END}}', '{{SCHOOL_NAME}}'].map(tag => (
+                        <span key={tag} className="px-2 py-0.5 bg-slate-100 text-indigo-700 rounded border border-slate-200 select-all">{tag}</span>
+                      ))}
                     </div>
                   </div>
                   
                   <textarea
-                    value={schoolData.recruitment_terms}
+                    value={schoolData.recruitment_terms || DEFAULT_APPOINTMENT_TERMS}
                     onChange={(e) => setSchoolData({ ...schoolData, recruitment_terms: e.target.value })}
-                    placeholder="Enter standard contractual points (e.g. 1. Probation term... 2. Resignation policy...)"
-                    rows={8}
-                    className="w-full px-5 py-4 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-4 focus:ring-indigo-50 focus:border-indigo-500 outline-none transition-all shadow-sm leading-relaxed"
+                    placeholder="Enter standard contractual points (e.g. 1. Appointment & Probation... 2. Remuneration...)"
+                    rows={14}
+                    className="w-full px-5 py-4 bg-white border border-slate-200 rounded-xl text-xs font-mono font-medium focus:ring-4 focus:ring-indigo-50 focus:border-indigo-500 outline-none transition-all shadow-sm leading-relaxed"
                   />
                   <div className="mt-3 flex items-start gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-widest italic leading-normal">
-                     <span className="text-indigo-600">*</span> Tip: Use numbering and clear headings. These will be automatically pulled into the premium Joining Letter document.
+                     <span className="text-indigo-600">*</span> Tip: Use numbering and clear headings. These will be automatically pulled into the printable Appointment Letter.
                   </div>
                 </div>
                 

@@ -64,6 +64,11 @@ export default function ExperienceCertificate({ staff, schoolInfo }: ExperienceC
           <h3 className="text-4xl font-black text-indigo-950 font-display tracking-tight">
              {staff.full_name}
           </h3>
+          {staff.cnic && (
+            <p className="text-xs font-mono font-bold text-slate-500 mt-1 tracking-wider">
+              CNIC: {staff.cnic}
+            </p>
+          )}
         </div>
 
         <div className="text-[17px] leading-[1.8] text-slate-700 text-center max-w-4xl mx-auto font-medium">
@@ -104,6 +109,7 @@ export default function ExperienceCertificate({ staff, schoolInfo }: ExperienceC
         <div className="text-center">
             <div className="w-56 h-px bg-slate-900 mb-4 opacity-30"></div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] font-display">Director / Principal</p>
+            <p className="text-xs font-bold text-slate-800 uppercase mt-0.5">{schoolInfo?.director_name || 'AFTAB AHMAD KHAKWANI'}</p>
         </div>
       </div>
 

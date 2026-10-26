@@ -106,3 +106,46 @@ export async function getBase64Image(url: string): Promise<string> {
     img.src = url;
   });
 }
+
+/** Converts a positive integer number into capitalized English words */
+export function numberToWords(num: number | string | null | undefined): string {
+  if (num === null || num === undefined || num === '') return '';
+  const n = Math.floor(Math.abs(Number(num)));
+  if (isNaN(n) || n === 0) return 'Zero';
+
+  const units = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+    'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  function convertChunk(val: number): string {
+    let str = '';
+    if (val >= 100) {
+      str += units[Math.floor(val / 100)] + ' Hundred ';
+      val %= 100;
+    }
+    if (val >= 20) {
+      str += tens[Math.floor(val / 10)] + (val % 10 > 0 ? '-' + units[val % 10] : '') + ' ';
+    } else if (val > 0) {
+      str += units[val] + ' ';
+    }
+    return str.trim();
+  }
+
+  const scales = ['', 'Thousand', 'Million', 'Billion'];
+  let current = n;
+  let scaleIndex = 0;
+  let parts: string[] = [];
+
+  while (current > 0) {
+    const chunk = current % 1000;
+    if (chunk > 0) {
+      const chunkStr = convertChunk(chunk);
+      const scaleStr = scales[scaleIndex];
+      parts.unshift(scaleStr ? `${chunkStr} ${scaleStr}` : chunkStr);
+    }
+    current = Math.floor(current / 1000);
+    scaleIndex++;
+  }
+
+  return parts.join(' ').trim();
+}

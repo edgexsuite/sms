@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { 
   Users, UserPlus, Search, Pencil, Trash2, Mail, Phone, Eye, 
   X, Save, Camera, Briefcase, UserCheck, UserX, Printer, Award,
-  MessageSquare, Upload, FileSpreadsheet, Ban
+  MessageSquare, Upload, FileSpreadsheet, Ban, FileText
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -271,9 +271,9 @@ export default function Staff() {
       setEditId(null);
       fetchStaff();
       
-      if (!editId || printJoining) {
+      if (printJoining && staffId) {
          const { data: freshStaff } = await supabase.from('staff').select('*').eq('id', staffId).single();
-         handlePrint('joining', freshStaff);
+         if (freshStaff) handlePrint('joining', freshStaff);
       }
     } catch (err: any) {
       alert(err.message);
@@ -332,8 +332,7 @@ export default function Staff() {
     setPrintDoc({ type, staff: s });
     setTimeout(() => {
       window.print();
-      setPrintDoc(null);
-    }, 500);
+    }, 400);
   };
 
   const sendWhatsApp = (num: string, msg: string) => {
@@ -481,7 +480,7 @@ export default function Staff() {
           body, #root { background: white !important; }
         }
         @media screen {
-          .print-container { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 40px; }
+          .print-container { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 24px 16px; overflow-y: auto; }
         }
       `}</style>
       
@@ -491,7 +490,34 @@ export default function Staff() {
 
       <AnimatePresence>
         {printDoc && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="print-container overflow-auto">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="print-container">
+            {/* Screen Controls Toolbar (Hidden in Print) */}
+            <div className="no-print w-full max-w-[210mm] flex justify-between items-center bg-slate-900 text-white px-5 py-3 rounded-2xl mb-4 shadow-2xl shrink-0">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-indigo-400" />
+                <span className="text-xs font-black uppercase tracking-wider">
+                  {printDoc.type === 'joining' ? 'Appointment Letter Document' : 'Experience Certificate'}
+                </span>
+                <span className="text-[11px] font-medium text-slate-400 hidden sm:inline">({printDoc.staff?.full_name})</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow cursor-pointer active:scale-95"
+                >
+                  <Printer className="w-3.5 h-3.5" /> Print
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrintDoc(null)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" /> Close
+                </button>
+              </div>
+            </div>
+
             {printDoc.type === 'joining' ? (
               <JoiningLetter staff={printDoc.staff} schoolInfo={schoolInfo} />
             ) : (
@@ -707,12 +733,13 @@ export default function Staff() {
                         </span>
                       </td>
                        <td className="px-4 py-2.5 no-print whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all">
-                          <button onClick={() => navigate(`/staff/detail/${s.id}`)} className="p-2.5 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-90"><Eye className="w-5 h-5" /></button>
-                          <button onClick={() => handlePrint('experience', s)} className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-90"><Award className="w-5 h-5" /></button>
-                          {s.whatsapp_number && <button onClick={() => setWaDropdown(waDropdown === s.id ? null : s.id)} className="p-2.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90"><MessageSquare className="w-5 h-5" /></button>}
-                          <button onClick={() => openEdit(s)} className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-90"><Pencil className="w-5 h-5" /></button>
-                          <button onClick={() => handleDelete(s.id, s.full_name)} className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all active:scale-90"><Trash2 className="w-5 h-5" /></button>
+                        <div className="flex items-center justify-center gap-1 opacity-100 lg:opacity-75 lg:group-hover:opacity-100 transition-all">
+                          <button onClick={() => navigate(`/staff/detail/${s.id}`)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-90 cursor-pointer" title="View Profile"><Eye className="w-4 h-4" /></button>
+                          <button onClick={() => handlePrint('joining', s)} className="p-2 text-indigo-700 hover:text-indigo-950 hover:bg-indigo-50 rounded-xl transition-all active:scale-90 cursor-pointer" title="Print Appointment Letter"><FileText className="w-4 h-4" /></button>
+                          <button onClick={() => handlePrint('experience', s)} className="p-2 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded-xl transition-all active:scale-90 cursor-pointer" title="Print Experience Certificate"><Award className="w-4 h-4" /></button>
+                          {s.whatsapp_number && <button onClick={() => setWaDropdown(waDropdown === s.id ? null : s.id)} className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90 cursor-pointer" title="Send WhatsApp Message"><MessageSquare className="w-4 h-4" /></button>}
+                          <button onClick={() => openEdit(s)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-90 cursor-pointer" title="Edit Staff Record"><Pencil className="w-4 h-4" /></button>
+                          <button onClick={() => handleDelete(s.id, s.full_name)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all active:scale-90 cursor-pointer" title="Delete Staff Record"><Trash2 className="w-4 h-4" /></button>
                         </div>
                       </td>
                     </motion.tr>
@@ -1026,21 +1053,20 @@ export default function Staff() {
             </div>
             </div>
 
-            <div className="p-4 bg-gray-50 border-t border-gray-200 flex justify-between gap-3 shrink-0">
+            <div className="p-4 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row justify-between gap-3 shrink-0">
               <div className="flex gap-2">
-                {editId && (
-                  <button 
-                    onClick={() => handleSave(true)}
-                    disabled={saving}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-indigo-900 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-indigo-200 transition-all hover:-translate-y-0.5"
-                  >
-                    {saving ? 'Saving...' : <><Printer className="w-4 h-4" /> Update & Print Appointment Letter</>}
-                  </button>
-                )}
+                <button 
+                  type="button"
+                  onClick={() => handleSave(true)}
+                  disabled={saving}
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-900 hover:bg-indigo-950 text-white rounded-xl text-xs sm:text-sm font-bold shadow-lg shadow-indigo-100 hover:shadow-indigo-200 transition-all hover:-translate-y-0.5 cursor-pointer disabled:opacity-50"
+                >
+                  {saving ? 'Saving...' : <><Printer className="w-4 h-4" /> {editId ? 'Update & Print Appointment Letter' : 'Register & Print Appointment Letter'}</>}
+                </button>
               </div>
-              <div className="flex gap-3">
-                <button onClick={() => setShowForm(false)} className="px-5 py-2.5 text-sm font-bold text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-100 transition-all">Cancel</button>
-                <button onClick={() => handleSave(false)} disabled={saving} className="flex items-center gap-2 px-8 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-xl hover:shadow-indigo-200 transition-all hover:-translate-y-0.5">
+              <div className="flex gap-3 justify-end">
+                <button type="button" onClick={() => setShowForm(false)} className="px-5 py-2.5 text-xs sm:text-sm font-bold text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-100 transition-all cursor-pointer">Cancel</button>
+                <button type="button" onClick={() => handleSave(false)} disabled={saving} className="flex items-center justify-center gap-2 px-6 sm:px-8 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xl hover:shadow-indigo-200 transition-all hover:-translate-y-0.5 cursor-pointer disabled:opacity-50">
                   {saving ? 'Processing...' : <><Save className="w-4 h-4" /> {editId ? 'Apply Changes' : 'Register Staff Member'}</>}
                 </button>
               </div>
