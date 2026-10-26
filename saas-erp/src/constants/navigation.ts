@@ -59,9 +59,9 @@ export const NAV_SECTIONS = [
           { name: 'Custom List Generator',    path: '/students/custom-list',                     icon: ClipboardList,roles: ALL_STAFF    },
         ],
       },
-      { name: 'Parents Directory',    path: '/parents',      icon: Users,  roles: ALL_STAFF  },
-      { name: 'Portal Credentials',  path: '/credentials',  icon: Key,    roles: ALL_STAFF  },
-      { name: 'Family Groups',       path: '/family',       icon: Users2, roles: ALL_STAFF  },
+      { name: 'Parents Directory',        path: '/parents',      icon: Users,  roles: ALL_STAFF  },
+      { name: 'Parent & Student Logins',  path: '/credentials',  icon: Key,    roles: ALL_STAFF  },
+      { name: 'Family Groups',            path: '/family',       icon: Users2, roles: ALL_STAFF  },
     ],
   },
 
@@ -276,8 +276,8 @@ export const NAV_SECTIONS = [
         subItems: [
           { name: 'Staff Profiles',     path: '/staff',          exact: true,   icon: Users     },
           { name: 'Staff ID Cards',     path: '/staff/id-cards',                icon: CreditCard },
-          { name: 'Teacher of Month',   path: '/staff/teacher-of-the-month',    icon: Trophy     },
-          { name: 'Portal Credentials', path: '/staff/accounts',                icon: Shield     },
+          { name: 'Teacher of Month',     path: '/staff/teacher-of-the-month',    icon: Trophy     },
+          { name: 'Staff User Accounts',  path: '/staff/accounts',                icon: Shield     },
         ],
       },
     ],

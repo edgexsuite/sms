@@ -342,47 +342,46 @@ export default function DashboardLayout() {
 
       {/* ── Sidebar ─────────────────────────────────────────── */}
       <aside className={cn(
-        `fixed md:sticky md:top-0 inset-y-0 left-0 z-[60] h-screen flex flex-col shrink-0 no-print transition-all duration-300 ${isSidebarCollapsed ? 'w-[64px]' : 'w-[280px] md:w-[260px]'}`,
-        "bg-[#0d1526]",
-        "shadow-[4px_0_24px_rgba(0,0,0,0.35)]",
-        "transition-transform duration-300 ease-in-out",
+        `fixed md:sticky md:top-0 inset-y-0 left-0 z-[60] h-screen flex flex-col shrink-0 no-print transition-all duration-200 ${isSidebarCollapsed ? 'w-[68px]' : 'w-[280px] md:w-[264px]'}`,
+        "bg-[#0a0f1d] border-r border-slate-800/80 shadow-2xl md:shadow-none",
+        "transition-transform duration-200 ease-in-out",
         isMobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
       )}>
 
         {/* ── Brand header ── */}
-        <div className="h-[64px] flex items-center justify-between px-4 shrink-0 border-b border-white/[0.06]">
+        <div className="h-16 flex items-center justify-between px-3.5 shrink-0 border-b border-slate-800/80">
           <div className="flex items-center gap-3 min-w-0">
             {schoolLogo ? (
               <img
                 src={schoolLogo}
                 alt={schoolName}
                 loading="lazy"
-                className="w-9 h-9 rounded-xl object-cover ring-2 ring-indigo-500/40 shadow-lg shadow-black/40 shrink-0"
+                className="w-9 h-9 rounded-xl object-cover ring-1 ring-white/10 shadow-sm shrink-0"
               />
             ) : (
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-900/50 shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-md shadow-indigo-950/50 shrink-0">
                 <School className="w-5 h-5 text-white" />
               </div>
             )}
             {!isSidebarCollapsed && (
               <div className="min-w-0">
-                <p className="text-[11px] font-black text-white/90 uppercase tracking-[0.14em] truncate leading-tight font-display">
+                <p className="text-xs font-bold text-white tracking-tight truncate leading-tight font-display">
                   {schoolName}
                 </p>
-                <p className="text-[9px] font-semibold text-indigo-400/80 uppercase tracking-[0.22em] mt-0.5">
+                <p className="text-[10px] font-semibold text-indigo-400 uppercase tracking-widest mt-0.5">
                   ERP Platform
                 </p>
               </div>
             )}
           </div>
           <button
-            className="md:hidden p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-white/10 transition-colors"
+            className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
             onClick={() => setIsMobileMenuOpen(false)}
           >
             <X className="w-4 h-4" />
           </button>
           <button
-            className="hidden md:flex p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-white/10 transition-colors"
+            className="hidden md:flex p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
             onClick={() => setIsSidebarCollapsed(v => !v)}
             title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
@@ -394,41 +393,43 @@ export default function DashboardLayout() {
         </div>
 
         {/* ── Navigation ── */}
-        <nav className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar py-3 px-2.5 pb-24 md:pb-3 space-y-2">
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar py-3 px-2.5 pb-24 md:pb-3 space-y-1">
 
-          {/* ── Instant Sidebar Search Filter ── */}
+          {/* ── Search Filter ── */}
           {!isSidebarCollapsed && (
-            <div className="relative mb-2">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Filter menu..."
-                value={sidebarFilter}
-                onChange={e => setSidebarFilter(e.target.value)}
-                className="w-full pl-8 pr-7 py-1.5 bg-white/[0.04] hover:bg-white/[0.07] focus:bg-white/[0.1] text-white text-[11.5px] rounded-xl border border-white/[0.08] focus:border-indigo-500/50 outline-none transition-all placeholder:text-slate-500 font-medium"
-              />
-              {sidebarFilter && (
-                <button
-                  onClick={() => setSidebarFilter('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-0.5 rounded-md"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
+            <div className="relative mb-2.5 px-0.5">
+              <div className="flex items-center gap-2 px-2.5 py-1.5 bg-slate-900/90 hover:bg-slate-900 focus-within:bg-slate-900 text-slate-400 focus-within:text-white rounded-lg border border-slate-800 focus-within:border-indigo-500/50 transition-all">
+                <Search className="w-3.5 h-3.5 text-slate-500 shrink-0 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search navigation..."
+                  value={sidebarFilter}
+                  onChange={e => setSidebarFilter(e.target.value)}
+                  className="w-full bg-transparent text-white text-[12px] placeholder:text-slate-500 outline-none font-normal"
+                />
+                {sidebarFilter && (
+                  <button
+                    onClick={() => setSidebarFilter('')}
+                    className="text-slate-500 hover:text-white p-0.5 rounded transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
           {/* ── Favorites / Pinned Quick Access ── */}
           {!isSidebarCollapsed && !sidebarFilter && pinnedItemList.length > 0 && (
-            <div className="p-2 rounded-2xl bg-amber-500/[0.06] border border-amber-500/20 shadow-sm transition-all mb-3">
-              <div className="flex items-center justify-between px-2 py-1 mb-1">
-                <div className="flex items-center gap-1.5">
-                  <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                  <span className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-300">
+            <div className="mb-2.5 pb-2 border-b border-slate-800/70">
+              <div className="flex items-center justify-between px-2.5 py-1 mb-1">
+                <div className="flex items-center gap-1.5 text-amber-400/90">
+                  <Star className="w-3 h-3 fill-amber-400/30 text-amber-400" />
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                     Favorites
                   </span>
                 </div>
-                <span className="text-[9px] font-bold text-amber-400/80 px-1.5 py-0.2 rounded-full bg-amber-400/10">
+                <span className="text-[9px] font-medium text-slate-500 px-1.5 py-0.2 rounded bg-slate-800/80">
                   {pinnedItemList.length}
                 </span>
               </div>
@@ -442,19 +443,14 @@ export default function DashboardLayout() {
                         to={fav.path}
                         onClick={() => setIsMobileMenuOpen(false)}
                         className={cn(
-                          "flex-1 flex items-center gap-2 px-2 py-1.5 rounded-xl text-xs transition-all min-w-0",
+                          "flex-1 flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[12.5px] transition-all min-w-0",
                           isActive
-                            ? "bg-amber-400/20 text-white font-bold border border-amber-400/30"
-                            : "text-slate-300 hover:text-white hover:bg-white/[0.06] font-medium"
+                            ? "bg-indigo-600/15 text-indigo-300 font-semibold"
+                            : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 font-medium"
                         )}
                       >
-                        <div
-                          className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-white shadow-xs"
-                          style={{ backgroundColor: fav.color }}
-                        >
-                          <Icon className="w-3 h-3" />
-                        </div>
-                        <span className="leading-snug text-left text-[11.5px]">{fav.name}</span>
+                        <Icon className={cn("w-3.5 h-3.5 shrink-0", isActive ? "text-indigo-400" : "text-slate-400")} />
+                        <span className="truncate">{fav.name}</span>
                       </Link>
                       <button
                         onClick={() => togglePin(fav.path)}
@@ -470,7 +466,7 @@ export default function DashboardLayout() {
             </div>
           )}
 
-          {/* ── Main Nav Sections (Color-Coded Cards) ── */}
+          {/* ── Main Nav Sections ── */}
           {navSections.map((section) => {
             const filterLower = sidebarFilter.toLowerCase().trim();
 
@@ -495,71 +491,41 @@ export default function DashboardLayout() {
 
             if (visibleItems.length === 0) return null;
 
-            const accent = (section as any).color || '#6366f1';
-            const accentBg   = `${accent}22`;
-            const accentBgSm = `${accent}18`;
-            const accentIcon = `${accent}dd`;
-
-            // Section is active if current path is inside it
-            const isSectionActive = section.items.some(item =>
-              item.subItems ? item.subItems.some(s => location.pathname.startsWith(s.path)) : location.pathname.startsWith(item.path)
-            );
-
             const isCollapsed = !!collapsedSections[section.title] && !filterLower;
 
             return (
-              <div
-                key={section.title}
-                className={cn(
-                  "transition-all duration-300 relative group/secCard",
-                  isSidebarCollapsed ? "bg-transparent p-0 mb-2" : "p-1.5 sm:p-2 rounded-2xl border mb-2.5"
-                )}
-                style={!isSidebarCollapsed ? {
-                  backgroundColor: `${accent}0b`,
-                  borderColor: isSectionActive ? `${accent}40` : `${accent}15`,
-                  boxShadow: isSectionActive ? `0 0 16px ${accent}12` : 'none',
-                } : {}}
-              >
+              <div key={section.title} className="mb-2">
                 {/* Section Header */}
-                {!isSidebarCollapsed && (
+                {!isSidebarCollapsed ? (
                   <div
                     onClick={() => toggleSectionCollapse(section.title)}
-                    className="flex items-center justify-between px-2.5 py-1.5 mb-1 cursor-pointer rounded-xl hover:bg-white/[0.06] transition-colors select-none"
+                    className="flex items-center justify-between px-2.5 pt-2.5 pb-1 cursor-pointer select-none group/sec"
                   >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span
-                        className="w-2 h-2 rounded-full shrink-0 shadow-xs"
-                        style={{ backgroundColor: accent, boxShadow: `0 0 8px ${accent}` }}
-                      />
-                      <p className="text-[10px] font-black uppercase tracking-[0.14em] leading-tight text-left flex-1" style={{ color: accent }}>
-                        {section.title}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full text-slate-400 bg-white/[0.08]">
-                        {visibleItems.length}
-                      </span>
-                      <ChevronDown
-                        className={cn(
-                          "w-3.5 h-3.5 text-slate-400 transition-transform duration-200",
-                          isCollapsed && "-rotate-90"
-                        )}
-                      />
-                    </div>
+                    <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-500 group-hover/sec:text-slate-300 transition-colors">
+                      {section.title}
+                    </span>
+                    <ChevronDown
+                      className={cn(
+                        "w-3 h-3 text-slate-500 group-hover/sec:text-slate-300 transition-transform duration-200",
+                        isCollapsed && "-rotate-90"
+                      )}
+                    />
                   </div>
+                ) : (
+                  <div className="w-8 h-px bg-slate-800/80 mx-auto my-2" />
                 )}
 
                 {/* Section items */}
                 {(!isCollapsed || isSidebarCollapsed) && (
-                  <div className="space-y-1">
+                  <div className="space-y-0.5">
                     {visibleItems.map((item) => {
                       const hasSubItems = !!(item.subItems && item.subItems.length > 0);
                       const isActive = hasSubItems
                         ? location.pathname.startsWith(item.path)
                         : location.pathname === item.path;
                       const Icon = item.icon;
-                      // Expand dropdown automatically if filter typed
                       const isOpen = filterLower ? true : openDropdown === item.name;
+
                       return (
                         <div key={item.name} className="relative group/item">
                           {!hasSubItems ? (
@@ -570,12 +536,16 @@ export default function DashboardLayout() {
                                   window.dispatchEvent(new CustomEvent('toggle-ai-assistant'));
                                   setIsMobileMenuOpen(false);
                                 }}
-                                className="flex items-center gap-3 py-2 rounded-xl transition-all duration-200 group relative w-full text-left text-slate-400 hover:text-white hover:bg-white/[0.05] border-l-[3px] border-transparent pl-[9px] pr-3"
+                                className={cn(
+                                  "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 text-slate-400 hover:text-slate-100 hover:bg-slate-800/50",
+                                  isSidebarCollapsed && "justify-center px-0 py-2"
+                                )}
+                                title={isSidebarCollapsed ? item.name : undefined}
                               >
-                                <div className="w-8 h-8 rounded-lg flex items-center justify-center transition-all bg-white/[0.03] group-hover:bg-white/[0.08]">
-                                  <Icon className="w-[14px] h-[14px]" />
-                                </div>
-                                {!isSidebarCollapsed && <span className="text-[13px] font-bold tracking-tight leading-snug text-left">{item.name}</span>}
+                                <Icon className="w-4 h-4 shrink-0 text-slate-400 group-hover/item:text-indigo-400 transition-colors" />
+                                {!isSidebarCollapsed && (
+                                  <span className="truncate text-left leading-snug">{item.name}</span>
+                                )}
                               </button>
                             ) : (
                               <div className="flex items-center justify-between group/single">
@@ -583,20 +553,21 @@ export default function DashboardLayout() {
                                   to={item.path}
                                   onClick={() => setIsMobileMenuOpen(false)}
                                   className={cn(
-                                    "flex-1 flex items-center gap-3 py-2 rounded-xl transition-all duration-200 group relative border-l-[3px] pl-[9px] pr-3 min-w-0",
+                                    "flex-1 flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] transition-all duration-150 min-w-0 group/link",
                                     isActive
-                                      ? "text-white"
-                                      : "text-slate-400 hover:text-white hover:bg-white/[0.05] border-transparent"
+                                      ? "bg-indigo-600/15 text-indigo-300 font-semibold border-l-2 border-indigo-500 rounded-l-none pl-2"
+                                      : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/50 font-medium",
+                                    isSidebarCollapsed && "justify-center px-0 py-2 border-l-0"
                                   )}
-                                  style={isActive ? { backgroundColor: accentBg, borderColor: accent } : {}}
+                                  title={isSidebarCollapsed ? item.name : undefined}
                                 >
-                                  <div
-                                    className="w-8 h-8 rounded-lg flex items-center justify-center transition-all shrink-0"
-                                    style={isActive ? { backgroundColor: accentIcon } : { backgroundColor: 'rgba(255,255,255,0.03)' }}
-                                  >
-                                    <Icon className="w-[14px] h-[14px]" />
-                                  </div>
-                                  {!isSidebarCollapsed && <span className="text-[13px] font-bold tracking-tight leading-snug text-left">{item.name}</span>}
+                                  <Icon className={cn(
+                                    "w-4 h-4 shrink-0 transition-colors",
+                                    isActive ? "text-indigo-400" : "text-slate-400 group-hover/link:text-slate-200"
+                                  )} />
+                                  {!isSidebarCollapsed && (
+                                    <span className="truncate text-left leading-snug">{item.name}</span>
+                                  )}
                                 </Link>
                                 {!isSidebarCollapsed && (
                                   <button
@@ -617,23 +588,32 @@ export default function DashboardLayout() {
                             )
                           ) : (
                             <button
+                              type="button"
                               onClick={() => setOpenDropdown(isOpen && !filterLower ? null : item.name)}
                               className={cn(
-                                "flex items-center justify-between w-full px-3 py-2 rounded-xl transition-all duration-200 group relative",
-                                isActive ? "text-white" : "text-slate-400 hover:text-white hover:bg-white/[0.05]"
+                                "flex items-center justify-between w-full px-2.5 py-2 rounded-lg text-[13px] transition-all duration-150 group/parent",
+                                isActive
+                                  ? "text-slate-100 font-semibold bg-slate-800/30"
+                                  : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/50 font-medium",
+                                isSidebarCollapsed && "justify-center px-0 py-2"
                               )}
-                              style={isActive ? { backgroundColor: accentBg } : {}}
+                              title={isSidebarCollapsed ? item.name : undefined}
                             >
-                              <div className="flex items-center gap-3 min-w-0">
-                                <div
-                                  className="w-8 h-8 rounded-lg flex items-center justify-center transition-all shrink-0"
-                                  style={isActive ? { backgroundColor: accent, color: '#fff' } : { backgroundColor: 'rgba(255,255,255,0.03)' }}
-                                >
-                                  <Icon className="w-[14px] h-[14px]" />
-                                </div>
-                                {!isSidebarCollapsed && <span className="text-[13px] font-bold tracking-tight leading-snug text-left">{item.name}</span>}
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <Icon className={cn(
+                                  "w-4 h-4 shrink-0 transition-colors",
+                                  isActive ? "text-indigo-400" : "text-slate-400 group-hover/parent:text-slate-200"
+                                )} />
+                                {!isSidebarCollapsed && (
+                                  <span className="truncate text-left leading-snug">{item.name}</span>
+                                )}
                               </div>
-                              {!isSidebarCollapsed && <ChevronRight className={cn("w-3.5 h-3.5 transition-transform duration-200 opacity-40 shrink-0 ml-1", isOpen && "rotate-90 opacity-100")} />}
+                              {!isSidebarCollapsed && (
+                                <ChevronRight className={cn(
+                                  "w-3.5 h-3.5 text-slate-500 transition-transform duration-200 ml-1 shrink-0",
+                                  isOpen && "rotate-90 text-slate-300"
+                                )} />
+                              )}
                             </button>
                           )}
 
@@ -645,13 +625,10 @@ export default function DashboardLayout() {
                                 initial={{ height: 0, opacity: 0 }}
                                 animate={{ height: 'auto', opacity: 1 }}
                                 exit={{ height: 0, opacity: 0 }}
-                                transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                                transition={{ duration: 0.18, ease: "easeInOut" }}
                                 className="overflow-hidden"
                               >
-                                <div
-                                  className="mt-0.5 mb-1 ml-[24px] pl-2 space-y-px border-l"
-                                  style={{ borderColor: `${accent}30` }}
-                                >
+                                <div className="ml-4 pl-3.5 my-1 space-y-0.5 border-l border-slate-800/80">
                                   {item.subItems!.filter(sub => {
                                     if ((sub as any).roles && userRole?.role && !(sub as any).roles.includes(userRole.role)) return false;
                                     if (!filterLower) return true;
@@ -667,16 +644,19 @@ export default function DashboardLayout() {
                                           to={sub.path}
                                           onClick={() => setIsMobileMenuOpen(false)}
                                           className={cn(
-                                            "flex-1 flex items-start gap-2 px-2 py-[6px] rounded-lg text-[11.5px] transition-all duration-150 min-w-0",
-                                            isSubActive ? "font-semibold text-white" : "text-slate-300 hover:text-white hover:bg-white/[0.06] font-medium"
+                                            "flex-1 flex items-center gap-2 px-2 py-1.5 rounded-md text-[12.5px] transition-colors min-w-0",
+                                            isSubActive
+                                              ? "text-indigo-300 font-semibold bg-indigo-600/10"
+                                              : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40 font-medium"
                                           )}
-                                          style={isSubActive ? { color: accent, backgroundColor: accentBgSm } : {}}
                                         >
                                           <span
-                                            className="w-1.5 h-1.5 rounded-full shrink-0 transition-all mt-1 self-start"
-                                            style={isSubActive ? { backgroundColor: accent } : { backgroundColor: 'rgba(255,255,255,0.25)' }}
+                                            className={cn(
+                                              "w-1.5 h-1.5 rounded-full shrink-0 transition-colors",
+                                              isSubActive ? "bg-indigo-400" : "bg-slate-600 group-hover/sub:bg-slate-400"
+                                            )}
                                           />
-                                          <span className="leading-snug text-left">{sub.name}</span>
+                                          <span className="truncate leading-snug">{sub.name}</span>
                                         </Link>
                                         <button
                                           type="button"
@@ -685,7 +665,7 @@ export default function DashboardLayout() {
                                             togglePin(sub.path);
                                           }}
                                           className={cn(
-                                            "p-1 rounded-md transition-all shrink-0 ml-1",
+                                            "p-1 rounded transition-opacity shrink-0 ml-1",
                                             isPinned
                                               ? "text-amber-400 opacity-100"
                                               : "text-slate-500 opacity-0 group-hover/sub:opacity-100 hover:text-amber-300"
@@ -712,36 +692,46 @@ export default function DashboardLayout() {
         </nav>
 
         {/* ── User card / footer ── */}
-        <div className="shrink-0 px-2 pt-2 pb-6 md:pb-3 border-t border-white/[0.06] safe-area-pb">
+        <div className="shrink-0 p-3 border-t border-slate-800/80 safe-area-pb bg-[#0a0f1d]">
           {isSidebarCollapsed ? (
-            <div className="flex flex-col items-center gap-1">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-black text-[11px] uppercase shadow-md">
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white font-bold text-xs uppercase shadow-sm">
                 {(userRole?.role?.[0] ?? 'U').toUpperCase()}
               </div>
-              <button onClick={cycleTheme} className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/10 transition-colors">
+              <button onClick={cycleTheme} title="Switch theme" className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors">
                 <Palette className="w-3.5 h-3.5" />
               </button>
-              <button onClick={handleLogout} className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors">
+              <button onClick={handleLogout} title="Logout" className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors">
                 <LogOut className="w-3.5 h-3.5" />
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.06] transition-colors">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-black text-[11px] uppercase shadow-md shadow-indigo-900/40 shrink-0">
+            <div className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700/80 transition-all">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white font-bold text-xs uppercase shadow-sm shrink-0">
                 {(userRole?.role?.[0] ?? 'U').toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-bold text-slate-300 uppercase tracking-wider truncate">{userRole?.role || 'User'}</p>
-                <div className="flex items-center gap-1 mt-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.7)] shrink-0" />
-                  <span className="text-[9.5px] text-slate-600 font-medium">Active session</span>
+                <p className="text-xs font-semibold text-slate-200 uppercase tracking-wide truncate">
+                  {userRole?.role || 'User'}
+                </p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                  <span className="text-[10px] text-slate-400 font-medium">Online</span>
                 </div>
               </div>
-              <div className="flex items-center gap-0.5">
-                <button onClick={cycleTheme} title="Switch theme" className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/10 transition-colors">
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={cycleTheme}
+                  title="Switch theme"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors"
+                >
                   <Palette className="w-3.5 h-3.5" />
                 </button>
-                <button onClick={handleLogout} title="Logout" className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                <button
+                  onClick={handleLogout}
+                  title="Logout"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                >
                   <LogOut className="w-3.5 h-3.5" />
                 </button>
               </div>
