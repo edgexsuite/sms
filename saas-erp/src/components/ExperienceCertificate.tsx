@@ -8,7 +8,8 @@ interface ExperienceCertificateProps {
 }
 
 export default function ExperienceCertificate({ staff, schoolInfo }: ExperienceCertificateProps) {
-  if (!staff || !schoolInfo) return null;
+  if (!staff) return null;
+  const school = schoolInfo || { name: 'The Edge School' };
 
   const joinDate = staff.joining_date ? new Date(staff.joining_date) : new Date();
   const tenureYears = Math.floor((new Date().getTime() - joinDate.getTime()) / (1000 * 60 * 60 * 24 * 365));

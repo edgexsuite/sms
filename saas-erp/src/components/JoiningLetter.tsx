@@ -13,23 +13,24 @@ interface JoiningLetterProps {
 }
 
 export default function JoiningLetter({ staff, schoolInfo }: JoiningLetterProps) {
-  if (!staff || !schoolInfo) return null;
+  if (!staff) return null;
 
-  const schoolName = schoolInfo?.name || 'The Edge School';
-  const directorName = schoolInfo?.director_name || 'AFTAB AHMAD KHAKWANI';
+  const school = schoolInfo || {};
+  const schoolName = school?.name || 'The Edge School';
+  const directorName = school?.director_name || 'AFTAB AHMAD KHAKWANI';
   const gender = staff?.gender || '';
   const honorific = gender.toLowerCase() === 'female' ? 'Ms./Mrs.' : 'Mr.';
   const effectiveDate = staff.joining_date ? formatDate(staff.joining_date) : formatDate(new Date());
   const refNo = `TES/HR/APP/${staff.id ? String(staff.id).substring(0, 8).toUpperCase() : '________'}`;
 
   // Use customized terms from Settings if available, otherwise default standard 11 clauses
-  const rawTerms = schoolInfo?.recruitment_terms && 
-                   schoolInfo.recruitment_terms.trim().length > 100 && 
-                   schoolInfo.recruitment_terms.includes('Session Commitment')
-    ? schoolInfo.recruitment_terms
+  const rawTerms = school?.recruitment_terms && 
+                   school.recruitment_terms.trim().length > 100 && 
+                   school.recruitment_terms.includes('Session Commitment')
+    ? school.recruitment_terms
     : DEFAULT_APPOINTMENT_TERMS;
 
-  const renderedTerms = interpolateAppointmentTemplate(rawTerms, staff, schoolInfo);
+  const renderedTerms = interpolateAppointmentTemplate(rawTerms, staff, school);
 
   // Split into Page 1 clauses (1-5) and Page 2 clauses (6-11)
   const allBlocks = renderedTerms.split(/\n\s*\n/).filter(b => b.trim().length > 0);

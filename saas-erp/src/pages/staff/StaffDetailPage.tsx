@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -6,7 +7,7 @@ import { cn, formatDate } from '../../lib/utils';
 import {
   ArrowLeft, Printer, User, Calendar, CreditCard,
   Mail, MapPin, Shield, AlertCircle, MessageSquare, Award, Clock,
-  Briefcase, BookOpen, Layout, FileCheck, Wallet, CheckCircle, Hash, Building2, Phone, Fingerprint, GraduationCap, FileText, ShieldCheck
+  Briefcase, BookOpen, Layout, FileCheck, Wallet, CheckCircle, Hash, Building2, Phone, Fingerprint, GraduationCap, FileText, ShieldCheck, Download, Loader2, X
 } from 'lucide-react';
 import JoiningLetter from '../../components/JoiningLetter';
 import ExperienceCertificate from '../../components/ExperienceCertificate';
@@ -22,6 +23,8 @@ export default function StaffDetailPage() {
   const [schoolInfo, setSchoolInfo] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [printDoc, setPrintDoc] = useState<'joining' | 'experience' | null>(null);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [pdfSuccessMsg, setPdfSuccessMsg] = useState<string | null>(null);
 
   // New Tabbed State
   const [activeTab, setActiveTab] = useState('overview');
@@ -107,16 +110,111 @@ export default function StaffDetailPage() {
     window.print();
   };
 
+  const handleTriggerPrint = (staffName: string) => {
+    const originalTitle = document.title;
+    const docTitle = printDoc === 'joining'
+      ? `Appointment letter (${staffName})`
+      : `Experience Certificate (${staffName})`;
+
+    document.title = docTitle;
+    window.print();
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 1500);
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!staff) return;
+    const staffName = staff.full_name || 'Staff';
+    const docTitle = printDoc === 'joining'
+      ? `Appointment letter (${staffName})`
+      : `Experience Certificate (${staffName})`;
+
+    setGeneratingPdf(true);
+    setPdfSuccessMsg(null);
+    const originalTitle = document.title;
+    document.title = docTitle;
+
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const { default: html2canvas } = await import('html2canvas');
+
+      if (printDoc === 'joining') {
+        const page1El = document.querySelector('.appointment-page-1') as HTMLElement;
+        const page2El = document.querySelector('.appointment-page-2') as HTMLElement;
+
+        if (!page1El || !page2El) {
+          alert('Could not locate appointment letter pages for PDF export.');
+          return;
+        }
+
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4',
+          compress: true,
+        });
+
+        // Page 1
+        const canvas1 = await html2canvas(page1El, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+        });
+        const img1 = canvas1.toDataURL('image/jpeg', 0.96);
+        pdf.addImage(img1, 'JPEG', 0, 0, 210, 297);
+
+        // Page 2
+        const canvas2 = await html2canvas(page2El, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+        });
+        const img2 = canvas2.toDataURL('image/jpeg', 0.96);
+        pdf.addPage('a4', 'portrait');
+        pdf.addImage(img2, 'JPEG', 0, 0, 210, 297);
+
+        pdf.save(`${docTitle}.pdf`);
+      } else {
+        const certEl = document.querySelector('.print-only') as HTMLElement;
+        if (!certEl) {
+          alert('Certificate element not found.');
+          return;
+        }
+
+        const pdf = new jsPDF({
+          orientation: 'landscape',
+          unit: 'mm',
+          format: 'a4',
+          compress: true,
+        });
+
+        const canvas = await html2canvas(certEl, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+        });
+        const img = canvas.toDataURL('image/jpeg', 0.96);
+        pdf.addImage(img, 'JPEG', 0, 0, 297, 210);
+
+        pdf.save(`${docTitle}.pdf`);
+      }
+      setPdfSuccessMsg(`Downloaded ${docTitle}.pdf`);
+      setTimeout(() => setPdfSuccessMsg(null), 4000);
+    } catch (err: any) {
+      console.error('PDF generation error:', err);
+      alert('Failed to generate PDF: ' + (err.message || 'Unknown error'));
+    } finally {
+      setGeneratingPdf(false);
+      document.title = originalTitle;
+    }
+  };
+
   const handlePrint = (type: 'joining' | 'experience') => {
     setPrintDoc(type);
-    document.body.classList.add('is-printing');
-    setTimeout(() => {
-      window.print();
-      setTimeout(() => {
-        setPrintDoc(null);
-        document.body.classList.remove('is-printing');
-      }, 1000);
-    }, 500);
   };
 
   if (loading) {
@@ -179,38 +277,80 @@ export default function StaffDetailPage() {
         }
         @media screen {
           .print-only { display: none !important; }
-          .standard-ui.hidden { display: none !important; }
-          .print-container { 
-            position: fixed; 
-            inset: 0; 
-            background: rgba(0,0,0,0.8); 
-            z-index: 9999; 
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 40px;
-          }
         }
       `}</style>
 
-      <AnimatePresence>
-        {printDoc && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="print-container overflow-auto"
-          >
+      {/* ── Document Preview & Print Portal (Direct to document.body) ── */}
+      {printDoc && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-slate-950/85 backdrop-blur-md overflow-y-auto flex flex-col items-center justify-start p-4 sm:p-6 print:p-0 print:bg-white print:static print:inset-auto">
+          {/* Screen Controls Toolbar (Hidden in Print) */}
+          <div className="no-print sticky top-3 z-50 w-full max-w-[210mm] flex flex-wrap justify-between items-center bg-slate-900 border border-slate-700/80 text-white px-5 py-3 rounded-2xl mb-6 shadow-2xl shrink-0 backdrop-blur-md">
+            <div className="flex items-center gap-2.5">
+              <FileText className="w-4 h-4 text-indigo-400 shrink-0" />
+              <div className="flex flex-col">
+                <span className="text-xs font-black uppercase tracking-wider text-slate-100">
+                  {printDoc === 'joining' ? 'Appointment Letter' : 'Experience Certificate'}
+                </span>
+                <span className="text-[11px] font-medium text-slate-400">
+                  ({staff?.full_name})
+                </span>
+              </div>
+              {pdfSuccessMsg && (
+                <span className="hidden sm:inline-block ml-3 px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold rounded-lg animate-pulse">
+                  ✓ {pdfSuccessMsg}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleTriggerPrint(staff?.full_name || 'Staff')}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer active:scale-95"
+                title="Print or Save as PDF via system dialog"
+              >
+                <Printer className="w-3.5 h-3.5" /> Print
+              </button>
+              <button
+                type="button"
+                disabled={generatingPdf}
+                onClick={handleDownloadPDF}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer active:scale-95"
+                title="Direct PDF Export"
+              >
+                {generatingPdf ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating...
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-3.5 h-3.5" /> Download PDF
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPrintDoc(null)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" /> Close
+              </button>
+            </div>
+          </div>
+
+          {/* Printable Document Container */}
+          <div className="w-full flex justify-center pb-12 print:p-0">
             {printDoc === 'joining' ? (
               <JoiningLetter staff={staff} schoolInfo={schoolInfo} />
             ) : (
               <ExperienceCertificate staff={staff} schoolInfo={schoolInfo} />
             )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>,
+        document.body
+      )}
 
-      <div className={cn("min-h-screen bg-slate-50 font-sans pb-20 standard-ui", printDoc ? "hidden" : "block")}>
+      <div className={cn("min-h-screen bg-slate-50 font-sans pb-20 standard-ui", printDoc ? "print:hidden" : "block")}>
         {/* ── Top Bar: Navigation & Action ── */}
         <div className="no-print sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-8 py-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">

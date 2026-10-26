@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { 
   Users, UserPlus, Search, Pencil, Trash2, Mail, Phone, Eye, 
   X, Save, Camera, Briefcase, UserCheck, UserX, Printer, Award,
-  MessageSquare, Upload, FileSpreadsheet, Ban, FileText
+  MessageSquare, Upload, FileSpreadsheet, Ban, FileText, Download, Loader2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -82,6 +82,8 @@ export default function Staff() {
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: '', name: '' });
   const [schoolInfo, setSchoolInfo] = useState<any>(null);
   const [printDoc, setPrintDoc] = useState<{ type: 'joining' | 'experience', staff: any } | null>(null);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [pdfSuccessMsg, setPdfSuccessMsg] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
 
   // Photo states
@@ -328,11 +330,116 @@ export default function Staff() {
     fetchStaff();
   };
 
-  const handlePrint = (type: 'joining' | 'experience', s: any) => {
-    setPrintDoc({ type, staff: s });
+  const handleTriggerPrint = (staffName: string) => {
+    const originalTitle = document.title;
+    const docTitle = printDoc?.type === 'joining'
+      ? `Appointment letter (${staffName})`
+      : `Experience Certificate (${staffName})`;
+
+    document.title = docTitle;
+    window.print();
     setTimeout(() => {
-      window.print();
-    }, 400);
+      document.title = originalTitle;
+    }, 1500);
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!printDoc?.staff) return;
+    const staffName = printDoc.staff.full_name || 'Staff';
+    const docTitle = printDoc.type === 'joining'
+      ? `Appointment letter (${staffName})`
+      : `Experience Certificate (${staffName})`;
+
+    setGeneratingPdf(true);
+    setPdfSuccessMsg(null);
+    const originalTitle = document.title;
+    document.title = docTitle;
+
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const { default: html2canvas } = await import('html2canvas');
+
+      if (printDoc.type === 'joining') {
+        const page1El = document.querySelector('.appointment-page-1') as HTMLElement;
+        const page2El = document.querySelector('.appointment-page-2') as HTMLElement;
+
+        if (!page1El || !page2El) {
+          alert('Could not locate appointment letter pages for PDF export.');
+          return;
+        }
+
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4',
+          compress: true,
+        });
+
+        // Page 1
+        const canvas1 = await html2canvas(page1El, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+        });
+        const img1 = canvas1.toDataURL('image/jpeg', 0.96);
+        pdf.addImage(img1, 'JPEG', 0, 0, 210, 297);
+
+        // Page 2
+        const canvas2 = await html2canvas(page2El, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+        });
+        const img2 = canvas2.toDataURL('image/jpeg', 0.96);
+        pdf.addPage('a4', 'portrait');
+        pdf.addImage(img2, 'JPEG', 0, 0, 210, 297);
+
+        pdf.save(`${docTitle}.pdf`);
+      } else {
+        const certEl = document.querySelector('.print-only') as HTMLElement;
+        if (!certEl) {
+          alert('Certificate element not found.');
+          return;
+        }
+
+        const pdf = new jsPDF({
+          orientation: 'landscape',
+          unit: 'mm',
+          format: 'a4',
+          compress: true,
+        });
+
+        const canvas = await html2canvas(certEl, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+        });
+        const img = canvas.toDataURL('image/jpeg', 0.96);
+        pdf.addImage(img, 'JPEG', 0, 0, 297, 210);
+
+        pdf.save(`${docTitle}.pdf`);
+      }
+      setPdfSuccessMsg(`Downloaded ${docTitle}.pdf`);
+      setTimeout(() => setPdfSuccessMsg(null), 4000);
+    } catch (err: any) {
+      console.error('PDF generation error:', err);
+      alert('Failed to generate PDF: ' + (err.message || 'Unknown error'));
+    } finally {
+      setGeneratingPdf(false);
+      document.title = originalTitle;
+    }
+  };
+
+  const handlePrint = (type: 'joining' | 'experience', s: any, autoPrint = false) => {
+    setPrintDoc({ type, staff: s });
+    if (autoPrint) {
+      setTimeout(() => {
+        handleTriggerPrint(s.full_name);
+      }, 500);
+    }
   };
 
   const sendWhatsApp = (num: string, msg: string) => {
@@ -476,58 +583,77 @@ export default function Staff() {
       <style>{`
         @media print {
           .no-print, .global-print-header { display: none !important; }
-          .print-container { display: block !important; position: static !important; width: 100% !important; height: auto !important; overflow: visible !important; }
           body, #root { background: white !important; }
         }
-        @media screen {
-          .print-container { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 24px 16px; overflow-y: auto; }
-        }
       `}</style>
-      
-      {printDoc && (
-        <style>{`body { overflow: hidden; } @media print { body { background: white; } }`}</style>
-      )}
 
-      <AnimatePresence>
-        {printDoc && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="print-container">
-            {/* Screen Controls Toolbar (Hidden in Print) */}
-            <div className="no-print w-full max-w-[210mm] flex justify-between items-center bg-slate-900 text-white px-5 py-3 rounded-2xl mb-4 shadow-2xl shrink-0">
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-indigo-400" />
-                <span className="text-xs font-black uppercase tracking-wider">
-                  {printDoc.type === 'joining' ? 'Appointment Letter Document' : 'Experience Certificate'}
+      {/* ── Document Preview & Print Portal (Direct to document.body) ── */}
+      {printDoc && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-slate-950/85 backdrop-blur-md overflow-y-auto flex flex-col items-center justify-start p-4 sm:p-6 print:p-0 print:bg-white print:static print:inset-auto">
+          {/* Screen Controls Toolbar (Hidden in Print) */}
+          <div className="no-print sticky top-3 z-50 w-full max-w-[210mm] flex flex-wrap justify-between items-center bg-slate-900 border border-slate-700/80 text-white px-5 py-3 rounded-2xl mb-6 shadow-2xl shrink-0 backdrop-blur-md">
+            <div className="flex items-center gap-2.5">
+              <FileText className="w-4 h-4 text-indigo-400 shrink-0" />
+              <div className="flex flex-col">
+                <span className="text-xs font-black uppercase tracking-wider text-slate-100">
+                  {printDoc.type === 'joining' ? 'Appointment Letter' : 'Experience Certificate'}
                 </span>
-                <span className="text-[11px] font-medium text-slate-400 hidden sm:inline">({printDoc.staff?.full_name})</span>
+                <span className="text-[11px] font-medium text-slate-400">
+                  ({printDoc.staff?.full_name})
+                </span>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow cursor-pointer active:scale-95"
-                >
-                  <Printer className="w-3.5 h-3.5" /> Print
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPrintDoc(null)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" /> Close
-                </button>
-              </div>
+              {pdfSuccessMsg && (
+                <span className="hidden sm:inline-block ml-3 px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold rounded-lg animate-pulse">
+                  ✓ {pdfSuccessMsg}
+                </span>
+              )}
             </div>
 
+            <div className="flex items-center gap-2 sm:gap-2.5 mt-2 sm:mt-0">
+              <button
+                type="button"
+                onClick={() => handleTriggerPrint(printDoc.staff?.full_name || 'Staff')}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer active:scale-95"
+                title="Print or Save as PDF via system dialog"
+              >
+                <Printer className="w-3.5 h-3.5" /> Print
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadPDF}
+                disabled={generatingPdf}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer active:scale-95 disabled:opacity-50"
+                title="Download directly as high resolution PDF"
+              >
+                {generatingPdf ? (
+                  <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating PDF...</>
+                ) : (
+                  <><Download className="w-3.5 h-3.5" /> Download PDF</>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPrintDoc(null)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" /> Close
+              </button>
+            </div>
+          </div>
+
+          {/* Printable Document Container */}
+          <div className="w-full flex justify-center pb-12 print:p-0">
             {printDoc.type === 'joining' ? (
               <JoiningLetter staff={printDoc.staff} schoolInfo={schoolInfo} />
             ) : (
               <ExperienceCertificate staff={printDoc.staff} schoolInfo={schoolInfo} />
             )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>,
+        document.body
+      )}
 
-      <div className={`standard-ui p-0 ${printDoc ? 'hidden' : 'block'}`}>
+      <div className="standard-ui p-0">
         <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="no-print flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
           <div>
             <h1 className="text-xl font-black text-slate-900 tracking-tight font-display uppercase tracking-[0.05em]">Staff Directory</h1>
