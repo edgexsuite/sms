@@ -23,7 +23,9 @@ export default function ExperienceCertificate({ staff, schoolInfo }: ExperienceC
           @page { size: A4 landscape; margin: 0; }
           body { -webkit-print-color-adjust: exact; background: white !important; }
           .print-only { display: flex !important; margin: 0 !important; height: 100vh !important; }
-          .no-print { display: none !important; }
+          .no-print, #root, .standard-ui { display: none !important; }
+          body > *:not(#appointment-letter-print-portal) { display: none !important; }
+          #appointment-letter-print-portal { display: block !important; position: static !important; }
         }
         @media screen {
           .print-only { display: block; border: 1px solid #e2e8f0; margin-top: 2rem; box-shadow: 0 20px 50px rgba(0,0,0,0.1); }

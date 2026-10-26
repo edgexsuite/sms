@@ -122,15 +122,24 @@ export default function JoiningLetter({ staff, schoolInfo }: JoiningLetterProps)
             size: A4 portrait;
             margin: 8mm 14mm 8mm 14mm;
           }
-          body, #root {
+          body {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             background: white !important;
           }
-          /* Suppress all external and layout headers */
+          /* Suppress all external and layout headers, tables, and root application tree */
           .global-print-header,
-          .no-print {
+          .no-print,
+          #root,
+          .standard-ui {
             display: none !important;
+          }
+          body > *:not(#appointment-letter-print-portal) {
+            display: none !important;
+          }
+          #appointment-letter-print-portal {
+            display: block !important;
+            position: static !important;
           }
           .appointment-doc-wrapper {
             width: 100% !important;

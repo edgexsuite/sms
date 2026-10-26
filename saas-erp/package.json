@@ -21,6 +21,7 @@
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "html2canvas": "^1.4.1",
+    "html2canvas-pro": "^2.5.2",
     "html5-qrcode": "^2.3.8",
     "i18next": "^25.10.5",
     "jspdf": "^4.2.1",

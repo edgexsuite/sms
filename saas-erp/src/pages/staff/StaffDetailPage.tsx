@@ -137,7 +137,7 @@ export default function StaffDetailPage() {
 
     try {
       const { default: jsPDF } = await import('jspdf');
-      const { default: html2canvas } = await import('html2canvas');
+      const { default: html2canvas } = await import('html2canvas-pro');
 
       if (printDoc === 'joining') {
         const page1El = document.querySelector('.appointment-page-1') as HTMLElement;
@@ -274,6 +274,27 @@ export default function StaffDetailPage() {
           .no-print, .global-print-header { display: none !important; }
           table { width: 100% !important; border-collapse: collapse !important; }
           th, td { border-bottom: 1px solid #e2e8f0 !important; }
+          ${printDoc ? `
+            #root, main, .standard-ui, .theme-shell {
+              display: none !important;
+              visibility: hidden !important;
+              height: 0 !important;
+              overflow: hidden !important;
+            }
+            body > *:not(#appointment-letter-print-portal) {
+              display: none !important;
+              visibility: hidden !important;
+              height: 0 !important;
+              overflow: hidden !important;
+            }
+            #appointment-letter-print-portal {
+              display: block !important;
+              position: static !important;
+              padding: 0 !important;
+              margin: 0 !important;
+              background: white !important;
+            }
+          ` : ''}
         }
         @media screen {
           .print-only { display: none !important; }
@@ -282,7 +303,7 @@ export default function StaffDetailPage() {
 
       {/* ── Document Preview & Print Portal (Direct to document.body) ── */}
       {printDoc && createPortal(
-        <div className="fixed inset-0 z-[99999] bg-slate-950/85 backdrop-blur-md overflow-y-auto flex flex-col items-center justify-start p-4 sm:p-6 print:p-0 print:bg-white print:static print:inset-auto">
+        <div id="appointment-letter-print-portal" className="fixed inset-0 z-[99999] bg-slate-950/85 backdrop-blur-md overflow-y-auto flex flex-col items-center justify-start p-4 sm:p-6 print:p-0 print:bg-white print:static print:inset-auto">
           {/* Screen Controls Toolbar (Hidden in Print) */}
           <div className="no-print sticky top-3 z-50 w-full max-w-[210mm] flex flex-wrap justify-between items-center bg-slate-900 border border-slate-700/80 text-white px-5 py-3 rounded-2xl mb-6 shadow-2xl shrink-0 backdrop-blur-md">
             <div className="flex items-center gap-2.5">

@@ -357,7 +357,7 @@ export default function Staff() {
 
     try {
       const { default: jsPDF } = await import('jspdf');
-      const { default: html2canvas } = await import('html2canvas');
+      const { default: html2canvas } = await import('html2canvas-pro');
 
       if (printDoc.type === 'joining') {
         const page1El = document.querySelector('.appointment-page-1') as HTMLElement;
@@ -583,13 +583,34 @@ export default function Staff() {
       <style>{`
         @media print {
           .no-print, .global-print-header { display: none !important; }
-          body, #root { background: white !important; }
+          body { background: white !important; }
+          ${printDoc ? `
+            #root, main, .standard-ui, nav, header, aside, .theme-shell {
+              display: none !important;
+              visibility: hidden !important;
+              height: 0 !important;
+              overflow: hidden !important;
+            }
+            body > *:not(#appointment-letter-print-portal) {
+              display: none !important;
+              visibility: hidden !important;
+              height: 0 !important;
+              overflow: hidden !important;
+            }
+            #appointment-letter-print-portal {
+              display: block !important;
+              position: static !important;
+              padding: 0 !important;
+              margin: 0 !important;
+              background: white !important;
+            }
+          ` : ''}
         }
       `}</style>
 
       {/* ── Document Preview & Print Portal (Direct to document.body) ── */}
       {printDoc && createPortal(
-        <div className="fixed inset-0 z-[99999] bg-slate-950/85 backdrop-blur-md overflow-y-auto flex flex-col items-center justify-start p-4 sm:p-6 print:p-0 print:bg-white print:static print:inset-auto">
+        <div id="appointment-letter-print-portal" className="fixed inset-0 z-[99999] bg-slate-950/85 backdrop-blur-md overflow-y-auto flex flex-col items-center justify-start p-4 sm:p-6 print:p-0 print:bg-white print:static print:inset-auto">
           {/* Screen Controls Toolbar (Hidden in Print) */}
           <div className="no-print sticky top-3 z-50 w-full max-w-[210mm] flex flex-wrap justify-between items-center bg-slate-900 border border-slate-700/80 text-white px-5 py-3 rounded-2xl mb-6 shadow-2xl shrink-0 backdrop-blur-md">
             <div className="flex items-center gap-2.5">
@@ -653,7 +674,7 @@ export default function Staff() {
         document.body
       )}
 
-      <div className="standard-ui p-0">
+      <div className={cn("standard-ui p-0", printDoc && "print:hidden")}>
         <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="no-print flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
           <div>
             <h1 className="text-xl font-black text-slate-900 tracking-tight font-display uppercase tracking-[0.05em]">Staff Directory</h1>
