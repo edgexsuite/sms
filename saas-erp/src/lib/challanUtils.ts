@@ -409,7 +409,8 @@ function drawChallanCopy(
     doc.text(desc, cx + pad, y + feeRowH - pad - 0.2, { maxWidth: cw * 0.68 });
     const ac = amtColor || tc;
     doc.setTextColor(...ac);
-    doc.text(amount.toLocaleString(), cx + cw - pad, y + feeRowH - pad - 0.2, { align: 'right' });
+    const safeAmt = Number(amount) || 0;
+    doc.text(safeAmt.toLocaleString(), cx + cw - pad, y + feeRowH - pad - 0.2, { align: 'right' });
     doc.setTextColor(0, 0, 0);
     doc.setDrawColor(195, 195, 195);
     doc.setLineWidth(0.2);
@@ -428,10 +429,11 @@ function drawChallanCopy(
 
   rawBreakdown.forEach(b => {
     const isTuition = /tuition/i.test(b.item);
+    const amt = Number(b.amount) || 0;
     if (isTuition) {
-      tuitionItems.push({ item: b.item, amount: Number(b.amount) });
+      tuitionItems.push({ item: b.item, amount: amt });
     } else {
-      otherItems.push({ item: b.item, amount: Number(b.amount) });
+      otherItems.push({ item: b.item, amount: amt });
     }
   });
 
@@ -456,7 +458,7 @@ function drawChallanCopy(
   tuitionItems.forEach(b => drawFeeRow(b.item, b.amount));
 
   // ── Totals calculation ───────────────────────────────────────────────────
-  const breakdownGross = rawBreakdown.reduce((s, b) => s + Number(b.amount), 0);
+  const breakdownGross = rawBreakdown.reduce((s, b) => s + Number(b.amount || 0), 0);
   const grossTotal = breakdownGross + (config.show_previous_fee !== false ? prevFee : 0);
   const discountAmt = record.discount_amount ?? 0;
   const feeWithinDue = Math.max(0, grossTotal - discountAmt);
@@ -470,7 +472,7 @@ function drawChallanCopy(
 
   // "Total Fee" row — show only if there are multiple breakdown items or a previous fee
   // (when there's a single item, the item row already shows the total — no need to repeat)
-  const showTotalRow = breakdown.length > 1 || prevFee > 0;
+  const showTotalRow = rawBreakdown.length > 1 || prevFee > 0;
   if (showTotalRow) {
     drawFeeRow('Total Fee', grossTotal, true, [245, 245, 245]);
   }
@@ -826,14 +828,12 @@ export async function downloadChallanPDF(
     const blobUrl = doc.output('bloburl');
     const printWindow = window.open(blobUrl, '_blank', 'noopener,noreferrer');
     if (!printWindow) {
-      if (shouldDownload) {
-        // download was also requested — already done above, nothing extra to do
-      } else {
-        // Print-only mode but popup was blocked — tell the user rather than silently downloading
+      if (!shouldDownload) {
+        doc.save(filename);
         alert(
-          'Your browser blocked the print window.\n\n' +
-          'Please allow pop-ups for this site, then click the Quick Print button again.\n\n' +
-          'Or use the Download (↓) button to save the PDF and print from your PDF viewer.'
+          'Your browser blocked the print pop-up window.\n\n' +
+          'The challan PDF has been downloaded to your computer instead.\n\n' +
+          'To print directly, please allow pop-ups for this site.'
         );
       }
     }

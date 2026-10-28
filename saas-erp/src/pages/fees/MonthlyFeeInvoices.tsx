@@ -71,6 +71,7 @@ export default function MonthlyFeeInvoices() {
   const [bulkDueDate, setBulkDueDate] = useState('');
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [batchPrinting, setBatchPrinting] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [editingInvoice, setEditingInvoice] = useState<any>(null);
 
   // 4-Step Guided Wizard States
@@ -506,12 +507,13 @@ export default function MonthlyFeeInvoices() {
     );
     const arrearsMonths = Array.from(new Set(unpaidRows.map(r => formatMonthShort(r.month_year)).filter(Boolean)));
 
-    const classId = inv.students?.class_id;
+    const studentObj = inv.students || activeStudents.find(s => s.id === inv.student_id);
+    const classId = studentObj?.class_id || inv.class_id;
     let discountAmount = inv.discount_amount ?? 0;
     let challanBreakdown: { item: string; amount: number }[] | null = null;
 
     if (classId) {
-      let feeMatrix = (inv.students?.fee_override as any);
+      let feeMatrix = (studentObj?.fee_override as any);
       if (!feeMatrix) {
         const { data: structure } = await supabase
           .from('fee_structures')
@@ -564,20 +566,20 @@ export default function MonthlyFeeInvoices() {
       ...inv,
       breakdown: effectiveBreakdown,
       total_amount: grossTotal,
-      student_name: inv.students?.full_name,
-      roll_number: inv.students?.roll_number,
-      class_name: inv.students?.classes
-        ? `${inv.students.classes.name || ''}${inv.students.classes.section ? ' - ' + inv.students.classes.section : ''}`
-        : '',
-      father_name: inv.students?.parents?.father_name || '',
-      family_number: inv.students?.parents?.family_number || '',
+      student_name: studentObj?.full_name || inv.student_name || 'Student',
+      roll_number: studentObj?.roll_number || inv.roll_number || '',
+      class_name: studentObj?.classes
+        ? `${studentObj.classes.name || ''}${studentObj.classes.section ? ' - ' + studentObj.classes.section : ''}`
+        : (inv.class_name || ''),
+      father_name: studentObj?.parents?.father_name || inv.father_name || '',
+      family_number: studentObj?.parents?.family_number || inv.family_number || '',
       issue_date: inv.created_at,
       previous_fee: previousFee,
       arrears_months: arrearsMonths,
       fine_amount: fineAmount,
       discount_amount: discountAmount,
       fine_rules: fineRules,
-      fee_waiver_percentage: inv.students?.fee_waiver_percentage ?? 0,
+      fee_waiver_percentage: studentObj?.fee_waiver_percentage ?? 0,
     };
   };
 
@@ -599,6 +601,28 @@ export default function MonthlyFeeInvoices() {
       });
     } catch (err: any) {
       alert(err.message || 'Failed to print challans.');
+    } finally {
+      setBatchPrinting(false);
+    }
+  };
+
+  const handleDownloadClassChallans = async (classStatus: ClassBillingStatus) => {
+    if (classStatus.invoices.length === 0) {
+      alert(`No invoices generated yet for ${classStatus.name} ${classStatus.section} in ${selectedMonth}.`);
+      return;
+    }
+
+    setBatchPrinting(true);
+    try {
+      const records = await Promise.all(classStatus.invoices.map(buildRecord));
+      const safeLabel = `${classStatus.name.replace(/\s+/g, '_')}_${classStatus.section || 'All'}_${selectedMonth}`;
+      await downloadChallanPDF(records, school, challanConfig, {
+        filenameOverride: `challans_${safeLabel}.pdf`,
+        autoPrint: false,
+        download: true,
+      });
+    } catch (err: any) {
+      alert(err.message || 'Failed to download challans.');
     } finally {
       setBatchPrinting(false);
     }
@@ -631,13 +655,66 @@ export default function MonthlyFeeInvoices() {
 
   // Single Invoice actions
   const handlePrintChallan = async (invoice: any) => {
-    const record = await buildRecord(invoice);
-    await downloadChallanPDF([record], school, challanConfig, { autoPrint: true, download: false });
+    try {
+      setActionLoadingId(invoice.id);
+      const record = await buildRecord(invoice);
+      await downloadChallanPDF([record], school, challanConfig, { autoPrint: true, download: false });
+    } catch (err: any) {
+      console.error('Print challan error:', err);
+      alert(err.message || 'Failed to print challan.');
+    } finally {
+      setActionLoadingId(null);
+    }
   };
 
   const handleDownloadChallan = async (invoice: any) => {
-    const record = await buildRecord(invoice);
-    await downloadChallanPDF([record], school, challanConfig, { autoPrint: false, download: true });
+    try {
+      setActionLoadingId(invoice.id);
+      const record = await buildRecord(invoice);
+      await downloadChallanPDF([record], school, challanConfig, { autoPrint: false, download: true });
+    } catch (err: any) {
+      console.error('Download challan error:', err);
+      alert(err.message || 'Failed to download challan.');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Bulk Print & Download for selected invoices
+  const handlePrintSelectedChallans = async () => {
+    if (selectedInvoices.size === 0) return;
+    setBatchPrinting(true);
+    try {
+      const selectedList = invoices.filter(i => selectedInvoices.has(i.id));
+      const records = await Promise.all(selectedList.map(buildRecord));
+      await downloadChallanPDF(records, school, challanConfig, {
+        filenameOverride: `selected_challans_${selectedInvoices.size}.pdf`,
+        autoPrint: true,
+        download: false,
+      });
+    } catch (err: any) {
+      alert(err.message || 'Failed to print selected challans.');
+    } finally {
+      setBatchPrinting(false);
+    }
+  };
+
+  const handleDownloadSelectedChallans = async () => {
+    if (selectedInvoices.size === 0) return;
+    setBatchPrinting(true);
+    try {
+      const selectedList = invoices.filter(i => selectedInvoices.has(i.id));
+      const records = await Promise.all(selectedList.map(buildRecord));
+      await downloadChallanPDF(records, school, challanConfig, {
+        filenameOverride: `selected_challans_${selectedInvoices.size}.pdf`,
+        autoPrint: false,
+        download: true,
+      });
+    } catch (err: any) {
+      alert(err.message || 'Failed to download selected challans.');
+    } finally {
+      setBatchPrinting(false);
+    }
   };
 
   const handleSendWhatsApp = async (invoice: any) => {
@@ -1147,7 +1224,18 @@ export default function MonthlyFeeInvoices() {
                                     disabled={batchPrinting}
                                     className="text-xs font-bold text-slate-700 hover:text-indigo-600 hover:border-indigo-300"
                                   >
-                                    Print Challans
+                                    Print
+                                  </Btn>
+
+                                  <Btn
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleDownloadClassChallans(cs)}
+                                    icon={Download}
+                                    disabled={batchPrinting}
+                                    className="text-xs font-bold text-slate-700 hover:text-indigo-600 hover:border-indigo-300"
+                                  >
+                                    Download
                                   </Btn>
 
                                   <Btn
@@ -1244,6 +1332,28 @@ export default function MonthlyFeeInvoices() {
                   {selectedInvoices.size} invoice(s) selected
                 </span>
                 <div className="flex items-center gap-2">
+                  <Btn
+                    variant="outline"
+                    size="sm"
+                    loading={batchPrinting}
+                    disabled={batchPrinting}
+                    onClick={handlePrintSelectedChallans}
+                    icon={Printer}
+                    className="text-xs font-bold bg-white"
+                  >
+                    Print Selected
+                  </Btn>
+                  <Btn
+                    variant="outline"
+                    size="sm"
+                    loading={batchPrinting}
+                    disabled={batchPrinting}
+                    onClick={handleDownloadSelectedChallans}
+                    icon={Download}
+                    className="text-xs font-bold bg-white"
+                  >
+                    Download Selected
+                  </Btn>
                   <Btn
                     variant="outline"
                     size="sm"
@@ -1392,17 +1502,27 @@ export default function MonthlyFeeInvoices() {
                             <div className="flex items-center justify-end gap-1.5">
                               <button
                                 onClick={() => handlePrintChallan(inv)}
+                                disabled={actionLoadingId === inv.id}
                                 title="Print Challan"
-                                className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-all"
+                                className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-all disabled:opacity-50"
                               >
-                                <Printer className="w-4 h-4" />
+                                {actionLoadingId === inv.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+                                ) : (
+                                  <Printer className="w-4 h-4" />
+                                )}
                               </button>
                               <button
                                 onClick={() => handleDownloadChallan(inv)}
+                                disabled={actionLoadingId === inv.id}
                                 title="Download PDF"
-                                className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-all"
+                                className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-all disabled:opacity-50"
                               >
-                                <Download className="w-4 h-4" />
+                                {actionLoadingId === inv.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+                                ) : (
+                                  <Download className="w-4 h-4" />
+                                )}
                               </button>
                               <button
                                 onClick={() => handleSendWhatsApp(inv)}
