@@ -488,16 +488,28 @@ export default function MonthlyFeeInvoices() {
 
   // Build challan record for printing/downloading
   const buildRecord = async (inv: any): Promise<ChallanRecord> => {
-    const { data: prevFees } = await supabase
+    const rawMonth = inv.month_year || new Date().toISOString().slice(0, 10);
+    const targetMonthDate = rawMonth.length === 7 ? `${rawMonth}-01` : rawMonth.slice(0, 10);
+    const targetSchoolId = inv.school_id || userRole?.school_id;
+
+    let query = supabase
       .from('fee_records')
-      .select('total_amount, paid_amount, month_year')
-      .eq('school_id', userRole?.school_id)
+      .select('total_amount, paid_amount, month_year, discount_amount')
       .eq('student_id', inv.student_id)
-      .in('status', ['pending', 'partial', 'overdue'])
+      .in('status', ['pending', 'partial', 'overdue', 'unpaid'])
       .is('deleted_at', null)
       .neq('id', inv.id)
-      .lt('month_year', inv.month_year)
+      .lt('month_year', targetMonthDate)
       .order('month_year', { ascending: true });
+
+    if (targetSchoolId) {
+      query = query.eq('school_id', targetSchoolId);
+    }
+
+    const { data: prevFees, error: pfErr } = await query;
+    if (pfErr) {
+      console.warn('Error fetching previous fee records for arrears:', pfErr.message);
+    }
 
     const unpaidRows = (prevFees || []).filter(
       r => Math.max(0, (r.total_amount || 0) - (r.paid_amount || 0)) > 0
@@ -509,7 +521,7 @@ export default function MonthlyFeeInvoices() {
 
     const studentObj = inv.students || activeStudents.find(s => s.id === inv.student_id);
     const classId = studentObj?.class_id || inv.class_id;
-    let discountAmount = inv.discount_amount ?? 0;
+    let discountAmount = Number(inv.discount_amount) || 0;
     let challanBreakdown: { item: string; amount: number }[] | null = null;
 
     if (classId) {
@@ -518,17 +530,27 @@ export default function MonthlyFeeInvoices() {
         const { data: structure } = await supabase
           .from('fee_structures')
           .select('fee_matrix')
-          .eq('school_id', userRole?.school_id)
+          .eq('school_id', targetSchoolId)
           .eq('class_id', classId)
           .maybeSingle();
         feeMatrix = structure?.fee_matrix;
       }
-      if (feeMatrix && !inv.discount_amount) {
-        const originalTotal = (feeMatrix!.recurrent || []).reduce((s: number, i: any) => s + Number(i.amount || 0), 0);
-        const invoiceTotal = (inv.breakdown || []).reduce((s: number, b: any) => s + Number(b.amount || 0), 0);
-        const computed = Math.round(originalTotal - invoiceTotal);
-        if (computed > 0) {
-          discountAmount = computed;
+
+      if (feeMatrix) {
+        const matrixGross = (feeMatrix!.recurrent || []).reduce((s: number, i: any) => s + Number(i.amount || 0), 0);
+        const invoiceBreakdownTotal = (inv.breakdown || []).reduce((s: number, b: any) => s + Number(b.amount || 0), 0);
+
+        if (!discountAmount) {
+          const computed = Math.round(matrixGross - invoiceBreakdownTotal);
+          if (computed > 0) {
+            discountAmount = computed;
+            challanBreakdown = (feeMatrix!.recurrent || []).map((r: any) => ({ item: r.item, amount: Number(r.amount) }));
+          } else if (studentObj?.fee_waiver_percentage > 0) {
+            discountAmount = Math.round((matrixGross * studentObj.fee_waiver_percentage) / 100);
+            challanBreakdown = (feeMatrix!.recurrent || []).map((r: any) => ({ item: r.item, amount: Number(r.amount) }));
+          }
+        } else if (invoiceBreakdownTotal <= discountAmount || (invoiceBreakdownTotal + discountAmount === matrixGross)) {
+          // If invoice breakdown was stored net, restore matrix gross items so challan displays full gross - discount
           challanBreakdown = (feeMatrix!.recurrent || []).map((r: any) => ({ item: r.item, amount: Number(r.amount) }));
         }
       }
@@ -540,7 +562,7 @@ export default function MonthlyFeeInvoices() {
     const { data: fineSetting } = await supabase
       .from('form_settings')
       .select('sections_config')
-      .eq('school_id', userRole?.school_id)
+      .eq('school_id', targetSchoolId)
       .eq('form_name', 'fine_policy')
       .maybeSingle();
     const fineRules: any[] = fineSetting?.sections_config?.rules ?? [];

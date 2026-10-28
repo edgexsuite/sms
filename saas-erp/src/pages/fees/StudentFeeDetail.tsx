@@ -181,13 +181,18 @@ export default function StudentFeeDetail() {
   };
 
   // ── Discount helpers ───────────────────────────────────────────────────────
-  const computeWaiverPct = (ruleIds: string[], rules: any[]): number => {
-    let total = 0;
+  const computeWaiver = (ruleIds: string[], rules: any[], baseFee: number = 0): { pct: number; flat: number } => {
+    let pct = 0;
+    let flat = 0;
     ruleIds.forEach(rid => {
       const rule = rules.find(r => r.id === rid);
-      if (rule?.type === 'percentage') total += rule.value;
+      if (rule?.type === 'percentage') pct += Number(rule.value || 0);
+      else if (rule?.type === 'flat') flat += Number(rule.value || 0);
     });
-    return Math.min(Math.round(total), 100);
+    if (flat > 0 && baseFee > 0) {
+      pct += (flat / baseFee) * 100;
+    }
+    return { pct: Math.min(Math.round(pct * 100) / 100, 100), flat };
   };
 
   const handleAssignDiscountLedger = async (ruleId: string) => {
@@ -195,16 +200,43 @@ export default function StudentFeeDetail() {
     const existingIds: string[] = selectedStudent.custom_data?.discount_rule_ids || [];
     if (existingIds.includes(ruleId)) { setShowDiscountAdd(false); return; }
     const updatedIds = [...existingIds, ruleId];
-    const newPct = computeWaiverPct(updatedIds, discountRules);
+    
+    // Resolve class base fee for converting flat discounts
+    let baseFee = 0;
+    if (selectedStudent.class_id) {
+      const { data: fs } = await supabase
+        .from('fee_structures')
+        .select('fee_matrix, amount')
+        .eq('school_id', userRole?.school_id)
+        .eq('class_id', selectedStudent.class_id)
+        .maybeSingle();
+      if (fs?.fee_matrix?.recurrent?.length) {
+        baseFee = fs.fee_matrix.recurrent.reduce((s: number, r: any) => s + (Number(r.amount) || 0), 0);
+      } else if (fs?.amount) {
+        baseFee = Number(fs.amount);
+      }
+    }
+
+    const { pct, flat } = computeWaiver(updatedIds, discountRules, baseFee);
+    const updatedCustomData = {
+      ...selectedStudent.custom_data,
+      discount_rule_ids: updatedIds,
+      discount_amount: flat,
+    };
+
     const { error } = await supabase.from('students').update({
-      custom_data: { ...selectedStudent.custom_data, discount_rule_ids: updatedIds },
-      fee_waiver_percentage: newPct,
+      custom_data: updatedCustomData,
+      fee_waiver_percentage: pct,
     }).eq('id', selectedStudent.id);
     if (!error) {
-      const updated = { ...selectedStudent, custom_data: { ...selectedStudent.custom_data, discount_rule_ids: updatedIds }, fee_waiver_percentage: newPct };
+      const updated = {
+        ...selectedStudent,
+        custom_data: updatedCustomData,
+        fee_waiver_percentage: pct,
+      };
       setSelectedStudent(updated);
-      setWaiver(newPct);
-      setStudents(prev => prev.map(s => s.id === updated.id ? { ...s, fee_waiver_percentage: newPct } : s));
+      setWaiver(pct);
+      setStudents(prev => prev.map(s => s.id === updated.id ? { ...s, fee_waiver_percentage: pct } : s));
     }
     setShowDiscountAdd(false);
   };
@@ -212,16 +244,42 @@ export default function StudentFeeDetail() {
   const handleRemoveDiscountLedger = async (ruleId: string) => {
     if (!selectedStudent) return;
     const updatedIds = (selectedStudent.custom_data?.discount_rule_ids || []).filter((id: string) => id !== ruleId);
-    const newPct = computeWaiverPct(updatedIds, discountRules);
+
+    let baseFee = 0;
+    if (selectedStudent.class_id) {
+      const { data: fs } = await supabase
+        .from('fee_structures')
+        .select('fee_matrix, amount')
+        .eq('school_id', userRole?.school_id)
+        .eq('class_id', selectedStudent.class_id)
+        .maybeSingle();
+      if (fs?.fee_matrix?.recurrent?.length) {
+        baseFee = fs.fee_matrix.recurrent.reduce((s: number, r: any) => s + (Number(r.amount) || 0), 0);
+      } else if (fs?.amount) {
+        baseFee = Number(fs.amount);
+      }
+    }
+
+    const { pct, flat } = computeWaiver(updatedIds, discountRules, baseFee);
+    const updatedCustomData = {
+      ...selectedStudent.custom_data,
+      discount_rule_ids: updatedIds,
+      discount_amount: flat,
+    };
+
     const { error } = await supabase.from('students').update({
-      custom_data: { ...selectedStudent.custom_data, discount_rule_ids: updatedIds },
-      fee_waiver_percentage: newPct,
+      custom_data: updatedCustomData,
+      fee_waiver_percentage: pct,
     }).eq('id', selectedStudent.id);
     if (!error) {
-      const updated = { ...selectedStudent, custom_data: { ...selectedStudent.custom_data, discount_rule_ids: updatedIds }, fee_waiver_percentage: newPct };
+      const updated = {
+        ...selectedStudent,
+        custom_data: updatedCustomData,
+        fee_waiver_percentage: pct,
+      };
       setSelectedStudent(updated);
-      setWaiver(newPct);
-      setStudents(prev => prev.map(s => s.id === updated.id ? { ...s, fee_waiver_percentage: newPct } : s));
+      setWaiver(pct);
+      setStudents(prev => prev.map(s => s.id === updated.id ? { ...s, fee_waiver_percentage: pct } : s));
     }
   };
 
@@ -435,16 +493,19 @@ export default function StudentFeeDetail() {
     const prevInvs = invoices.filter(
       i => i.id !== inv.id &&
            i.month_year < inv.month_year &&
-           ['pending', 'partial', 'overdue'].includes(i.status) &&
+           ['pending', 'partial', 'overdue', 'unpaid'].includes(i.status) &&
            (i.total_amount - (i.paid_amount || 0)) > 0
     );
     const prevFee = prevInvs.reduce((sum, i) => sum + Math.max(0, i.total_amount - (i.paid_amount || 0)), 0);
     const arrearsMonths = Array.from(new Set(prevInvs.map(i => formatMonthShort(i.month_year)).filter(Boolean)));
 
+    const { totalFine } = calculateLateFine(inv, fineRules);
+
     const record: ChallanRecord = {
       id: inv.id,
       invoice_number: inv.invoice_number,
       month_year: inv.month_year,
+      due_date: (inv as any).due_date,
       // Use gross total so challanUtils can correctly subtract discountAmt
       total_amount: grossTotal || inv.total_amount,
       paid_amount: inv.paid_amount || 0,
@@ -453,10 +514,12 @@ export default function StudentFeeDetail() {
       discount_amount: discountAmt,
       previous_fee: prevFee,
       arrears_months: arrearsMonths,
+      fine_amount: totalFine,
+      fine_rules: fineRules,
       student_name: selectedStudent.full_name,
       roll_number: selectedStudent.roll_number,
       class_name: className,
-      issue_date: new Date().toISOString().split('T')[0],
+      issue_date: (inv as any).created_at ? (inv as any).created_at.split('T')[0] : new Date().toISOString().split('T')[0],
     };
     const schoolInfo: SchoolInfo = {
       name: school?.name || 'School',
@@ -479,20 +542,26 @@ export default function StudentFeeDetail() {
       contact_phone: school?.contact_phone || school?.phone || undefined,
       logo_url: school?.logo_url || undefined,
     };
-    const records: ChallanRecord[] = invoices.map(inv => ({
-      id: inv.id,
-      invoice_number: inv.invoice_number,
-      month_year: inv.month_year,
-      total_amount: inv.total_amount,
-      paid_amount: inv.paid_amount || 0,
-      status: inv.status,
-      breakdown: (inv.breakdown || []).map((b: any) => ({ item: b.item, amount: Number(b.amount) })),
-      discount_amount: (inv as any).discount_amount ?? 0,
-      student_name: selectedStudent.full_name,
-      roll_number: selectedStudent.roll_number,
-      class_name: className,
-      issue_date: new Date().toISOString().split('T')[0],
-    }));
+    const records: ChallanRecord[] = invoices.map(inv => {
+      const { totalFine } = calculateLateFine(inv, fineRules);
+      return {
+        id: inv.id,
+        invoice_number: inv.invoice_number,
+        month_year: inv.month_year,
+        due_date: (inv as any).due_date,
+        total_amount: inv.total_amount,
+        paid_amount: inv.paid_amount || 0,
+        status: inv.status,
+        breakdown: (inv.breakdown || []).map((b: any) => ({ item: b.item, amount: Number(b.amount) })),
+        discount_amount: (inv as any).discount_amount ?? 0,
+        fine_amount: totalFine,
+        fine_rules: fineRules,
+        student_name: selectedStudent.full_name,
+        roll_number: selectedStudent.roll_number,
+        class_name: className,
+        issue_date: (inv as any).created_at ? (inv as any).created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+      };
+    });
     downloadChallanPDF(records, schoolInfo, challanConfig);
   };
 

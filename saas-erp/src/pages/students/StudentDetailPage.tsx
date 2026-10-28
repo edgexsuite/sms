@@ -30,6 +30,59 @@ const STATUS_COLOR: Record<string, string> = {
   leave: 'bg-blue-400',
 };
 
+export function getFeeFinancials(f: any, studentObj?: any) {
+  const bdGross = Array.isArray(f.breakdown) && f.breakdown.length > 0
+    ? f.breakdown.reduce((s: number, b: any) => s + (Number(b.amount) || 0), 0)
+    : Number(f.total_amount || 0);
+
+  let discount = Number(f.discount_amount) || 0;
+
+  // Check if breakdown rows contain per-row discount
+  if (discount === 0 && Array.isArray(f.breakdown)) {
+    const rowDisc = f.breakdown.reduce((s: number, b: any) => s + (Number(b.discount) || 0), 0);
+    if (rowDisc > 0) discount = rowDisc;
+  }
+
+  // Check if student has fee_override lower than gross fee
+  if (discount === 0 && studentObj?.fee_override?.recurrent?.length && bdGross > 0) {
+    const overrideTotal = studentObj.fee_override.recurrent.reduce((s: number, r: any) => s + (Number(r.amount) || 0), 0);
+    if (bdGross > overrideTotal) {
+      discount = bdGross - overrideTotal;
+    }
+  }
+
+  // If student has flat discount in custom_data
+  if (discount === 0 && studentObj?.custom_data?.discount_amount && bdGross > 0) {
+    discount = Math.min(bdGross, Number(studentObj.custom_data.discount_amount));
+  }
+
+  // If student has fee_waiver_percentage
+  if (discount === 0 && (Number(studentObj?.fee_waiver_percentage) || 0) > 0 && bdGross > 0) {
+    discount = Math.round((bdGross * Number(studentObj.fee_waiver_percentage)) / 100);
+  }
+
+  let gross = bdGross > 0 ? bdGross : Number(f.total_amount || 0);
+  let net = Number(f.total_amount || 0);
+
+  if (discount > 0) {
+    if (gross > net) {
+      // f.total_amount is already the net amount
+    } else {
+      // f.total_amount was stored as gross or equal to breakdown
+      gross = Math.max(gross, net);
+      net = Math.max(0, gross - discount);
+    }
+  } else {
+    gross = Math.max(gross, net);
+    net = gross;
+  }
+
+  const paid = Number(f.paid_amount) || 0;
+  const balance = Math.max(0, net - paid);
+
+  return { gross, discount, net, paid, balance };
+}
+
 export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -73,8 +126,10 @@ export default function StudentDetailPage() {
   // Edit Fee Record State
   const [editingFee, setEditingFee] = useState<any | null>(null);
   const [editSaving, setEditSaving] = useState(false);
-  const [editForm, setEditForm] = useState({ total_amount: '', paid_amount: '', paid_at: '', month_year: '' });
+  const [editForm, setEditForm] = useState({ total_amount: '', discount_amount: '', paid_amount: '', paid_at: '', month_year: '' });
   const [editBreakdown, setEditBreakdown] = useState<BreakdownRow[]>([]);
+  const [challanConfig, setChallanConfig] = useState<ChallanConfig>(DEFAULT_CHALLAN_CONFIG);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   // Discount / Scholarship State
   const [discountRules, setDiscountRules] = useState<any[]>([]);
@@ -147,6 +202,11 @@ export default function StudentDetailPage() {
       // Fetch discount rules for inline assignment
       supabase.from('form_settings').select('sections_config').eq('school_id', userRole.school_id).eq('form_name', 'discount_rules').maybeSingle()
         .then(({ data }) => setDiscountRules(data?.sections_config?.rules ?? []));
+      // Fetch challan configuration
+      supabase.from('form_settings').select('sections_config').eq('school_id', userRole.school_id).eq('form_name', 'challan_settings').maybeSingle()
+        .then(({ data }) => {
+          if (data?.sections_config) setChallanConfig({ ...DEFAULT_CHALLAN_CONFIG, ...data.sections_config });
+        });
     }
   }, [userRole?.school_id]);
 
@@ -202,8 +262,8 @@ export default function StudentDetailPage() {
           .eq('student_id', stud.id).is('deleted_at', null).order('month_year', { ascending: false });
         setFees(data || []);
 
-        const total = data?.reduce((acc, f) => acc + (f.total_amount || 0), 0) || 0;
-        const paid = data?.reduce((acc, f) => acc + (f.paid_amount || 0), 0) || 0;
+        const total = (data || []).reduce((acc, f) => acc + getFeeFinancials(f, stud).net, 0);
+        const paid = (data || []).reduce((acc, f) => acc + (f.paid_amount || 0), 0);
         setLedgerSummary({ total, paid, balance: Math.max(0, total - paid) });
       }
       if (t === 'attendance') {
@@ -231,13 +291,24 @@ export default function StudentDetailPage() {
   };
 
   // ── Discount helpers ──────────────────────────────────────────────────────
-  const computeWaiverPct = (ruleIds: string[], rules: any[]): number => {
-    let total = 0;
+  const computeWaiver = (ruleIds: string[], rules: any[], baseTuitionFee: number = 0) => {
+    let pctTotal = 0;
+    let flatTotal = 0;
     ruleIds.forEach(rid => {
       const rule = rules.find(r => r.id === rid);
-      if (rule?.type === 'percentage') total += rule.value;
+      if (rule?.type === 'percentage') {
+        pctTotal += Number(rule.value) || 0;
+      } else if (rule?.type === 'flat') {
+        flatTotal += Number(rule.value) || 0;
+      }
     });
-    return Math.min(Math.round(total), 100);
+    if (flatTotal > 0 && baseTuitionFee > 0) {
+      pctTotal += (flatTotal / baseTuitionFee) * 100;
+    }
+    return {
+      pct: Math.min(Math.round(pctTotal), 100),
+      flatTotal,
+    };
   };
 
   const handleAssignDiscount = async (ruleId: string) => {
@@ -246,12 +317,18 @@ export default function StudentDetailPage() {
     if (existingIds.includes(ruleId)) { setShowDiscountPicker(false); return; }
     setAddingDiscount(true);
     const updatedIds = [...existingIds, ruleId];
-    const newPct = computeWaiverPct(updatedIds, discountRules);
+    const classTuition = (student.classes as any)?.amount || 6000;
+    const { pct: newPct, flatTotal } = computeWaiver(updatedIds, discountRules, classTuition);
+    const updatedCustomData = {
+      ...student.custom_data,
+      discount_rule_ids: updatedIds,
+      ...(flatTotal > 0 ? { discount_amount: flatTotal } : {}),
+    };
     const { error } = await supabase.from('students').update({
-      custom_data: { ...student.custom_data, discount_rule_ids: updatedIds },
+      custom_data: updatedCustomData,
       fee_waiver_percentage: newPct,
     }).eq('id', student.id);
-    if (!error) setStudent({ ...student, custom_data: { ...student.custom_data, discount_rule_ids: updatedIds }, fee_waiver_percentage: newPct });
+    if (!error) setStudent({ ...student, custom_data: updatedCustomData, fee_waiver_percentage: newPct });
     setAddingDiscount(false);
     setShowDiscountPicker(false);
   };
@@ -259,12 +336,18 @@ export default function StudentDetailPage() {
   const handleRemoveDiscount = async (ruleId: string) => {
     if (!student) return;
     const updatedIds = (student.custom_data?.discount_rule_ids || []).filter((id: string) => id !== ruleId);
-    const newPct = computeWaiverPct(updatedIds, discountRules);
+    const classTuition = (student.classes as any)?.amount || 6000;
+    const { pct: newPct, flatTotal } = computeWaiver(updatedIds, discountRules, classTuition);
+    const updatedCustomData = {
+      ...student.custom_data,
+      discount_rule_ids: updatedIds,
+      ...(flatTotal > 0 ? { discount_amount: flatTotal } : {}),
+    };
     const { error } = await supabase.from('students').update({
-      custom_data: { ...student.custom_data, discount_rule_ids: updatedIds },
+      custom_data: updatedCustomData,
       fee_waiver_percentage: newPct,
     }).eq('id', student.id);
-    if (!error) setStudent({ ...student, custom_data: { ...student.custom_data, discount_rule_ids: updatedIds }, fee_waiver_percentage: newPct });
+    if (!error) setStudent({ ...student, custom_data: updatedCustomData, fee_waiver_percentage: newPct });
   };
 
   const handlePrint = () => window.print();
@@ -280,7 +363,7 @@ export default function StudentDetailPage() {
   const attTotal = attSummary.present + attSummary.absent + attSummary.late + attSummary.leave;
   const attPct = attTotal > 0 ? Math.round((attSummary.present / attTotal) * 100) : 0;
 
-  const totalDue = fees.reduce((s, f) => s + Math.max(0, (f.total_amount || 0) - (f.paid_amount || 0)), 0);
+  const totalDue = fees.reduce((s, f) => s + getFeeFinancials(f, student).balance, 0);
   const totalPaid = fees.reduce((s, f) => s + (f.paid_amount || 0), 0);
 
   const examMap = new Map<string, {
@@ -484,21 +567,26 @@ export default function StudentDetailPage() {
     setNewEntryPayMode('Cash');
 
     if (type === 'monthly' && student?.class_id) {
-      // Try to preload from fee_structures for this student's class
-      const { data: fs } = await supabase
-        .from('fee_structures')
-        .select('fee_matrix, amount')
-        .eq('school_id', userRole!.school_id)
-        .eq('class_id', student.class_id)
-        .maybeSingle();
-
-      if (fs?.fee_matrix?.recurrent?.length) {
+      if (student?.fee_override?.recurrent?.length) {
         setNewEntryBreakdown(
-          fs.fee_matrix.recurrent.map((r: any) => ({ item: r.item, amount: Number(r.amount) || 0 }))
+          student.fee_override.recurrent.map((r: any) => ({ item: r.item, amount: Number(r.amount) || 0 }))
         );
       } else {
-        // No template → start with one empty row
-        setNewEntryBreakdown([{ item: 'Tuition Fee', amount: 0 }]);
+        const { data: fs } = await supabase
+          .from('fee_structures')
+          .select('fee_matrix, amount')
+          .eq('school_id', userRole!.school_id)
+          .eq('class_id', student.class_id)
+          .maybeSingle();
+
+        if (fs?.fee_matrix?.recurrent?.length) {
+          setNewEntryBreakdown(
+            fs.fee_matrix.recurrent.map((r: any) => ({ item: r.item, amount: Number(r.amount) || 0 }))
+          );
+        } else {
+          // No template → start with one empty row
+          setNewEntryBreakdown([{ item: 'Tuition Fee', amount: 0 }]);
+        }
       }
     } else {
       // One-time: start with one empty row, user picks from onetime suggestions
@@ -569,15 +657,17 @@ export default function StudentDetailPage() {
 
   const openEditFee = (f: any) => {
     setEditingFee(f);
+    const fin = getFeeFinancials(f, student);
     const bd: BreakdownRow[] = Array.isArray(f.breakdown) && f.breakdown.length > 0
       ? f.breakdown.map((b: any) => ({ item: b.item || '', amount: Number(b.amount) || 0 }))
-      : [{ item: 'Tuition Fee', amount: Number(f.total_amount) || 0 }];
+      : [{ item: 'Tuition Fee', amount: fin.gross }];
     setEditBreakdown(bd);
     setEditForm({
-      total_amount: String(f.total_amount),
-      paid_amount: String(f.paid_amount),
+      total_amount: String(fin.net),
+      discount_amount: String(fin.discount || 0),
+      paid_amount: String(f.paid_amount || 0),
       paid_at: f.paid_at ? f.paid_at.split('T')[0] : '',
-      month_year: f.month_year.slice(0, 7)
+      month_year: f.month_year ? f.month_year.slice(0, 7) : new Date().toISOString().slice(0, 7)
     });
   };
 
@@ -585,15 +675,18 @@ export default function StudentDetailPage() {
     if (!editingFee) return;
     setEditSaving(true);
     try {
-      const derivedTotal = editBreakdown.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+      const derivedGross = editBreakdown.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+      const discAmt = parseFloat(editForm.discount_amount) || 0;
+      const netTotal = Math.max(0, derivedGross - discAmt);
       const paidAmt = parseFloat(editForm.paid_amount) || 0;
       const { error } = await supabase.from('fee_records').update({
-        total_amount: derivedTotal,
+        total_amount: netTotal,
+        discount_amount: discAmt,
         breakdown: editBreakdown,
         paid_amount: paidAmt,
         paid_at: editForm.paid_at ? editForm.paid_at + 'T12:00:00Z' : null,
         month_year: editForm.month_year + '-01',
-        status: paidAmt >= derivedTotal ? 'paid' : (paidAmt > 0 ? 'partial' : 'pending')
+        status: paidAmt >= netTotal && netTotal > 0 ? 'paid' : (paidAmt > 0 ? 'partial' : 'pending')
       }).eq('id', editingFee.id);
 
       if (error) throw error;
@@ -603,6 +696,79 @@ export default function StudentDetailPage() {
       alert(err.message);
     } finally {
       setEditSaving(false);
+    }
+  };
+
+  const handlePrintInvoiceChallan = async (inv: any) => {
+    try {
+      setActionLoadingId(inv.id);
+      const rawMonth = inv.month_year || new Date().toISOString().slice(0, 10);
+      const targetMonthDate = rawMonth.length === 7 ? `${rawMonth}-01` : rawMonth.slice(0, 10);
+      const targetSchoolId = inv.school_id || userRole?.school_id;
+
+      let query = supabase
+        .from('fee_records')
+        .select('total_amount, paid_amount, month_year, discount_amount')
+        .eq('student_id', student.id)
+        .in('status', ['pending', 'partial', 'overdue', 'unpaid'])
+        .is('deleted_at', null)
+        .neq('id', inv.id)
+        .lt('month_year', targetMonthDate)
+        .order('month_year', { ascending: true });
+
+      if (targetSchoolId) query = query.eq('school_id', targetSchoolId);
+
+      const { data: prevFees, error: pfErr } = await query;
+      if (pfErr) console.warn('Could not fetch previous fees:', pfErr.message);
+
+      const unpaidRows = (prevFees || []).filter(
+        r => Math.max(0, (r.total_amount || 0) - (r.paid_amount || 0)) > 0
+      );
+      const previousFee = unpaidRows.reduce(
+        (sum: number, r: any) => sum + Math.max(0, (r.total_amount || 0) - (r.paid_amount || 0)), 0
+      );
+      const arrearsMonths = Array.from(new Set(unpaidRows.map(r => formatMonthShort(r.month_year)).filter(Boolean)));
+
+      const fin = getFeeFinancials(inv, student);
+      const { totalFine } = calculateLateFine(inv, fineRules);
+
+      const breakdownItems = Array.isArray(inv.breakdown) && inv.breakdown.length > 0
+        ? inv.breakdown.map((b: any) => ({ item: b.item, amount: Number(b.amount) }))
+        : [{ item: 'Monthly Tuition Fee', amount: fin.gross }];
+
+      const cls = student.classes as any;
+      const record: ChallanRecord = {
+        id: inv.id,
+        invoice_number: inv.invoice_number,
+        month_year: inv.month_year,
+        due_date: inv.due_date,
+        total_amount: fin.gross,
+        paid_amount: inv.paid_amount || 0,
+        status: inv.status,
+        breakdown: breakdownItems,
+        discount_amount: fin.discount,
+        previous_fee: previousFee,
+        arrears_months: arrearsMonths,
+        fine_amount: totalFine,
+        fine_rules: fineRules,
+        student_name: student.full_name,
+        roll_number: student.roll_number,
+        class_name: cls ? `${cls.name}${cls.section ? ' - ' + cls.section : ''}` : '',
+        issue_date: inv.created_at ? inv.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+      };
+
+      const schoolInfo: SchoolInfo = {
+        name: school?.name || 'School',
+        address: school?.address,
+        contact_phone: school?.contact_phone,
+        logo_url: school?.logo_url,
+      };
+
+      await downloadChallanPDF([record], schoolInfo, challanConfig, { autoPrint: true, download: false });
+    } catch (err: any) {
+      alert(err.message || 'Failed to print challan.');
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -1491,24 +1657,42 @@ export default function StudentDetailPage() {
                     <table className="w-full text-sm">
                       <thead className="bg-slate-50 border-b border-slate-100">
                         <tr>
-                          {['Month', 'Invoice #', 'Total', 'Paid', 'Balance', 'Status', 'Actions'].map(h => (
-                            <th key={h} className="text-left px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{h}</th>
+                          {['Month', 'Invoice #', 'Total Fee', 'Discount', 'Net Due', 'Paid', 'Balance', 'Status', 'Actions'].map(h => (
+                            <th key={h} className="text-left px-5 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50">
                         {fees.map(f => {
-                          const bal = Math.max(0, (f.total_amount || 0) - (f.paid_amount || 0));
+                          const fin = getFeeFinancials(f, student);
                           return (
                             <tr key={f.id} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="px-6 py-4 font-black text-slate-800">
+                              <td className="px-5 py-4 font-black text-slate-800">
                                 {f.month_year ? formatDate(f.month_year) : '—'}
                               </td>
-                              <td className="px-6 py-4 font-mono text-xs text-slate-400 uppercase">{f.invoice_number || '—'}</td>
-                              <td className="px-6 py-4 font-bold text-slate-900">{(f.total_amount || 0).toLocaleString()}</td>
-                              <td className="px-6 py-4 font-bold text-emerald-600">{(f.paid_amount || 0).toLocaleString()}</td>
-                              <td className="px-6 py-4 font-black text-rose-600">{bal > 0 ? bal.toLocaleString() : '—'}</td>
-                              <td className="px-6 py-4">
+                              <td className="px-5 py-4 font-mono text-xs text-slate-400 uppercase">{f.invoice_number || '—'}</td>
+                              <td className="px-5 py-4 font-bold text-slate-900">
+                                Rs. {fin.gross.toLocaleString()}
+                              </td>
+                              <td className="px-5 py-4">
+                                {fin.discount > 0 ? (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-50 text-amber-700 border border-amber-200">
+                                    − Rs. {fin.discount.toLocaleString()}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-300 font-bold">—</span>
+                                )}
+                              </td>
+                              <td className="px-5 py-4 font-black text-indigo-700">
+                                Rs. {fin.net.toLocaleString()}
+                              </td>
+                              <td className="px-5 py-4 font-bold text-emerald-600">
+                                {fin.paid > 0 ? `Rs. ${fin.paid.toLocaleString()}` : '0'}
+                              </td>
+                              <td className="px-5 py-4 font-black text-rose-600">
+                                {fin.balance > 0 ? `Rs. ${fin.balance.toLocaleString()}` : '—'}
+                              </td>
+                              <td className="px-5 py-4">
                                 <Badge variant={
                                   f.status === 'paid' ? 'success' :
                                   f.status === 'partial' ? 'warning' : 'danger'
@@ -1516,9 +1700,9 @@ export default function StudentDetailPage() {
                                   {f.status}
                                 </Badge>
                               </td>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-2">
-                                  {!isReadOnly && f.status !== 'paid' && bal > 0 && (
+                              <td className="px-5 py-4">
+                                <div className="flex items-center gap-1.5">
+                                  {!isReadOnly && f.status !== 'paid' && fin.balance > 0 && (
                                     <Btn 
                                       variant="success" 
                                       size="xs" 
@@ -1526,7 +1710,7 @@ export default function StudentDetailPage() {
                                         setCollectingFee(f);
                                         setWaiveFine(false);
                                         const { totalFine: ft } = calculateLateFine(f, fineRules);
-                                        setCollectAmount(String(bal + ft));
+                                        setCollectAmount(String(fin.balance + ft));
                                         setCollectMode('Cash');
                                       }}
                                       icon={Wallet}
@@ -1534,6 +1718,18 @@ export default function StudentDetailPage() {
                                       Collect
                                     </Btn>
                                   )}
+                                  <button
+                                    onClick={() => handlePrintInvoiceChallan(f)}
+                                    disabled={actionLoadingId === f.id}
+                                    title="Print Challan (with Breakdown & Arrears)"
+                                    className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all disabled:opacity-50"
+                                  >
+                                    {actionLoadingId === f.id ? (
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600" />
+                                    ) : (
+                                      <Printer className="w-3.5 h-3.5" />
+                                    )}
+                                  </button>
                                   {!isReadOnly && (
                                     <Btn 
                                       variant="ghost" 
@@ -1920,6 +2116,30 @@ export default function StudentDetailPage() {
                   schoolId={userRole?.school_id}
                   itemType="all"
                 />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Discount Concession (Rs)</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={editForm.discount_amount}
+                    onChange={e => setEditForm({ ...editForm, discount_amount: e.target.value })}
+                    placeholder="0"
+                    className="w-full px-3 py-2 border rounded-xl font-mono text-sm font-bold text-amber-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Net Payable (Rs)</label>
+                  <div className="w-full px-3 py-2 border rounded-xl font-mono text-sm font-black text-indigo-700 bg-slate-50 flex items-center">
+                    Rs. {Math.max(
+                      0,
+                      editBreakdown.reduce((s, r) => s + (Number(r.amount) || 0), 0) -
+                        (parseFloat(editForm.discount_amount) || 0)
+                    ).toLocaleString()}
+                  </div>
+                </div>
               </div>
               <div>
                 <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Amount Paid (Rs)</label>
