@@ -14,7 +14,7 @@ import FeeBreakdownEditor, { type BreakdownRow } from '../../components/FeeBreak
 import HelpBanner from '../../components/HelpBanner';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
-import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, ChallanConfig, ChallanRecord, SchoolInfo } from '../../lib/challanUtils';
+import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, ChallanConfig, ChallanRecord, SchoolInfo, formatMonthShort } from '../../lib/challanUtils';
 import * as templatesLib from '../../lib/whatsappTemplates';
 import { formatDate } from '../../lib/utils';
 import { PageHeader, Card, Btn, Badge, Select, Input, EmptyState, StatCard } from '../../components/ui';
@@ -86,6 +86,9 @@ export default function MonthlyFeeInvoices() {
   const [stuResults, setStuResults] = useState<any[]>([]);
   const [wizardIncludeAdmission, setWizardIncludeAdmission] = useState(false);
   const [wizardIncludeArrears, setWizardIncludeArrears] = useState(true);
+  const [wizardCustomCharges, setWizardCustomCharges] = useState<{ item: string; amount: number }[]>([]);
+  const [newCustomItemName, setNewCustomItemName] = useState('');
+  const [newCustomItemAmount, setNewCustomItemAmount] = useState('');
   const [wizardSingleBreakdown, setWizardSingleBreakdown] = useState<any[]>([]);
   const [wizardSingleDiscount, setWizardSingleDiscount] = useState<number>(0);
   const [wizardGenerating, setWizardGenerating] = useState(false);
@@ -415,6 +418,16 @@ export default function MonthlyFeeInvoices() {
           });
         }
 
+        // Include monthly custom charges (e.g. AC Charges, Lab Fee, Heating)
+        if (wizardCustomCharges.length > 0) {
+          wizardCustomCharges.forEach((c) => {
+            if (c.amount > 0 && c.item.trim()) {
+              breakdown.push({ item: c.item.trim(), amount: Number(c.amount) });
+              grossTotal += Number(c.amount);
+            }
+          });
+        }
+
         const recurringGross = matrix?.recurrent?.length
           ? matrix.recurrent.reduce((s: number, r: any) => s + Number(r.amount), 0)
           : (structure?.amount ? Number(structure.amount) : 0);
@@ -476,17 +489,22 @@ export default function MonthlyFeeInvoices() {
   const buildRecord = async (inv: any): Promise<ChallanRecord> => {
     const { data: prevFees } = await supabase
       .from('fee_records')
-      .select('total_amount, paid_amount')
+      .select('total_amount, paid_amount, month_year')
       .eq('school_id', userRole?.school_id)
       .eq('student_id', inv.student_id)
       .in('status', ['pending', 'partial', 'overdue'])
       .is('deleted_at', null)
       .neq('id', inv.id)
-      .lt('month_year', inv.month_year);
+      .lt('month_year', inv.month_year)
+      .order('month_year', { ascending: true });
 
-    const previousFee = (prevFees || []).reduce(
+    const unpaidRows = (prevFees || []).filter(
+      r => Math.max(0, (r.total_amount || 0) - (r.paid_amount || 0)) > 0
+    );
+    const previousFee = unpaidRows.reduce(
       (sum: number, r: any) => sum + Math.max(0, (r.total_amount || 0) - (r.paid_amount || 0)), 0
     );
+    const arrearsMonths = Array.from(new Set(unpaidRows.map(r => formatMonthShort(r.month_year)).filter(Boolean)));
 
     const classId = inv.students?.class_id;
     let discountAmount = inv.discount_amount ?? 0;
@@ -555,6 +573,7 @@ export default function MonthlyFeeInvoices() {
       family_number: inv.students?.parents?.family_number || '',
       issue_date: inv.created_at,
       previous_fee: previousFee,
+      arrears_months: arrearsMonths,
       fine_amount: fineAmount,
       discount_amount: discountAmount,
       fine_rules: fineRules,
@@ -1824,6 +1843,80 @@ export default function MonthlyFeeInvoices() {
                               />
                             </label>
                           </div>
+                        </div>
+
+                        {/* Monthly Custom Charges (e.g. AC Charges) */}
+                        <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-xs font-black text-slate-900 uppercase">Monthly Custom Charges / Add-ons</p>
+                              <p className="text-[10px] text-slate-500 font-medium">
+                                Add extra charges for this month (e.g. AC Charges, Generator Fee, Lab Fee) to all generated challans.
+                              </p>
+                            </div>
+                            {wizardCustomCharges.length > 0 && (
+                              <span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                                {wizardCustomCharges.length} Added
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Quick entry row */}
+                          <div className="flex items-center gap-2 pt-1">
+                            <input
+                              type="text"
+                              placeholder="Charge Name (e.g. AC Charges)"
+                              value={newCustomItemName}
+                              onChange={e => setNewCustomItemName(e.target.value)}
+                              className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-indigo-600"
+                            />
+                            <div className="w-28 relative">
+                              <span className="absolute left-2.5 top-2 text-[10px] font-bold text-slate-400">Rs.</span>
+                              <input
+                                type="number"
+                                placeholder="Amount"
+                                value={newCustomItemAmount}
+                                onChange={e => setNewCustomItemAmount(e.target.value)}
+                                className="w-full pl-8 pr-2 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-indigo-600"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!newCustomItemName.trim() || !newCustomItemAmount) return;
+                                setWizardCustomCharges(prev => [
+                                  ...prev,
+                                  { item: newCustomItemName.trim(), amount: parseFloat(newCustomItemAmount) || 0 }
+                                ]);
+                                setNewCustomItemName('');
+                                setNewCustomItemAmount('');
+                              }}
+                              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shrink-0 cursor-pointer"
+                            >
+                              + Add
+                            </button>
+                          </div>
+
+                          {/* List of added custom charges */}
+                          {wizardCustomCharges.length > 0 && (
+                            <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                              {wizardCustomCharges.map((charge, idx) => (
+                                <div key={idx} className="flex items-center justify-between bg-white px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
+                                  <span className="font-bold text-slate-800">{charge.item}</span>
+                                  <div className="flex items-center gap-3">
+                                    <span className="font-black text-indigo-600">Rs. {charge.amount.toLocaleString()}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setWizardCustomCharges(prev => prev.filter((_, i) => i !== idx))}
+                                      className="text-slate-400 hover:text-red-500 transition font-bold"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
                         <div className="p-4 bg-indigo-50/60 border border-indigo-100 rounded-2xl flex items-start gap-3">

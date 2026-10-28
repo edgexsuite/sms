@@ -5,11 +5,17 @@ import { formatDate } from '../lib/utils';
 interface ExperienceCertificateProps {
   staff: any;
   schoolInfo: any;
+  signatory?: {
+    name: string;
+    designation: string;
+    signature_url?: string;
+    stamp_url?: string;
+  } | null;
 }
 
-export default function ExperienceCertificate({ staff, schoolInfo }: ExperienceCertificateProps) {
+export default function ExperienceCertificate({ staff, schoolInfo, signatory }: ExperienceCertificateProps) {
   if (!staff) return null;
-  const school = schoolInfo || { name: 'The Edge School' };
+  const school = schoolInfo || { name: 'The School' };
 
   const joinDate = staff.joining_date ? new Date(staff.joining_date) : new Date();
   const tenureYears = Math.floor((new Date().getTime() - joinDate.getTime()) / (1000 * 60 * 60 * 24 * 365));
@@ -109,10 +115,19 @@ export default function ExperienceCertificate({ staff, schoolInfo }: ExperienceC
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] font-display">Authenticity Node</p>
         </div>
         
-        <div className="text-center">
-            <div className="w-56 h-px bg-slate-900 mb-4 opacity-30"></div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] font-display">Director / Principal</p>
-            <p className="text-xs font-bold text-slate-800 uppercase mt-0.5">{schoolInfo?.director_name || 'AFTAB AHMAD KHAKWANI'}</p>
+        <div className="text-center min-w-[220px]">
+            <div className="h-10 flex items-end justify-center mb-1">
+              {signatory?.signature_url ? (
+                <img src={signatory.signature_url} alt="Signature" className="h-9 max-w-[140px] object-contain" />
+              ) : null}
+            </div>
+            <div className="w-56 h-px bg-slate-900 mb-2 opacity-30"></div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] font-display">
+              {signatory?.designation || 'Director / Principal'}
+            </p>
+            <p className="text-xs font-bold text-slate-800 uppercase mt-0.5">
+              {signatory?.name || schoolInfo?.director_name || schoolInfo?.signatory_name || 'Authorized Signatory'}
+            </p>
         </div>
       </div>
 

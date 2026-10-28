@@ -19,6 +19,7 @@ import * as templatesLib from '../lib/whatsappTemplates';
 import { processStaffPhoto } from '../lib/uploadUtils';
 import { logActivity } from '../lib/auditLog';
 import { StaffCategory, getStaffCategory, STAFF_CATEGORIES, ROLE_GROUPS, STANDARD_ROLES } from '../lib/staffUtils';
+import { fetchSchoolSignatories, getDefaultSignatory, AuthorizedSignatory } from '../lib/signatoryUtils';
 
 const ROLES = STANDARD_ROLES;
 const DEPARTMENTS = [
@@ -82,6 +83,8 @@ export default function Staff() {
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: '', name: '' });
   const [schoolInfo, setSchoolInfo] = useState<any>(null);
   const [printDoc, setPrintDoc] = useState<{ type: 'joining' | 'experience', staff: any } | null>(null);
+  const [signatories, setSignatories] = useState<AuthorizedSignatory[]>([]);
+  const [selectedSignatoryId, setSelectedSignatoryId] = useState<string>('');
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [pdfSuccessMsg, setPdfSuccessMsg] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -114,6 +117,10 @@ export default function Staff() {
   const fetchSchoolInfo = async () => {
     const { data } = await supabase.from('schools').select('*').eq('id', userRole?.school_id).single();
     setSchoolInfo(data);
+    if (userRole?.school_id) {
+      const sigs = await fetchSchoolSignatories(userRole.school_id);
+      setSignatories(sigs);
+    }
   };
 
   const fetchStaff = async () => {
@@ -434,6 +441,9 @@ export default function Staff() {
   };
 
   const handlePrint = (type: 'joining' | 'experience', s: any, autoPrint = false) => {
+    const docType = type === 'joining' ? 'appointment_letter' : 'experience_certificate';
+    const def = getDefaultSignatory(signatories, docType);
+    setSelectedSignatoryId(def?.id || '');
     setPrintDoc({ type, staff: s });
     if (autoPrint) {
       setTimeout(() => {
@@ -630,7 +640,25 @@ export default function Staff() {
               )}
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-2.5 mt-2 sm:mt-0">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 mt-2 sm:mt-0">
+              {signatories.length > 0 && (
+                <div className="flex items-center gap-1.5 text-xs text-white bg-white/10 px-2.5 py-1 rounded-xl border border-white/15">
+                  <span className="text-slate-300 font-bold hidden sm:inline">Signatory:</span>
+                  <select
+                    value={selectedSignatoryId}
+                    onChange={e => setSelectedSignatoryId(e.target.value)}
+                    className="bg-transparent text-white font-bold text-xs outline-none cursor-pointer"
+                  >
+                    <option value="" className="text-slate-800">Default Signatory</option>
+                    {signatories.map(s => (
+                      <option key={s.id} value={s.id} className="text-slate-800">
+                        {s.name} ({s.designation})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <button
                 type="button"
                 onClick={() => handleTriggerPrint(printDoc.staff?.full_name || 'Staff')}
@@ -665,9 +693,17 @@ export default function Staff() {
           {/* Printable Document Container */}
           <div className="w-full flex justify-center pb-12 print:p-0">
             {printDoc.type === 'joining' ? (
-              <JoiningLetter staff={printDoc.staff} schoolInfo={schoolInfo} />
+              <JoiningLetter
+                staff={printDoc.staff}
+                schoolInfo={schoolInfo}
+                signatory={signatories.find(s => s.id === selectedSignatoryId) || null}
+              />
             ) : (
-              <ExperienceCertificate staff={printDoc.staff} schoolInfo={schoolInfo} />
+              <ExperienceCertificate
+                staff={printDoc.staff}
+                schoolInfo={schoolInfo}
+                signatory={signatories.find(s => s.id === selectedSignatoryId) || null}
+              />
             )}
           </div>
         </div>,

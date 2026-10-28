@@ -10,14 +10,21 @@ import {
 interface JoiningLetterProps {
   staff: any;
   schoolInfo: any;
+  signatory?: {
+    name: string;
+    designation: string;
+    signature_url?: string;
+    stamp_url?: string;
+  } | null;
 }
 
-export default function JoiningLetter({ staff, schoolInfo }: JoiningLetterProps) {
+export default function JoiningLetter({ staff, schoolInfo, signatory }: JoiningLetterProps) {
   if (!staff) return null;
 
   const school = schoolInfo || {};
-  const schoolName = school?.name || 'The Edge School';
-  const directorName = school?.director_name || 'AFTAB AHMAD KHAKWANI';
+  const schoolName = school?.name || 'The School';
+  const directorName = signatory?.name || school?.director_name || school?.signatory_name || 'Authorized Signatory';
+  const designation = signatory?.designation || 'Director';
   const gender = staff?.gender || '';
   const honorific = gender.toLowerCase() === 'female' ? 'Ms./Mrs.' : 'Mr.';
   const effectiveDate = staff.joining_date ? formatDate(staff.joining_date) : formatDate(new Date());
@@ -365,15 +372,21 @@ export default function JoiningLetter({ staff, schoolInfo }: JoiningLetterProps)
             {/* Right: Director / Management Authorization */}
             <div className="bg-indigo-50/40 p-2.5 rounded-lg border border-indigo-200 text-xs space-y-1.5">
               <p className="font-black text-indigo-950 uppercase tracking-wider text-[10px] border-b border-indigo-200 pb-0.5">
-                Director / Issuing Authority
+                {designation} / Issuing Authority
               </p>
               <p className="text-[9.5px] text-indigo-900 font-medium">
                 For and on behalf of <span className="font-bold">{schoolName}</span>:
               </p>
               <div className="pt-1 space-y-1 text-slate-800 text-[9.5px]">
-                <p><span className="font-bold">Signature:</span> __________________________________</p>
+                <div className="h-9 flex items-end">
+                  {signatory?.signature_url ? (
+                    <img src={signatory.signature_url} alt="Signature" className="h-8 max-w-[120px] object-contain" />
+                  ) : (
+                    <p><span className="font-bold">Signature:</span> __________________________________</p>
+                  )}
+                </div>
                 <p><span className="font-bold">Name:</span> <span className="font-semibold text-indigo-950">{directorName}</span></p>
-                <p><span className="font-bold">Designation:</span> <span className="font-semibold text-slate-900">Director</span></p>
+                <p><span className="font-bold">Designation:</span> <span className="font-semibold text-slate-900">{designation}</span></p>
                 <p><span className="font-bold">Date:</span> <span className="font-semibold">{formatDate(new Date())}</span></p>
               </div>
             </div>

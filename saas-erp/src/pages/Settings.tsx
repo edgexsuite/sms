@@ -2,17 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme, ThemeName } from '../contexts/ThemeContext';
-import { Building2, CreditCard, Database, ShieldCheck, Save, Download, Upload, Play, Palette, Briefcase, Plus, Clock, Calendar, Trash2, X, ClipboardList, BarChart2, LayoutGrid, CheckCircle2 } from 'lucide-react';
+import { Building2, CreditCard, Database, ShieldCheck, Save, Download, Upload, Play, Palette, Briefcase, Plus, Clock, Calendar, Trash2, X, ClipboardList, BarChart2, LayoutGrid, CheckCircle2, FileSignature } from 'lucide-react';
 import { seedDemoData } from '../lib/seedData';
 import { uploadFile } from '../lib/uploadUtils';
 import { formatDate } from '../lib/utils';
 import { logActivity } from '../lib/auditLog';
 import { DEFAULT_APPOINTMENT_TERMS } from '../lib/appointmentLetterTemplate';
+import AuthorizedSignatories from './settings/AuthorizedSignatories';
 
 export default function Settings() {
   const { userRole } = useAuth();
   const { theme, setTheme } = useTheme();
-  const [activeTab, setActiveTab] = useState<'school' | 'fees' | 'data' | 'plan' | 'recruitment' | 'attendance' | 'appearance' | 'diary'>('school');
+  const [activeTab, setActiveTab] = useState<'school' | 'fees' | 'data' | 'plan' | 'recruitment' | 'attendance' | 'appearance' | 'diary' | 'signatories'>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    if (tabParam === 'signatories') return 'signatories';
+    return 'school';
+  });
   const [densityMode, setDensityMode] = useState<'comfortable' | 'compact'>(
     () => (localStorage.getItem('density') as any) || 'comfortable'
   );
@@ -439,6 +445,15 @@ export default function Settings() {
               <ShieldCheck className="w-5 h-5" />
               Recruitment
             </button>
+            <button
+              onClick={() => setActiveTab('signatories')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'signatories' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <FileSignature className="w-5 h-5" />
+              Signatories
+            </button>
             </>
           )}
           
@@ -692,6 +707,12 @@ export default function Settings() {
                   </button>
                 </div>
               </form>
+            </div>
+          )}
+
+          {activeTab === 'signatories' && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+              <AuthorizedSignatories />
             </div>
           )}
 

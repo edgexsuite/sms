@@ -14,6 +14,7 @@ import ExperienceCertificate from '../../components/ExperienceCertificate';
 import { motion, AnimatePresence } from 'motion/react';
 import * as templatesLib from '../../lib/whatsappTemplates';
 import { getStaffCategory, STAFF_CATEGORIES } from '../../lib/staffUtils';
+import { fetchSchoolSignatories, getDefaultSignatory, AuthorizedSignatory } from '../../lib/signatoryUtils';
 
 export default function StaffDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -23,6 +24,8 @@ export default function StaffDetailPage() {
   const [schoolInfo, setSchoolInfo] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [printDoc, setPrintDoc] = useState<'joining' | 'experience' | null>(null);
+  const [signatories, setSignatories] = useState<AuthorizedSignatory[]>([]);
+  const [selectedSignatoryId, setSelectedSignatoryId] = useState<string>('');
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [pdfSuccessMsg, setPdfSuccessMsg] = useState<string | null>(null);
 
@@ -104,6 +107,8 @@ export default function StaffDetailPage() {
     if (!userRole?.school_id) return;
     const { data } = await supabase.from('schools').select('*').eq('id', userRole.school_id).single();
     if (data) setSchoolInfo(data);
+    const sigs = await fetchSchoolSignatories(userRole.school_id);
+    setSignatories(sigs);
   };
 
   const handlePrintProfile = () => {
@@ -214,6 +219,9 @@ export default function StaffDetailPage() {
   };
 
   const handlePrint = (type: 'joining' | 'experience') => {
+    const docType = type === 'joining' ? 'appointment_letter' : 'experience_certificate';
+    const def = getDefaultSignatory(signatories, docType);
+    setSelectedSignatoryId(def?.id || '');
     setPrintDoc(type);
   };
 
@@ -323,7 +331,25 @@ export default function StaffDetailPage() {
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {signatories.length > 0 && (
+                <div className="flex items-center gap-1.5 text-xs text-white bg-white/10 px-2.5 py-1 rounded-xl border border-white/15">
+                  <span className="text-slate-300 font-bold hidden sm:inline">Signatory:</span>
+                  <select
+                    value={selectedSignatoryId}
+                    onChange={e => setSelectedSignatoryId(e.target.value)}
+                    className="bg-transparent text-white font-bold text-xs outline-none cursor-pointer"
+                  >
+                    <option value="" className="text-slate-800">Default Signatory</option>
+                    {signatories.map(s => (
+                      <option key={s.id} value={s.id} className="text-slate-800">
+                        {s.name} ({s.designation})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <button
                 type="button"
                 onClick={() => handleTriggerPrint(staff?.full_name || 'Staff')}
@@ -362,9 +388,17 @@ export default function StaffDetailPage() {
           {/* Printable Document Container */}
           <div className="w-full flex justify-center pb-12 print:p-0">
             {printDoc === 'joining' ? (
-              <JoiningLetter staff={staff} schoolInfo={schoolInfo} />
+              <JoiningLetter
+                staff={staff}
+                schoolInfo={schoolInfo}
+                signatory={signatories.find(s => s.id === selectedSignatoryId) || null}
+              />
             ) : (
-              <ExperienceCertificate staff={staff} schoolInfo={schoolInfo} />
+              <ExperienceCertificate
+                staff={staff}
+                schoolInfo={schoolInfo}
+                signatory={signatories.find(s => s.id === selectedSignatoryId) || null}
+              />
             )}
           </div>
         </div>,

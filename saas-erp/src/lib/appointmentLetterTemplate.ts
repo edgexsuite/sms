@@ -92,8 +92,8 @@ export function interpolateAppointmentTemplate(
   const salaryWords = salaryNum > 0 ? numberToWords(salaryNum) : 'Fifteen Thousand';
   const joiningDateFormatted = staff?.joining_date ? formatDate(staff.joining_date) : formatDate(new Date());
   const sessionEnd = getAppointmentSessionEnd(staff?.joining_date);
-  const schoolName = schoolInfo?.name || 'The Edge School';
-  const directorName = schoolInfo?.director_name || 'AFTAB AHMAD KHAKWANI';
+  const schoolName = schoolInfo?.name || 'The School';
+  const directorName = schoolInfo?.director_name || schoolInfo?.signatory_name || 'Authorized Signatory';
   const cnic = staff?.cnic || '_____________________';
   const contact = staff?.mobile_number || staff?.whatsapp_number || '_____________________';
   const staffName = staff?.full_name || '_____________________';

@@ -14,7 +14,7 @@ import { processStudentPhoto, uploadFile } from '../../lib/uploadUtils';
 import { PageHeader, Card, Btn, Badge, Input, Select, EmptyState } from '../../components/ui';
 import StudentFeeModal from '../../components/StudentFeeModal';
 import StudentFeeOverrideModal from '../../components/StudentFeeOverrideModal';
-import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, type ChallanRecord, type SchoolInfo } from '../../lib/challanUtils';
+import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, type ChallanRecord, type SchoolInfo, formatMonthShort } from '../../lib/challanUtils';
 import FeeBreakdownEditor, { type BreakdownRow } from '../../components/FeeBreakdownEditor';
 import { calculateLateFine, getFineRules, type FineRule } from '../../lib/fineUtils';
 import { generateInvoiceNumber, checkDuplicateInvoice, scaleBreakdown } from '../../lib/feeUtils';
@@ -419,16 +419,22 @@ export default function StudentDetailPage() {
       // Query previous unpaid months for challan previous-fee display
       const { data: prevFees } = await supabase
         .from('fee_records')
-        .select('total_amount, paid_amount')
+        .select('total_amount, paid_amount, month_year')
         .eq('school_id', userRole!.school_id)
         .eq('student_id', student.id)
         .in('status', ['pending', 'partial', 'overdue'])
         .is('deleted_at', null)
         .neq('id', collectingFee.id)
-        .lt('month_year', collectingFee.month_year);
-      const previousFee = (prevFees || []).reduce(
+        .lt('month_year', collectingFee.month_year)
+        .order('month_year', { ascending: true });
+
+      const unpaidRows = (prevFees || []).filter(
+        r => Math.max(0, (r.total_amount || 0) - (r.paid_amount || 0)) > 0
+      );
+      const previousFee = unpaidRows.reduce(
         (sum: number, r: any) => sum + Math.max(0, (r.total_amount || 0) - (r.paid_amount || 0)), 0
       );
+      const arrearsMonths = Array.from(new Set(unpaidRows.map(r => formatMonthShort(r.month_year)).filter(Boolean)));
 
       // Print challan receipt
       const cls = student.classes as any;
@@ -446,6 +452,7 @@ export default function StudentDetailPage() {
         class_name: cls ? `${cls.name}${cls.section ? ' - ' + cls.section : ''}` : '',
         issue_date: collectDate,
         previous_fee: previousFee,
+        arrears_months: arrearsMonths,
         discount_amount: collectingFee.discount_amount ?? 0,
       };
       const schoolInfo: SchoolInfo = {

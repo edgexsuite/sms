@@ -19,6 +19,7 @@ import {
   type ChallanConfig,
   type ChallanRecord,
   type SchoolInfo,
+  formatMonthShort,
 } from '../../lib/challanUtils';
 import FeeBreakdownEditor, { type BreakdownRow } from '../../components/FeeBreakdownEditor';
 import HelpBanner from '../../components/HelpBanner';
@@ -58,6 +59,9 @@ export default function StudentFeeDetail() {
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
   const [paymentMode, setPaymentMode] = useState('Cash');
   const [waiveFine, setWaiveFine] = useState(false);
+  const [collectionDiscount, setCollectionDiscount] = useState<number>(0);
+  const [discountAuthority, setDiscountAuthority] = useState<string>('Principal');
+  const [discountReason, setDiscountReason] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Edit State
@@ -238,12 +242,13 @@ export default function StudentFeeDetail() {
   // ── Process Individual Invoice Payment ─────────────────────────────────────
 
   const handleProcessPayment = async () => {
-    if (!payingInvoice || paymentAmount <= 0) return;
+    if (!payingInvoice || (paymentAmount <= 0 && collectionDiscount <= 0)) return;
     setIsProcessing(true);
 
     const balanceBefore = payingInvoice.total_amount - (payingInvoice.paid_amount || 0);
-    if (paymentAmount > balanceBefore + 10) { // small buffer for rounding
-      alert(`Amount cannot exceed the balance.`);
+    const effectiveBalance = Math.max(0, balanceBefore - collectionDiscount);
+    if (paymentAmount > effectiveBalance + 10) { // small buffer for rounding
+      alert(`Amount cannot exceed the discounted balance.`);
       setIsProcessing(false);
       return;
     }
@@ -258,19 +263,27 @@ export default function StudentFeeDetail() {
         if (totalFine > 0) {
           finalBreakdown.push({ item: `Late Fine (${appliedRules})`, amount: totalFine });
           finalTotal += totalFine;
-
-          await supabase.from('fee_records').update({
-            total_amount: finalTotal,
-            breakdown: finalBreakdown
-          }).eq('id', payingInvoice.id);
         }
+      }
+
+      // Handle Collection Discretionary Discount (Principal / Director)
+      if (collectionDiscount > 0) {
+        finalTotal = Math.max(0, finalTotal - collectionDiscount);
+        finalBreakdown.push({
+          item: `Discretionary Discount (Approved by ${discountAuthority}${discountReason ? ': ' + discountReason : ''})`,
+          amount: -collectionDiscount,
+        });
       }
 
       const newPaidTotal = (payingInvoice.paid_amount || 0) + paymentAmount;
       const newStatus = newPaidTotal >= finalTotal ? 'paid' : (newPaidTotal > 0 ? 'partial' : 'pending');
+      const updatedDiscountAmt = ((payingInvoice as any).discount_amount || 0) + collectionDiscount;
 
       // Update Invoice
       const { error: invErr } = await supabase.from('fee_records').update({
+        total_amount: finalTotal,
+        discount_amount: updatedDiscountAmt,
+        breakdown: finalBreakdown,
         paid_amount: newPaidTotal,
         status: newStatus,
         payment_mode: paymentMode,
@@ -280,6 +293,10 @@ export default function StudentFeeDetail() {
       if (invErr) throw invErr;
 
       // Log Transaction — linked to this specific invoice
+      const discNote = collectionDiscount > 0
+        ? ` [Rs. ${collectionDiscount.toLocaleString()} discount approved by ${discountAuthority}]`
+        : '';
+
       await supabase.from('financial_transactions').insert([{
         school_id: userRole?.school_id,
         type: 'income',
@@ -287,12 +304,14 @@ export default function StudentFeeDetail() {
         payment_mode: paymentMode,
         category: 'Fee Collection',
         date: new Date().toISOString().split('T')[0],
-        remarks: `${selectedStudent.full_name} — ${payingInvoice.invoice_number || formatDate(payingInvoice.month_year)}`,
+        remarks: `${selectedStudent.full_name} — ${payingInvoice.invoice_number || formatDate(payingInvoice.month_year)}${discNote}`,
         fee_record_id: payingInvoice.id,
         fee_items: finalBreakdown,
       }]);
 
       setPayingInvoice(null);
+      setCollectionDiscount(0);
+      setDiscountReason('');
       fetchLedger(selectedStudent.id);
     } catch (err: any) {
       alert(err.message);
@@ -411,6 +430,17 @@ export default function StudentFeeDetail() {
     const breakdownItems = (inv.breakdown || []).map((b: any) => ({ item: b.item, amount: Number(b.amount) }));
     const grossTotal = breakdownItems.reduce((s, b) => s + b.amount, 0);
     const discountAmt = (inv as any).discount_amount ?? 0;
+
+    // Detect unpaid previous invoices to display arrears with months
+    const prevInvs = invoices.filter(
+      i => i.id !== inv.id &&
+           i.month_year < inv.month_year &&
+           ['pending', 'partial', 'overdue'].includes(i.status) &&
+           (i.total_amount - (i.paid_amount || 0)) > 0
+    );
+    const prevFee = prevInvs.reduce((sum, i) => sum + Math.max(0, i.total_amount - (i.paid_amount || 0)), 0);
+    const arrearsMonths = Array.from(new Set(prevInvs.map(i => formatMonthShort(i.month_year)).filter(Boolean)));
+
     const record: ChallanRecord = {
       id: inv.id,
       invoice_number: inv.invoice_number,
@@ -421,6 +451,8 @@ export default function StudentFeeDetail() {
       status: inv.status,
       breakdown: breakdownItems,
       discount_amount: discountAmt,
+      previous_fee: prevFee,
+      arrears_months: arrearsMonths,
       student_name: selectedStudent.full_name,
       roll_number: selectedStudent.roll_number,
       class_name: className,
@@ -841,6 +873,9 @@ export default function StudentFeeDetail() {
                                     const { totalFine } = calculateLateFine(inv, fineRules);
                                     setPayingInvoice(inv);
                                     setWaiveFine(false);
+                                    setCollectionDiscount(0);
+                                    setDiscountAuthority('Principal');
+                                    setDiscountReason('');
                                     setPaymentAmount(inv.total_amount - (inv.paid_amount || 0) + totalFine);
                                   }}
                                   className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-indigo-700 transition-colors whitespace-nowrap"
@@ -943,6 +978,74 @@ export default function StudentFeeDetail() {
                   <p className="text-3xl font-bold text-gray-900">
                     Rs. {(payingInvoice.total_amount - (payingInvoice.paid_amount || 0)).toLocaleString()}
                   </p>
+                  {collectionDiscount > 0 && (
+                    <p className="text-xs font-bold text-emerald-600 mt-1">
+                      Net Payable after Discount: Rs. {Math.max(0, (payingInvoice.total_amount - (payingInvoice.paid_amount || 0)) - collectionDiscount).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+
+                {/* Discretionary Concession / Discount Box (Principal / Director) */}
+                <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-amber-900 uppercase tracking-wide flex items-center gap-1.5">
+                      <Award className="w-3.5 h-3.5 text-amber-600" />
+                      Discretionary Concession / Discount
+                    </span>
+                    {collectionDiscount > 0 && (
+                      <span className="text-[10px] font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                        − Rs. {collectionDiscount.toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 mb-1">Approved By</label>
+                      <select
+                        value={discountAuthority}
+                        onChange={e => setDiscountAuthority(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:ring-1 focus:ring-amber-500"
+                      >
+                        <option value="Principal">Principal</option>
+                        <option value="Director">Director</option>
+                        <option value="Management">Management</option>
+                        <option value="Special Waiver">Special Waiver</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 mb-1">Discount Amount</label>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1.5 text-xs text-slate-400 font-bold">Rs.</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max={payingInvoice.total_amount - (payingInvoice.paid_amount || 0)}
+                          placeholder="0"
+                          value={collectionDiscount || ''}
+                          onChange={e => {
+                            const val = Math.max(0, parseFloat(e.target.value) || 0);
+                            const rawBal = Math.max(0, (payingInvoice.total_amount - (payingInvoice.paid_amount || 0)));
+                            const finalDisc = Math.min(val, rawBal);
+                            setCollectionDiscount(finalDisc);
+                            setPaymentAmount(Math.max(0, rawBal - finalDisc));
+                          }}
+                          className="w-full pl-8 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-amber-700 outline-none focus:ring-1 focus:ring-amber-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {collectionDiscount > 0 && (
+                    <input
+                      type="text"
+                      placeholder="Reason (e.g. Concession granted by Director)"
+                      value={discountReason}
+                      onChange={e => setDiscountReason(e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 outline-none"
+                    />
+                  )}
                 </div>
 
                 {/* Amount Input */}

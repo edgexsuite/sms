@@ -6,7 +6,7 @@ import {
   Zap, Search, CheckCircle, Wallet,
   ArrowRight, Printer, History, Users,
   Receipt, Landmark, Clock, X as XIcon, Trash2, ExternalLink,
-  DollarSign, Banknote, Smartphone, FileText,
+  DollarSign, Banknote, Smartphone, FileText, Tag,
   AlertCircle, AlertTriangle, ChevronRight, UserCheck, User, MessageCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -117,6 +117,11 @@ export default function EasyFee() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [successData, setSuccessData]   = useState<any | null>(null);
   const [lastPayment, setLastPayment]   = useState<any>(null);
+
+  // ── Discretionary collection discount (Principal / Director)
+  const [collectionDiscount, setCollectionDiscount] = useState<number>(0);
+  const [discountAuthority, setDiscountAuthority]   = useState<string>('Principal');
+  const [discountReason, setDiscountReason]         = useState<string>('');
 
   // ── Meta
   const [classes, setClasses]           = useState<any[]>([]);
@@ -274,6 +279,9 @@ export default function EasyFee() {
       .limit(12);
     setFeeHistory(fees || []);
     setWaiveFine(false);
+    setCollectionDiscount(0);
+    setDiscountAuthority('Principal');
+    setDiscountReason('');
     const total = outstandingWithFine(fees || [], fineRules, false);
     setPayAmount(total > 0 ? String(total) : '');
     setLoadingDetails(false);
@@ -350,6 +358,9 @@ export default function EasyFee() {
     const unpaid = outstanding(fees);
     setPayAmount(unpaid > 0 ? String(unpaid) : '');
     setPayRemarks('');
+    setCollectionDiscount(0);
+    setDiscountAuthority('Principal');
+    setDiscountReason('');
   };
 
   // ── Core payment processor (shared) ──────────────────────────────────────
@@ -361,32 +372,59 @@ export default function EasyFee() {
     mode_: string,
     date: string,
     remarks: string,
+    discount: number = 0,
+    authority: string = 'Principal',
+    reason: string = '',
   ): Promise<{ success: boolean; payment?: any; error?: string }> => {
     let remaining = amount;
-    const updatedRecords: { id: string; originalPaid: number; originalStatus: string }[] = [];
+    let remainingDiscount = discount;
+    const updatedRecords: { id: string; originalPaid: number; originalStatus: string; originalTotal: number }[] = [];
     try {
       const pendingOldest = [...fees].filter(f => f.status !== 'paid').sort((a, b) => a.month_year.localeCompare(b.month_year));
       const paidRecords: FeeRecord[] = [];
       const paymentBreakdown: { item: string; amount: number }[] = [];
       for (const fee of pendingOldest) {
-        if (remaining <= 0) break;
+        if (remaining <= 0 && remainingDiscount <= 0) break;
         // Apply fine to this invoice if not waived
         const { totalFine, appliedRules } = waiveFine ? { totalFine: 0, appliedRules: '' } : calculateLateFine(fee, fineRules);
-        const effectiveTotal = Number(fee.total_amount) + totalFine;
-        const due = effectiveTotal - Number(fee.paid_amount);
+        let effectiveTotal = Number(fee.total_amount) + totalFine;
+
+        let invoiceDiscount = 0;
+        let discItem: { item: string; amount: number } | null = null;
+        if (remainingDiscount > 0) {
+          const invoiceDue = Math.max(0, effectiveTotal - Number(fee.paid_amount));
+          invoiceDiscount = Math.min(remainingDiscount, invoiceDue);
+          if (invoiceDiscount > 0) {
+            effectiveTotal = Math.max(0, effectiveTotal - invoiceDiscount);
+            remainingDiscount -= invoiceDiscount;
+            discItem = {
+              item: `Discretionary Discount (Approved by ${authority}${reason ? ': ' + reason : ''})`,
+              amount: -invoiceDiscount,
+            };
+          }
+        }
+
+        const due = Math.max(0, effectiveTotal - Number(fee.paid_amount));
         const paying = Math.min(remaining, due);
         paidRecords.push(fee);
         paymentBreakdown.push({ item: formatDate(fee.month_year), amount: paying });
-        updatedRecords.push({ id: fee.id, originalPaid: Number(fee.paid_amount), originalStatus: fee.status });
-        // Build updated breakdown with fine line if applicable
+        updatedRecords.push({ id: fee.id, originalPaid: Number(fee.paid_amount), originalStatus: fee.status, originalTotal: Number(fee.total_amount) });
+
+        // Build updated breakdown with fine and discount line if applicable
         const baseBreakdown = (fee.breakdown as { item: string; amount: number }[]) || [];
-        const updatedBreakdown = totalFine > 0
+        let updatedBreakdown = totalFine > 0
           ? [...baseBreakdown, { item: `Late Fine (${appliedRules || 'Policy'})`, amount: totalFine }]
           : baseBreakdown;
+        if (discItem) {
+          updatedBreakdown = [...updatedBreakdown, discItem];
+        }
+
+        const newPaid = Number(fee.paid_amount) + paying;
         const { error } = await supabase.from('fee_records').update({
           total_amount: effectiveTotal,
-          paid_amount:  Number(fee.paid_amount) + paying,
-          status:       (Number(fee.paid_amount) + paying) >= effectiveTotal ? 'paid' : 'partial',
+          discount_amount: ((fee as any).discount_amount || 0) + invoiceDiscount,
+          paid_amount:  newPaid,
+          status:       newPaid >= effectiveTotal ? 'paid' : (newPaid > 0 ? 'partial' : fee.status),
           paid_at:      date + 'T12:00:00Z',
           payment_mode: mode_,
           breakdown:    updatedBreakdown,
@@ -394,7 +432,8 @@ export default function EasyFee() {
         if (error) throw error;
         remaining -= paying;
       }
-      const txInserts = paidRecords.map((fee, idx) => {
+      const discNote = discount > 0 ? ` [Rs. ${discount.toLocaleString()} discount approved by ${authority}]` : '';
+      const txInserts = paidRecords.filter((_, idx) => (paymentBreakdown[idx]?.amount ?? 0) > 0 || discount > 0).map((fee, idx) => {
         const paidAmt = paymentBreakdown[idx]?.amount ?? 0;
         const rawBd   = (fee.breakdown as { item: string; amount: number }[]) || [];
         const gross   = rawBd.reduce((s, b) => s + Number(b.amount), 0);
@@ -402,14 +441,14 @@ export default function EasyFee() {
         return {
           school_id: userRole!.school_id, type: 'income', category: 'Fee Collection',
           amount: paidAmt, date, payment_mode: mode_,
-          remarks: `${student.full_name} — ${formatDate(fee.month_year)}${remarks ? ` (${remarks})` : ''}`,
+          remarks: `${student.full_name} — ${formatDate(fee.month_year)}${discNote}${remarks ? ` (${remarks})` : ''}`,
           fee_record_id: fee.id, fee_items: scaled,
         };
       });
       if (txInserts.length > 0) {
         const { error: txErr } = await supabase.from('financial_transactions').insert(txInserts);
         if (txErr) {
-          for (const r of updatedRecords) await supabase.from('fee_records').update({ paid_amount: r.originalPaid, status: r.originalStatus }).eq('id', r.id);
+          for (const r of updatedRecords) await supabase.from('fee_records').update({ total_amount: r.originalTotal, paid_amount: r.originalPaid, status: r.originalStatus }).eq('id', r.id);
           throw new Error(txErr.message);
         }
       }
@@ -455,20 +494,36 @@ export default function EasyFee() {
 
   const processPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedStudent || !payAmount || isProcessing) return;
-    const amount = parseFloat(payAmount);
-    if (amount > totalOutstanding + 0.01 && totalOutstanding > 0) {
-      alert(`Amount exceeds total outstanding (Rs. ${totalOutstanding.toLocaleString()}).`);
+    if (!selectedStudent || isProcessing) return;
+    const amount = parseFloat(payAmount) || 0;
+    if (amount <= 0 && collectionDiscount <= 0) {
+      alert('Please enter an amount or a discount to apply.');
+      return;
+    }
+    const effectiveOutstanding = Math.max(0, totalOutstanding - collectionDiscount);
+    if (amount > effectiveOutstanding + 0.01 && effectiveOutstanding > 0) {
+      alert(`Amount exceeds balance after discount (Rs. ${effectiveOutstanding.toLocaleString()}).`);
       return;
     }
     setIsProcessing(true);
-    const result = await processPaymentForStudent(selectedStudent, feeHistory, amount, payMode, payDate, payRemarks);
+    const result = await processPaymentForStudent(
+      selectedStudent,
+      feeHistory,
+      amount,
+      payMode,
+      payDate,
+      payRemarks,
+      collectionDiscount,
+      discountAuthority,
+      discountReason
+    );
     setIsProcessing(false);
     if (!result.success) { alert(`Payment failed: ${result.error}`); return; }
     setLastPayment(result.payment);
     setSuccessData(result.payment);
     setSelectedStudent(null);
     setPayAmount(''); setPayRemarks('');
+    setCollectionDiscount(0); setDiscountReason('');
     setPayDate(new Date().toISOString().split('T')[0]);
     await fetchRecentActivity();
     await fetchTodayTotal();
@@ -478,15 +533,29 @@ export default function EasyFee() {
 
   const processChildPayment = async (child: any) => {
     const fees = childFees[child.id] || [];
-    const amount = parseFloat(payAmount);
+    const amount = parseFloat(payAmount) || 0;
     const childOutstanding = outstanding(fees);
-    if (!amount || amount <= 0) { alert('Please enter an amount.'); return; }
-    if (amount > childOutstanding + 0.01 && childOutstanding > 0) {
-      alert(`Amount exceeds outstanding (Rs. ${childOutstanding.toLocaleString()}).`);
+    if (amount <= 0 && collectionDiscount <= 0) {
+      alert('Please enter an amount or discount.');
+      return;
+    }
+    const effectiveOutstanding = Math.max(0, childOutstanding - collectionDiscount);
+    if (amount > effectiveOutstanding + 0.01 && effectiveOutstanding > 0) {
+      alert(`Amount exceeds balance after discount (Rs. ${effectiveOutstanding.toLocaleString()}).`);
       return;
     }
     setIsProcessing(true);
-    const result = await processPaymentForStudent(child, fees, amount, payMode, payDate, payRemarks);
+    const result = await processPaymentForStudent(
+      child,
+      fees,
+      amount,
+      payMode,
+      payDate,
+      payRemarks,
+      collectionDiscount,
+      discountAuthority,
+      discountReason
+    );
     setIsProcessing(false);
     if (!result.success) { alert(`Payment failed: ${result.error}`); return; }
     // Refresh child's fees
@@ -495,6 +564,7 @@ export default function EasyFee() {
       .eq('student_id', child.id).is('deleted_at', null).order('month_year', { ascending: true }).limit(12);
     setChildFees(prev => ({ ...prev, [child.id]: updated || [] }));
     setPayingChildId(null);
+    setCollectionDiscount(0); setDiscountReason('');
     setLastPayment(result.payment);
     await fetchRecentActivity();
     await fetchTodayTotal();
@@ -899,25 +969,105 @@ export default function EasyFee() {
                       </div>
                     )}
 
+                    {/* Discretionary Discount (Director / Principal) */}
+                    {totalOutstanding > 0 && (
+                      <div className="rounded-xl px-4 py-3 border border-amber-200 bg-amber-50/60 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-black text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                            <Tag className="w-3.5 h-3.5 text-amber-600" />
+                            Discretionary Discount / Concession
+                          </span>
+                          {collectionDiscount > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCollectionDiscount(0);
+                                setPayAmount(String(totalOutstanding));
+                              }}
+                              className="text-[10px] text-amber-700 hover:text-amber-900 underline font-bold"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 mb-1">Approved By</label>
+                            <select
+                              value={discountAuthority}
+                              onChange={e => setDiscountAuthority(e.target.value)}
+                              className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:ring-1 focus:ring-amber-500"
+                            >
+                              <option value="Principal">Principal</option>
+                              <option value="Director">Director</option>
+                              <option value="Management">Management</option>
+                              <option value="Special Waiver">Special Waiver</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 mb-1">Discount (Rs)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max={totalOutstanding}
+                              placeholder="0"
+                              value={collectionDiscount || ''}
+                              onChange={e => {
+                                const val = Math.max(0, parseFloat(e.target.value) || 0);
+                                const finalDisc = Math.min(val, totalOutstanding);
+                                setCollectionDiscount(finalDisc);
+                                setPayAmount(String(Math.max(0, totalOutstanding - finalDisc)));
+                              }}
+                              className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-amber-800 outline-none focus:ring-1 focus:ring-amber-500"
+                            />
+                          </div>
+                        </div>
+
+                        {collectionDiscount > 0 && (
+                          <input
+                            type="text"
+                            placeholder="Reason / Note (e.g. Concession granted by Director)"
+                            value={discountReason}
+                            onChange={e => setDiscountReason(e.target.value)}
+                            className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 outline-none"
+                          />
+                        )}
+                      </div>
+                    )}
+
                     <form onSubmit={processPayment} className="space-y-4">
                       {totalOutstanding > 0 && (
                         <div className="space-y-1.5">
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Quick Fill</p>
                           <div className="grid grid-cols-3 gap-2">
-                            {[{ label: 'Full\nBalance', val: totalOutstanding }, ...(thisMonthBalance > 0 && thisMonthBalance !== totalOutstanding ? [{ label: 'This\nMonth', val: thisMonthBalance }] : [])].map(opt => (
-                              <button key={opt.label} type="button" onClick={() => setPayAmount(String(opt.val))}
-                                className={cn('py-2 px-2 rounded-lg border text-[11px] font-black transition-all whitespace-pre-line leading-tight', parseFloat(payAmount) === opt.val ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-600 hover:border-indigo-300 hover:bg-indigo-50')}>
-                                {opt.label}
-                              </button>
-                            ))}
-                            <button type="button" onClick={() => setPayAmount('')}
-                              className={cn('py-2 px-2 rounded-lg border text-[11px] font-black transition-all', payAmount && parseFloat(payAmount) !== totalOutstanding && parseFloat(payAmount) !== thisMonthBalance ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-600 hover:border-indigo-300 hover:bg-indigo-50')}>
-                              Custom
-                            </button>
+                            {(() => {
+                              const effBal = Math.max(0, totalOutstanding - collectionDiscount);
+                              const effThisMonth = Math.max(0, thisMonthBalance - collectionDiscount);
+                              return (
+                                <>
+                                  <button type="button" onClick={() => setPayAmount(String(effBal))}
+                                    className={cn('py-2 px-2 rounded-lg border text-[11px] font-black transition-all whitespace-pre-line leading-tight', parseFloat(payAmount) === effBal ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-600 hover:border-indigo-300 hover:bg-indigo-50')}>
+                                    Full{collectionDiscount > 0 ? '\n(Net)' : '\nBalance'}
+                                  </button>
+                                  {effThisMonth > 0 && effThisMonth !== effBal && (
+                                    <button type="button" onClick={() => setPayAmount(String(effThisMonth))}
+                                      className={cn('py-2 px-2 rounded-lg border text-[11px] font-black transition-all whitespace-pre-line leading-tight', parseFloat(payAmount) === effThisMonth ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-600 hover:border-indigo-300 hover:bg-indigo-50')}>
+                                      This{'\n'}Month
+                                    </button>
+                                  )}
+                                  <button type="button" onClick={() => setPayAmount('')}
+                                    className={cn('py-2 px-2 rounded-lg border text-[11px] font-black transition-all', payAmount && parseFloat(payAmount) !== effBal && parseFloat(payAmount) !== effThisMonth ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-600 hover:border-indigo-300 hover:bg-indigo-50')}>
+                                    Custom
+                                  </button>
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                       )}
-                      <Input label="Amount to Collect" type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="Enter amount..." icon={DollarSign} className="!text-lg !font-black" required />
+                      <Input label="Amount to Collect" type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="Enter amount..." icon={DollarSign} className="!text-lg !font-black" required={collectionDiscount <= 0} />
                       <AnimatePresence>
                         {allocationPreview.length > 0 && (
                           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
@@ -951,9 +1101,13 @@ export default function EasyFee() {
                         <Input label="Date" type="date" value={payDate} onChange={e => setPayDate(e.target.value)} />
                         <Input label="Remarks" value={payRemarks} onChange={e => setPayRemarks(e.target.value)} placeholder="Optional" />
                       </div>
-                      <button type="submit" disabled={!payAmount || Number(payAmount) <= 0 || isProcessing}
+                      <button type="submit" disabled={(!payAmount && collectionDiscount <= 0) || (Number(payAmount) <= 0 && collectionDiscount <= 0) || isProcessing}
                         className="w-full flex items-center justify-center gap-2.5 py-4 rounded-xl font-black text-sm bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98] transition-all">
-                        {isProcessing ? <><Clock className="w-4 h-4 animate-spin" />Processing...</> : <><Zap className="w-4 h-4" />Collect {payAmount ? `Rs. ${Number(payAmount).toLocaleString()}` : ''} & Print Receipt</>}
+                        {isProcessing ? (
+                          <><Clock className="w-4 h-4 animate-spin" />Processing...</>
+                        ) : (
+                          <><Zap className="w-4 h-4" />Collect {payAmount && Number(payAmount) > 0 ? `Rs. ${Number(payAmount).toLocaleString()}` : (collectionDiscount > 0 ? 'Rs. 0' : '')}{collectionDiscount > 0 ? ` (with Rs. ${collectionDiscount.toLocaleString()} Discount)` : ''} & Print Receipt</>
+                        )}
                       </button>
                       <p className="text-[10px] text-center text-slate-400 font-bold uppercase tracking-widest">Oldest invoices are paid first</p>
                     </form>
@@ -1158,15 +1312,73 @@ export default function EasyFee() {
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div className="space-y-3">
                                       <div className="flex gap-2">
-                                        <button type="button" onClick={() => setPayAmount(String(due))}
-                                          className={cn('flex-1 py-2 rounded-lg border text-xs font-black transition-all', parseFloat(payAmount) === due ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-600 hover:bg-indigo-50')}>
-                                          Full Balance (Rs {due.toLocaleString()})
+                                        <button type="button" onClick={() => setPayAmount(String(Math.max(0, due - collectionDiscount)))}
+                                          className={cn('flex-1 py-2 rounded-lg border text-xs font-black transition-all', parseFloat(payAmount) === Math.max(0, due - collectionDiscount) ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-600 hover:bg-indigo-50')}>
+                                          Full Balance (Rs {Math.max(0, due - collectionDiscount).toLocaleString()})
                                         </button>
                                         <button type="button" onClick={() => setPayAmount('')}
-                                          className={cn('px-3 py-2 rounded-lg border text-xs font-black transition-all', payAmount && parseFloat(payAmount) !== due ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-600 hover:bg-indigo-50')}>
+                                          className={cn('px-3 py-2 rounded-lg border text-xs font-black transition-all', payAmount && parseFloat(payAmount) !== Math.max(0, due - collectionDiscount) ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-600 hover:bg-indigo-50')}>
                                           Custom
                                         </button>
                                       </div>
+
+                                      {/* Discretionary discount */}
+                                      <div className="rounded-lg p-2.5 border border-amber-200 bg-amber-50/60 space-y-1.5">
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-[10px] font-bold text-amber-900 flex items-center gap-1">
+                                            <Tag className="w-3 h-3 text-amber-600" />
+                                            Discretionary Discount
+                                          </span>
+                                          {collectionDiscount > 0 && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setCollectionDiscount(0);
+                                                setPayAmount(String(due));
+                                              }}
+                                              className="text-[9px] text-amber-700 underline font-bold"
+                                            >
+                                              Clear
+                                            </button>
+                                          )}
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-1.5">
+                                          <select
+                                            value={discountAuthority}
+                                            onChange={e => setDiscountAuthority(e.target.value)}
+                                            className="px-2 py-1 bg-white border border-slate-200 rounded text-xs font-bold text-slate-800"
+                                          >
+                                            <option value="Principal">Principal</option>
+                                            <option value="Director">Director</option>
+                                            <option value="Management">Management</option>
+                                            <option value="Special Waiver">Special Waiver</option>
+                                          </select>
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            max={due}
+                                            placeholder="Discount (Rs)"
+                                            value={collectionDiscount || ''}
+                                            onChange={e => {
+                                              const val = Math.max(0, parseFloat(e.target.value) || 0);
+                                              const finalDisc = Math.min(val, due);
+                                              setCollectionDiscount(finalDisc);
+                                              setPayAmount(String(Math.max(0, due - finalDisc)));
+                                            }}
+                                            className="px-2 py-1 bg-white border border-slate-200 rounded text-xs font-bold text-amber-800"
+                                          />
+                                        </div>
+                                        {collectionDiscount > 0 && (
+                                          <input
+                                            type="text"
+                                            placeholder="Reason (optional)"
+                                            value={discountReason}
+                                            onChange={e => setDiscountReason(e.target.value)}
+                                            className="w-full px-2 py-1 bg-white border border-slate-200 rounded text-[11px] text-slate-700 outline-none"
+                                          />
+                                        )}
+                                      </div>
+
                                       <Input label="Amount" type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="Rs..." icon={DollarSign} />
                                       <div className="grid grid-cols-2 gap-2">
                                         <Input label="Date" type="date" value={payDate} onChange={e => setPayDate(e.target.value)} />
@@ -1197,7 +1409,7 @@ export default function EasyFee() {
                                       )}
                                       <button
                                         onClick={() => processChildPayment(child)}
-                                        disabled={!payAmount || Number(payAmount) <= 0 || isProcessing}
+                                        disabled={(!payAmount && collectionDiscount <= 0) || (Number(payAmount) <= 0 && collectionDiscount <= 0) || isProcessing}
                                         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-black shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.98]">
                                         {isProcessing ? <><Clock className="w-4 h-4 animate-spin" />Processing...</> : <><Zap className="w-4 h-4" />Collect for {child.full_name.split(' ')[0]}</>}
                                       </button>

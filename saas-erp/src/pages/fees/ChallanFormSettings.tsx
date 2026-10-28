@@ -74,8 +74,8 @@ const DEFAULTS: ChallanConfig = {
   font_scale: 1.0,
   show_qr_code: false,
   qr_image_url: '',
-  qr_account_title: 'Aftab Ahmed Khakwani',
-  qr_instructions: 'Scan QR code to pay fee and send receipt on 0302-3605351',
+  qr_account_title: 'School Official Account',
+  qr_instructions: 'Scan QR code to pay fee and submit confirmation to school office',
 };
 
 export default function ChallanFormSettings() {
@@ -343,7 +343,7 @@ export default function ChallanFormSettings() {
               </div>
               
               <div className="space-y-4">
-                <Input label="Account Title" field="qr_account_title" placeholder="Aftab Ahmed Khakwani" />
+                <Input label="Account Title" field="qr_account_title" placeholder="School Official Account" />
                 <Input label="Instructions" field="qr_instructions" placeholder="Scan QR code to pay fee..." />
               </div>
             </div>

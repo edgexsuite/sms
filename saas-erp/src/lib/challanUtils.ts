@@ -76,8 +76,8 @@ export const DEFAULT_CHALLAN_CONFIG: ChallanConfig = {
   font_scale: 1.0,
   show_qr_code: false,
   qr_image_url: '',
-  qr_account_title: 'Aftab Ahmed Khakwani',
-  qr_instructions: 'Scan QR code to pay fee and send receipt on 0302-3605351',
+  qr_account_title: 'School Official Account',
+  qr_instructions: 'Scan QR code to pay fee and submit confirmation to school office',
 };
 
 export interface SchoolInfo {
@@ -106,6 +106,8 @@ export interface ChallanRecord {
   depositor_phone?: string;
   // Financial extras
   previous_fee?: number;
+  arrears_months?: string[];
+  custom_charges?: { item: string; amount: number }[];
   discount_amount?: number;
   fine_amount?: number;
   issue_date?: string;
@@ -166,6 +168,18 @@ export function numberToWords(amount: number): string {
   };
 
   return 'Rupees ' + convert(n).replace(/\s+/g, ' ').trim() + ' Only';
+}
+
+export function formatMonthShort(dateStr?: string | null): string {
+  if (!dateStr) return '';
+  try {
+    const clean = dateStr.length === 7 ? `${dateStr}-01` : dateStr;
+    const d = new Date(clean);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('en-US', { month: 'short' });
+  } catch {
+    return dateStr || '';
+  }
 }
 
 function fmtDate(dateStr?: string): string {
@@ -404,20 +418,45 @@ function drawChallanCopy(
   };
 
   // Breakdown items — always gross (original) amounts from fee template
-  const breakdown = config.show_breakdown !== false && record.breakdown?.length
+  const rawBreakdown = config.show_breakdown !== false && record.breakdown?.length
     ? record.breakdown
     : [{ item: 'Tuition Fee', amount: record.total_amount }];
 
-  breakdown.forEach(b => drawFeeRow(b.item, Number(b.amount)));
+  // Partition into Tuition Fee vs other/custom entries (e.g. AC Charges, Generator Fee, Exam Fee)
+  const tuitionItems: { item: string; amount: number }[] = [];
+  const otherItems: { item: string; amount: number }[] = [];
 
-  // Previous pending fee
-  const prevFee = record.previous_fee ?? 0;
-  if (config.show_previous_fee !== false && prevFee > 0) {
-    drawFeeRow('Previous Fee', prevFee);
+  rawBreakdown.forEach(b => {
+    const isTuition = /tuition/i.test(b.item);
+    if (isTuition) {
+      tuitionItems.push({ item: b.item, amount: Number(b.amount) });
+    } else {
+      otherItems.push({ item: b.item, amount: Number(b.amount) });
+    }
+  });
+
+  // If no tuition item was explicitly named, treat the first item as tuition if there are multiple
+  if (tuitionItems.length === 0 && otherItems.length > 0) {
+    tuitionItems.push(otherItems.shift()!);
   }
 
+  // 1. All custom/add-on entries of the challan (e.g. AC Charges, Lab Fee)
+  otherItems.forEach(b => drawFeeRow(b.item, b.amount));
+
+  // 2. Pending / Arrears row with months breakdown (e.g., Pending Arrears (Sep, Oct): Rs. 8,000)
+  const prevFee = record.previous_fee ?? 0;
+  if (config.show_previous_fee !== false && prevFee > 0) {
+    const monthsStr = record.arrears_months && record.arrears_months.length > 0
+      ? ` (${record.arrears_months.join(', ')})`
+      : '';
+    drawFeeRow(`Pending Arrears${monthsStr}`, prevFee, true, [254, 242, 242], [185, 28, 28], [185, 28, 28]);
+  }
+
+  // 3. Current month tuition fee
+  tuitionItems.forEach(b => drawFeeRow(b.item, b.amount));
+
   // ── Totals calculation ───────────────────────────────────────────────────
-  const breakdownGross = breakdown.reduce((s, b) => s + Number(b.amount), 0);
+  const breakdownGross = rawBreakdown.reduce((s, b) => s + Number(b.amount), 0);
   const grossTotal = breakdownGross + (config.show_previous_fee !== false ? prevFee : 0);
   const discountAmt = record.discount_amount ?? 0;
   const feeWithinDue = Math.max(0, grossTotal - discountAmt);
