@@ -1,6 +1,6 @@
 import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { LogOut, GraduationCap, Users, BookOpen, LayoutDashboard, CreditCard, CalendarCheck, FileText, Settings as SettingsIcon, Star, MessageSquare, Calendar, CalendarOff, Package, AlertTriangle, Bot, Briefcase, ClipboardList, ChevronRight, ChevronLeft, ChevronDown, UserPlus, Upload, ShieldCheck, Award, LineChart, Menu, X, Wallet, Key, PiggyBank, BarChart3, Banknote, TrendingUp, UserX, ClipboardCheck, BarChart2, Wifi, Ticket, Search, DollarSign, Scale, Library, Home, Bell, Palette, School, Shield, Trash2, Clock, Box } from 'lucide-react';
+import { LogOut, GraduationCap, Users, BookOpen, LayoutDashboard, CreditCard, CalendarCheck, FileText, Settings as SettingsIcon, Star, MessageSquare, Calendar, CalendarOff, Package, AlertTriangle, Bot, Briefcase, ClipboardList, ChevronRight, ChevronLeft, ChevronDown, UserPlus, Upload, ShieldCheck, Award, LineChart, Menu, X, Wallet, Key, PiggyBank, BarChart3, Banknote, TrendingUp, UserX, ClipboardCheck, BarChart2, Wifi, Ticket, Search, DollarSign, Scale, Library, Home, Bell, Palette, School, Shield, Trash2, Clock, Box, Sparkles } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { cn, formatDate } from '../lib/utils';
@@ -781,7 +781,17 @@ export default function DashboardLayout() {
             >
               <Search className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition-colors" />
               <span className="text-xs">Search</span>
-              <kbd className="text-[10px] px-2 py-1 bg-white border border-slate-200 rounded-lg text-slate-400 font-black shadow-sm">CTRL K</kbd>
+              <kbd className="hidden lg:inline text-[10px] bg-white border border-slate-200 px-1.5 py-0.5 rounded text-slate-400">Ctrl K</kbd>
+            </button>
+
+            {/* AI Copilot Quick Launch */}
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('toggle-ai-assistant'))}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-gradient-to-r from-indigo-50 to-sky-50 hover:from-indigo-100 hover:to-sky-100 border border-indigo-200/80 rounded-xl text-xs font-bold text-indigo-700 transition cursor-pointer active:scale-95 shadow-xs"
+              title="Open AI Assistant"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-600 animate-pulse" />
+              <span className="hidden sm:inline font-black text-[11px]">AI Copilot</span>
             </button>
 
             {/* Notifications */}
@@ -1078,7 +1088,7 @@ export default function DashboardLayout() {
       <CommandPalette />
 
       {/* Global AI Assistant */}
-      {/* <AiAssistant /> */}
+      <AiAssistant />
 
       {/* ── Session expiry warning modal ── */}
       <AnimatePresence>

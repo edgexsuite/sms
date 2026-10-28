@@ -1,24 +1,46 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Sparkles, X, Send, Bot, User, Maximize2, Minimize2, 
-  RefreshCw, MessageSquare, Brain, Zap, Activity
+  RefreshCw, MessageSquare, Brain, Zap, Activity, CheckCircle2,
+  CalendarCheck, AlertCircle, Phone, ArrowUpRight, Copy, Check,
+  Share2, Shield, Users, Receipt, Clock
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { streamGemini, fetchSchoolContext, buildSystemPrompt } from '../lib/gemini';
+import { streamGemini, fetchSchoolContext, buildSystemPrompt, SchoolContext } from '../lib/gemini';
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
-import { Btn } from './ui';
+
+interface Message {
+  role: 'user' | 'model';
+  text: string;
+}
 
 export default function AiAssistant() {
   const { userRole, schoolInfo } = useAuth();
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [messages, setMessages] = useState<{ role: 'user' | 'model'; text: string }[]>([]);
+  const [messages, setMessages] = useState<Message[]>(() => {
+    try {
+      const saved = sessionStorage.getItem('edubot_chat_history');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [schoolContext, setSchoolContext] = useState<any>(null);
+  const [schoolContext, setSchoolContext] = useState<SchoolContext | null>(null);
+  const [taskFeedback, setTaskFeedback] = useState<string | null>(null);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Check if current user is an authorized executive/admin
+  const isAuthorized = userRole && ['admin', 'director', 'principal', 'vice_principal', 'accountant', 'coordinator'].some(r => 
+    userRole.role?.toLowerCase().includes(r)
+  );
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -27,50 +49,55 @@ export default function AiAssistant() {
   }, [messages, isLoading]);
 
   useEffect(() => {
-    const handleToggle = () => setIsOpen(true);
+    try {
+      sessionStorage.setItem('edubot_chat_history', JSON.stringify(messages));
+    } catch {}
+  }, [messages]);
+
+  useEffect(() => {
+    const handleToggle = () => setIsOpen(prev => !prev);
     window.addEventListener('toggle-ai-assistant', handleToggle);
     return () => window.removeEventListener('toggle-ai-assistant', handleToggle);
   }, []);
 
   useEffect(() => {
-    if (isOpen && !schoolContext && userRole?.school_id) {
+    if (isOpen && userRole?.school_id) {
       loadContext();
     }
-  }, [isOpen, userRole]);
+  }, [isOpen, userRole?.school_id]);
 
   const loadContext = async () => {
+    if (!userRole?.school_id) return;
     try {
-      const ctx = await fetchSchoolContext(userRole!.school_id);
+      const ctx = await fetchSchoolContext(userRole.school_id);
       setSchoolContext(ctx);
     } catch (err) {
-      console.error('Failed to load AI context:', err);
+      console.warn('Failed to load AI context:', err);
     }
   };
 
-  const handleSend = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!input.trim() || isLoading) return;
+  const handleSend = async (customPrompt?: string) => {
+    const query = (customPrompt || input).trim();
+    if (!query || isLoading) return;
 
-    const userMessage = input.trim();
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
+    const newMessages: Message[] = [...messages, { role: 'user', text: query }];
+    setMessages(newMessages);
     setIsLoading(true);
 
     try {
-      // Ensure we have a context, even if it's minimal
       const currentContext = schoolContext || { 
         studentCount: null, staffCount: null, presentToday: 0, absentToday: 0, 
         totalMarkedToday: 0, attPct: null, feeCollected: 0, feeDue: 0, 
         collectionPct: null, openComplaints: 0, pendingLeave: 0, date: new Date().toISOString().split('T')[0] 
       };
       
-      const systemPrompt = buildSystemPrompt(currentContext, schoolInfo?.name || 'this school');
+      const systemPrompt = buildSystemPrompt(currentContext, schoolInfo?.name || 'our school');
       let fullResponse = '';
       
-      // Add empty message for model to stream into
       setMessages(prev => [...prev, { role: 'model', text: '' }]);
 
-      for await (const chunk of streamGemini(systemPrompt, [...messages, { role: 'user', text: userMessage }])) {
+      for await (const chunk of streamGemini(systemPrompt, newMessages, currentContext, schoolInfo?.name || 'our school')) {
         fullResponse += chunk;
         setMessages(prev => {
           const updated = [...prev];
@@ -79,14 +106,17 @@ export default function AiAssistant() {
         });
       }
     } catch (err: any) {
-      setMessages(prev => [...prev, { role: 'model', text: `ERROR: ${err.message || 'Failed to get response.'}` }]);
+      setMessages(prev => [...prev, { role: 'model', text: `Note: ${err.message || 'System encountered an issue. Using fallback response.'}` }]);
     } finally {
       setIsLoading(false);
     }
   };
 
+  // ── Task Execution Engine (Executes on behalf of Admin/Principal) ──────────
   const executeTask = async (taskName: string, params: any) => {
     try {
+      setTaskFeedback('Executing task...');
+
       if (taskName === 'broadcast_notification') {
         const { error } = await supabase.from('notifications').insert([{
           school_id: userRole?.school_id,
@@ -95,137 +125,396 @@ export default function AiAssistant() {
           target_audience: params.target || 'all'
         }]);
         if (error) throw error;
-        setMessages(prev => [...prev, { role: 'model', text: `✅ SUCCESS: Broadcast "${params.title}" has been sent to ${params.target || 'all'}.` }]);
-      } else if (taskName === 'prepare_whatsapp') {
-        const url = `https://wa.me/${params.phone.replace(/\D/g, '')}?text=${encodeURIComponent(params.message)}`;
+        setTaskFeedback(`✅ Broadcast "${params.title}" posted successfully to school dashboard!`);
+        setTimeout(() => setTaskFeedback(null), 4000);
+      } 
+      else if (taskName === 'prepare_whatsapp') {
+        const phone = (params.phone || '').replace(/\D/g, '');
+        const url = `https://wa.me/${phone}?text=${encodeURIComponent(params.message || '')}`;
         window.open(url, '_blank');
-        setMessages(prev => [...prev, { role: 'model', text: `✅ WhatsApp chat opened for ${params.phone}.` }]);
+        setTaskFeedback(`✅ WhatsApp opened for ${phone}.`);
+        setTimeout(() => setTaskFeedback(null), 3000);
+      }
+      else if (taskName === 'approve_leave') {
+        // Try leave_applications then leave_requests
+        const { error: err1 } = await supabase
+          .from('leave_applications')
+          .update({ status: 'approved' })
+          .eq('id', params.id);
+        
+        if (err1) {
+          await supabase.from('leave_requests').update({ status: 'approved' }).eq('id', params.id);
+        }
+        setTaskFeedback(`✅ Leave application approved.`);
+        loadContext();
+        setTimeout(() => setTaskFeedback(null), 3000);
+      }
+      else if (taskName === 'reject_leave') {
+        const { error: err1 } = await supabase
+          .from('leave_applications')
+          .update({ status: 'rejected' })
+          .eq('id', params.id);
+        
+        if (err1) {
+          await supabase.from('leave_requests').update({ status: 'rejected' }).eq('id', params.id);
+        }
+        setTaskFeedback(`Leave application rejected.`);
+        loadContext();
+        setTimeout(() => setTaskFeedback(null), 3000);
+      }
+      else if (taskName === 'resolve_complaint') {
+        await supabase
+          .from('complaints')
+          .update({ status: 'resolved' })
+          .eq('id', params.id);
+        setTaskFeedback(`✅ Complaint marked as resolved.`);
+        loadContext();
+        setTimeout(() => setTaskFeedback(null), 3000);
+      }
+      else if (taskName === 'navigate_to') {
+        navigate(params.path);
+        setIsOpen(false);
       }
     } catch (err: any) {
-      setMessages(prev => [...prev, { role: 'model', text: `❌ TASK FAILED: ${err.message}` }]);
+      console.error('Task execution failed:', err);
+      setTaskFeedback(`❌ Task Failed: ${err.message || 'Unknown error'}`);
+      setTimeout(() => setTaskFeedback(null), 5000);
     }
   };
 
-  const renderMessage = (text: string, role: 'user' | 'model') => {
-    // Check for task tags
-    const taskMatch = text.match(/\[\[TASK: (.*?), (.*?)\]\]/);
-    let cleanText = text;
-    let taskAction: React.ReactNode = null;
+  const handleCopy = (text: string, index: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIndex(index);
+    setTimeout(() => setCopiedIndex(null), 2000);
+  };
+
+  // Render message with embedded task blocks & interactive controls
+  const renderMessageContent = (rawText: string, messageIndex: number) => {
+    const taskMatch = rawText.match(/\[\[TASK:\s*([a-zA-Z0-9_]+),\s*([\s\S]*?)\]\]/);
+    let cleanText = rawText;
+    let taskBlock: React.ReactNode = null;
 
     if (taskMatch) {
-      cleanText = text.replace(taskMatch[0], '').trim();
+      cleanText = rawText.replace(taskMatch[0], '').trim();
+      const taskName = taskMatch[1];
+      let params: any = {};
       try {
-        const name = taskMatch[1];
-        const params = JSON.parse(taskMatch[2]);
-        taskAction = (
-          <div className="mt-3 pt-3 border-t border-white/10">
+        params = JSON.parse(taskMatch[2]);
+      } catch (e) {
+        console.warn('Could not parse task parameters:', e);
+      }
+
+      if (taskName === 'broadcast_notification') {
+        taskBlock = (
+          <div className="mt-3 p-3 rounded-2xl bg-indigo-50 border border-indigo-100 flex flex-col gap-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-indigo-950 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                Ready to Broadcast: <b>{params.title}</b>
+              </span>
+              <span className="px-2 py-0.5 rounded-full bg-indigo-200/60 text-indigo-800 text-[10px] font-black uppercase">
+                Audience: {params.target || 'All'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <button
+                onClick={() => executeTask('broadcast_notification', params)}
+                className="flex-1 py-2 px-3 bg-[#0071e3] hover:bg-[#0077ed] text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <Zap className="w-3.5 h-3.5" /> Confirm &amp; Broadcast to Dashboard
+              </button>
+              <button
+                onClick={() => handleCopy(params.message || cleanText, messageIndex)}
+                className="p-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs transition-colors"
+                title="Copy text"
+              >
+                {copiedIndex === messageIndex ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+        );
+      } 
+      else if (taskName === 'prepare_whatsapp') {
+        taskBlock = (
+          <div className="mt-3 p-3 rounded-2xl bg-emerald-50 border border-emerald-100 flex flex-col gap-2">
+            <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+              <Phone className="w-3.5 h-3.5 text-emerald-600" />
+              WhatsApp Message Ready for {params.phone}
+            </span>
             <button
-              onClick={() => executeTask(name, params)}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
+              onClick={() => executeTask('prepare_whatsapp', params)}
+              className="py-2 px-3 bg-[#25D366] hover:bg-[#20ba59] text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
             >
-              <Zap className="w-3.5 h-3.5" /> Run Task: {name.replace('_', ' ')}
+              <Share2 className="w-3.5 h-3.5" /> Open in WhatsApp
             </button>
           </div>
         );
-      } catch (e) {
-        console.error('Failed to parse task:', e);
+      }
+      else if (taskName === 'show_absentees' && schoolContext?.recentAbsentees) {
+        taskBlock = (
+          <div className="mt-3 p-3 rounded-2xl bg-amber-50 border border-amber-100 flex flex-col gap-2 text-xs">
+            <span className="font-bold text-amber-950 flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+              Today's Absent Students ({schoolContext.recentAbsentees.length})
+            </span>
+            <div className="space-y-1.5 max-h-36 overflow-y-auto">
+              {schoolContext.recentAbsentees.map((s, i) => (
+                <div key={i} className="flex items-center justify-between bg-white p-2 rounded-xl border border-amber-200/60">
+                  <span className="font-semibold text-slate-800">{s.name} <span className="text-[10px] text-slate-400">({s.class})</span></span>
+                  <button
+                    onClick={() => executeTask('prepare_whatsapp', {
+                      phone: s.phone || '',
+                      message: `Dear Parent, your child ${s.name} is marked ABSENT today at ${schoolInfo?.name || 'school'}. Please inform us if on leave.`
+                    })}
+                    className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-lg border border-emerald-200"
+                  >
+                    WhatsApp Alert
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => navigate('/attendance/daily-report')}
+              className="text-[11px] font-bold text-indigo-600 hover:underline text-left mt-1"
+            >
+              View Full Attendance Sheet →
+            </button>
+          </div>
+        );
+      }
+      else if (taskName === 'show_fee_defaulters' && schoolContext?.topDefaulters) {
+        taskBlock = (
+          <div className="mt-3 p-3 rounded-2xl bg-rose-50 border border-rose-100 flex flex-col gap-2 text-xs">
+            <span className="font-bold text-rose-950 flex items-center gap-1.5">
+              <Receipt className="w-3.5 h-3.5 text-rose-600" />
+              Top Outstanding Accounts
+            </span>
+            <div className="space-y-1.5 max-h-36 overflow-y-auto">
+              {schoolContext.topDefaulters.map((d, i) => (
+                <div key={i} className="flex items-center justify-between bg-white p-2 rounded-xl border border-rose-200/60">
+                  <div>
+                    <span className="font-semibold text-slate-800">{d.name}</span>
+                    <p className="text-[10px] text-rose-600 font-bold">Due: PKR {d.dues.toLocaleString()}</p>
+                  </div>
+                  <button
+                    onClick={() => executeTask('prepare_whatsapp', {
+                      phone: d.phone || '',
+                      message: `Dear Parent, this is a reminder from ${schoolInfo?.name || 'School'} regarding pending dues of PKR ${d.dues.toLocaleString()} for ${d.name}. Kindly submit dues at the earliest.`
+                    })}
+                    className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-lg border border-emerald-200"
+                  >
+                    Remind WhatsApp
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => navigate('/reports/arrears')}
+              className="text-[11px] font-bold text-rose-700 hover:underline text-left mt-1"
+            >
+              Open Full Arrears Report →
+            </button>
+          </div>
+        );
+      }
+      else if (taskName === 'review_leaves' && schoolContext?.pendingLeaveList) {
+        taskBlock = (
+          <div className="mt-3 p-3 rounded-2xl bg-indigo-50 border border-indigo-100 flex flex-col gap-2 text-xs">
+            <span className="font-bold text-indigo-950 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-indigo-600" />
+              Pending Staff Leave Applications
+            </span>
+            <div className="space-y-2">
+              {schoolContext.pendingLeaveList.map((l, i) => (
+                <div key={i} className="bg-white p-2.5 rounded-xl border border-indigo-100">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-slate-900">{l.staffName}</span>
+                    <span className="text-[10px] text-slate-500">{l.dates}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mb-2">Reason: {l.reason}</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => executeTask('approve_leave', { id: l.id })}
+                      className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg transition-colors"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => executeTask('reject_leave', { id: l.id })}
+                      className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold rounded-lg transition-colors"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+      else if (taskName === 'review_complaints' && schoolContext?.openComplaintList) {
+        taskBlock = (
+          <div className="mt-3 p-3 rounded-2xl bg-amber-50 border border-amber-100 flex flex-col gap-2 text-xs">
+            <span className="font-bold text-amber-950 flex items-center gap-1.5">
+              <MessageSquare className="w-3.5 h-3.5 text-amber-600" />
+              Open Inquiries &amp; Complaints
+            </span>
+            <div className="space-y-2">
+              {schoolContext.openComplaintList.map((c, i) => (
+                <div key={i} className="bg-white p-2.5 rounded-xl border border-amber-100">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="font-bold text-slate-900">{c.title}</span>
+                    <span className="text-[10px] text-slate-500 font-medium">From: {c.sender}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mb-2 line-clamp-2">{c.description}</p>
+                  <button
+                    onClick={() => executeTask('resolve_complaint', { id: c.id })}
+                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg transition-colors"
+                  >
+                    Mark as Resolved
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+      else if (taskName === 'navigate_to') {
+        taskBlock = (
+          <div className="mt-2.5">
+            <button
+              onClick={() => executeTask('navigate_to', params)}
+              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+            >
+              <ArrowUpRight className="w-3.5 h-3.5" /> {params.label || 'Open Section'}
+            </button>
+          </div>
+        );
       }
     }
 
     return (
-      <>
-        <p className="whitespace-pre-wrap">{cleanText}</p>
-        {taskAction}
-      </>
+      <div className="space-y-2">
+        <p className="whitespace-pre-wrap leading-relaxed">{cleanText}</p>
+        {taskBlock}
+      </div>
     );
   };
 
   return (
     <>
-      {/* Floating Trigger Button */}
+      {/* ── Floating Circular Trigger Button ─────────────────────────────── */}
       <motion.button
-        whileHover={{ scale: 1.1, rotate: 5 }}
-        whileTap={{ scale: 0.9 }}
+        whileHover={{ scale: 1.08 }}
+        whileTap={{ scale: 0.92 }}
         onClick={() => setIsOpen(true)}
         className={cn(
-          "fixed bottom-6 right-6 z-[110] w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-2xl transition-all duration-500",
+          "fixed bottom-6 right-6 z-[110] h-12 w-12 sm:h-13 sm:w-13 rounded-full flex items-center justify-center text-white shadow-[0_10px_25px_rgba(0,113,227,0.35)] transition-all duration-300 cursor-pointer",
           isOpen ? "opacity-0 pointer-events-none scale-0" : "opacity-100 scale-100",
-          "bg-gradient-to-br from-indigo-600 via-indigo-500 to-sky-400 border border-white/20 shadow-indigo-500/40"
+          "bg-gradient-to-tr from-[#0071e3] to-sky-400 border border-white/40"
         )}
+        title="Open AI Assistant (EduBot)"
       >
-        <div className="absolute inset-0 bg-white/20 rounded-2xl animate-pulse blur-xl" />
-        <Sparkles className="w-7 h-7 relative z-10" />
+        <Sparkles className="w-6 h-6 text-white drop-shadow" />
       </motion.button>
 
+      {/* ── Main AI Assistant Window ─────────────────────────────────────── */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20, x: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20, x: 20 }}
+            initial={{ opacity: 0, scale: 0.92, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.92, y: 20 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
             className={cn(
-              "fixed z-[120] bottom-6 right-6 flex flex-col bg-slate-950 border border-white/10 shadow-[0_32px_128px_-16px_rgba(0,0,0,0.8)] rounded-[2.5rem] overflow-hidden backdrop-blur-3xl",
-              isExpanded ? "top-6 left-6 sm:left-auto sm:w-[500px]" : "w-[380px] h-[600px] max-h-[85vh]"
+              "fixed z-[120] bottom-4 right-4 sm:bottom-6 sm:right-6 flex flex-col bg-white/95 backdrop-blur-2xl border border-black/[0.08] shadow-[0_25px_70px_rgba(0,0,0,0.18)] rounded-[28px] overflow-hidden",
+              isExpanded 
+                ? "top-4 left-4 sm:top-6 sm:left-auto sm:w-[580px] h-[calc(100vh-2rem)]" 
+                : "w-[calc(100vw-2rem)] sm:w-[420px] h-[580px] max-h-[85vh]"
             )}
           >
-            {/* AI Header */}
-            <div className="p-6 bg-slate-900/50 border-b border-white/10 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
-                  <Bot className="w-6 h-6" />
+            {/* Header */}
+            <div className="px-5 py-3.5 bg-gradient-to-b from-white to-[#fbfbfd] border-b border-black/[0.06] flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#0071e3] to-sky-400 flex items-center justify-center text-white shadow-xs">
+                  <Bot className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
-                    EduBot AI
-                    <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
-                  </h3>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mt-0.5">Automated Assistant</p>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-[13px] font-bold text-[#1d1d1f]">EduBot Copilot</h3>
+                    <span className="px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-black uppercase">
+                      Active
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-[#86868b] font-medium leading-none mt-0.5">
+                    {schoolInfo?.name || 'School Management Executive AI'}
+                  </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => setIsExpanded(!isExpanded)} 
-                  className="p-2 hover:bg-white/5 rounded-lg text-slate-400 transition-colors"
+
+              <div className="flex items-center gap-1 text-[#86868b]">
+                <button
+                  type="button"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="p-1.5 hover:bg-black/[0.04] rounded-lg hover:text-[#1d1d1f] transition-colors cursor-pointer"
+                  title={isExpanded ? "Collapse" : "Expand"}
                 >
                   {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
                 </button>
-                <button 
-                  onClick={() => setIsOpen(false)} 
-                  className="p-2 hover:bg-rose-500/10 hover:text-rose-500 rounded-lg text-slate-400 transition-colors"
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="p-1.5 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
+                  title="Close"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            {/* Chat Canvas */}
+            {/* Task Toast Notification */}
+            {taskFeedback && (
+              <div className="px-4 py-2 bg-indigo-600 text-white text-xs font-bold text-center animate-fade-in shrink-0">
+                {taskFeedback}
+              </div>
+            )}
+
+            {/* Chat Body */}
             <div 
               ref={scrollRef}
-              className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar scroll-smooth"
+              className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs font-medium custom-scrollbar"
             >
               {messages.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center space-y-6 px-4">
-                  <div className="w-20 h-20 rounded-3xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20 text-indigo-400 animate-bounce">
-                    <Brain className="w-10 h-10" />
+                <div className="h-full flex flex-col items-center justify-center text-center space-y-4 px-2 select-none">
+                  <div className="w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-[#0071e3]">
+                    <Sparkles className="w-7 h-7" />
                   </div>
                   <div>
-                    <h4 className="text-white font-black text-lg uppercase tracking-tight">Your Intelligent Copilot</h4>
-                    <p className="text-slate-400 text-xs font-bold leading-relaxed max-w-[240px] mt-2">
-                      I can now perform tasks like broadcasting notices or sending reminders.
+                    <h4 className="text-[#1d1d1f] font-semibold text-base tracking-tight">
+                      How can I help you today?
+                    </h4>
+                    <p className="text-[#86868b] text-[12px] max-w-[280px] mt-1 leading-normal">
+                      I can complete administrative tasks like broadcasting holiday notices, reviewing absentees, and messaging fee defaulters.
                     </p>
                   </div>
-                  <div className="grid grid-cols-1 gap-2 w-full">
+
+                  {/* Quick Task Pills */}
+                  <div className="grid grid-cols-1 gap-1.5 w-full pt-1">
                     {[
-                      "Draft a holiday notice for tomorrow",
-                      "Summarize today's attendance",
-                      "What needs my attention?"
-                    ].map(q => (
+                      { icon: '📢', label: 'Draft a Smog Holiday Notice', query: 'Draft a smog holiday notice for tomorrow and prepare broadcast' },
+                      { icon: '📊', label: "Summarize Today's Attendance", query: "Who is absent today? Show today's attendance summary" },
+                      { icon: '💳', label: 'Check Fee Collection & Defaulters', query: 'Show current fee collection status and top unpaid accounts' },
+                      { icon: '📝', label: 'Review Pending Staff Leaves', query: 'Show pending staff leave applications' },
+                      { icon: '🤝', label: 'Draft Parent Meeting (PTM) Circular', query: 'Draft an official circular for Parent-Teacher Meeting this Saturday' }
+                    ].map((item, i) => (
                       <button
-                        key={q}
-                        onClick={() => { setInput(q); }}
-                        className="text-[10px] font-black uppercase tracking-widest text-slate-400 bg-white/5 p-3 rounded-xl hover:bg-indigo-600 hover:text-white transition-all border border-white/5 text-center"
+                        key={i}
+                        type="button"
+                        onClick={() => handleSend(item.query)}
+                        className="text-left text-[11px] font-medium text-[#1d1d1f] bg-black/[0.02] hover:bg-[#0071e3]/[0.08] hover:text-[#0071e3] p-2.5 rounded-xl transition-all border border-black/[0.04] flex items-center gap-2 cursor-pointer"
                       >
-                        {q}
+                        <span className="text-sm">{item.icon}</span>
+                        <span>{item.label}</span>
                       </button>
                     ))}
                   </div>
@@ -233,87 +522,77 @@ export default function AiAssistant() {
               ) : (
                 messages.map((m, i) => (
                   <motion.div
-                    initial={{ opacity: 0, y: 10 }}
+                    initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     key={i}
                     className={cn(
-                      "flex gap-4",
+                      "flex gap-2.5",
                       m.role === 'user' ? "flex-row-reverse" : "flex-row"
                     )}
                   >
                     <div className={cn(
-                      "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 shadow-lg",
-                      m.role === 'user' ? "bg-slate-800 text-slate-400" : "bg-indigo-600 text-white"
+                      "w-7 h-7 rounded-lg flex items-center justify-center shrink-0 shadow-xs",
+                      m.role === 'user' ? "bg-slate-200 text-slate-700" : "bg-[#0071e3] text-white"
                     )}>
-                      {m.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+                      {m.role === 'user' ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
                     </div>
                     <div className={cn(
-                      "max-w-[85%] p-4 rounded-2xl text-[13px] leading-relaxed",
+                      "max-w-[85%] p-3.5 rounded-2xl text-[12.5px] leading-relaxed shadow-xs",
                       m.role === 'user' 
-                        ? "bg-indigo-600 text-white rounded-tr-none shadow-xl shadow-indigo-900/20 font-bold" 
-                        : "bg-slate-900 text-slate-200 rounded-tl-none border border-white/5 shadow-2xl"
+                        ? "bg-[#0071e3] text-white rounded-tr-none font-medium" 
+                        : "bg-[#f5f5f7] text-[#1d1d1f] rounded-tl-none border border-black/[0.04]"
                     )}>
-                      {renderMessage(m.text, m.role)}
+                      {renderMessageContent(m.text, i)}
                     </div>
                   </motion.div>
                 ))
               )}
+
               {isLoading && (
-                <div className="flex gap-4">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shrink-0 animate-pulse">
-                    <Bot className="w-4 h-4" />
+                <div className="flex gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-[#0071e3] flex items-center justify-center text-white shrink-0 animate-pulse">
+                    <Bot className="w-3.5 h-3.5" />
                   </div>
-                  <div className="flex items-center gap-1.5 p-4 rounded-2xl bg-slate-900 border border-white/5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce [animation-delay:-0.3s]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce [animation-delay:-0.15s]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" />
+                  <div className="flex items-center gap-1.5 p-3 rounded-2xl bg-[#f5f5f7] border border-black/[0.04]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#0071e3] animate-bounce [animation-delay:-0.3s]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#0071e3] animate-bounce [animation-delay:-0.15s]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#0071e3] animate-bounce" />
                   </div>
                 </div>
               )}
             </div>
 
             {/* Input Hub */}
-            <div className="p-6 bg-slate-900/50 border-t border-white/10">
-              <form onSubmit={handleSend} className="relative flex items-center gap-3">
-                <div className="relative flex-1">
-                  <input
-                    type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder="Message EduBot..."
-                    className="w-full bg-slate-800 border-none rounded-2xl py-4 pl-6 pr-12 text-sm text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500 transition-all outline-none font-bold"
-                  />
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                    <div className={cn(
-                      "w-1.5 h-1.5 rounded-full transition-all duration-500",
-                      schoolContext ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-slate-600"
-                    )} />
-                  </div>
-                </div>
+            <div className="p-3.5 bg-white border-t border-black/[0.06] shrink-0">
+              <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Ask EduBot to draft notices, check fees, or leaves..."
+                  className="flex-1 bg-[#fbfbfd] border border-black/[0.08] focus:border-[#0071e3] focus:bg-white focus:ring-2 focus:ring-[#0071e3]/10 rounded-xl py-2 px-3 text-xs text-[#1d1d1f] placeholder:text-[#86868b] transition-all outline-none"
+                />
                 <button
                   type="submit"
                   disabled={!input.trim() || isLoading}
-                  className="w-12 h-12 rounded-2xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 text-white flex items-center justify-center transition-all shadow-xl shadow-indigo-600/20 active:scale-95"
+                  className="w-9 h-9 rounded-xl bg-[#0071e3] hover:bg-[#0077ed] disabled:opacity-40 text-white flex items-center justify-center transition-all shadow-xs shrink-0 cursor-pointer"
+                  title="Send message"
                 >
-                  {isLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                  {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 </button>
               </form>
-              <div className="mt-4 flex items-center justify-between px-2">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-1.5">
-                    <Zap className="w-3 h-3 text-amber-500" />
-                    <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Low Latency</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Activity className="w-3 h-3 text-emerald-500" />
-                    <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Live Sync</span>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setMessages([])} 
-                  className="text-[9px] font-black uppercase text-slate-500 hover:text-indigo-400 tracking-widest transition-colors"
+
+              <div className="mt-2 flex items-center justify-between text-[10px] text-[#86868b] px-1">
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  Free Autonomous School Copilot
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMessages([])}
+                  className="hover:text-rose-600 transition-colors cursor-pointer"
                 >
-                  Clear Chat
+                  Clear History
                 </button>
               </div>
             </div>

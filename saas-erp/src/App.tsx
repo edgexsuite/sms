@@ -36,6 +36,7 @@ const Communication = lazy(() => import('./pages/Communication'));
 const Timetable = lazy(() => import('./pages/Timetable'));
 const InventoryHub = lazy(() => import('./pages/inventory/InventoryHub'));
 const Complaints = lazy(() => import('./pages/Complaints'));
+const AiAssistantPage = lazy(() => import('./pages/AiAssistantPage'));
 const LeaveLayout = lazy(() => import('./pages/leave/LeaveLayout'));
 const TeacherDiary = lazy(() => import('./pages/diary/TeacherDiary'));
 const DiarySchedule = lazy(() => import('./pages/diary/DiarySchedule'));
@@ -168,7 +169,7 @@ export default function App() {
                 <Route path="inventory" element={<InventoryHub />} />
                 <Route path="stationary" element={<InventoryHub defaultTab="stationary" />} />
                 <Route path="complaints" element={<Complaints />} />
-                <Route path="ai-assistant" element={<Navigate to="/dashboard" replace />} />
+                <Route path="ai-assistant" element={<AiAssistantPage />} />
                 <Route path="leave/*" element={<LeaveLayout />} />
                 <Route path="diary" element={<TeacherDiary />} />
                 <Route path="diary/schedule" element={<DiarySchedule />} />
