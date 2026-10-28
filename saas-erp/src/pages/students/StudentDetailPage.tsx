@@ -61,19 +61,23 @@ export function getFeeFinancials(f: any, studentObj?: any) {
     discount = Math.round((bdGross * Number(studentObj.fee_waiver_percentage)) / 100);
   }
 
-  let gross = bdGross > 0 ? bdGross : Number(f.total_amount || 0);
-  let net = Number(f.total_amount || 0);
+  const storedTotal = Number(f.total_amount || 0);
+  let gross: number;
+  let net: number;
 
   if (discount > 0) {
-    if (gross > net) {
-      // f.total_amount is already the net amount
+    if (bdGross > storedTotal) {
+      // Breakdown contains original gross items (e.g. 6000), total_amount is net (3500)
+      gross = bdGross;
+      net = storedTotal;
     } else {
-      // f.total_amount was stored as gross or equal to breakdown
-      gross = Math.max(gross, net);
-      net = Math.max(0, gross - discount);
+      // Breakdown was saved with net amounts (e.g. 3500) or equals total_amount (3500)
+      // True gross before discount is net + discount (3500 + 2500 = 6000)
+      gross = storedTotal + discount;
+      net = storedTotal;
     }
   } else {
-    gross = Math.max(gross, net);
+    gross = Math.max(bdGross, storedTotal);
     net = gross;
   }
 
@@ -658,9 +662,13 @@ export default function StudentDetailPage() {
   const openEditFee = (f: any) => {
     setEditingFee(f);
     const fin = getFeeFinancials(f, student);
-    const bd: BreakdownRow[] = Array.isArray(f.breakdown) && f.breakdown.length > 0
+    let bd: BreakdownRow[] = Array.isArray(f.breakdown) && f.breakdown.length > 0
       ? f.breakdown.map((b: any) => ({ item: b.item || '', amount: Number(b.amount) || 0 }))
       : [{ item: 'Tuition Fee', amount: fin.gross }];
+    const bdSum = bd.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    if (fin.discount > 0 && bdSum <= fin.net && bd.length === 1) {
+      bd = [{ item: bd[0].item || 'Tuition Fee', amount: fin.gross }];
+    }
     setEditBreakdown(bd);
     setEditForm({
       total_amount: String(fin.net),
