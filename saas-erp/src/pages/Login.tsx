@@ -1,20 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../lib/supabase';
 import { 
   Lock, Mail, User, Eye, EyeOff, ShieldCheck, 
-  ArrowRight, Sparkles, Phone, CheckCircle2,
-  Building2, Users, GraduationCap, Globe, Shield,
-  Check, ChevronRight
+  ArrowRight, Sparkles, Building2, Users, GraduationCap, 
+  Globe, ChevronRight, CheckCircle2, TrendingUp, CalendarCheck,
+  Receipt, Activity
 } from 'lucide-react';
 
 type LoginTab = 'staff' | 'parent' | 'student' | 'demo';
+type PreviewTab = 'dashboard' | 'fees';
 
-// Apple-inspired Minimalist EdgeX Vector Logo
-const EdgeXLogo = ({ className = 'h-10 w-10' }: { className?: string }) => (
+// Apple-inspired Minimalist Vector Logo
+const EdgeXLogo = ({ className = 'h-9 w-9' }: { className?: string }) => (
   <div className={`relative ${className} rounded-2xl bg-white border border-black/[0.08] shadow-[0_2px_8px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] flex items-center justify-center shrink-0 overflow-hidden`}>
-    <div className="absolute inset-0 bg-gradient-to-tr from-[#0071e3]/10 via-transparent to-sky-400/10 pointer-events-none" />
+    <div className="absolute inset-0 bg-gradient-to-tr from-[#0071e3]/12 via-transparent to-sky-400/10 pointer-events-none" />
     <svg className="w-5 h-5 relative z-10" viewBox="0 0 32 32" fill="none">
       <path d="M6 9L16 4L26 9V23L16 28L6 23V9Z" stroke="#0071e3" strokeWidth="1.75" strokeOpacity="0.85"/>
       <path d="M10 11H22M10 16H18M10 21H22" stroke="#1d1d1f" strokeWidth="2.2" strokeLinecap="round"/>
@@ -35,6 +37,7 @@ export default function Login() {
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState<LoginTab>('staff');
+  const [previewTab, setPreviewTab] = useState<PreviewTab>('dashboard');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -94,7 +97,7 @@ export default function Login() {
       if (error) throw error;
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.message || 'Error logging into demo account.');
+      setError(err.message || 'Could not log into demo. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -113,7 +116,7 @@ export default function Login() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier.trim() || !password.trim()) {
-      setError('Please enter both your identifier and password.');
+      setError('Please enter both your login ID and password.');
       return;
     }
 
@@ -164,7 +167,7 @@ export default function Login() {
 
         if (error) {
           if (error.message.includes('Invalid login credentials')) {
-            throw new Error('Incorrect Email, Mobile, or Password. Please check your credentials.');
+            throw new Error('Incorrect email, mobile, or password. Please check your credentials.');
           }
           throw error;
         }
@@ -189,7 +192,7 @@ export default function Login() {
           navigate('/parent-portal');
           return;
         }
-        throw new Error('Invalid Family Number or password. Please verify your details.');
+        throw new Error('Family number or password not recognized. Please check with your school.');
       }
 
       // 3. Student Portal Login
@@ -216,7 +219,7 @@ export default function Login() {
           navigate('/student-portal');
           return;
         }
-        throw new Error('Invalid Student ID or password. Please verify your details.');
+        throw new Error('Student ID or password not recognized. Please check with your teacher.');
       }
 
       // Fallback: Automatic Universal Matching
@@ -257,42 +260,16 @@ export default function Login() {
         return;
       }
 
-      throw new Error('Invalid credentials. Please verify your ID and password.');
+      throw new Error('Invalid login details. Please check and try again.');
     } catch (err: any) {
       const rawMsg = err?.message || '';
       if (rawMsg.toLowerCase().includes('failed to fetch') || rawMsg.toLowerCase().includes('network') || (typeof navigator !== 'undefined' && !navigator.onLine)) {
-        setError('Network connection lost. Please check your internet connection.');
+        setError('Internet connection problem. Please check your network and retry.');
       } else {
-        setError(err.message || t('login.error') || 'Failed to authenticate.');
+        setError(err.message || t('login.error') || 'Failed to sign in.');
       }
     } finally {
       setLoading(false);
-    }
-  };
-
-  const getIdentifierLabel = () => {
-    switch (activeTab) {
-      case 'staff':
-        return 'Email, Username or Mobile';
-      case 'parent':
-        return 'Family Number or Parent ID';
-      case 'student':
-        return 'Student ID or Roll Number';
-      case 'demo':
-        return 'Demo Account Email';
-    }
-  };
-
-  const getIdentifierPlaceholder = () => {
-    switch (activeTab) {
-      case 'staff':
-        return 'admin@school.com or 0300-1234567';
-      case 'parent':
-        return 'e.g. FAM-104 or 31202-*******-1';
-      case 'student':
-        return 'e.g. STU-2026 or Roll Number';
-      case 'demo':
-        return 'demo@edgexsuite.com';
     }
   };
 
@@ -300,76 +277,87 @@ export default function Login() {
     <div className="min-h-screen flex flex-col justify-between bg-[#fbfbfd] text-[#1d1d1f] font-sans antialiased selection:bg-[#0071e3] selection:text-white relative overflow-x-hidden">
       
       {/* ── Apple-style Ambient Diffused Lighting ───────────────────────────── */}
-      <div className="absolute top-0 left-1/4 w-[600px] h-[400px] bg-gradient-to-br from-sky-200/30 via-indigo-100/20 to-transparent rounded-full blur-[140px] pointer-events-none -translate-y-1/2" />
-      <div className="absolute bottom-0 right-1/4 w-[500px] h-[400px] bg-gradient-to-tr from-blue-100/30 via-sky-100/20 to-transparent rounded-full blur-[140px] pointer-events-none translate-y-1/3" />
+      <div className="absolute top-0 left-1/4 w-[700px] h-[450px] bg-gradient-to-br from-sky-200/25 via-indigo-100/15 to-transparent rounded-full blur-[150px] pointer-events-none -translate-y-1/2" />
+      <div className="absolute bottom-0 right-1/4 w-[600px] h-[450px] bg-gradient-to-tr from-blue-100/25 via-sky-100/20 to-transparent rounded-full blur-[150px] pointer-events-none translate-y-1/3" />
 
-      {/* ── Minimalist Apple Navigation Bar ───────────────────────────────── */}
-      <header className="relative z-30 w-full px-6 lg:px-12 py-4 flex items-center justify-between border-b border-black/[0.04] bg-white/70 backdrop-blur-xl">
-        <Link to="/" className="flex items-center gap-3 group">
-          <EdgeXLogo className="h-9 w-9 group-hover:scale-105 transition-transform duration-200" />
+      {/* ── Minimalist Top Navigation ────────────────────────────────────── */}
+      <motion.header 
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="relative z-30 w-full px-5 sm:px-8 lg:px-12 py-3 flex items-center justify-between border-b border-black/[0.04] bg-white/75 backdrop-blur-xl"
+      >
+        <Link to="/" className="flex items-center gap-2.5 group">
+          <EdgeXLogo className="h-8 w-8 group-hover:scale-105 transition-transform duration-200" />
           <div className="flex flex-col">
-            <span className="text-[#1d1d1f] font-semibold text-[17px] tracking-[-0.02em] leading-tight">
+            <span className="text-[#1d1d1f] font-semibold text-[16px] tracking-[-0.02em] leading-tight">
               EdgeX <span className="text-[#0071e3] font-normal">Digital</span>
             </span>
-            <span className="text-[10px] text-[#86868b] tracking-wider uppercase font-medium">
-              Campus Operating System
+            <span className="text-[9px] text-[#86868b] tracking-wider uppercase font-semibold">
+              School Management System
             </span>
           </div>
         </Link>
 
-        <div className="flex items-center gap-3">
-          {/* Direct Portal Quick Links in Header for Desktop */}
-          <div className="hidden sm:flex items-center gap-1 bg-black/[0.03] p-1 rounded-full border border-black/[0.04] text-[12px]">
+        <div className="flex items-center gap-2.5">
+          <div className="hidden sm:flex items-center gap-1 bg-black/[0.03] p-0.5 rounded-full border border-black/[0.04] text-[11px]">
             <Link
               to="/parent-portal"
-              className="px-3 py-1 rounded-full text-[#6e6e73] hover:text-[#1d1d1f] hover:bg-white/70 transition-all font-medium"
+              className="px-2.5 py-1 rounded-full text-[#6e6e73] hover:text-[#1d1d1f] hover:bg-white/80 transition-all font-medium"
             >
               Parent Portal
             </Link>
             <Link
               to="/student-portal"
-              className="px-3 py-1 rounded-full text-[#6e6e73] hover:text-[#1d1d1f] hover:bg-white/70 transition-all font-medium"
+              className="px-2.5 py-1 rounded-full text-[#6e6e73] hover:text-[#1d1d1f] hover:bg-white/80 transition-all font-medium"
             >
               Student Portal
             </Link>
           </div>
 
-          {/* Language Switcher Button */}
           <button
             type="button"
             onClick={() => i18n.changeLanguage(i18n.language === 'en' ? 'ur' : 'en')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/80 hover:bg-white border border-black/[0.08] hover:border-black/[0.15] rounded-full text-[12px] font-medium text-[#1d1d1f] shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1 bg-white/80 hover:bg-white border border-black/[0.08] hover:border-black/[0.15] rounded-full text-[11px] font-medium text-[#1d1d1f] shadow-xs transition-all cursor-pointer"
           >
-            <Globe className="w-3.5 h-3.5 text-[#0071e3]" />
+            <Globe className="w-3 h-3 text-[#0071e3]" />
             <span>{i18n.language === 'en' ? 'اردو' : 'English'}</span>
           </button>
         </div>
-      </header>
+      </motion.header>
 
-      {/* ── Main Content Area ─────────────────────────────────────────────────── */}
-      <main className="relative z-20 flex-1 flex items-center justify-center p-4 sm:p-8 lg:p-12">
-        <div className="w-full max-w-5xl mx-auto flex flex-col lg:flex-row items-center gap-10 lg:gap-14">
+      {/* ── Main Dual Showcase Layout ────────────────────────────────────────── */}
+      <main className="relative z-20 flex-1 flex items-center justify-center px-4 sm:px-8 py-5 sm:py-7">
+        <div className="w-full max-w-6xl mx-auto flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-12">
           
-          {/* Left Column: Apple-style Product Showcase (Desktop) */}
-          <div className="hidden lg:flex flex-col flex-1 max-w-lg select-none">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#0071e3]/[0.07] border border-[#0071e3]/15 text-[#0071e3] text-[11px] font-semibold tracking-wide uppercase mb-4 self-start">
+          {/* Left Column: Interactive Animated Showcase (Desktop) */}
+          <motion.div 
+            initial={{ opacity: 0, x: -25 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="hidden lg:flex flex-col flex-1 max-w-[540px] select-none"
+          >
+            {/* Simple, welcoming header tag */}
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#0071e3]/[0.07] border border-[#0071e3]/15 text-[#0071e3] text-[11px] font-semibold tracking-wide uppercase mb-3 self-start">
               <span className="w-1.5 h-1.5 rounded-full bg-[#0071e3] animate-pulse" />
-              Unified Campus Intelligence
+              Smart &amp; Simple School Management
             </div>
 
-            <h1 className="text-4xl xl:text-[44px] font-semibold text-[#1d1d1f] tracking-[-0.035em] leading-[1.12] mb-4">
-              The intelligence <br />
-              behind exceptional <br />
-              institutions.
+            {/* Clear, simple English title */}
+            <h1 className="text-3xl xl:text-[38px] font-semibold text-[#1d1d1f] tracking-[-0.035em] leading-[1.15] mb-2.5">
+              Everything your school needs, <br />
+              <span className="text-[#0071e3]">all in one simple place.</span>
             </h1>
 
-            <p className="text-[#86868b] text-[15px] leading-relaxed tracking-[-0.01em] font-normal mb-8">
-              Every student record, fee installment, biometric scan, and parent alert—connected in real time with the precision and grace of modern software.
+            <p className="text-[#6e6e73] text-[14px] leading-relaxed tracking-[-0.01em] font-normal mb-5">
+              Track student attendance, collect monthly fees, manage exams, and keep parents updated effortlessly in real time.
             </p>
 
-            {/* Apple Studio Display Mockup */}
-            <div className="relative rounded-2xl p-2 bg-gradient-to-b from-white/90 via-white/80 to-[#f5f5f7]/90 border border-black/[0.07] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.08),0_1px_3px_rgba(0,0,0,0.03)] backdrop-blur-xl group">
-              <div className="flex items-center justify-between px-3 py-2 border-b border-black/[0.04] mb-1.5">
+            {/* Interactive Preview Container */}
+            <div className="relative rounded-2xl p-2.5 bg-white/90 border border-black/[0.07] shadow-[0_20px_50px_-15px_rgba(0,0,0,0.08),0_1px_3px_rgba(0,0,0,0.03)] backdrop-blur-xl group">
+              
+              {/* Window Bar with interactive Preview Tabs */}
+              <div className="flex items-center justify-between px-3 py-1.5 border-b border-black/[0.04] mb-2">
                 <div className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]/85 border border-[#e0443e]/40" />
                   <span className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]/85 border border-[#dea123]/40" />
@@ -378,114 +366,209 @@ export default function Login() {
                     <Lock className="w-2.5 h-2.5 text-[#0071e3]" /> school.edgexsuite.com
                   </span>
                 </div>
-                <span className="text-[10px] font-semibold text-[#0071e3] bg-[#0071e3]/[0.08] px-2 py-0.5 rounded-full">
-                  Live Campus
-                </span>
+
+                {/* Switch between Dashboard & Fees Preview */}
+                <div className="flex items-center bg-black/[0.04] p-0.5 rounded-lg text-[10px] font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTab('dashboard')}
+                    className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                      previewTab === 'dashboard' 
+                        ? 'bg-white text-[#1d1d1f] shadow-xs' 
+                        : 'text-[#86868b] hover:text-[#1d1d1f]'
+                    }`}
+                  >
+                    Main Dashboard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTab('fees')}
+                    className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                      previewTab === 'fees' 
+                        ? 'bg-white text-[#1d1d1f] shadow-xs' 
+                        : 'text-[#86868b] hover:text-[#1d1d1f]'
+                    }`}
+                  >
+                    Fee Analytics
+                  </button>
+                </div>
               </div>
 
-              <div className="relative overflow-hidden rounded-xl border border-black/[0.04]">
-                <img 
-                  src="/assets/dashboard_preview.png" 
-                  alt="EdgeX Digital Campus Suite Preview" 
-                  className="w-full h-auto object-cover transition-transform duration-700 ease-out group-hover:scale-[1.015]"
-                />
+              {/* Animated Image Preview Switcher */}
+              <div className="relative overflow-hidden rounded-xl border border-black/[0.04] aspect-[16/9] bg-slate-50">
+                <AnimatePresence mode="wait">
+                  {previewTab === 'dashboard' ? (
+                    <motion.img 
+                      key="dashboard"
+                      src="/assets/apple_dashboard_preview.jpg" 
+                      alt="Modern School Dashboard Preview" 
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 1.02 }}
+                      transition={{ duration: 0.35 }}
+                      className="w-full h-full object-cover rounded-xl"
+                    />
+                  ) : (
+                    <motion.img 
+                      key="fees"
+                      src="/assets/apple_fees_preview.jpg" 
+                      alt="School Fee Management Analytics Preview" 
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 1.02 }}
+                      transition={{ duration: 0.35 }}
+                      className="w-full h-full object-cover rounded-xl"
+                    />
+                  )}
+                </AnimatePresence>
+
+                {/* Floating Apple-style live metric badge */}
+                <motion.div 
+                  animate={{ y: [0, -5, 0] }}
+                  transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+                  className="absolute bottom-3 left-3 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-black/[0.08] shadow-[0_8px_20px_rgba(0,0,0,0.08)] flex items-center gap-2 pointer-events-none"
+                >
+                  <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-[#1d1d1f] leading-none">98.4% Today's Attendance</p>
+                    <p className="text-[9px] text-[#86868b] mt-0.5">Live biometric sync</p>
+                  </div>
+                </motion.div>
+
+                {/* Floating Fee stat badge */}
+                <motion.div 
+                  animate={{ y: [0, 5, 0] }}
+                  transition={{ repeat: Infinity, duration: 4.5, ease: "easeInOut", delay: 0.5 }}
+                  className="absolute top-3 right-3 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-black/[0.08] shadow-[0_8px_20px_rgba(0,0,0,0.08)] flex items-center gap-2 pointer-events-none"
+                >
+                  <div className="w-6 h-6 rounded-lg bg-blue-50 text-[#0071e3] flex items-center justify-center">
+                    <Receipt className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-[#1d1d1f] leading-none">Instant WhatsApp Vouchers</p>
+                    <p className="text-[9px] text-[#86868b] mt-0.5">Automated fee reminders</p>
+                  </div>
+                </motion.div>
               </div>
 
-              <div className="flex items-center justify-between px-3 pt-2 text-[11px] text-[#86868b] font-medium">
+              {/* Bottom bar inside preview */}
+              <div className="flex items-center justify-between px-3 pt-2 text-[10px] text-[#86868b] font-medium">
                 <span className="flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-[#34c759]" /> Multi-Tenant Encrypted
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#34c759]" /> Safe &amp; Encrypted Data
                 </span>
-                <span>Version 2.4 · 2026</span>
+                <span>Works on Phone, Tablet &amp; PC</span>
               </div>
             </div>
 
-            {/* Apple-style Metric Tags */}
-            <div className="grid grid-cols-3 gap-3 mt-6">
+            {/* Feature Chips */}
+            <div className="grid grid-cols-3 gap-2.5 mt-4">
               {[
-                { title: 'Zero Setup', desc: 'Runs in any modern browser' },
-                { title: 'Instant Live', desc: 'Biometric & QR Sync' },
-                { title: '99.98%', desc: 'Guaranteed cloud uptime' },
+                { title: 'Zero Setup', desc: 'Opens in any browser' },
+                { title: 'Live QR Code', desc: 'Fast staff & student check-in' },
+                { title: 'Reports & Diary', desc: 'Single-click PDF cards' },
               ].map((m, i) => (
-                <div key={i} className="p-3 rounded-xl bg-white/60 border border-black/[0.04] text-center">
-                  <p className="text-[13px] font-semibold text-[#1d1d1f] tracking-tight">{m.title}</p>
-                  <p className="text-[10px] text-[#86868b] mt-0.5 leading-tight">{m.desc}</p>
+                <div key={i} className="p-2.5 rounded-xl bg-white/70 border border-black/[0.04] text-center">
+                  <p className="text-[12px] font-semibold text-[#1d1d1f]">{m.title}</p>
+                  <p className="text-[10px] text-[#86868b] mt-0.5">{m.desc}</p>
                 </div>
               ))}
             </div>
-          </div>
+          </motion.div>
 
           {/* Right Column: Apple-style Sign In Card */}
-          <div className="w-full max-w-[420px]">
-            <div className="bg-white/85 backdrop-blur-2xl rounded-[28px] sm:rounded-[32px] border border-black/[0.06] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.04)] p-7 sm:p-9 relative">
+          <motion.div 
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.15 }}
+            className="w-full max-w-[400px]"
+          >
+            <div className="bg-white/90 backdrop-blur-2xl rounded-[28px] border border-black/[0.06] shadow-[0_20px_50px_-15px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.04)] p-6 sm:p-7 relative">
               
               {/* Header */}
-              <div className="text-center mb-6">
-                <h2 className="text-2xl sm:text-[26px] font-semibold text-[#1d1d1f] tracking-[-0.03em] leading-tight">
+              <div className="text-center mb-5">
+                <h2 className="text-2xl font-semibold text-[#1d1d1f] tracking-[-0.03em]">
                   Sign In
                 </h2>
-                <p className="text-[#86868b] text-[13px] font-normal mt-1 tracking-[-0.01em]">
-                  Use your credentials to access your campus portal.
+                <p className="text-[#86868b] text-[12px] font-normal mt-0.5">
+                  Welcome back! Select your role to continue.
                 </p>
               </div>
 
-              {/* Apple Segmented Control */}
-              <div className="bg-[#000000]/[0.04] p-1 rounded-full flex items-center border border-black/[0.03] mb-4">
+              {/* Apple Segmented Control with Smooth Sliding Pill */}
+              <div className="bg-[#000000]/[0.04] p-1 rounded-full flex items-center border border-black/[0.03] mb-3.5 relative">
                 {[
                   { key: 'staff', label: 'Staff', icon: Building2 },
                   { key: 'parent', label: 'Parent', icon: Users },
                   { key: 'student', label: 'Student', icon: GraduationCap },
                   { key: 'demo', label: 'Demo', icon: Sparkles },
-                ].map(({ key, label, icon: Icon }) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => handleTabChange(key as LoginTab)}
-                    className={`flex-1 py-1.5 px-2 rounded-full text-[11px] font-medium transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                      activeTab === key
-                        ? 'bg-white text-[#1d1d1f] shadow-[0_2px_8px_rgba(0,0,0,0.08),0_0.5px_1px_rgba(0,0,0,0.04)] font-semibold'
-                        : 'text-[#6e6e73] hover:text-[#1d1d1f]'
-                    }`}
-                  >
-                    <Icon className={`w-3.5 h-3.5 ${activeTab === key ? (key === 'demo' ? 'text-amber-500' : 'text-[#0071e3]') : 'opacity-70'}`} />
-                    <span>{label}</span>
-                  </button>
-                ))}
+                ].map(({ key, label, icon: Icon }) => {
+                  const isActive = activeTab === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => handleTabChange(key as LoginTab)}
+                      className={`relative z-10 flex-1 py-1 px-2 rounded-full text-[11px] font-medium transition-colors flex items-center justify-center gap-1 cursor-pointer ${
+                        isActive ? 'text-[#1d1d1f] font-semibold' : 'text-[#6e6e73] hover:text-[#1d1d1f]'
+                      }`}
+                    >
+                      {isActive && (
+                        <motion.div 
+                          layoutId="activeRoleTab"
+                          transition={{ type: 'spring', stiffness: 500, damping: 38 }}
+                          className="absolute inset-0 bg-white rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.08),0_0.5px_1px_rgba(0,0,0,0.04)] -z-10"
+                        />
+                      )}
+                      <Icon className={`w-3.5 h-3.5 ${isActive ? (key === 'demo' ? 'text-amber-500' : 'text-[#0071e3]') : 'opacity-70'}`} />
+                      <span>{label}</span>
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Dynamic Role Hint */}
-              <div className="mb-5 px-3.5 py-2 rounded-xl bg-black/[0.02] border border-black/[0.04] text-[11px] flex items-center gap-2">
+              {/* Simple Role Explainer Pill */}
+              <div className="mb-4 px-3 py-1.5 rounded-xl bg-black/[0.02] border border-black/[0.04] text-[11px] flex items-center gap-1.5">
                 <span className="font-semibold text-[#0071e3] shrink-0">
-                  {activeTab === 'staff' && 'Admin & Staff:'}
-                  {activeTab === 'parent' && 'Parent Portal:'}
-                  {activeTab === 'student' && 'Student Portal:'}
-                  {activeTab === 'demo' && 'Sandbox Demo:'}
+                  {activeTab === 'staff' && 'Staff:'}
+                  {activeTab === 'parent' && 'Parents:'}
+                  {activeTab === 'student' && 'Students:'}
+                  {activeTab === 'demo' && 'Demo:'}
                 </span>
-                <span className="text-[#86868b] truncate leading-tight">
-                  {activeTab === 'staff' && 'Owners, Principals, Accountants & Faculty.'}
-                  {activeTab === 'parent' && 'Challans, Attendance & Grade Gazettes.'}
-                  {activeTab === 'student' && 'Daily Diary, Timetable & Results.'}
-                  {activeTab === 'demo' && 'Instant test drive of the complete ERP.'}
+                <span className="text-[#6e6e73] truncate leading-tight">
+                  {activeTab === 'staff' && 'For school owners, principals, accountants & teachers'}
+                  {activeTab === 'parent' && 'Check fee vouchers, attendance & exam cards'}
+                  {activeTab === 'student' && 'View daily homework, timetable & results'}
+                  {activeTab === 'demo' && 'Test drive the complete system with one click'}
                 </span>
               </div>
 
               {/* Error Message */}
               {error && (
-                <div className="mb-4 bg-[#ff3b30]/[0.08] border border-[#ff3b30]/20 text-[#d70015] px-3.5 py-2.5 rounded-xl text-xs font-medium flex items-start gap-2">
+                <motion.div 
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="mb-3.5 bg-[#ff3b30]/[0.08] border border-[#ff3b30]/20 text-[#d70015] px-3 py-2 rounded-xl text-xs font-medium flex items-start gap-2"
+                >
                   <span className="text-sm leading-none shrink-0">⚠️</span>
                   <span className="leading-snug">{error}</span>
-                </div>
+                </motion.div>
               )}
 
               {/* Form */}
-              <form onSubmit={handleLogin} className="space-y-3.5">
+              <form onSubmit={handleLogin} className="space-y-3">
                 
                 {/* Identifier Input */}
                 <div>
-                  <label className="block text-[11px] font-medium text-[#6e6e73] uppercase tracking-wider mb-1.5">
-                    {getIdentifierLabel()}
+                  <label className="block text-[10px] font-semibold text-[#6e6e73] uppercase tracking-wider mb-1">
+                    {activeTab === 'staff' && 'Email, Username or Mobile'}
+                    {activeTab === 'parent' && 'Family Number or Mobile'}
+                    {activeTab === 'student' && 'Student ID or Roll Number'}
+                    {activeTab === 'demo' && 'Demo Email'}
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#a1a1a6]">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#a1a1a6]">
                       {activeTab === 'staff' || activeTab === 'demo' ? (
                         <Mail className="w-4 h-4" />
                       ) : (
@@ -497,16 +580,21 @@ export default function Login() {
                       required
                       value={identifier}
                       onChange={(e) => setIdentifier(e.target.value)}
-                      placeholder={getIdentifierPlaceholder()}
-                      className="w-full pl-10 pr-3.5 py-2.5 bg-[#fbfbfd] border border-[#d2d2d7]/80 rounded-xl text-[13px] font-normal text-[#1d1d1f] placeholder:text-[#a1a1a6] focus:bg-white focus:border-[#0071e3] focus:ring-4 focus:ring-[#0071e3]/12 transition-all outline-none"
+                      placeholder={
+                        activeTab === 'staff' ? 'e.g. admin@school.com or 03001234567' :
+                        activeTab === 'parent' ? 'e.g. FAM-104 or 03001234567' :
+                        activeTab === 'student' ? 'e.g. STU-2026 or Roll Number' :
+                        'demo@edgexsuite.com'
+                      }
+                      className="w-full pl-9 pr-3.5 py-2.5 bg-[#fbfbfd] border border-[#d2d2d7]/80 rounded-xl text-[13px] text-[#1d1d1f] placeholder:text-[#a1a1a6] focus:bg-white focus:border-[#0071e3] focus:ring-4 focus:ring-[#0071e3]/12 transition-all outline-none"
                     />
                   </div>
                 </div>
 
                 {/* Password Input */}
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-[11px] font-medium text-[#6e6e73] uppercase tracking-wider">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[10px] font-semibold text-[#6e6e73] uppercase tracking-wider">
                       Password
                     </label>
                     {activeTab === 'staff' && (
@@ -514,12 +602,12 @@ export default function Login() {
                         to="/reset-password"
                         className="text-[11px] font-medium text-[#0071e3] hover:underline"
                       >
-                        Forgot?
+                        Forgot password?
                       </Link>
                     )}
                   </div>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#a1a1a6]">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#a1a1a6]">
                       <Lock className="w-4 h-4" />
                     </div>
                     <input
@@ -528,12 +616,12 @@ export default function Login() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full pl-10 pr-10 py-2.5 bg-[#fbfbfd] border border-[#d2d2d7]/80 rounded-xl text-[13px] font-normal text-[#1d1d1f] placeholder:text-[#a1a1a6] focus:bg-white focus:border-[#0071e3] focus:ring-4 focus:ring-[#0071e3]/12 transition-all outline-none"
+                      className="w-full pl-9 pr-9 py-2.5 bg-[#fbfbfd] border border-[#d2d2d7]/80 rounded-xl text-[13px] text-[#1d1d1f] placeholder:text-[#a1a1a6] focus:bg-white focus:border-[#0071e3] focus:ring-4 focus:ring-[#0071e3]/12 transition-all outline-none"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-[#a1a1a6] hover:text-[#6e6e73] transition-colors cursor-pointer"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#a1a1a6] hover:text-[#6e6e73] transition-colors cursor-pointer"
                       aria-label="Toggle password visibility"
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -543,25 +631,29 @@ export default function Login() {
 
                 {/* Remember Me Toggle */}
                 <div className="flex items-center justify-between text-xs pt-0.5">
-                  <label className="flex items-center gap-2 cursor-pointer text-[#6e6e73] font-normal select-none hover:text-[#1d1d1f]">
+                  <label className="flex items-center gap-2 cursor-pointer text-[#6e6e73] select-none hover:text-[#1d1d1f]">
                     <input
                       type="checkbox"
                       checked={rememberMe}
                       onChange={(e) => setRememberMe(e.target.checked)}
                       className="w-3.5 h-3.5 rounded text-[#0071e3] border-[#d2d2d7] focus:ring-[#0071e3]"
                     />
-                    <span>Remember account</span>
+                    <span className="text-[11px]">Remember me</span>
                   </label>
                   {activeTab === 'demo' && (
-                    <span className="text-[11px] text-amber-600 font-medium">Demo Mode Active</span>
+                    <span className="text-[10px] text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded-full">
+                      Demo Account Ready
+                    </span>
                   )}
                 </div>
 
-                {/* Apple Primary Action Button */}
-                <button
+                {/* Primary Action Button */}
+                <motion.button
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.98 }}
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-[#0071e3] hover:bg-[#0077ed] active:bg-[#0062c4] text-white font-medium text-[13px] py-3 rounded-xl transition-all shadow-[0_2px_8px_rgba(0,113,227,0.25)] hover:shadow-[0_4px_16px_rgba(0,113,227,0.35)] disabled:opacity-50 flex items-center justify-center gap-2 mt-2 cursor-pointer active:scale-[0.99]"
+                  className="w-full bg-[#0071e3] hover:bg-[#0077ed] active:bg-[#0062c4] text-white font-medium text-[13px] py-2.5 rounded-xl transition-all shadow-[0_2px_8px_rgba(0,113,227,0.25)] hover:shadow-[0_4px_16px_rgba(0,113,227,0.35)] disabled:opacity-50 flex items-center justify-center gap-1.5 mt-2 cursor-pointer"
                 >
                   {loading ? (
                     <>
@@ -569,7 +661,7 @@ export default function Login() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                       </svg>
-                      <span>Authenticating...</span>
+                      <span>Signing In...</span>
                     </>
                   ) : (
                     <>
@@ -577,7 +669,7 @@ export default function Login() {
                       <ArrowRight className="w-3.5 h-3.5" />
                     </>
                   )}
-                </button>
+                </motion.button>
 
                 {/* 1-Click Instant Demo Button (if not on demo tab) */}
                 {activeTab !== 'demo' && (
@@ -588,21 +680,21 @@ export default function Login() {
                     className="w-full py-2 px-3 bg-black/[0.03] hover:bg-black/[0.06] text-[#1d1d1f] rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-black/[0.04]"
                   >
                     <Sparkles className="w-3.5 h-3.5 text-[#0071e3]" />
-                    <span>Explore as Guest (1-Click Demo)</span>
+                    <span>Try Instant Demo (No login needed)</span>
                   </button>
                 )}
               </form>
 
               {/* Free Trial Banner */}
-              <div className="mt-5 pt-4 border-t border-black/[0.04]">
+              <div className="mt-4 pt-3.5 border-t border-black/[0.04]">
                 <Link
                   to="/trial"
-                  className="w-full py-2.5 px-3.5 bg-gradient-to-r from-sky-50 to-indigo-50/70 hover:from-sky-100/70 hover:to-indigo-100/70 border border-sky-100 text-[#1d1d1f] rounded-xl flex items-center justify-between text-xs transition-all group"
+                  className="w-full py-2 px-3 bg-gradient-to-r from-sky-50 to-indigo-50/70 hover:from-sky-100/70 hover:to-indigo-100/70 border border-sky-100/80 text-[#1d1d1f] rounded-xl flex items-center justify-between text-xs transition-all group"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-[#0071e3] font-bold">🌟</span>
+                    <span className="text-base">🌟</span>
                     <div className="text-left">
-                      <p className="font-semibold text-[#1d1d1f] leading-tight">New School? Free 30-Day Trial</p>
+                      <p className="font-semibold text-[#1d1d1f] text-[11px] leading-tight">Starting a New School? Get 30 Days Free</p>
                       <p className="text-[10px] text-[#86868b]">Zero setup fee · Instant activation</p>
                     </div>
                   </div>
@@ -611,7 +703,7 @@ export default function Login() {
               </div>
 
               {/* WhatsApp Technical Assistance */}
-              <div className="mt-4 text-center">
+              <div className="mt-3 text-center">
                 <a
                   href="https://wa.me/923012616367?text=Assalam-o-Alaikum%2C%20I%20need%20help%20with%20EdgeX%20SMS%20Portal%20Login."
                   target="_blank"
@@ -619,22 +711,22 @@ export default function Login() {
                   className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[#25D366] hover:underline"
                 >
                   <WhatsAppIcon className="w-3.5 h-3.5 text-[#25D366]" />
-                  <span>WhatsApp Support (0301-2616367)</span>
+                  <span>Need help? WhatsApp (0301-2616367)</span>
                 </a>
               </div>
 
             </div>
-          </div>
+          </motion.div>
 
         </div>
       </main>
 
       {/* ── Apple-style Minimal Footer ────────────────────────────────────────── */}
-      <footer className="relative z-20 w-full px-6 lg:px-12 py-3 border-t border-black/[0.04] bg-white/50 backdrop-blur-md text-[#86868b] text-[11px] flex flex-col sm:flex-row items-center justify-between gap-2">
+      <footer className="relative z-20 w-full px-5 sm:px-8 lg:px-12 py-2.5 border-t border-black/[0.04] bg-white/50 backdrop-blur-md text-[#86868b] text-[11px] flex flex-col sm:flex-row items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span>© {new Date().getFullYear()} EdgeX Suite. All rights reserved.</span>
           <span className="hidden sm:inline">·</span>
-          <span className="hidden sm:inline">Crafted for modern institutions</span>
+          <span className="hidden sm:inline">Simple, modern school software</span>
         </div>
         
         <div className="flex items-center gap-4 text-[#6e6e73]">
