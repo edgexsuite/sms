@@ -12,6 +12,143 @@ import { motion, AnimatePresence } from 'motion/react';
 import { NAV_SECTIONS } from '../constants/navigation';
 import AiAssistant from '../components/AiAssistant';
 
+interface SectionTheme {
+  bg: string;
+  border: string;
+  headerText: string;
+  dot: string;
+  activeBg: string;
+  activeText: string;
+  activeBorder: string;
+  iconActive: string;
+  hoverBg: string;
+  divider: string;
+}
+
+const SECTION_THEMES: Record<string, SectionTheme> = {
+  dashboard: {
+    bg: 'bg-indigo-950/30',
+    border: 'border-indigo-500/25',
+    headerText: 'text-indigo-400',
+    dot: 'bg-indigo-400 shadow-xs shadow-indigo-400/50',
+    activeBg: 'bg-indigo-600/25',
+    activeText: 'text-indigo-200',
+    activeBorder: 'border-indigo-400',
+    iconActive: 'text-indigo-400',
+    hoverBg: 'hover:bg-indigo-900/35',
+    divider: 'bg-indigo-500/40',
+  },
+  students: {
+    bg: 'bg-blue-950/30',
+    border: 'border-blue-500/25',
+    headerText: 'text-blue-400',
+    dot: 'bg-blue-400 shadow-xs shadow-blue-400/50',
+    activeBg: 'bg-blue-600/25',
+    activeText: 'text-blue-200',
+    activeBorder: 'border-blue-400',
+    iconActive: 'text-blue-400',
+    hoverBg: 'hover:bg-blue-900/35',
+    divider: 'bg-blue-500/40',
+  },
+  academic: {
+    bg: 'bg-purple-950/30',
+    border: 'border-purple-500/25',
+    headerText: 'text-purple-400',
+    dot: 'bg-purple-400 shadow-xs shadow-purple-400/50',
+    activeBg: 'bg-purple-600/25',
+    activeText: 'text-purple-200',
+    activeBorder: 'border-purple-400',
+    iconActive: 'text-purple-400',
+    hoverBg: 'hover:bg-purple-900/35',
+    divider: 'bg-purple-500/40',
+  },
+  attendance: {
+    bg: 'bg-teal-950/30',
+    border: 'border-teal-500/25',
+    headerText: 'text-teal-400',
+    dot: 'bg-teal-400 shadow-xs shadow-teal-400/50',
+    activeBg: 'bg-teal-600/25',
+    activeText: 'text-teal-200',
+    activeBorder: 'border-teal-400',
+    iconActive: 'text-teal-400',
+    hoverBg: 'hover:bg-teal-900/35',
+    divider: 'bg-teal-500/40',
+  },
+  exams: {
+    bg: 'bg-amber-950/30',
+    border: 'border-amber-500/25',
+    headerText: 'text-amber-400',
+    dot: 'bg-amber-400 shadow-xs shadow-amber-400/50',
+    activeBg: 'bg-amber-600/25',
+    activeText: 'text-amber-200',
+    activeBorder: 'border-amber-400',
+    iconActive: 'text-amber-400',
+    hoverBg: 'hover:bg-amber-900/35',
+    divider: 'bg-amber-500/40',
+  },
+  fees: {
+    bg: 'bg-emerald-950/30',
+    border: 'border-emerald-500/25',
+    headerText: 'text-emerald-400',
+    dot: 'bg-emerald-400 shadow-xs shadow-emerald-400/50',
+    activeBg: 'bg-emerald-600/25',
+    activeText: 'text-emerald-200',
+    activeBorder: 'border-emerald-400',
+    iconActive: 'text-emerald-400',
+    hoverBg: 'hover:bg-emerald-900/35',
+    divider: 'bg-emerald-500/40',
+  },
+  finance: {
+    bg: 'bg-sky-950/30',
+    border: 'border-sky-500/25',
+    headerText: 'text-sky-400',
+    dot: 'bg-sky-400 shadow-xs shadow-sky-400/50',
+    activeBg: 'bg-sky-600/25',
+    activeText: 'text-sky-200',
+    activeBorder: 'border-sky-400',
+    iconActive: 'text-sky-400',
+    hoverBg: 'hover:bg-sky-900/35',
+    divider: 'bg-sky-500/40',
+  },
+  reports: {
+    bg: 'bg-rose-950/30',
+    border: 'border-rose-500/25',
+    headerText: 'text-rose-400',
+    dot: 'bg-rose-400 shadow-xs shadow-rose-400/50',
+    activeBg: 'bg-rose-600/25',
+    activeText: 'text-rose-200',
+    activeBorder: 'border-rose-400',
+    iconActive: 'text-rose-400',
+    hoverBg: 'hover:bg-rose-900/35',
+    divider: 'bg-rose-500/40',
+  },
+  services: {
+    bg: 'bg-slate-900/60',
+    border: 'border-slate-700/40',
+    headerText: 'text-slate-300',
+    dot: 'bg-slate-400 shadow-xs shadow-slate-400/50',
+    activeBg: 'bg-slate-700/35',
+    activeText: 'text-slate-100',
+    activeBorder: 'border-slate-400',
+    iconActive: 'text-slate-200',
+    hoverBg: 'hover:bg-slate-800/60',
+    divider: 'bg-slate-700/50',
+  },
+};
+
+const DEFAULT_SECTION_THEME: SectionTheme = {
+  bg: 'bg-slate-900/40',
+  border: 'border-slate-800/40',
+  headerText: 'text-slate-400',
+  dot: 'bg-slate-400',
+  activeBg: 'bg-indigo-600/20',
+  activeText: 'text-indigo-200',
+  activeBorder: 'border-indigo-400',
+  iconActive: 'text-indigo-400',
+  hoverBg: 'hover:bg-slate-800/50',
+  divider: 'bg-slate-700/50',
+};
+
 export default function DashboardLayout() {
 
   const { signOut, userRole, session, allRoles, switchRole, canAccess } = useAuth();
@@ -492,27 +629,41 @@ export default function DashboardLayout() {
             if (visibleItems.length === 0) return null;
 
             const isCollapsed = !!collapsedSections[section.title] && !filterLower;
+            const secTheme = SECTION_THEMES[section.id] || DEFAULT_SECTION_THEME;
 
             return (
-              <div key={section.title} className="mb-2">
+              <div
+                key={section.title}
+                className={cn(
+                  "mb-2.5 rounded-xl border transition-all duration-200",
+                  secTheme.bg,
+                  secTheme.border,
+                  isSidebarCollapsed ? "p-1" : "p-1.5"
+                )}
+              >
                 {/* Section Header */}
                 {!isSidebarCollapsed ? (
                   <div
                     onClick={() => toggleSectionCollapse(section.title)}
-                    className="flex items-center justify-between px-2.5 pt-2.5 pb-1 cursor-pointer select-none group/sec"
+                    className="flex items-center justify-between px-2 pt-1 pb-1.5 cursor-pointer select-none group/sec"
                   >
-                    <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-500 group-hover/sec:text-slate-300 transition-colors">
-                      {section.title}
-                    </span>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", secTheme.dot)} />
+                      <span className={cn("text-[11px] font-bold uppercase tracking-wider transition-colors truncate", secTheme.headerText)}>
+                        {section.title}
+                      </span>
+                    </div>
                     <ChevronDown
                       className={cn(
-                        "w-3 h-3 text-slate-500 group-hover/sec:text-slate-300 transition-transform duration-200",
+                        "w-3 h-3 text-slate-400 group-hover/sec:text-slate-200 transition-transform duration-200 shrink-0",
                         isCollapsed && "-rotate-90"
                       )}
                     />
                   </div>
                 ) : (
-                  <div className="w-8 h-px bg-slate-800/80 mx-auto my-2" />
+                  <div className="flex justify-center py-1">
+                    <span className={cn("w-2 h-0.5 rounded-full", secTheme.divider)} />
+                  </div>
                 )}
 
                 {/* Section items */}
@@ -537,7 +688,8 @@ export default function DashboardLayout() {
                                   setIsMobileMenuOpen(false);
                                 }}
                                 className={cn(
-                                  "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 text-slate-400 hover:text-slate-100 hover:bg-slate-800/50",
+                                  "w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] font-medium transition-all duration-150 text-slate-300 hover:text-white",
+                                  secTheme.hoverBg,
                                   isSidebarCollapsed && "justify-center px-0 py-2"
                                 )}
                                 title={isSidebarCollapsed ? item.name : undefined}
@@ -553,17 +705,17 @@ export default function DashboardLayout() {
                                   to={item.path}
                                   onClick={() => setIsMobileMenuOpen(false)}
                                   className={cn(
-                                    "flex-1 flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] transition-all duration-150 min-w-0 group/link",
+                                    "flex-1 flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] transition-all duration-150 min-w-0 group/link",
                                     isActive
-                                      ? "bg-indigo-600/15 text-indigo-300 font-semibold border-l-2 border-indigo-500 rounded-l-none pl-2"
-                                      : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/50 font-medium",
+                                      ? cn(secTheme.activeBg, secTheme.activeText, "font-semibold border-l-2", secTheme.activeBorder, "rounded-l-none pl-2")
+                                      : cn("text-slate-400 hover:text-slate-100 font-medium", secTheme.hoverBg),
                                     isSidebarCollapsed && "justify-center px-0 py-2 border-l-0"
                                   )}
                                   title={isSidebarCollapsed ? item.name : undefined}
                                 >
                                   <Icon className={cn(
                                     "w-4 h-4 shrink-0 transition-colors",
-                                    isActive ? "text-indigo-400" : "text-slate-400 group-hover/link:text-slate-200"
+                                    isActive ? secTheme.iconActive : "text-slate-400 group-hover/link:text-slate-200"
                                   )} />
                                   {!isSidebarCollapsed && (
                                     <span className="truncate text-left leading-snug">{item.name}</span>
@@ -591,10 +743,10 @@ export default function DashboardLayout() {
                               type="button"
                               onClick={() => setOpenDropdown(isOpen && !filterLower ? null : item.name)}
                               className={cn(
-                                "flex items-center justify-between w-full px-2.5 py-2 rounded-lg text-[13px] transition-all duration-150 group/parent",
+                                "flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg text-[13px] transition-all duration-150 group/parent",
                                 isActive
-                                  ? "text-slate-100 font-semibold bg-slate-800/30"
-                                  : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/50 font-medium",
+                                  ? cn(secTheme.activeText, "font-semibold bg-white/5")
+                                  : cn("text-slate-400 hover:text-slate-100 font-medium", secTheme.hoverBg),
                                 isSidebarCollapsed && "justify-center px-0 py-2"
                               )}
                               title={isSidebarCollapsed ? item.name : undefined}
@@ -602,7 +754,7 @@ export default function DashboardLayout() {
                               <div className="flex items-center gap-2.5 min-w-0">
                                 <Icon className={cn(
                                   "w-4 h-4 shrink-0 transition-colors",
-                                  isActive ? "text-indigo-400" : "text-slate-400 group-hover/parent:text-slate-200"
+                                  isActive ? secTheme.iconActive : "text-slate-400 group-hover/parent:text-slate-200"
                                 )} />
                                 {!isSidebarCollapsed && (
                                   <span className="truncate text-left leading-snug">{item.name}</span>
@@ -628,7 +780,7 @@ export default function DashboardLayout() {
                                 transition={{ duration: 0.18, ease: "easeInOut" }}
                                 className="overflow-hidden"
                               >
-                                <div className="ml-4 pl-3.5 my-1 space-y-0.5 border-l border-slate-800/80">
+                                <div className={cn("ml-3.5 pl-3 my-1 space-y-0.5 border-l", secTheme.border)}>
                                   {item.subItems!.filter(sub => {
                                     if ((sub as any).roles && userRole?.role && !(sub as any).roles.includes(userRole.role)) return false;
                                     if (!filterLower) return true;
@@ -646,14 +798,14 @@ export default function DashboardLayout() {
                                           className={cn(
                                             "flex-1 flex items-center gap-2 px-2 py-1.5 rounded-md text-[12.5px] transition-colors min-w-0",
                                             isSubActive
-                                              ? "text-indigo-300 font-semibold bg-indigo-600/10"
+                                              ? cn(secTheme.activeText, "font-semibold", secTheme.activeBg)
                                               : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40 font-medium"
                                           )}
                                         >
                                           <span
                                             className={cn(
                                               "w-1.5 h-1.5 rounded-full shrink-0 transition-colors",
-                                              isSubActive ? "bg-indigo-400" : "bg-slate-600 group-hover/sub:bg-slate-400"
+                                              isSubActive ? secTheme.dot : "bg-slate-600 group-hover/sub:bg-slate-400"
                                             )}
                                           />
                                           <span className="truncate leading-snug">{sub.name}</span>
