@@ -459,8 +459,16 @@ function drawChallanCopy(
 
   // ── Totals calculation ───────────────────────────────────────────────────
   const breakdownGross = rawBreakdown.reduce((s, b) => s + Number(b.amount || 0), 0);
-  const grossTotal = breakdownGross + (config.show_previous_fee !== false ? prevFee : 0);
-  const discountAmt = record.discount_amount ?? 0;
+  const effectivePrevFee = config.show_previous_fee !== false ? prevFee : 0;
+  const grossTotal = breakdownGross + effectivePrevFee;
+
+  // If the breakdown items already reflect the discounted net amount (breakdownGross <= record.total_amount),
+  // do NOT subtract discount again (that would double-discount!).
+  // Only deduct a separate discount row if breakdown was passed with gross amounts (breakdownGross > record.total_amount).
+  const rawDiscount = record.discount_amount ?? 0;
+  const isBreakdownAlreadyDiscounted = rawDiscount > 0 && breakdownGross <= (Number(record.total_amount) || breakdownGross);
+  const discountAmt = isBreakdownAlreadyDiscounted ? 0 : rawDiscount;
+
   const feeWithinDue = Math.max(0, grossTotal - discountAmt);
   const fineAmt = record.fine_amount ?? 0;
   const feeAfterDue = feeWithinDue + fineAmt;

@@ -750,7 +750,7 @@ export default function StudentDetailPage() {
         invoice_number: inv.invoice_number,
         month_year: inv.month_year,
         due_date: inv.due_date,
-        total_amount: fin.gross,
+        total_amount: fin.net,
         paid_amount: inv.paid_amount || 0,
         status: inv.status,
         breakdown: breakdownItems,
