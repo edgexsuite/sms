@@ -507,45 +507,48 @@ export async function* streamGemini(
 
   // If Gemini API Key is configured, attempt official Google Gemini streaming
   if (apiKey && apiKey !== 'YOUR_GEMINI_API_KEY') {
-    try {
-      const ai = new GoogleGenAI({ apiKey });
-      const contents = history.map(h => ({
-        role: h.role,
-        parts: [{ text: h.text }]
-      }));
+    const candidateModels = ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-flash-latest"];
+    for (const model of candidateModels) {
+      try {
+        const ai = new GoogleGenAI({ apiKey });
+        const contents = history.map(h => ({
+          role: h.role,
+          parts: [{ text: h.text }]
+        }));
 
-      const response = await ai.models.generateContentStream({
-        model: "gemini-1.5-flash",
-        contents,
-        config: {
-          systemInstruction: systemPrompt,
-          maxOutputTokens: 1024,
-          temperature: 0.7,
-        },
-      });
+        const response = await ai.models.generateContentStream({
+          model,
+          contents,
+          config: {
+            systemInstruction: systemPrompt,
+            maxOutputTokens: 1024,
+            temperature: 0.7,
+          },
+        });
 
-      let streamedAny = false;
-      for await (const chunk of response) {
-        let text = '';
-        try {
-          if (typeof (chunk as any).text === 'function') {
-            text = (chunk as any).text();
-          } else {
-            text = chunk.text || '';
+        let streamedAny = false;
+        for await (const chunk of response) {
+          let text = '';
+          try {
+            if (typeof (chunk as any).text === 'function') {
+              text = (chunk as any).text();
+            } else {
+              text = chunk.text || '';
+            }
+          } catch {
+            text = (chunk as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || '';
           }
-        } catch {
-          text = (chunk as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || '';
+
+          if (text) {
+            streamedAny = true;
+            yield text;
+          }
         }
 
-        if (text) {
-          streamedAny = true;
-          yield text;
-        }
+        if (streamedAny) return;
+      } catch (err) {
+        console.warn(`Gemini model ${model} failed, trying next option:`, err);
       }
-
-      if (streamedAny) return;
-    } catch (err) {
-      console.warn('Gemini API call failed, switching to Built-in Autonomous Engine:', err);
     }
   }
 
