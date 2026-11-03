@@ -14,7 +14,7 @@ import { processStudentPhoto, uploadFile } from '../../lib/uploadUtils';
 import { PageHeader, Card, Btn, Badge, Input, Select, EmptyState } from '../../components/ui';
 import StudentFeeModal from '../../components/StudentFeeModal';
 import StudentFeeOverrideModal from '../../components/StudentFeeOverrideModal';
-import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, type ChallanRecord, type SchoolInfo, formatMonthShort } from '../../lib/challanUtils';
+import { downloadChallanPDF, DEFAULT_CHALLAN_CONFIG, type ChallanConfig, type ChallanRecord, type SchoolInfo, formatMonthShort } from '../../lib/challanUtils';
 import FeeBreakdownEditor, { type BreakdownRow } from '../../components/FeeBreakdownEditor';
 import { calculateLateFine, getFineRules, type FineRule } from '../../lib/fineUtils';
 import { generateInvoiceNumber, checkDuplicateInvoice, scaleBreakdown } from '../../lib/feeUtils';

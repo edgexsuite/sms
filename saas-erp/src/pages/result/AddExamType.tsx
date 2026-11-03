@@ -6,6 +6,7 @@ import {
   ClipboardList, PlusCircle, Pencil, Trash2, Save, X,
   Zap, Calendar, ChevronDown, ToggleLeft, ToggleRight,
   Globe, Eye, EyeOff, CheckCircle2, Award,
+  BookOpen, CheckSquare, Square, Filter, Sparkles, Check,
 } from 'lucide-react';
 import ResultTabsHeader from '../../components/layout/ResultTabsHeader';
 
@@ -67,6 +68,20 @@ export default function AddExamType() {
   const [editId,    setEditId]    = useState<string | null>(null);
   const [saving,    setSaving]    = useState(false);
 
+  // Subject configuration state
+  const [classesList, setClassesList]           = useState<any[]>([]);
+  const [subjectsList, setSubjectsList]         = useState<any[]>([]);
+  const [exclusionsMap, setExclusionsMap]       = useState<Record<string, Record<string, string[]>>>({});
+
+  // Subject selection modal state
+  const [subjectModalExam, setSubjectModalExam] = useState<any | null>(null);
+  const [selectedModalClass, setSelectedModalClass] = useState<string>('');
+  const [selectedSubjectIds, setSelectedSubjectIds] = useState<Set<string>>(new Set());
+  const [applyToAllClasses, setApplyToAllClasses]   = useState(false);
+  const [savingSubjects, setSavingSubjects]         = useState(false);
+  const [subjectStatusMsg, setSubjectStatusMsg]     = useState<string | null>(null);
+  const [configureSubjectsImmediately, setConfigureSubjectsImmediately] = useState(false);
+
   const [formData, setFormData] = useState({
     name:          '',
     session:       SESSION_OPTIONS[0],
@@ -80,22 +95,48 @@ export default function AddExamType() {
 
   const fetchAll = async () => {
     setLoading(true);
-    const [{ data: exams }, { data: pubData }] = await Promise.all([
+    const sid = userRole?.school_id;
+    const [
+      { data: exams },
+      { data: pubData },
+      { data: exclData },
+      { data: clsData },
+      { data: subsData },
+    ] = await Promise.all([
       supabase
         .from('exam_types')
         .select('*')
-        .eq('school_id', userRole?.school_id)
+        .eq('school_id', sid)
         .order('created_at'),
       supabase
         .from('form_settings')
         .select('sections_config')
-        .eq('school_id', userRole?.school_id)
+        .eq('school_id', sid)
         .eq('form_name', 'exam_publication_settings')
         .maybeSingle(),
+      supabase
+        .from('form_settings')
+        .select('sections_config')
+        .eq('school_id', sid)
+        .eq('form_name', 'exam_subject_exclusions')
+        .maybeSingle(),
+      supabase
+        .from('classes')
+        .select('id, name, section')
+        .eq('school_id', sid)
+        .order('name'),
+      supabase
+        .from('subjects')
+        .select('id, class_id, subject_name, total_marks, passing_marks')
+        .eq('school_id', sid)
+        .order('subject_name'),
     ]);
 
     const examList = exams || [];
     setExamTypes(examList);
+    setClassesList(clsData || []);
+    setSubjectsList(subsData || []);
+    setExclusionsMap(exclData?.sections_config || {});
 
     if (pubData?.sections_config && Array.isArray(pubData.sections_config.published_exam_ids)) {
       setPublishedExamIds(pubData.sections_config.published_exam_ids);
@@ -151,10 +192,132 @@ export default function AddExamType() {
     }
   };
 
+  // ── Subject selection helpers ─────────────────────────────────────────────
+  const openSubjectModal = (exam: any, defaultClassId?: string) => {
+    setSubjectModalExam(exam);
+    setSubjectStatusMsg(null);
+    setApplyToAllClasses(false);
+    const targetClassId = defaultClassId || classesList[0]?.id || '';
+    setSelectedModalClass(targetClassId);
+
+    // Initial selected subjects for this class
+    const excluded = new Set(exclusionsMap[exam.id]?.[targetClassId] || []);
+    const classSubs = subjectsList.filter(s => s.class_id === targetClassId);
+    const included = new Set(classSubs.filter(s => !excluded.has(s.id)).map(s => s.id));
+    setSelectedSubjectIds(included);
+  };
+
+  const handleModalClassChange = (classId: string) => {
+    setSelectedModalClass(classId);
+    setSubjectStatusMsg(null);
+    if (!subjectModalExam) return;
+    const excluded = new Set(exclusionsMap[subjectModalExam.id]?.[classId] || []);
+    const classSubs = subjectsList.filter(s => s.class_id === classId);
+    const included = new Set(classSubs.filter(s => !excluded.has(s.id)).map(s => s.id));
+    setSelectedSubjectIds(included);
+  };
+
+  const toggleSubjectSelection = (subId: string) => {
+    setSelectedSubjectIds(prev => {
+      const next = new Set(prev);
+      if (next.has(subId)) next.delete(subId);
+      else next.add(subId);
+      return next;
+    });
+  };
+
+  const selectAllModalSubjects = () => {
+    const classSubs = subjectsList.filter(s => s.class_id === selectedModalClass);
+    setSelectedSubjectIds(new Set(classSubs.map(s => s.id)));
+  };
+
+  const clearAllModalSubjects = () => {
+    setSelectedSubjectIds(new Set());
+  };
+
+  const selectCore4Subjects = () => {
+    const classSubs = subjectsList.filter(s => s.class_id === selectedModalClass);
+    const corePatterns = ['eng', 'urdu', 'math', 'sci'];
+    const matched = classSubs
+      .filter(s => corePatterns.some(p => s.subject_name.toLowerCase().includes(p)))
+      .map(s => s.id);
+    setSelectedSubjectIds(new Set(matched));
+  };
+
+  const handleSaveSubjects = async () => {
+    if (!subjectModalExam || !userRole?.school_id) return;
+    setSavingSubjects(true);
+    setSubjectStatusMsg(null);
+
+    try {
+      const sid = userRole.school_id;
+      const nextConfig = JSON.parse(JSON.stringify(exclusionsMap || {}));
+      if (!nextConfig[subjectModalExam.id]) {
+        nextConfig[subjectModalExam.id] = {};
+      }
+
+      if (applyToAllClasses) {
+        // Find subject names selected in current class
+        const currentClassSubs = subjectsList.filter(s => s.class_id === selectedModalClass);
+        const selectedNames = new Set(
+          currentClassSubs
+            .filter(s => selectedSubjectIds.has(s.id))
+            .map(s => s.subject_name.trim().toLowerCase())
+        );
+
+        // Apply across ALL classes by matching subject names
+        classesList.forEach(cls => {
+          const classSubs = subjectsList.filter(s => s.class_id === cls.id);
+          const excluded = classSubs
+            .filter(s => !selectedNames.has(s.subject_name.trim().toLowerCase()))
+            .map(s => s.id);
+          nextConfig[subjectModalExam.id][cls.id] = excluded;
+        });
+      } else {
+        const classSubs = subjectsList.filter(s => s.class_id === selectedModalClass);
+        const excluded = classSubs
+          .filter(s => !selectedSubjectIds.has(s.id))
+          .map(s => s.id);
+        nextConfig[subjectModalExam.id][selectedModalClass] = excluded;
+      }
+
+      const { error } = await supabase.from('form_settings').upsert({
+        school_id: sid,
+        form_name: 'exam_subject_exclusions',
+        sections_config: nextConfig,
+      }, { onConflict: 'school_id,form_name' });
+
+      if (error) throw error;
+
+      setExclusionsMap(nextConfig);
+      setSubjectStatusMsg(
+        applyToAllClasses
+          ? `✓ Applied to all ${classesList.length} classes successfully!`
+          : `✓ Saved subject selection for this class!`
+      );
+
+      setTimeout(() => {
+        setSubjectModalExam(null);
+        setSubjectStatusMsg(null);
+      }, 700);
+    } catch (err: any) {
+      alert('Failed to save subject selection: ' + err.message);
+    } finally {
+      setSavingSubjects(false);
+    }
+  };
+
+  const hasCustomSubjectSelection = (examId: string) => {
+    const examExcl = exclusionsMap[examId];
+    if (!examExcl) return false;
+    return Object.values(examExcl).some(arr => Array.isArray(arr) && arr.length > 0);
+  };
+
   // ── open form ─────────────────────────────────────────────────────────────
   const openCreate = (template?: typeof EXAM_TEMPLATES[0]) => {
     setEditId(null);
     setPublishImmediately(false);
+    setConfigureSubjectsImmediately(!!(template?.monthly));
     const pad = (n: number) => String(n).padStart(2, '0');
     setFormData({
       name:          template?.name || '',
@@ -170,6 +333,7 @@ export default function AddExamType() {
   const openEdit = (et: any) => {
     setEditId(et.id);
     setPublishImmediately(publishedExamIds.includes(et.id));
+    setConfigureSubjectsImmediately(false);
     setFormData({
       name:          et.name,
       session:       et.session || SESSION_OPTIONS[0],
@@ -194,6 +358,7 @@ export default function AddExamType() {
     }
     setEditId(null);
     setPublishImmediately(false);
+    setConfigureSubjectsImmediately(true);
     setFormData({
       name:          'Monthly Test',
       session:       SESSION_OPTIONS[0],
@@ -269,9 +434,19 @@ export default function AddExamType() {
             sections_config: { published_exam_ids: nextIds },
           }, { onConflict: 'school_id,form_name' });
         }
+        if (configureSubjectsImmediately && inserted) {
+          setShowForm(false);
+          await fetchAll();
+          openSubjectModal(inserted);
+          setSaving(false);
+          return;
+        }
       }
       setShowForm(false);
-      fetchAll();
+      await fetchAll();
+      if (editId && configureSubjectsImmediately) {
+        openSubjectModal(examTypes.find(e => e.id === editId) || { id: editId, ...payload });
+      }
     } catch (err: any) {
       alert(err.message);
     }
@@ -458,6 +633,12 @@ export default function AddExamType() {
                               No P/F
                             </span>
                           )}
+                          {hasCustomSubjectSelection(et.id) && (
+                            <span className="text-xs font-black bg-violet-100 text-violet-800 border border-violet-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                              <BookOpen className="w-3 h-3 text-violet-600" />
+                              Specific Subjects
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-gray-500 mt-0.5">
                           Session: {et.session || '—'} &bull; Weightage:{' '}
@@ -497,6 +678,15 @@ export default function AddExamType() {
                       <span className="text-xs bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full font-bold hidden sm:block">
                         {et.weightage}% weight
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => openSubjectModal(et)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 transition shadow-xs cursor-pointer"
+                        title="Select which specific subjects are included in this exam"
+                      >
+                        <BookOpen className="w-3.5 h-3.5 text-violet-600" />
+                        <span>Subjects</span>
+                      </button>
                       <button
                         onClick={() => navigate('/result/marks-config')}
                         className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
@@ -682,6 +872,28 @@ export default function AddExamType() {
                 }
               </div>
 
+              {/* Select Specific Subjects Toggle */}
+              <div
+                className="flex items-center justify-between p-3.5 rounded-xl border border-violet-200 bg-violet-50/60 cursor-pointer transition hover:bg-violet-50"
+                onClick={() => setConfigureSubjectsImmediately(p => !p)}
+              >
+                <div className="pr-3">
+                  <p className="text-sm font-bold text-violet-950 flex items-center gap-1.5">
+                    <BookOpen className="w-4 h-4 text-violet-600" />
+                    Select Specific Subjects (e.g. 4 Subjects for Monthly Test)
+                  </p>
+                  <p className="text-xs text-violet-700/80 mt-0.5">
+                    {configureSubjectsImmediately
+                      ? 'Subject selection window will open right after saving this exam.'
+                      : 'All subjects included by default. Toggle on to choose specific subjects.'}
+                  </p>
+                </div>
+                {configureSubjectsImmediately
+                  ? <ToggleRight className="w-8 h-8 text-violet-600 shrink-0" />
+                  : <ToggleLeft  className="w-8 h-8 text-gray-300 shrink-0" />
+                }
+              </div>
+
             </div>
 
             {/* Modal footer */}
@@ -700,6 +912,208 @@ export default function AddExamType() {
                 <Save className="w-4 h-4" />
                 {saving ? 'Saving...' : editId ? 'Update' : 'Create'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Subject Selection Modal ── */}
+      {subjectModalExam && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="bg-violet-700 px-6 py-4 flex justify-between items-center text-white shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center shadow-inner">
+                  <BookOpen className="w-5 h-5 text-violet-100" />
+                </div>
+                <div>
+                  <h3 className="font-black text-lg">
+                    Select Subjects — {subjectModalExam.name}
+                  </h3>
+                  <p className="text-violet-200 text-xs font-medium">
+                    {subjectModalExam.month_year ? monthYearLabel(subjectModalExam.month_year) : subjectModalExam.session} &bull; Marks &amp; report cards will be calculated out of selected subjects only
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSubjectModalExam(null)}
+                className="text-violet-200 hover:text-white p-1 rounded-lg transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4 overflow-y-auto flex-1 bg-slate-50/50">
+              {subjectStatusMsg && (
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  {subjectStatusMsg}
+                </div>
+              )}
+
+              {/* Class Picker */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
+                    Select Class to Configure
+                  </label>
+                  <div className="relative min-w-[200px]">
+                    <select
+                      value={selectedModalClass}
+                      onChange={e => handleModalClassChange(e.target.value)}
+                      className="w-full appearance-none px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold pr-8 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                    >
+                      {classesList.map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} {c.section ? `(${c.section})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  </div>
+                </div>
+
+                {/* Quick actions */}
+                <div className="flex items-center gap-1.5 flex-wrap self-end sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={selectCore4Subjects}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-black bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition flex items-center gap-1 cursor-pointer"
+                    title="Select 4 Core Subjects: English, Urdu, Math, Science"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Quick: 4 Core Subjects</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={selectAllModalSubjects}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-black bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearAllModalSubjects}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-black bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              </div>
+
+              {/* Status Header */}
+              {(() => {
+                const currentSubs = subjectsList.filter(s => s.class_id === selectedModalClass);
+                return (
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-xs font-bold text-slate-600">
+                      {currentSubs.length === 0 ? (
+                        'No subjects found for this class'
+                      ) : (
+                        <>
+                          <strong>{selectedSubjectIds.size}</strong> of {currentSubs.length} subjects selected
+                          {selectedSubjectIds.size === 4 && (
+                            <span className="ml-2 text-violet-700 bg-violet-100 px-2 py-0.5 rounded-full text-[10px] font-black">
+                              4-Subject Test
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      Click cards below to toggle inclusion
+                    </span>
+                  </div>
+                );
+              })()}
+
+              {/* Subject Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[300px] overflow-y-auto pr-1">
+                {subjectsList.filter(s => s.class_id === selectedModalClass).map(sub => {
+                  const isSelected = selectedSubjectIds.has(sub.id);
+                  return (
+                    <div
+                      key={sub.id}
+                      onClick={() => toggleSubjectSelection(sub.id)}
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                        isSelected
+                          ? 'bg-violet-50/70 border-violet-300 shadow-xs'
+                          : 'bg-white border-slate-200 opacity-60 hover:opacity-90'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors ${
+                          isSelected ? 'bg-violet-600 text-white' : 'border border-slate-300 bg-white'
+                        }`}>
+                          {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                        </div>
+                        <div>
+                          <p className={`text-sm font-bold ${isSelected ? 'text-violet-950' : 'text-slate-600'}`}>
+                            {sub.subject_name}
+                          </p>
+                          <p className="text-[10px] text-slate-400">
+                            Total: {sub.total_marks || 100} &bull; Pass: {sub.passing_marks || 33}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                        isSelected
+                          ? 'bg-violet-100 text-violet-800'
+                          : 'bg-slate-100 text-slate-500'
+                      }`}>
+                        {isSelected ? 'Included' : 'Excluded'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Bulk Apply to all classes checkbox */}
+              <div
+                onClick={() => setApplyToAllClasses(p => !p)}
+                className="p-3 rounded-xl border border-slate-200 bg-white flex items-start gap-3 cursor-pointer hover:bg-slate-50 transition"
+              >
+                <div className={`w-5 h-5 mt-0.5 rounded-md flex items-center justify-center transition-colors shrink-0 ${
+                  applyToAllClasses ? 'bg-violet-600 text-white' : 'border border-slate-300 bg-white'
+                }`}>
+                  {applyToAllClasses && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                </div>
+                <div>
+                  <p className="text-xs font-black text-slate-800">
+                    Apply this subject selection to ALL classes in school ({classesList.length} classes)
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Automatically matches selected subject names (e.g. English, Urdu, Math, Science) across all other classes so you don't have to select class-by-class.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-white border-t border-slate-200 flex items-center justify-between gap-3 shrink-0">
+              <span className="text-xs text-slate-500 font-medium">
+                {selectedSubjectIds.size} subject{selectedSubjectIds.size !== 1 ? 's' : ''} will be conducted
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSubjectModalExam(null)}
+                  className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveSubjects}
+                  disabled={savingSubjects}
+                  className="px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl shadow-md flex items-center gap-2 text-xs transition cursor-pointer disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                  {savingSubjects ? 'Saving Selection...' : 'Save Subject Selection'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -64,6 +64,8 @@ export default function TeacherMarks() {
   const [selectedClass,   setSelectedClass]   = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
   const [publishedExamIds, setPublishedExamIds] = useState<string[]>([]);
+  const [excludedSubjectIds, setExcludedSubjectIds] = useState<Set<string>>(new Set());
+  const [showAllSubjects, setShowAllSubjects] = useState(false);
 
   const [marks,      setMarks]      = useState<Record<string, string>>({});
   const [absent,     setAbsent]     = useState<Record<string, boolean>>({});
@@ -92,6 +94,23 @@ export default function TeacherMarks() {
       resetData();
     }
   }, [selectedClass]);
+
+  useEffect(() => {
+    if (selectedExam && selectedClass && userRole?.school_id) {
+      supabase
+        .from('form_settings')
+        .select('sections_config')
+        .eq('school_id', userRole.school_id)
+        .eq('form_name', 'exam_subject_exclusions')
+        .maybeSingle()
+        .then(({ data }) => {
+          const list = data?.sections_config?.[selectedExam]?.[selectedClass] || [];
+          setExcludedSubjectIds(new Set(list));
+        });
+    } else {
+      setExcludedSubjectIds(new Set());
+    }
+  }, [selectedExam, selectedClass, userRole]);
 
   useEffect(() => {
     if (selectedExam && selectedClass && selectedSubject) {
@@ -374,11 +393,15 @@ export default function TeacherMarks() {
 
   // ── Derived: which subjects to show ──────────────────────────────────────
   const visibleSubjects: SubjectRow[] = (() => {
-    if (isAdmin || !selectedClass) return allSubjects;
-    if (isClassIncharge(selectedClass) || canManageExams(selectedClass)) return allSubjects;
+    let pool = allSubjects;
+    if (!showAllSubjects && excludedSubjectIds.size > 0) {
+      pool = pool.filter(s => !excludedSubjectIds.has(s.id));
+    }
+    if (isAdmin || !selectedClass) return pool;
+    if (isClassIncharge(selectedClass) || canManageExams(selectedClass)) return pool;
     const assigned = assignedSubsByClass.get(selectedClass);
-    if (!assigned || assigned.size === 0) return allSubjects;
-    return allSubjects.filter(s => assigned.has(s.id));
+    if (!assigned || assigned.size === 0) return pool;
+    return pool.filter(s => assigned.has(s.id));
   })();
 
   // ── Grouped exam list for dropdown ────────────────────────────────────────
@@ -627,6 +650,20 @@ export default function TeacherMarks() {
               <p className="text-[10px] text-amber-600 font-bold mt-1 flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3" /> No assigned subjects for this class
               </p>
+            )}
+            {excludedSubjectIds.size > 0 && selectedClass && (
+              <div className="flex items-center justify-between text-[10px] mt-1 text-slate-500 font-bold">
+                <span className="text-indigo-600">
+                  {showAllSubjects ? 'Showing all subjects' : `Filtered: ${visibleSubjects.length} scheduled test subjects`}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowAllSubjects(p => !p)}
+                  className="text-slate-400 hover:text-indigo-600 underline cursor-pointer"
+                >
+                  {showAllSubjects ? 'Show scheduled only' : `Show all (${allSubjects.length})`}
+                </button>
+              </div>
             )}
           </div>
 

@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import {
   TableProperties, Printer, Download, TrendingUp,
   RefreshCw, Award, Users, CheckCircle, XCircle,
+  BookOpen, Filter,
 } from 'lucide-react';
 import { fetchGradingPolicy, getGradeFromPolicy, GradingBracket } from '../../lib/gradingUtils';
 import * as XLSX from 'xlsx';
@@ -34,6 +35,7 @@ export default function ConsolidatedResult() {
 
   const [selectedExamType, setSelectedExamType] = useState('');
   const [selectedClass,    setSelectedClass]    = useState('');
+  const [excludedSubjectIds, setExcludedSubjectIds] = useState<Set<string>>(new Set());
   const [loading,          setLoading]          = useState(false);
 
   const tableRef = useRef<HTMLDivElement>(null);
@@ -69,6 +71,23 @@ export default function ConsolidatedResult() {
   }, [selectedClass]);
 
   // ── Fetch exam_subject_config when exam or subjects change ────────────────
+  useEffect(() => {
+    if (!selectedExamType || !selectedClass || !sid) {
+      setExcludedSubjectIds(new Set());
+      return;
+    }
+    supabase
+      .from('form_settings')
+      .select('sections_config')
+      .eq('school_id', sid)
+      .eq('form_name', 'exam_subject_exclusions')
+      .maybeSingle()
+      .then(({ data }) => {
+        const list = data?.sections_config?.[selectedExamType]?.[selectedClass] || [];
+        setExcludedSubjectIds(new Set(list));
+      });
+  }, [selectedExamType, selectedClass, sid]);
+
   useEffect(() => {
     if (!selectedExamType || subjects.length === 0) return;
     supabase
@@ -117,14 +136,17 @@ export default function ConsolidatedResult() {
   const getResult = (studentId: string, subjectId: string) =>
     results.find(r => r.student_id === studentId && r.subject_id === subjectId);
 
-  // Calculate total possible marks for the class (all subjects in this exam config)
-  const classTotalPossible = subjects.reduce((sum, subj) => sum + effectiveMarks(subj).total, 0);
+  // Active subjects for this exam & class (excluding cancelled/non-conducted subjects)
+  const activeSubjects = subjects.filter(s => !excludedSubjectIds.has(s.id));
+
+  // Calculate total possible marks for the class (only active/conducted subjects in this exam config)
+  const classTotalPossible = activeSubjects.reduce((sum, subj) => sum + effectiveMarks(subj).total, 0);
 
   const consolidatedData = students.map(stu => {
     let totalObtained = 0;
     let failCount     = 0;
 
-    const subjectRows = subjects.map(subj => {
+    const subjectRows = activeSubjects.map(subj => {
       const { total: maxMarks, passing: passMarks } = effectiveMarks(subj);
       const r = getResult(stu.id, subj.id);
 
@@ -170,7 +192,7 @@ export default function ConsolidatedResult() {
   const top3Students = consolidatedData.filter(d => (d as any).position <= 3);
 
   // Subject-wise class averages (bottom row)
-  const subjectAvgs = subjects.map(subj => {
+  const subjectAvgs = activeSubjects.map(subj => {
     const entries = results.filter(r => r.subject_id === subj.id && !r.is_absent);
     if (entries.length === 0) return null;
     return Math.round(entries.reduce((a, r) => a + Number(r.obtained_marks), 0) / entries.length);
@@ -181,8 +203,8 @@ export default function ConsolidatedResult() {
     const currentExam  = examTypes.find(e => e.id === selectedExamType);
     const currentClass = classes.find(c => c.id === selectedClass);
 
-    const header1 = ['', 'Roll', 'Student', ...subjects.map(s => s.subject_name), 'Total Obt', 'Max Marks', '%', 'Grade', 'Status'];
-    const header2 = ['',  '',    '',        ...subjects.map(s => `Pass: ${s.passing_marks ?? '—'} / ${s.total_marks ?? 100}`), '', '', '', '', ''];
+    const header1 = ['', 'Roll', 'Student', ...activeSubjects.map(s => s.subject_name), 'Total Obt', 'Max Marks', '%', 'Grade', 'Status'];
+    const header2 = ['',  '',    '',        ...activeSubjects.map(s => `Pass: ${s.passing_marks ?? '—'} / ${s.total_marks ?? 100}`), '', '', '', '', ''];
 
     const rows = consolidatedData.map((row: any) => [
       row.position,
@@ -211,7 +233,7 @@ export default function ConsolidatedResult() {
     ]);
 
     // Column widths
-    ws['!cols'] = [{ wch: 5 }, { wch: 8 }, { wch: 26 }, ...subjects.map(() => ({ wch: 12 })), { wch: 10 }, { wch: 10 }, { wch: 7 }, { wch: 8 }, { wch: 7 }];
+    ws['!cols'] = [{ wch: 5 }, { wch: 8 }, { wch: 26 }, ...activeSubjects.map(() => ({ wch: 12 })), { wch: 10 }, { wch: 10 }, { wch: 7 }, { wch: 8 }, { wch: 7 }];
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Consolidated');
@@ -301,6 +323,28 @@ export default function ConsolidatedResult() {
             ))}
           </select>
         </div>
+
+        {selectedExamType && selectedClass && subjects.length > 0 && (
+          <div className="md:col-span-2 pt-2 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2">
+            {excludedSubjectIds.size > 0 ? (
+              <span className="text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5">
+                <BookOpen className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Showing <strong>{activeSubjects.length}</strong> of {subjects.length} subjects (Specific subjects active for this test)</span>
+              </span>
+            ) : (
+              <span className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                <span>All {subjects.length} class subjects included in this test</span>
+              </span>
+            )}
+            <a
+              href="/result/marks-config"
+              className="text-xs text-indigo-600 hover:text-indigo-800 font-bold hover:underline"
+            >
+              Change Included Subjects →
+            </a>
+          </div>
+        )}
       </div>
 
       {/* ── Loading ── */}
@@ -324,6 +368,7 @@ export default function ConsolidatedResult() {
             <p className="text-sm font-bold">
               Class: {currentClass?.name}{currentClass?.section ? ` (${currentClass.section})` : ''}
               &nbsp;|&nbsp; Total Students: {students.length}
+              &nbsp;|&nbsp; Subjects: {activeSubjects.length}
               {showPassFail && <>&nbsp;|&nbsp; Pass: {passCount} &nbsp;|&nbsp; Fail: {failCount}</>}
               &nbsp;|&nbsp; Class Avg: {classAvgPct}%
             </p>
@@ -369,7 +414,7 @@ export default function ConsolidatedResult() {
                     <th className="px-2 py-2.5 text-center text-xs font-black uppercase w-10 whitespace-nowrap sticky left-0 bg-violet-700">#</th>
                     <th className="px-2 py-2.5 text-center text-xs font-black uppercase whitespace-nowrap w-14">Roll</th>
                     <th className="px-3 py-2.5 text-left   text-xs font-black uppercase whitespace-nowrap min-w-[160px]">Student Name</th>
-                    {subjects.map(s => (
+                    {activeSubjects.map(s => (
                       <th key={s.id} className="px-2 py-2.5 text-center text-xs font-black whitespace-nowrap min-w-[80px]">
                         {s.subject_name}
                       </th>
@@ -384,7 +429,7 @@ export default function ConsolidatedResult() {
                     <td colSpan={3} className="px-3 py-1 text-[10px] font-black text-violet-600 uppercase tracking-widest sticky left-0 bg-violet-50">
                       Max Marks →
                     </td>
-                    {subjects.map(s => {
+                    {activeSubjects.map(s => {
                       const em = effectiveMarks(s);
                       return (
                         <td key={s.id} className="px-2 py-1 text-center text-[10px] font-bold text-violet-700">
@@ -394,7 +439,7 @@ export default function ConsolidatedResult() {
                       );
                     })}
                     <td className="px-2 py-1 text-center text-[10px] font-bold text-violet-700">
-                      {subjects.reduce((a, s) => a + effectiveMarks(s).total, 0)}
+                      {activeSubjects.reduce((a, s) => a + effectiveMarks(s).total, 0)}
                     </td>
                     <td colSpan={3} />
                   </tr>
@@ -528,7 +573,7 @@ export default function ConsolidatedResult() {
                         <td colSpan={3} className={`px-3 py-1.5 text-xs font-black uppercase tracking-widest text-left ${s.labelCls}`}>
                           {s.medal} {s.label}: {row.student.full_name}
                         </td>
-                        {subjects.map((_: any, i: number) => <td key={i} />)}
+                        {activeSubjects.map((_: any, i: number) => <td key={i} />)}
                         <td className={`px-2 py-1.5 text-center text-xs font-black ${s.labelCls}`}>
                           {row.totalObtained}/{row.grandTotal}
                         </td>

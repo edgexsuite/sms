@@ -11,6 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { streamGemini, fetchSchoolContext, buildSystemPrompt, SchoolContext } from '../lib/gemini';
 import { supabase } from '../lib/supabase';
 import { PageHeader } from '../components/ui/PageHeader';
+import { cn } from '../lib/utils';
 
 interface Message {
   role: 'user' | 'model';

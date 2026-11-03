@@ -53,6 +53,7 @@ export default function AwardListGenerator() {
     { id: '2', label: 'G.K.', maxMarks: '30' },
     { id: '3', label: 'Adab-e-Zindagi', maxMarks: '30' }
   ]);
+  const [excludedSubjectIds, setExcludedSubjectIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (userRole?.school_id) {
@@ -71,6 +72,16 @@ export default function AwardListGenerator() {
   useEffect(() => {
     if (selectedClass && selectedExam) {
       fetchMarks();
+      supabase
+        .from('form_settings')
+        .select('sections_config')
+        .eq('school_id', userRole?.school_id)
+        .eq('form_name', 'exam_subject_exclusions')
+        .maybeSingle()
+        .then(({ data }) => {
+          const list = data?.sections_config?.[selectedExam]?.[selectedClass] || [];
+          setExcludedSubjectIds(new Set(list));
+        });
       const exam = examTypes.find(e => e.id === selectedExam);
       if (exam?.month_year) {
         const [y, m] = exam.month_year.split('-');
@@ -96,8 +107,9 @@ export default function AwardListGenerator() {
   // When exam totals arrive, refresh columns if a non-custom mode is active
   useEffect(() => {
     if (Object.keys(subjectTotalsFromExam).length === 0) return;
+    const activeSubjects = allSubjects.filter(s => !excludedSubjectIds.has(s.id));
     if (selectedSubject === 'all') {
-      setColumns(allSubjects.map(s => ({
+      setColumns(activeSubjects.map(s => ({
         id: s.id,
         label: s.subject_name,
         maxMarks: String(subjectTotalsFromExam[s.id] ?? s.total_marks ?? 100),
@@ -112,7 +124,7 @@ export default function AwardListGenerator() {
         }]);
       }
     }
-  }, [subjectTotalsFromExam]);
+  }, [subjectTotalsFromExam, excludedSubjectIds]);
 
   const fetchInitialData = async () => {
     const [{ data: school }, { data: cls }, { data: exams }] = await Promise.all([

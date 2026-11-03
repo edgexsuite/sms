@@ -358,16 +358,20 @@ export default function ResultReporting() {
     const ids = students.map(s => s.id);
 
     // ── Preflight: check for missing marks ──────────────────────────────────
+    const activeClassSubjects = subjects.filter((subj: any) => !excludedSubjectIds.has(subj.id));
+    const activeSubIds = new Set(activeClassSubjects.map(s => s.id));
     const { data: existingMarks } = await supabase
       .from('exam_results')
       .select('student_id, subject_id')
       .eq('exam_type_id', selectedExamType)
       .in('student_id', ids);
-    const missing = students.length * subjects.length - (existingMarks?.length || 0);
+    const activeExistingMarks = (existingMarks || []).filter(m => activeSubIds.has(m.subject_id));
+    const totalExpected = students.length * activeClassSubjects.length;
+    const missing = totalExpected - activeExistingMarks.length;
     if (missing > 0) {
       const go = window.confirm(
         `⚠️ Pre-flight Warning\n\n${missing} mark entr${missing === 1 ? 'y is' : 'ies are'} missing ` +
-        `(${existingMarks?.length || 0}/${students.length * subjects.length} filled).\n\n` +
+        `(${activeExistingMarks.length}/${totalExpected} filled for ${activeClassSubjects.length} test subjects).\n\n` +
         `Missing subjects will show as "AB" (Absent). Proceed anyway?`
       );
       if (!go) return;
@@ -418,7 +422,7 @@ export default function ResultReporting() {
       ranks[id] = denseRank;
     });
 
-    const activeClassSubjects = subjects.filter((subj: any) => !excludedSubjectIds.has(subj.id));
+    // activeClassSubjects already computed above
 
     const cards = students.map(stu => {
       const stuResults = (allRes || []).filter((r: any) => r.student_id === stu.id);

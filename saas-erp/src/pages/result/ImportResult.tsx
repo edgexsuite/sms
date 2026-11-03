@@ -66,7 +66,7 @@ export default function ImportResult() {
     if (selectedClass) { fetchSubjects(); fetchStudents(); }
     else { setSubjects([]); setStudents([]); setExamConfigs({}); }
     setRows([]); setStep(1); setSaved(false); setSaveError('');
-  }, [selectedClass]);
+  }, [selectedClass, selectedExam]);
 
   useEffect(() => {
     if (selectedClass && selectedExam) {
@@ -86,10 +86,18 @@ export default function ImportResult() {
   };
 
   const fetchSubjects = async () => {
-    const { data } = await supabase.from('subjects')
-      .select('id,subject_name,subject_code,total_marks,passing_marks')
-      .eq('class_id', selectedClass).order('subject_name');
-    setSubjects(data || []);
+    const [{ data }, { data: exclData }] = await Promise.all([
+      supabase.from('subjects')
+        .select('id,subject_name,subject_code,total_marks,passing_marks')
+        .eq('class_id', selectedClass).order('subject_name'),
+      selectedExam && userRole?.school_id
+        ? supabase.from('form_settings').select('sections_config').eq('school_id', userRole.school_id).eq('form_name', 'exam_subject_exclusions').maybeSingle()
+        : Promise.resolve({ data: null })
+    ]);
+    const exclusions = exclData?.sections_config?.[selectedExam]?.[selectedClass] || [];
+    const exclSet = new Set(exclusions);
+    const pool = (data || []).filter(s => !exclSet.has(s.id));
+    setSubjects(pool);
   };
 
   const fetchExamConfigs = async () => {

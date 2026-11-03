@@ -8,7 +8,7 @@ import {
   ShieldOff, AlertTriangle, FileText, ArrowRight,
   Filter, Plus, Printer, X, CreditCard, Clock,
   TrendingDown, ChevronDown, ChevronUp, Trash2, Tag, Percent, BadgeDollarSign,
-  Calendar, ExternalLink
+  Calendar, ExternalLink, Award
 } from 'lucide-react';
 import { calculateLateFine, getFineRules, FineRule } from '../../lib/fineUtils';
 import { cn, formatDate } from '../../lib/utils';
@@ -497,7 +497,7 @@ export default function StudentFeeDetail() {
            (i.total_amount - (i.paid_amount || 0)) > 0
     );
     const prevFee = prevInvs.reduce((sum, i) => sum + Math.max(0, i.total_amount - (i.paid_amount || 0)), 0);
-    const arrearsMonths = Array.from(new Set(prevInvs.map(i => formatMonthShort(i.month_year)).filter(Boolean)));
+    const arrearsMonths: string[] = Array.from(new Set(prevInvs.map(i => formatMonthShort(i.month_year)).filter(Boolean) as string[]));
 
     const { totalFine } = calculateLateFine(inv, fineRules);
 

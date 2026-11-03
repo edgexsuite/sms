@@ -136,6 +136,7 @@ export default function ResultStatus() {
         { data: subjects },
         { data: students },
         { data: results },
+        { data: exclusionsData },
       ] = await Promise.all([
         supabase.from('classes').select('id, name, section').eq('school_id', sid).order('name'),
         supabase.from('subjects').select('id, subject_name, class_id').eq('school_id', sid),
@@ -144,12 +145,18 @@ export default function ResultStatus() {
           .select('student_id, subject_id, is_absent')
           .eq('school_id', sid)
           .eq('exam_type_id', selectedExam),
+        supabase.from('form_settings')
+          .select('sections_config')
+          .eq('school_id', sid)
+          .eq('form_name', 'exam_subject_exclusions')
+          .maybeSingle(),
       ]);
 
       const cls  = classes  || [];
       const subs = subjects || [];
       const stds = students || [];
       const res  = results  || [];
+      const exclusionsMap = exclusionsData?.sections_config?.[selectedExam] || {};
 
       // Separate sets: one for marks entries, one for absent-marked
       // Key = "subjectId|studentId"
@@ -157,11 +164,11 @@ export default function ResultStatus() {
       const marksSet  = new Set(res.filter((r: any) => !r.is_absent).map((r: any) => `${r.subject_id}|${r.student_id}`));
       const absentSet = new Set(res.filter((r: any) =>  r.is_absent).map((r: any) => `${r.subject_id}|${r.student_id}`));
 
-
       const built: RowData[] = [];
 
       cls.forEach(c => {
-        const classSubs     = subs.filter(s => s.class_id === c.id);
+        const classExclusions = new Set(exclusionsMap[c.id] || []);
+        const classSubs     = subs.filter(s => s.class_id === c.id && !classExclusions.has(s.id));
         const classStudents = stds.filter(s => s.class_id === c.id);
         const totalStudents = classStudents.length;
 

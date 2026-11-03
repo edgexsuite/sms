@@ -115,7 +115,7 @@ export default function AuthorizedSignatories() {
     if (!file || !userRole?.school_id) return;
     setUploadingSig(true);
     try {
-      const url = await uploadFile('school-assets', `${userRole.school_id}/signatures/${Date.now()}_${file.name}`, file);
+      const url = await uploadFile(`${userRole.school_id}/signatures/${Date.now()}_${file.name}`, file);
       setFormData(prev => ({ ...prev, signature_url: url }));
     } catch (err: any) {
       alert('Failed to upload signature image: ' + err.message);
@@ -129,7 +129,7 @@ export default function AuthorizedSignatories() {
     if (!file || !userRole?.school_id) return;
     setUploadingStamp(true);
     try {
-      const url = await uploadFile('school-assets', `${userRole.school_id}/stamps/${Date.now()}_${file.name}`, file);
+      const url = await uploadFile(`${userRole.school_id}/stamps/${Date.now()}_${file.name}`, file);
       setFormData(prev => ({ ...prev, stamp_url: url }));
     } catch (err: any) {
       alert('Failed to upload stamp image: ' + err.message);

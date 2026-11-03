@@ -467,6 +467,24 @@ export default function ExamMarksConfig() {
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
+                  onClick={() => {
+                    const corePatterns = ['eng', 'urdu', 'math', 'sci'];
+                    const toExclude = new Set<string>();
+                    subjects.forEach(s => {
+                      const name = s.subject_name.toLowerCase();
+                      const isCore = corePatterns.some(p => name.includes(p));
+                      if (!isCore) toExclude.add(s.id);
+                    });
+                    setExcludedSubjects(toExclude);
+                    setIsExclusionsDirty(true);
+                  }}
+                  className="text-[10px] font-black text-amber-800 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-200 uppercase tracking-wider"
+                  title="Include only English, Urdu, Math, Science"
+                >
+                  🎯 Quick: 4 Core Subjects
+                </button>
+                <button
+                  type="button"
                   onClick={() => setAllExclusions(false)}
                   className="text-[10px] font-black text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200 uppercase tracking-wider"
                 >
