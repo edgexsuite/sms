@@ -77,6 +77,8 @@ export default function AddExamType() {
   const [subjectModalExam, setSubjectModalExam] = useState<any | null>(null);
   const [selectedModalClass, setSelectedModalClass] = useState<string>('');
   const [selectedSubjectIds, setSelectedSubjectIds] = useState<Set<string>>(new Set());
+  const [subjectMarksMap, setSubjectMarksMap]       = useState<Record<string, { total_marks: string; passing_marks: string }>>({});
+  const [customBulkTotal, setCustomBulkTotal]       = useState<string>('');
   const [applyToAllClasses, setApplyToAllClasses]   = useState(false);
   const [savingSubjects, setSavingSubjects]         = useState(false);
   const [subjectStatusMsg, setSubjectStatusMsg]     = useState<string | null>(null);
@@ -193,7 +195,7 @@ export default function AddExamType() {
   };
 
   // ── Subject selection helpers ─────────────────────────────────────────────
-  const openSubjectModal = (exam: any, defaultClassId?: string) => {
+  const openSubjectModal = async (exam: any, defaultClassId?: string) => {
     setSubjectModalExam(exam);
     setSubjectStatusMsg(null);
     setApplyToAllClasses(false);
@@ -205,6 +207,21 @@ export default function AddExamType() {
     const classSubs = subjectsList.filter(s => s.class_id === targetClassId);
     const included = new Set(classSubs.filter(s => !excluded.has(s.id)).map(s => s.id));
     setSelectedSubjectIds(included);
+
+    // Fetch existing custom marks from exam_subject_config
+    const { data: configs } = await supabase
+      .from('exam_subject_config')
+      .select('subject_id, total_marks, passing_marks')
+      .eq('exam_type_id', exam.id);
+
+    const cfgMap: Record<string, { total_marks: string; passing_marks: string }> = {};
+    (configs || []).forEach((c: any) => {
+      cfgMap[c.subject_id] = {
+        total_marks: String(c.total_marks),
+        passing_marks: String(c.passing_marks),
+      };
+    });
+    setSubjectMarksMap(cfgMap);
   };
 
   const handleModalClassChange = (classId: string) => {
@@ -222,6 +239,32 @@ export default function AddExamType() {
       const next = new Set(prev);
       if (next.has(subId)) next.delete(subId);
       else next.add(subId);
+      return next;
+    });
+  };
+
+  const updateSubjectMarks = (subId: string, field: 'total_marks' | 'passing_marks', value: string) => {
+    setSubjectMarksMap(prev => {
+      const current = prev[subId] || { total_marks: '100', passing_marks: '33' };
+      const next = { ...current, [field]: value };
+      if (field === 'total_marks') {
+        const n = Number(value);
+        if (!isNaN(n) && n > 0) {
+          next.passing_marks = String(Math.round(n * 0.33));
+        }
+      }
+      return { ...prev, [subId]: next };
+    });
+  };
+
+  const applyBulkMarksToCurrentClass = (total: number) => {
+    const pass = Math.round(total * 0.33);
+    const classSubs = subjectsList.filter(s => s.class_id === selectedModalClass);
+    setSubjectMarksMap(prev => {
+      const next = { ...prev };
+      classSubs.forEach(s => {
+        next[s.id] = { total_marks: String(total), passing_marks: String(pass) };
+      });
       return next;
     });
   };
@@ -289,11 +332,60 @@ export default function AddExamType() {
 
       if (error) throw error;
 
+      // ── Save custom marks into exam_subject_config ────────────────────────
+      const currentClassSubs = subjectsList.filter(s => s.class_id === selectedModalClass);
+      const selectedSubs = currentClassSubs.filter(s => selectedSubjectIds.has(s.id));
+      const configUpserts: any[] = [];
+
+      if (applyToAllClasses) {
+        const marksByName = new Map<string, { total: number; passing: number }>();
+        selectedSubs.forEach(s => {
+          const m = subjectMarksMap[s.id];
+          const tot = m?.total_marks ? Number(m.total_marks) : (s.total_marks || 100);
+          const pass = m?.passing_marks ? Number(m.passing_marks) : (s.passing_marks || 33);
+          marksByName.set(s.subject_name.trim().toLowerCase(), { total: tot, passing: pass });
+        });
+
+        classesList.forEach(cls => {
+          const clsSubs = subjectsList.filter(s => s.class_id === cls.id);
+          clsSubs.forEach(cs => {
+            const match = marksByName.get(cs.subject_name.trim().toLowerCase());
+            if (match) {
+              configUpserts.push({
+                school_id: sid,
+                exam_type_id: subjectModalExam.id,
+                subject_id: cs.id,
+                total_marks: match.total,
+                passing_marks: match.passing,
+              });
+            }
+          });
+        });
+      } else {
+        selectedSubs.forEach(s => {
+          const m = subjectMarksMap[s.id];
+          configUpserts.push({
+            school_id: sid,
+            exam_type_id: subjectModalExam.id,
+            subject_id: s.id,
+            total_marks: m?.total_marks ? Number(m.total_marks) : (s.total_marks || 100),
+            passing_marks: m?.passing_marks ? Number(m.passing_marks) : (s.passing_marks || 33),
+          });
+        });
+      }
+
+      if (configUpserts.length > 0) {
+        const { error: cfgErr } = await supabase
+          .from('exam_subject_config')
+          .upsert(configUpserts, { onConflict: 'exam_type_id,subject_id' });
+        if (cfgErr) console.warn('exam_subject_config upsert warning:', cfgErr.message);
+      }
+
       setExclusionsMap(nextConfig);
       setSubjectStatusMsg(
         applyToAllClasses
-          ? `✓ Applied to all ${classesList.length} classes successfully!`
-          : `✓ Saved subject selection for this class!`
+          ? `✓ Subject selection and marks applied to all ${classesList.length} classes!`
+          : `✓ Subject selection and marks saved for this class!`
       );
 
       setTimeout(() => {
@@ -1029,22 +1121,64 @@ export default function AddExamType() {
                 );
               })()}
 
+              {/* Quick Bulk Total Marks Bar */}
+              <div className="bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-100 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2">
+                  <Award className="w-4 h-4 text-violet-600 shrink-0" />
+                  <span className="text-xs font-black text-violet-950">
+                    Adjust Total Marks for Test:
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[25, 50, 75, 100].map(m => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => applyBulkMarksToCurrentClass(m)}
+                      className="px-2.5 py-1 rounded-lg text-xs font-black bg-white hover:bg-violet-600 hover:text-white text-violet-700 border border-violet-200 shadow-xs transition cursor-pointer"
+                      title={`Set all selected subjects to ${m} total marks`}
+                    >
+                      {m} Marks
+                    </button>
+                  ))}
+                  <div className="flex items-center gap-1 ml-1 bg-white px-2 py-0.5 rounded-lg border border-violet-200 shadow-xs">
+                    <input
+                      type="number"
+                      placeholder="Custom"
+                      value={customBulkTotal}
+                      onChange={e => setCustomBulkTotal(e.target.value)}
+                      className="w-14 text-center text-xs font-bold focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const val = Number(customBulkTotal);
+                        if (val > 0) applyBulkMarksToCurrentClass(val);
+                      }}
+                      className="text-[10px] font-black uppercase text-violet-700 hover:text-violet-900 cursor-pointer"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               {/* Subject Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[300px] overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[320px] overflow-y-auto pr-1">
                 {subjectsList.filter(s => s.class_id === selectedModalClass).map(sub => {
                   const isSelected = selectedSubjectIds.has(sub.id);
                   return (
                     <div
                       key={sub.id}
                       onClick={() => toggleSubjectSelection(sub.id)}
-                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${
                         isSelected
                           ? 'bg-violet-50/70 border-violet-300 shadow-xs'
                           : 'bg-white border-slate-200 opacity-60 hover:opacity-90'
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors ${
+                      <div className="flex items-start gap-3">
+                        <div className={`w-5 h-5 mt-0.5 rounded-md flex items-center justify-center transition-colors shrink-0 ${
                           isSelected ? 'bg-violet-600 text-white' : 'border border-slate-300 bg-white'
                         }`}>
                           {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
@@ -1053,12 +1187,35 @@ export default function AddExamType() {
                           <p className={`text-sm font-bold ${isSelected ? 'text-violet-950' : 'text-slate-600'}`}>
                             {sub.subject_name}
                           </p>
-                          <p className="text-[10px] text-slate-400">
-                            Total: {sub.total_marks || 100} &bull; Pass: {sub.passing_marks || 33}
-                          </p>
+                          {isSelected ? (
+                            <div className="flex items-center gap-2 mt-1.5" onClick={e => e.stopPropagation()}>
+                              <div className="flex items-center gap-1 bg-white px-2 py-0.5 rounded-md border border-violet-200 shadow-xs">
+                                <span className="text-[10px] font-black text-violet-700 uppercase tracking-tight">Total:</span>
+                                <input
+                                  type="number"
+                                  value={subjectMarksMap[sub.id]?.total_marks ?? (sub.total_marks || 100)}
+                                  onChange={e => updateSubjectMarks(sub.id, 'total_marks', e.target.value)}
+                                  className="w-12 text-center text-xs font-black bg-violet-50/60 rounded border border-violet-200 py-0.5 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                                />
+                              </div>
+                              <div className="flex items-center gap-1 bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-xs">
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-tight">Pass:</span>
+                                <input
+                                  type="number"
+                                  value={subjectMarksMap[sub.id]?.passing_marks ?? (sub.passing_marks || 33)}
+                                  onChange={e => updateSubjectMarks(sub.id, 'passing_marks', e.target.value)}
+                                  className="w-10 text-center text-xs font-black bg-slate-50 rounded border border-slate-200 py-0.5 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-[10px] text-slate-400 mt-0.5">
+                              Default: {sub.total_marks || 100} &bull; Excluded from this test
+                            </p>
+                          )}
                         </div>
                       </div>
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full self-start sm:self-center shrink-0 ${
                         isSelected
                           ? 'bg-violet-100 text-violet-800'
                           : 'bg-slate-100 text-slate-500'
@@ -1093,8 +1250,17 @@ export default function AddExamType() {
 
             {/* Modal Footer */}
             <div className="px-6 py-4 bg-white border-t border-slate-200 flex items-center justify-between gap-3 shrink-0">
-              <span className="text-xs text-slate-500 font-medium">
-                {selectedSubjectIds.size} subject{selectedSubjectIds.size !== 1 ? 's' : ''} will be conducted
+              <span className="text-xs text-slate-600 font-bold">
+                {selectedSubjectIds.size} subject{selectedSubjectIds.size !== 1 ? 's' : ''} &bull;{' '}
+                Total Marks:{' '}
+                <span className="text-violet-700 font-black">
+                  {subjectsList
+                    .filter(s => s.class_id === selectedModalClass && selectedSubjectIds.has(s.id))
+                    .reduce((sum, s) => {
+                      const m = subjectMarksMap[s.id];
+                      return sum + (m?.total_marks ? Number(m.total_marks) : (s.total_marks || 100));
+                    }, 0)}
+                </span>
               </span>
               <div className="flex items-center gap-2">
                 <button
