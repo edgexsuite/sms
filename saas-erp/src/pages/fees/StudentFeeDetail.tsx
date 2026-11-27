@@ -506,8 +506,8 @@ export default function StudentFeeDetail() {
       invoice_number: inv.invoice_number,
       month_year: inv.month_year,
       due_date: (inv as any).due_date,
-      // Use gross total so challanUtils can correctly subtract discountAmt
-      total_amount: grossTotal || inv.total_amount,
+      // NET payable (stored invoice total); challan shows gross breakdown - discount = net
+      total_amount: Number(inv.total_amount ?? Math.max(0, grossTotal - discountAmt)),
       paid_amount: inv.paid_amount || 0,
       status: inv.status,
       breakdown: breakdownItems,

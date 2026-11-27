@@ -104,7 +104,8 @@ function buildChallanRecord(params: {
     status,
     breakdown: activeRows
       .filter(r => !r.isArrears)
-      .map(r => ({ item: r.label, amount: rowNet(r) })),
+      // GROSS amounts: challan shows Gross -> - Discount -> Net (total is net)
+      .map(r => ({ item: r.label, amount: r.baseAmount })),
     student_name: student.full_name,
     roll_number: student.roll_number ?? undefined,
     class_name: className,
