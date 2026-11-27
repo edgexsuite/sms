@@ -462,12 +462,15 @@ function drawChallanCopy(
   const effectivePrevFee = config.show_previous_fee !== false ? prevFee : 0;
   const grossTotal = breakdownGross + effectivePrevFee;
 
-  // If the breakdown items already reflect the discounted net amount (breakdownGross <= record.total_amount),
-  // do NOT subtract discount again (that would double-discount!).
-  // Only deduct a separate discount row if breakdown was passed with gross amounts (breakdownGross > record.total_amount).
-  const rawDiscount = record.discount_amount ?? 0;
-  const isBreakdownAlreadyDiscounted = rawDiscount > 0 && breakdownGross <= (Number(record.total_amount) || breakdownGross);
-  const discountAmt = isBreakdownAlreadyDiscounted ? 0 : rawDiscount;
+  // Convention: breakdown = GROSS items, record.total_amount = NET payable (gross - discount),
+  // record.discount_amount = discount. Only legacy records whose breakdown was stored as NET
+  // (breakdown sum equals the net total) skip the discount row, to avoid double-discounting.
+  // Previously this used `breakdownGross <= total_amount`, which wrongly dropped the discount
+  // whenever a caller passed the gross total (e.g. fee 6000 - discount 3000 printed 6000).
+  const rawDiscount = Math.max(0, Number(record.discount_amount) || 0);
+  const netTotal = Number(record.total_amount) || 0;
+  const isBreakdownAlreadyDiscounted = rawDiscount > 0 && Math.abs(breakdownGross - netTotal) < 1;
+  const discountAmt = isBreakdownAlreadyDiscounted ? 0 : Math.min(rawDiscount, breakdownGross);
 
   const feeWithinDue = Math.max(0, grossTotal - discountAmt);
   const fineAmt = record.fine_amount ?? 0;

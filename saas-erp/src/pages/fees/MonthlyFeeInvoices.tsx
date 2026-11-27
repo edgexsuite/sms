@@ -558,6 +558,11 @@ export default function MonthlyFeeInvoices() {
 
     const effectiveBreakdown = challanBreakdown ?? (inv.breakdown || []);
     const grossTotal = effectiveBreakdown.reduce((s: number, b: any) => s + Number(b.amount || 0), 0) || inv.total_amount;
+    // Challan expects total_amount = NET payable. If gross items were restored from the fee matrix,
+    // net = gross - discount; otherwise the stored invoice total is already net.
+    const netTotal = challanBreakdown
+      ? Math.max(0, grossTotal - discountAmount)
+      : Number(inv.total_amount ?? Math.max(0, grossTotal - discountAmount));
 
     const { data: fineSetting } = await supabase
       .from('form_settings')
@@ -587,7 +592,7 @@ export default function MonthlyFeeInvoices() {
     return {
       ...inv,
       breakdown: effectiveBreakdown,
-      total_amount: grossTotal,
+      total_amount: netTotal,
       student_name: studentObj?.full_name || inv.student_name || 'Student',
       roll_number: studentObj?.roll_number || inv.roll_number || '',
       class_name: studentObj?.classes
