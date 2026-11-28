@@ -895,7 +895,7 @@ export default function DashboardLayout() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden print:overflow-visible print:h-auto print:block">
         {/* Topbar */}
-        <header className="sticky top-0 h-12 bg-white/95 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between px-4 sm:px-6 z-40 shrink-0 print:hidden shadow-xs">
+        <header className="sticky top-0 h-14 bg-white/97 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between px-4 sm:px-6 z-40 shrink-0 print:hidden shadow-sm">
           {/* Left: hamburger + school name (mobile) / Date (desktop) */}
           <div className="flex items-center gap-2 min-w-0">
             <button

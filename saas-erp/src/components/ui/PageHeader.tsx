@@ -33,11 +33,11 @@ export function PageHeader({ title, subtitle, icon: Icon, actions, onBack, class
           </div>
         )}
         <div className="min-w-0">
-          <h1 className="text-base sm:text-lg font-bold text-slate-900 m-0 tracking-tight uppercase truncate">
+          <h1 className="text-base sm:text-lg font-bold text-slate-900 m-0 tracking-tight font-display truncate">
             {title}
           </h1>
           {subtitle && (
-            <p className="text-[11px] text-slate-500 mt-0.5 font-medium truncate">
+            <p className="text-[11px] text-slate-400 mt-0.5 font-medium truncate">
               {subtitle}
             </p>
           )}
