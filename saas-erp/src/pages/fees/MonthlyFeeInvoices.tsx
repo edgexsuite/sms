@@ -378,7 +378,16 @@ export default function MonthlyFeeInvoices() {
       // 4. Build invoice inserts
       const allInserts = billableStudents.map(student => {
         if (wizardTargetMode === 'student') {
-          const grossTotal = wizardSingleBreakdown.reduce((s, r) => s + Number(r.amount), 0);
+          const baseBreakdown = [...wizardSingleBreakdown];
+          let grossTotal = baseBreakdown.reduce((s, r) => s + Number(r.amount), 0);
+          if (wizardCustomCharges.length > 0) {
+            wizardCustomCharges.forEach((c) => {
+              if (c.amount > 0 && c.item.trim()) {
+                baseBreakdown.push({ item: c.item.trim(), amount: Number(c.amount) });
+                grossTotal += Number(c.amount);
+              }
+            });
+          }
           return {
             school_id: userRole?.school_id,
             student_id: student.id,
@@ -390,7 +399,7 @@ export default function MonthlyFeeInvoices() {
             status: 'pending',
             due_date: wizardDueDate,
             payment_mode: 'Pending',
-            breakdown: wizardSingleBreakdown,
+            breakdown: baseBreakdown,
             invoice_number: generateInvoiceNumber(wizardMonth, student.id),
           };
         }
@@ -2222,11 +2231,15 @@ export default function MonthlyFeeInvoices() {
                   <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
                     <FeeBreakdownEditor
                       breakdown={(editingInvoice.breakdown || []).map((b: any) => ({ item: b.item, amount: Number(b.amount) }))}
-                      onChange={rows => setEditingInvoice({
-                        ...editingInvoice,
-                        breakdown: rows,
-                        total_amount: rows.reduce((s, r) => s + (Number(r.amount) || 0), 0)
-                      })}
+                      onChange={rows => {
+                        const gross = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+                        const discountAmt = Number(editingInvoice.discount_amount) || 0;
+                        setEditingInvoice({
+                          ...editingInvoice,
+                          breakdown: rows,
+                          total_amount: Math.max(0, gross - discountAmt),
+                        });
+                      }}
                       schoolId={userRole?.school_id}
                     />
                   </div>
