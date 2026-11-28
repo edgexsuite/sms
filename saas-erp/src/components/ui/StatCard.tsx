@@ -53,8 +53,8 @@ export function StatCard({
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
       className={cn(
-        "bg-white border border-slate-200/80 rounded-xl p-2.5 sm:p-3 transition-all duration-200 relative overflow-hidden group shadow-xs",
-        onClick && "cursor-pointer hover:border-indigo-500/40 hover:shadow-md",
+        "bg-white border border-slate-200/80 rounded-xl p-3 sm:p-3.5 transition-all duration-200 relative overflow-hidden group shadow-sm",
+        onClick && "cursor-pointer hover:border-indigo-400/50 hover:shadow-md hover:-translate-y-0.5",
         className
       )}
     >
