@@ -1159,10 +1159,10 @@ export default function Timetable() {
         key={`${day}-${classId}`}
         className={cn(
           'p-1.5 border-r border-slate-50',
-          !isTeacher && 'cursor-pointer',
+          !isTeacher && !!classId && 'cursor-pointer',
           isHighlight ? 'bg-indigo-50/20' : ''
         )}
-        onClick={() => !isTeacher && openSlotEditor(row, day, classId)}
+        onClick={() => !isTeacher && !!classId && openSlotEditor(row, day, classId)}
       >
         {slot ? (
           <div className={`p-2 rounded-xl border-2 min-h-[64px] flex flex-col justify-center relative ${
