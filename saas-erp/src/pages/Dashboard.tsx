@@ -291,8 +291,9 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96 text-gray-500 gap-3">
-        <RefreshCw className="w-5 h-5 animate-spin" /> Loading dashboard...
+      <div className="flex items-center justify-center h-96 text-slate-400 gap-3">
+        <RefreshCw className="w-5 h-5 animate-spin text-indigo-500" />
+        <span className="text-sm font-semibold">Loading dashboard…</span>
       </div>
     );
   }
@@ -322,9 +323,9 @@ export default function Dashboard() {
 
 
         {/* Header Section */}
-        <motion.div 
+        <motion.div
           variants={item}
-          className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-orange-500 to-amber-600 p-4 sm:p-5 text-white shadow-xl shadow-orange-500/10"
+          className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-4 sm:p-5 text-white shadow-xl shadow-slate-900/20 border border-slate-800/50"
         >
           <div className="absolute top-0 right-0 -m-8 opacity-10">
             <GraduationCap className="w-48 h-48 rotate-12" />
@@ -332,13 +333,13 @@ export default function Dashboard() {
           
           <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
             <div className="shrink-0">
-              <div className="flex items-center gap-2 text-orange-100 font-black uppercase tracking-widest text-[9px] mb-2 opacity-80">
+              <div className="flex items-center gap-2 text-indigo-300 font-black uppercase tracking-widest text-[9px] mb-2 opacity-90">
                 <ShieldCheck className="w-3 h-3" /> System Overview — {stats.activeMonthLabel}
               </div>
-              <h1 className="text-2xl md:text-3xl font-black tracking-tight mb-1 drop-shadow-md">
+              <h1 className="text-2xl md:text-3xl font-black tracking-tight mb-1 font-display">
                 {schoolName || 'Management Console'}
               </h1>
-              <div className="flex items-center gap-4 text-orange-50/80 font-bold text-xs tracking-tight mt-2">
+              <div className="flex items-center gap-4 text-slate-300/80 font-bold text-xs tracking-tight mt-2">
                 <span className="flex items-center gap-1.5 bg-white/10 px-2 py-1 rounded-lg backdrop-blur-sm">
                   <Clock className="w-3.5 h-3.5" /> {new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
                 </span>
@@ -385,21 +386,18 @@ export default function Dashboard() {
 
               {/* Action Buttons */}
               <div className="flex items-center gap-2 border-l border-white/20 pl-6 h-12">
-                <Btn 
-                  variant="secondary" 
-                  onClick={() => navigate('/students/add')} 
-                  icon={UserPlus} 
-                  className="!h-11 !px-4 !bg-white !text-orange-600 !border-none hover:!scale-105 transition-all shadow-lg !text-xs !font-black uppercase tracking-widest"
+                <button
+                  onClick={() => navigate('/students/add')}
+                  className="h-9 px-4 bg-white text-indigo-700 hover:bg-indigo-50 rounded-xl flex items-center gap-2 text-[11px] font-black uppercase tracking-widest shadow-md transition-all hover:scale-105 active:scale-95 border border-white/20"
                 >
-                  Add Student
-                </Btn>
-                <Btn 
-                  onClick={() => navigate('/fees/invoices')} 
-                  icon={CreditCard} 
-                  className="!h-11 !px-4 !bg-white/20 !backdrop-blur-md !border-white/20 !text-white hover:!bg-white/30 transition-all !text-xs !font-black uppercase tracking-widest"
+                  <UserPlus className="w-3.5 h-3.5" /> Add Student
+                </button>
+                <button
+                  onClick={() => navigate('/fees/invoices')}
+                  className="h-9 px-4 bg-white/15 hover:bg-white/25 backdrop-blur-sm border border-white/20 text-white rounded-xl flex items-center gap-2 text-[11px] font-black uppercase tracking-widest transition-all hover:scale-105 active:scale-95"
                 >
-                  Invoices
-                </Btn>
+                  <CreditCard className="w-3.5 h-3.5" /> Invoices
+                </button>
               </div>
             </div>
           </div>
@@ -429,7 +427,7 @@ export default function Dashboard() {
       )}
 
       {/* Stat Cards */}
-      <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 mb-3.5">
+      <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <StatCard
           label="Total Students"
           value={stats.totalStudents}
@@ -515,7 +513,7 @@ export default function Dashboard() {
 
       {/* Staff Attendance Today */}
       <motion.div variants={item} className="mb-4">
-        <Card className="p-4 sm:p-5">
+        <Card padding="md">
           <div className="flex items-center justify-between mb-4">
             <div>
               <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Staff Attendance</p>
@@ -556,7 +554,7 @@ export default function Dashboard() {
       {/* Charts Row */}
       <motion.div variants={item} className={`grid grid-cols-1 gap-4 mb-4 ${isCoordinator ? '' : 'lg:grid-cols-3'}`}>
         {/* Student Enrollment by Class (Half Page/Two Thirds) */}
-        <Card className={`${isCoordinator ? '' : 'lg:col-span-2'} p-6 flex flex-col`}>
+        <Card className={`${isCoordinator ? '' : 'lg:col-span-2'} flex flex-col`} padding="lg">
           <div className="flex justify-between items-center mb-5 shrink-0">
             <div>
               <div className="text-[15px] font-semibold text-slate-900 tracking-tight">Student Enrollment by Class</div>
@@ -596,7 +594,7 @@ export default function Dashboard() {
         </Card>
 
         {/* Donut Chart with Progress — hidden for coordinators */}
-        {!isCoordinator && <Card className="p-6 flex flex-col relative overflow-hidden group">
+        {!isCoordinator && <Card className="flex flex-col relative overflow-hidden group" padding="lg">
           <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
             <PiggyBank className="w-24 h-24 -rotate-12" />
           </div>
@@ -653,7 +651,7 @@ export default function Dashboard() {
 
       {/* Financial Pulse - hidden for coordinators */}
       {!isCoordinator && <motion.div variants={item} className="mb-4">
-        <Card className="p-6 overflow-hidden relative">
+        <Card className="overflow-hidden relative" padding="lg">
           <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
             <DollarSign className="w-32 h-32" />
           </div>

@@ -860,7 +860,7 @@ export default function StudentList({ initialClassId, onBack }: StudentListProps
       <AnimatePresence>
         {showAdvancedFilters && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-            <Card className="p-3 border-indigo-100 bg-indigo-50/30">
+            <Card padding="sm" className="border-indigo-100 bg-indigo-50/30">
               <div className="flex flex-wrap gap-4 items-end">
                 {/* Fee Status */}
                 <div>

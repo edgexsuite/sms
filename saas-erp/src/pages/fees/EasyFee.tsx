@@ -689,7 +689,7 @@ export default function EasyFee() {
 
           {/* ── STUDENT SEARCH ── */}
           {mode === 'student' && (
-            <Card className="p-4 space-y-3">
+            <Card padding="md" className="space-y-3">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Find Student</p>
               <Input value={query} onChange={e => setQuery(e.target.value)} placeholder="Name or roll number..." icon={Search} autoFocus />
               <Select value={selectedClassId} onChange={e => setSelectedClassId(e.target.value)}>
@@ -730,7 +730,7 @@ export default function EasyFee() {
 
           {/* ── PARENT SEARCH ── */}
           {mode === 'parent' && (
-            <Card className="p-4 space-y-3">
+            <Card padding="md" className="space-y-3">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Find Parent / Guardian</p>
               <Input value={parentQuery} onChange={e => setParentQuery(e.target.value)} placeholder="Parent name..." icon={Search} autoFocus />
               <AnimatePresence>
@@ -766,7 +766,7 @@ export default function EasyFee() {
           )}
 
           {/* Recent Activity */}
-          <Card className="p-4">
+          <Card padding="md">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">Recent Activity</p>
               <div className="flex items-center gap-1.5">
@@ -862,7 +862,7 @@ export default function EasyFee() {
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-5 items-start">
 
                   {/* Invoice ledger */}
-                  <Card className="md:col-span-3 p-0 overflow-hidden">
+                  <Card className="md:col-span-3 overflow-hidden" padding="none">
                     <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
                       <div className="flex items-center gap-2"><Receipt className="w-4 h-4 text-slate-400" /><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Fee Ledger</p></div>
                       <Badge variant="secondary" className="text-[10px]">{feeHistory.length} records</Badge>
@@ -1184,7 +1184,7 @@ export default function EasyFee() {
 
                 {/* Parent success */}
                 {parentSuccessData && (
-                  <Card className="p-6 bg-emerald-50 border-emerald-200">
+                  <Card padding="lg" className="bg-emerald-50 border-emerald-200">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
                         <CheckCircle className="w-5 h-5 text-emerald-600" />
