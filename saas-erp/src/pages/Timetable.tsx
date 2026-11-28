@@ -17,6 +17,24 @@ import { filterTeachingStaff } from '../lib/staffUtils';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+const SUBJECT_COLORS = [
+  { bg: 'bg-indigo-50',  border: 'border-indigo-200'  },
+  { bg: 'bg-emerald-50', border: 'border-emerald-200' },
+  { bg: 'bg-violet-50',  border: 'border-violet-200'  },
+  { bg: 'bg-sky-50',     border: 'border-sky-200'     },
+  { bg: 'bg-teal-50',    border: 'border-teal-200'    },
+  { bg: 'bg-orange-50',  border: 'border-orange-200'  },
+  { bg: 'bg-pink-50',    border: 'border-pink-200'    },
+  { bg: 'bg-cyan-50',    border: 'border-cyan-200'    },
+  { bg: 'bg-lime-50',    border: 'border-lime-200'    },
+  { bg: 'bg-fuchsia-50', border: 'border-fuchsia-200' },
+];
+const subjectColorIndex = (name: string): number => {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff;
+  return h % SUBJECT_COLORS.length;
+};
+
 /** Used when a class has no template assigned */
 const FALLBACK_ROWS: TemplateRow[] = [
   { id: '_f1', template_id: '', school_id: '', sort_order: 1, label: 'Period 1',    slot_type: 'period',   start_time: '08:00', end_time: '08:45' },
@@ -109,6 +127,9 @@ export default function Timetable() {
 
   // ── Teacher Schedule browse (admin) ─────────────────────────────────────
   const [browseTeacherId, setBrowseTeacherId] = useState('');
+
+  // ── Saturday toggle ───────────────────────────────────────────────────
+  const [showSaturday, setShowSaturday] = useState(false);
 
   // ── Teacher Assignment view ──────────────────────────────────────────────
   const [assignDay,            setAssignDay]            = useState('Monday');
@@ -761,6 +782,55 @@ export default function Timetable() {
     doc.save('Teacher_Timetable_All.pdf');
   };
 
+  const generateSingleTeacherPDF = (teacherId: string) => {
+    const teacher = teachers.find(t => t.id === teacherId);
+    if (!teacher) return;
+    const pdfDays = showSaturday ? DAYS : DAYS.slice(0, 5);
+    const schoolRows = getSchoolRows();
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    pdfHeader(doc, 'Teacher Schedule', `${teacher.full_name}${teacher.role ? '  ·  ' + teacher.role : ''}`);
+    const tSlots = allSchoolSlots.filter(s => s.teacher_id === teacherId);
+    const totalWk = tSlots.length;
+
+    const head = [['Period / Time', ...pdfDays]];
+    const body: any[] = schoolRows.map(row => {
+      if (row.slot_type !== 'period') {
+        const icon = row.slot_type === 'break' ? '☕' : '🎒';
+        return [
+          { content: `${icon} ${row.label}\n${row.start_time}–${row.end_time}`, styles: { fontStyle: 'italic' as const, fontSize: 6, fillColor: [255, 251, 235] as [number,number,number], textColor: [146, 64, 14] as [number,number,number] } },
+          ...pdfDays.map(() => ({ content: '', styles: { fillColor: [255, 251, 235] as [number,number,number] } })),
+        ];
+      }
+      const cells = pdfDays.map(day => {
+        const slot = tSlots.find(s => s.day_of_week === day && s.period_number === row.sort_order);
+        if (!slot) return { content: 'Free', styles: { textColor: [203, 213, 225] as [number,number,number], halign: 'center' as const, fontSize: 6 } };
+        const cls = classes.find(c => c.id === slot.class_id);
+        return { content: `${slot.subjects?.subject_name || '—'}\n${cls ? `${cls.name} ${cls.section}` : ''}`, styles: { fontSize: 7, fillColor: [240, 253, 244] as [number,number,number] } };
+      });
+      return [
+        { content: `${row.label}\n${row.start_time}–${row.end_time}`, styles: { fontStyle: 'bold' as const, fontSize: 7 } },
+        ...cells,
+      ];
+    });
+
+    autoTable(doc, {
+      head, body,
+      startY: 32,
+      margin: { left: 5, right: 5 },
+      theme: 'grid',
+      headStyles: { fillColor: [109, 40, 217], textColor: 255, fontStyle: 'bold', fontSize: 8, halign: 'center' },
+      columnStyles: { 0: { cellWidth: 28, fontStyle: 'bold', fillColor: [241, 245, 249] } },
+      styles: { fontSize: 7, cellPadding: { top: 3, bottom: 3, left: 2, right: 2 }, overflow: 'linebreak', lineColor: [226, 232, 240] },
+    });
+
+    const noteY = ((doc as any).lastAutoTable?.finalY ?? 32) + 6;
+    doc.setFontSize(7);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Total: ${totalWk} periods/week`, 5, noteY);
+    pdfSignature(doc, noteY + 4);
+    doc.save(`${teacher.full_name.replace(/\s+/g, '_')}_Schedule.pdf`);
+  };
+
   /** Timetable PDF — Whole school, one entry per cell (Mon as reference).
    *  Assumes timetable is same every day.
    *  Any day with different TIMING is collected and printed as a footnote table at the bottom.
@@ -1101,6 +1171,7 @@ export default function Timetable() {
 
   // ─── Computed ─────────────────────────────────────────────────────────────
 
+  const activeDays          = showSaturday ? DAYS : DAYS.slice(0, 5);
   const currentClassRows    = selectedClass ? getClassRows(selectedClass) : FALLBACK_ROWS;
   const matrixRows          = getMatrixRows();
   const currentClassObj     = classes.find(c => c.id === selectedClass);
@@ -1153,6 +1224,7 @@ export default function Timetable() {
       ? allSchoolSlots.filter(s => s.teacher_id === slot.teacher_id && s.day_of_week === day && s.period_number === row.sort_order && s.class_id !== classId)
       : [];
     const isCombined = slot?.is_combined_class;
+    const subColor   = slot?.subjects?.subject_name ? SUBJECT_COLORS[subjectColorIndex(slot.subjects.subject_name)] : null;
 
     return (
       <td
@@ -1166,8 +1238,9 @@ export default function Timetable() {
       >
         {slot ? (
           <div className={`p-2 rounded-xl border-2 min-h-[64px] flex flex-col justify-center relative ${
-            isCombined             ? 'bg-amber-50 border-amber-200' :
-            conflicts.length > 0  ? 'bg-rose-50 border-rose-200'   :
+            isCombined            ? 'bg-amber-50 border-amber-200' :
+            conflicts.length > 0  ? 'bg-rose-50 border-rose-200' :
+            subColor              ? `${subColor.bg} ${subColor.border}` :
             'bg-slate-50 border-transparent hover:border-indigo-200 hover:bg-white hover:shadow-sm'
           }`}>
             <p className="text-[11px] font-black text-slate-900 uppercase leading-tight truncate">{slot.subjects?.subject_name}</p>
@@ -1185,9 +1258,9 @@ export default function Timetable() {
         ) : (
           <div className={cn(
             'w-full min-h-[64px] border-2 border-dashed rounded-xl flex items-center justify-center transition-all group',
-            isTeacher ? 'border-slate-50 opacity-50' : 'border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/20'
+            !classId || isTeacher ? 'border-slate-50 opacity-50' : 'border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/20'
           )}>
-            {!isTeacher && <PlusCircle className="w-4 h-4 text-slate-200 group-hover:text-indigo-400 transition-colors" />}
+            {!isTeacher && !!classId && <PlusCircle className="w-4 h-4 text-slate-200 group-hover:text-indigo-400 transition-colors" />}
           </div>
         )}
       </td>
@@ -1279,13 +1352,24 @@ export default function Timetable() {
 
             {/* Day pills */}
             <div className="flex flex-wrap gap-1">
-              {DAYS.map(d => (
+              {activeDays.map(d => (
                 <button key={d} onClick={() => setSelectedDay(d)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${selectedDay === d ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
                   {d.slice(0, 3)}
                 </button>
               ))}
             </div>
+
+            {/* Saturday toggle */}
+            <button
+              onClick={() => { setShowSaturday(p => !p); if (showSaturday && selectedDay === 'Saturday') setSelectedDay('Monday'); }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
+                showSaturday ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50'
+              }`}
+              title="Toggle Saturday visibility"
+            >
+              <Calendar className="w-3.5 h-3.5" /> Sat
+            </button>
 
             {/* Copy Day panel */}
             {!isTeacher && (
@@ -1316,7 +1400,7 @@ export default function Timetable() {
                     </div>
                     
                     <div className="space-y-1 mb-4">
-                      {DAYS.filter(d => d !== selectedDay).map(day => (
+                      {activeDays.filter(d => d !== selectedDay).map(day => (
                         <label key={day} className={cn(
                           "flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-colors border",
                           copyTargetDays.has(day) 
@@ -1355,7 +1439,7 @@ export default function Timetable() {
                         Apply Clones
                       </button>
                       <button
-                        onClick={() => setCopyTargetDays(new Set(DAYS.filter(d => d !== selectedDay)))}
+                        onClick={() => setCopyTargetDays(new Set(activeDays.filter(d => d !== selectedDay)))}
                         className="w-full py-1.5 text-[10px] font-black text-indigo-400 hover:text-indigo-600 uppercase tracking-widest"
                       >
                         Select All Working Days
@@ -1377,7 +1461,13 @@ export default function Timetable() {
                   <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)}
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none">
                     <option value="">Choose class…</option>
-                    {classes.map(c => <option key={c.id} value={c.id}>{c.name} — {c.section}</option>)}
+                    {classes.map(c => {
+                      const periodRows = getClassRows(c.id).filter(r => r.slot_type === 'period');
+                      const total = periodRows.length * 6;
+                      const filled = allSchoolSlots.filter(s => s.class_id === c.id).length;
+                      const pct = total > 0 ? Math.round((Math.min(filled, total) / total) * 100) : 0;
+                      return <option key={c.id} value={c.id}>{c.name} — {c.section} · {pct}% filled</option>;
+                    })}
                   </select>
                 </div>
                 {selectedClass && (
@@ -1411,7 +1501,7 @@ export default function Timetable() {
                       <thead>
                         <tr className="bg-slate-900 text-white">
                           <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest sticky left-0 bg-slate-900 z-20 w-44">Time Slot</th>
-                          {DAYS.map(day => (
+                          {activeDays.map(day => (
                             <th key={day} className={`px-3 py-3 text-center text-[10px] font-black uppercase tracking-widest border-l border-slate-800 ${day === selectedDay ? 'bg-indigo-700' : ''}`}>
                               {day.slice(0, 3)}
                             </th>
@@ -1421,7 +1511,7 @@ export default function Timetable() {
                       <tbody>
                         {currentClassRows.map(row => {
                           if (row.slot_type !== 'period') {
-                            return renderBreakBanner(row, DAYS.length, true);
+                            return renderBreakBanner(row, activeDays.length, true);
                           }
                           return (
                             <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-50/50">
@@ -1429,7 +1519,7 @@ export default function Timetable() {
                                 <p className="text-xs font-black text-slate-900">{row.label}</p>
                                 <p className="text-[10px] font-bold text-slate-400 mt-0.5 tabular-nums">{row.start_time} – {row.end_time}</p>
                               </td>
-                              {DAYS.map(day => renderSlotCell(row, day, selectedClass, day === selectedDay))}
+                              {activeDays.map(day => renderSlotCell(row, day, selectedClass, day === selectedDay))}
                             </tr>
                           );
                         })}
@@ -1467,7 +1557,10 @@ export default function Timetable() {
                       <select value={browseTeacherId} onChange={e => setBrowseTeacherId(e.target.value)}
                         className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-violet-500 outline-none">
                         <option value="">Choose teacher…</option>
-                        {teachers.map(t => <option key={t.id} value={t.id}>{t.full_name}{t.role ? ` (${t.role})` : ''}</option>)}
+                        {teachers.map(t => {
+                          const wl = allSchoolSlots.filter(s => s.teacher_id === t.id).length;
+                          return <option key={t.id} value={t.id}>{t.full_name}{t.role ? ` (${t.role})` : ''} · {wl}p/wk</option>;
+                        })}
                       </select>
                     </div>
                     {viewTeacher && (
@@ -1477,9 +1570,18 @@ export default function Timetable() {
                         </div>
                         <div>
                           <p className="text-xs font-black text-violet-900">{viewTeacher.full_name}</p>
-                          <p className="text-[10px] font-bold text-violet-500">{totalPeriods} total periods &bull; {periodsToday} today ({selectedDay.slice(0,3)})</p>
+                          <p className="text-[10px] font-bold text-violet-500">{totalPeriods} periods/week &bull; {periodsToday} today ({selectedDay.slice(0,3)})</p>
                         </div>
                       </div>
+                    )}
+                    {viewTeacher && (
+                      <button
+                        onClick={() => generateSingleTeacherPDF(viewTeacherId)}
+                        className="ml-auto flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl transition shadow-sm"
+                        title="Print this teacher's weekly schedule"
+                      >
+                        <Printer className="w-3.5 h-3.5" /> Print Schedule
+                      </button>
                     )}
                   </div>
                 )}
@@ -1491,7 +1593,7 @@ export default function Timetable() {
                         <thead>
                           <tr className="bg-slate-900 text-white">
                             <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest sticky left-0 bg-slate-900 z-20 w-44">Time Slot</th>
-                            {DAYS.map(day => (
+                            {activeDays.map(day => (
                               <th key={day} className={`px-3 py-3 text-center text-[10px] font-black uppercase tracking-widest border-l border-slate-800 ${day === selectedDay ? 'bg-violet-700' : ''}`}>
                                 {day.slice(0, 3)}
                               </th>
@@ -1501,7 +1603,7 @@ export default function Timetable() {
                         <tbody>
                           {getSchoolRows().map(row => {
                             if (row.slot_type !== 'period') {
-                              return renderBreakBanner(row, DAYS.length, false);
+                              return renderBreakBanner(row, activeDays.length, false);
                             }
                             return (
                               <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-50/50">
@@ -1509,7 +1611,7 @@ export default function Timetable() {
                                   <p className="text-xs font-black text-slate-900">{row.label}</p>
                                   <p className="text-[10px] font-bold text-slate-400 mt-0.5 tabular-nums">{row.start_time} – {row.end_time}</p>
                                 </td>
-                                {DAYS.map(day => {
+                                {activeDays.map(day => {
                                   const slot = allSchoolSlots.find(s => s.teacher_id === viewTeacherId && s.day_of_week === day && s.period_number === row.sort_order);
                                   return renderSlotCell(row, day, slot?.class_id || '', day === selectedDay);
                                 })}
@@ -1645,7 +1747,7 @@ export default function Timetable() {
                   <div>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Day</p>
                     <div className="flex gap-1 flex-wrap">
-                      {DAYS.map(d => (
+                      {activeDays.map(d => (
                         <button key={d}
                           onClick={() => { setAssignDay(d); setTeacherAssignChanges({}); }}
                           className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${assignDay === d ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
